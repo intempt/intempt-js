@@ -18,7 +18,7 @@ export class AutoTrackerModule {
       console.log('onClick', data);
     });
   }
-  onChange() {
+  private onChange() {
     document.addEventListener('change', (event) => {
       const target = event.target as HTMLElement;
       const data = new HtmlElementData(target);
@@ -26,7 +26,7 @@ export class AutoTrackerModule {
       console.log('onChange', data);
     });
   }
-  onSubmit() {
+  private onSubmit() {
     document.addEventListener('submit', (event) => {
       const target = event.target as HTMLElement;
       const data = new HtmlElementData(target);
@@ -35,6 +35,10 @@ export class AutoTrackerModule {
       console.log('onSubmit', data);
     });
   }
+
+
+
+
   onViewPage() {}
   onLeavePage() {}
   onSessionStart() {}

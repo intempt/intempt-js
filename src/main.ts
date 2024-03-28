@@ -1,8 +1,12 @@
 import { AutoTrackerModule } from './modules/autoTracker/autoTracker.module.ts';
 import { SessionTrackerModule } from './modules/sessionTracker/sessionTracker.module.ts';
+import { PageTrackerModule } from './modules/pagesTracker/pagesTracker.module.ts';
 
-const autoTrackerModule = new AutoTrackerModule();
 const sessionTrackerModule = new SessionTrackerModule();
+const autoTrackerModule = new AutoTrackerModule();
+const pagesTrackerModule = new PageTrackerModule();
 
-autoTrackerModule.init();
 sessionTrackerModule.init();
+autoTrackerModule.init();
+pagesTrackerModule.init();
+console.log(document.links);
