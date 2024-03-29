@@ -11,7 +11,7 @@ export class PageTrackerModule {
   ];
 
   constructor() {
-    console.log(this.siteMapRoutes);
+
   }
 
   init() {}

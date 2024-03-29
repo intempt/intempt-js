@@ -1,9 +1,21 @@
 import { HtmlElementData } from '../../shared/HtmlElementData.ts';
+import { SessionTrackerModule } from './modules/sessionTracker/sessionTracker.module.ts'
+import { ProfileTrackerModule } from './modules/profileTracker/profileTracker.module.ts'
+
 
 export class AutoTrackerModule {
+  private readonly _sessionTracker = new SessionTrackerModule();
+  private readonly _profileTracker = new ProfileTrackerModule();
+
   constructor() {}
 
   public init() {
+    this._profileTracker.setProfileId();
+    this._sessionTracker.setSessionId();
+
+
+    this._sessionTracker.start();
+
     this.onClick();
     this.onChange();
     this.onSubmit();
@@ -35,6 +47,19 @@ export class AutoTrackerModule {
       console.log('onSubmit', data);
     });
   }
+
+
+  get sessionId(): string{
+    const { sessionId } = this._sessionTracker._getSessionId();
+    return sessionId
+  }
+
+  get profileId(): string {
+    return this._profileTracker._getProfileId();
+  }
+
+
+
 
 
 
