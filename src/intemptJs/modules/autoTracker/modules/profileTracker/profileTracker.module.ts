@@ -1,5 +1,5 @@
-import { getCookie, setCookie } from '../../../../shared/storageHandler.ts'
-import { generateId } from '../../../../shared/shared.utils.ts'
+import { getCookie, setCookie } from '../../../../../shared/storageHandler.ts'
+import { generateId } from '../../../../../shared/shared.utils.ts'
 
 
 
@@ -21,7 +21,11 @@ export class ProfileTrackerModule {
   }
 
 
-  _getProfileId(){
+  init(){
+    this.setProfileId();
+  }
+
+   getId(){
     const cookie = getCookie(this.key) as ProfileIdCookie;
 
     const result = !!cookie

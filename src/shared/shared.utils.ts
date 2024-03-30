@@ -1,19 +1,9 @@
 import { v4 as uuidv4 } from 'uuid';
-import { getCookie } from './storageHandler.ts'
+
 
 
 export function generateId() {
   return uuidv4();
-}
-
-
-export function getSessionId(){
-  const key = 'sessionId';
-
-  const cookie = getCookie(key)! as {sessionId : string};
-  const sessionIdObject = { ...JSON.parse(cookie[key]) };
-
-  return sessionIdObject.id;
 }
 
 export async function getLocationInfo():Promise<{ip: string, region: string, city: string, country: string}>{
@@ -37,5 +27,24 @@ export async function getLocationInfo():Promise<{ip: string, region: string, cit
       city: '',
       country: '',
     }
+  }
+}
+
+export function dispatchIntemptEvent( eventName: string, data = {}){
+  const event = new CustomEvent(eventName, {
+    bubbles: true,
+    cancelable: true,
+    detail: data
+  });
+
+  document.dispatchEvent(event);
+}
+
+export function debounce(func: Function, wait: number) {
+  let timeout: ReturnType<typeof setTimeout>;
+
+  return function (...args:any)   {
+    if(!!timeout)  clearTimeout(timeout);
+    timeout = setTimeout(() => func(...args), wait);
   }
 }

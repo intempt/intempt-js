@@ -6,12 +6,12 @@ export class HtmlElementData {
   targetText: string;
   hierarchy: string;
 
-  constructor(element: HTMLElement) {
+  constructor(element: any) {
     this.href = element.getAttribute('href') || '';
     this.targetTag = element.tagName.toLowerCase();
     this.targetId = this.getHtmlElementId(element);
     this.targetClass = Array.from(element.classList).join(' ');
-    this.targetText = element.textContent || '';
+    this.targetText = (element.textContent || element.value || '').trim() ;
     this.hierarchy = this.generateHierarchy(element);
   }
 

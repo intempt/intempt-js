@@ -1,17 +1,11 @@
-import { IntemptJs } from './modules/intemptJs/intemptJs.ts'
+import { IntemptJs } from './intemptJs/intemptJs.ts'
 
-import { PageTrackerModule } from './modules/autoTracker/modules/pagesTracker/pagesTracker.module.ts';
+declare global { interface Window { intempt: IntemptJs; } }
 
+//"intempt-demo"
+//"saas-demo"
+//"496392441735024640"
+//"9dfc6897a9934274acf8fb7236698ba0.12410a7599ee49528a898ff2764841a9"
 
-const pagesTrackerModule = new PageTrackerModule();
-
-
-
-pagesTrackerModule.init();
-
-const intemptJs = new IntemptJs();
-
-console.log(intemptJs)
-
-
+window.intempt = new IntemptJs();
 

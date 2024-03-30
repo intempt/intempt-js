@@ -1,16 +1,13 @@
+import { SetCookieParams } from '../intemptJs/modules/autoTracker/autoTracker.types.ts';
 
 
-type setCookieParams = {
-    name: string,
-    value: string,
-    path: string,
-    maxAge: number,
-}
-
-
-export function setCookie({name, value, path, maxAge}:setCookieParams){
-  const expires = new Date(Date.now() + maxAge).toUTCString();
-  document.cookie = `${name}=${value}; expires=${expires}; path=${path};`;
+export function setCookie({name, value, path, maxAge}:SetCookieParams){
+   const cookieValue = `${name}=${value};`;
+   const cookiePath = ` path=${path};`;
+   const expires = maxAge ?
+    ` expires=${new Date(Date.now() + maxAge).toUTCString()};`
+    :'';
+  document.cookie = `${cookieValue}${expires}${cookiePath}`;
   return {[name]: value}
 }
 
