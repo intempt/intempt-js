@@ -10,14 +10,14 @@ export class ProfileTrackerModule {
   /**
    * Duration of the cookie in milliseconds 30 days
    * */
-  private readonly maxAge:number;
+  private readonly expiration:number;
   constructor() {
     const millisecondsPerSecond  = 1000;
     const secondsPerMinute  = 60;
     const minutesPerHour  = 60;
     const hoursPerDay  = 24;
     const days  = 30;
-    this.maxAge = millisecondsPerSecond * secondsPerMinute * minutesPerHour * hoursPerDay * days;
+    this.expiration = millisecondsPerSecond * secondsPerMinute * minutesPerHour * hoursPerDay * days;
   }
 
 
@@ -54,7 +54,7 @@ export class ProfileTrackerModule {
     return setCookie({
       name: this.key,
       value: generateId(),
-      maxAge: this.maxAge,
+      expiration: this.expiration,
       path: '/',
     });
   }
@@ -67,7 +67,7 @@ export class ProfileTrackerModule {
     return setCookie({
       name: this.key,
       value: id,
-      maxAge: this.maxAge,
+      expiration: this.expiration,
       path: '/',
     })
   }

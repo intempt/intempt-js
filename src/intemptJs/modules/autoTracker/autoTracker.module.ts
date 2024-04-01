@@ -19,33 +19,43 @@ export class AutoTrackerModule {
   private readonly _htmlTrackerModule = new HtmlTrackerModule();
 
   constructor() {
-    this.trackSession();
+   // this._trackSessionActivity();
 
-    this.trackViewPage();
+    this._trackSession();
 
-    this.trackLeavePage();
+    this._trackViewPage();
 
-    this.trackHtml();
+    this._trackLeavePage();
+
+    this._trackHtml();
   }
 
-  public init() {
+  init() {
     this._profileTrackerModule.init();
     this._sessionTrackerModule.init();
     this._pagesTrackerModule.init();
     this._htmlTrackerModule.init();
 
-    this._trackEventPool();
+    this._eventPool();
   }
 
-  private trackHtml(){
+  // private _trackSessionActivity(){
+  //   this._sessionTrackerModule.sessionActivityHandler();
+  // }
+
+  private _trackHtml(){
     document.addEventListener('intempt:html', (event) => {
       const { detail } = event as CustomEvent;
       const { eventName, target } = detail;
+      console.log('track');
+      console.log(detail);
+
+
 
       const intemptEvent = new HtmlEventModel({
         name: eventName,
-        sessionId: this._getSessionId(),
-        profileId: this._getProfileId(),
+        sessionId: this.getSessionId(),
+        profileId: this.getProfileId(),
         pageId: this._getPageId(),
         data:  new HtmlElementData(target)
       })
@@ -54,13 +64,69 @@ export class AutoTrackerModule {
     })
   }
 
-  private trackSession(){
+  private _trackViewPage() {
+    document.addEventListener('page:view', (event) => {
+      const {detail} = event as CustomEvent;
+
+      const { eventName, fullUrl, title, windowWidth, pageId, previousPage} = detail;
+
+      const eventData = new PageEventDataComponent({
+        title,
+        fullUrl,
+        windowWidth,
+        previousPage
+      })
+
+      const pageEvent = new PageEventModel({
+        name: eventName,
+        sessionId: this.getSessionId(),
+        profileId: this.getProfileId(),
+        pageId,
+        data: eventData
+      });
+
+
+      dispatchIntemptEvent('intempt:event', { event: pageEvent});
+
+    });
+  }
+
+  private _trackLeavePage() {
+    document.addEventListener('page:leave', (event) => {
+      const {detail} = event as CustomEvent;
+      const { eventName, fullUrl, title, windowWidth, pageId, duration, previousPage } = detail;
+
+
+      const eventData = new PageEventDataComponent({
+        duration,
+        title,
+        fullUrl,
+        windowWidth,
+        previousPage
+      })
+      const pageEvent = new PageEventModel({
+        name: eventName,
+        sessionId: this.getSessionId(),
+        profileId: this.getProfileId(),
+        pageId,
+        data: eventData
+      })
+
+
+      dispatchIntemptEvent('intempt:event', { event: pageEvent});
+
+    });
+  }
+
+  private _trackSession(){
     document.addEventListener('intempt:session', async (event) => {
       const { detail } = event as CustomEvent;
       const { eventName, initializerName } = detail;
 
       const eventData = new SessionEventDataComponent(initializerName);
+
       const { region, city, country , ip} = await getLocationInfo();
+
       const attributes = new UserAttributeComponent({
         region,
         city,
@@ -70,8 +136,8 @@ export class AutoTrackerModule {
 
       const sessionEvent = new SessionEventModel({
         name: eventName,
-        sessionId : this._getSessionId(),
-        profileId: this._getProfileId(),
+        sessionId : this.getSessionId(),
+        profileId: this.getProfileId(),
         data: eventData,
         userAttributes: attributes
       })
@@ -82,59 +148,8 @@ export class AutoTrackerModule {
   }
 
 
-  private trackViewPage() {
-    document.addEventListener('page:view', (event) => {
-      const {detail} = event as CustomEvent;
-      const { name, fullUrl, title, windowWidth, pageId, previousPage} = detail;
-      const eventData = new PageEventDataComponent({
-        title,
-        fullUrl,
-        windowWidth,
-        previousPage
-      })
 
-      const pageEvent = new PageEventModel({
-        name,
-        sessionId: this._getSessionId(),
-        profileId: this._getProfileId(),
-        pageId,
-        data: eventData
-      });
-
-
-      dispatchIntemptEvent('intempt:event', { event: pageEvent});
-
-    });
-  }
-
-  private trackLeavePage() {
-    document.addEventListener('page:leave', (event) => {
-      const {detail} = event as CustomEvent;
-
-      const { name, fullUrl, title, windowWidth, pageId, duration, previousPage } = detail;
-
-      const eventData = new PageEventDataComponent({
-        duration,
-        title,
-        fullUrl,
-        windowWidth,
-        previousPage
-      })
-      const pageEvent = new PageEventModel({
-        name,
-        sessionId: this._getSessionId(),
-        profileId: this._getProfileId(),
-        pageId,
-        data: eventData
-      })
-
-
-      dispatchIntemptEvent('intempt:event', { event: pageEvent});
-
-    });
-  }
-
-  private _trackEventPool() {
+  private _eventPool() {
     const eventPool:any = [];
 
 
@@ -162,16 +177,19 @@ export class AutoTrackerModule {
     });
   }
 
-  _getSessionId() {
-    return this._sessionTrackerModule.getId();
-  }
-
-  _getProfileId() {
-    return this._pagesTrackerModule.getId();
-  }
-
   private _getPageId() {
     return this._pagesTrackerModule.getId();
   }
+
+
+  getSessionId() {
+    return this._sessionTrackerModule.getId();
+  }
+
+  getProfileId() {
+    return this._pagesTrackerModule.getId();
+  }
+
+
 
 }

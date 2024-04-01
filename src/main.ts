@@ -31,9 +31,6 @@ function getIntemptConfig(): IntemptConfig {
 }
 
 
-
-
-
 window.intempt = new IntemptJs({...getIntemptConfig()});
 
 

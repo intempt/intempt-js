@@ -1,11 +1,10 @@
 import { AutoTrackerModule } from './modules/autoTracker/autoTracker.module.ts'
 import {
   AliasParams,
-  ConsentAction,
   ConsentParams,
   GroupParams,
   IdentifyParams,
-  IntemptConfig, RecordParams,
+  RecordParams,
   TrackParams,
 } from './intemptJs.types.ts';
 import { IntemptJsGuard } from './guards/intemptJs.guard.ts';
@@ -84,7 +83,7 @@ export class IntemptJs extends IntemptJsGuard {
       timestamp: new Date().getTime(),
       source: 'web',
       sourceId: this._sourceId,
-      profileId: this._autoTracker._getProfileId()
+      profileId: this._autoTracker.getProfileId()
     }
     console.log(' body', body)
 
@@ -97,8 +96,8 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isIdentifyValid(params)) return;
 
-    const profileId = this._autoTracker._getProfileId();
-    const sessionId = this._autoTracker._getSessionId();
+    const profileId = this._autoTracker.getProfileId();
+    const sessionId = this._autoTracker.getSessionId();
 
     const body = new IdentifyModel({
       ...params,
@@ -114,8 +113,8 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isGroupValid(params)) return;
 
-    const profileId = this._autoTracker._getProfileId();
-    const sessionId = this._autoTracker._getSessionId();
+    const profileId = this._autoTracker.getProfileId();
+    const sessionId = this._autoTracker.getSessionId();
 
     const body = new GroupModel({
       ...params,
@@ -132,7 +131,7 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isTrackValid(params)) return;
 
-    const profileId = this._autoTracker._getProfileId();
+    const profileId = this._autoTracker.getProfileId();
 
     const body = new TrackModel({
       ...params,
@@ -147,7 +146,7 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isRecordValid(params)) return;
 
-    const profileId = this._autoTracker._getProfileId();
+    const profileId = this._autoTracker.getProfileId();
 
 
     const body = new RecordModel({
@@ -163,8 +162,8 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isAliasValid(params)) return;
 
-    const profileId = this._autoTracker._getProfileId();
-    const sessionId = this._autoTracker._getSessionId();
+    const profileId = this._autoTracker.getProfileId();
+    const sessionId = this._autoTracker.getSessionId();
 
     const body = new AliasModel({
       ...params,
@@ -188,23 +187,5 @@ export class IntemptJs extends IntemptJsGuard {
     return ''
   }
 
-
-
-  //TODO:Implement getExperiment method
-  getExperiment(args?:any){
-    console.log('getExperiment',args)
-
-
-    return ''
-  }
-
-
-  //TODO:Implement getPersonalization method
-  getPersonalization(args?:any){
-    console.log('getPersonalization', args)
-
-
-    return ''
-  }
 
 }

@@ -1,11 +1,11 @@
 import { SetCookieParams } from '../intemptJs/modules/autoTracker/autoTracker.types.ts';
 
 
-export function setCookie({name, value, path, maxAge}:SetCookieParams){
+export function setCookie({name, value, path, expiration}:SetCookieParams){
    const cookieValue = `${name}=${value};`;
    const cookiePath = ` path=${path};`;
-   const expires = maxAge ?
-    ` expires=${new Date(Date.now() + maxAge).toUTCString()};`
+   const expires = expiration ?
+    ` expires=${new Date(Date.now() + expiration).toUTCString()};`
     :'';
   document.cookie = `${cookieValue}${expires}${cookiePath}`;
   return {[name]: value}
@@ -13,7 +13,9 @@ export function setCookie({name, value, path, maxAge}:SetCookieParams){
 
 export function getCookie(name:string){
   const cookies = document.cookie.split(';');
-  const cookie = cookies.find(cookie => cookie.includes(name));
+  const cookie = cookies.find(
+    cookie => cookie.trim().split('=')[0] === name
+  );
 
   return !!cookie
     ? cookie

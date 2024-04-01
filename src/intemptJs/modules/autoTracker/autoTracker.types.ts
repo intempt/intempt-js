@@ -20,6 +20,25 @@ export type SessionEventParams = {
   userAttributes: UserAttributeComponent
 }
 
+export type SessionEventPayload = {
+  eventId:string;
+  sessionId:string;
+  profileId:string;
+  data:SessionEventDataComponent;
+  userAttributes:UserAttributeComponent
+}
+
+export type SessionCookie = {intempt_session : string}
+
+export type SessionCookieObject = {
+  id:string;
+  startAction:number;
+  lastForegroundAction:number | null;
+  lastBackgroundAction:number | null;
+  lastAction:number;
+  eventsCounter:number;
+}
+
 export type HtmlEventParams = {
   name:IntemptHtmlEventNames;
   sessionId:string;
@@ -30,19 +49,13 @@ export type HtmlEventParams = {
 
 
 
-export type SessionEventPayload = {
-  eventId:string;
-  sessionId:string;
-  profileId:string;
-  data:SessionEventDataComponent;
-  userAttributes:UserAttributeComponent
-}
+
 
 export type SetCookieParams = {
   name: string,
   value: string,
   path: string,
-  maxAge?: number,
+  expiration?: number,
 }
 
 export type PageEventPayload = {

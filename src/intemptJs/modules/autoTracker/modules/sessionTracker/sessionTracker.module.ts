@@ -1,62 +1,76 @@
 import { dispatchIntemptEvent, generateId} from '../../../../../shared/shared.utils.ts';
 import { getCookie, setCookie } from '../../../../../shared/storageHandler.ts'
+import { SessionCookie, SessionCookieObject } from '../../autoTracker.types.ts';
 
 
 // [
-//   'click',
-//   'change',
-//   'mousemove',
 //   'keydown',
 //   'touchstart',
-//   'submit',
-//   'focus',
-//   'blur',
-//
 //   'select',
-//   'scroll',
+//   'focusin',
+//   'focusout',
 //   'drag',
-//   'pointermove',
-//   'DOMContentLoaded',
-//   'beforeunload'
+//   'scroll - Require Performance optimization',
+//   'pointermove - Require Performance optimization',
+//
+//   'click - intempt:html',
+//   'input - intempt:html',
+//   'change - intempt:html',
+//   'submit - intempt:html',
+//   'DOMContentLoaded - intempt:page',
+//   'beforeunload - intempt:page'
 // ];
 
 
 
 export class SessionTrackerModule {
   private readonly key = 'intempt_session';
+  private readonly keyTwo = 'is_first_intempt_session';
+
+
   private readonly millisecondsPerSecond  = 1000;
   private readonly secondsPerMinute  = 60;
   private readonly  minutesStep  = 30;
   private readonly  minutesToExtend  = 5;
+
   private readonly _defaultSessionTimeWithoutActivity = this.minutesStep * this.secondsPerMinute * this.millisecondsPerSecond;
   private readonly _defaultSessionTimeToExtend = this.minutesToExtend * this.secondsPerMinute * this.millisecondsPerSecond;
 
   private readonly _foregroundEventNames = [
     'intempt:html',
     'intempt:page',
-
+    'page:leave',
+    'page:view',
     'intempt:identify ',
   ];
+  private readonly _backgroundEventNames = [
+    'intempt:track ',
+    'intempt:group ',
+    'intempt:track ',
+    'intempt:record ',
+    'intempt:alias ',
+    'intempt:logOut ',
+    'intempt:consent ',
+  ];
+
+  private _allTrackingEvents = [...this._foregroundEventNames, ...this._backgroundEventNames]
 
 
   constructor() {}
 
 
   init(){
-    this.setIntemptSessionId();
-    this.sessionActivityHandler();
-    this.start('Start Session');
+    this._sessionActivityHandler();
 
-  }
+    if(this._isFirstSession()) return ;
 
+    this._initSessionCookie();
 
-  getId(){
-    const cookie = getCookie(this.key) as {intempt_session : string} | null;
-    const { id } = !!cookie
-      ? { ...JSON.parse(cookie[this.key]) } as {id: string}
-      : {id: ''};
-
-    return id
+    setCookie({
+      name: this.keyTwo,
+      value: JSON.stringify(false),
+      path: '/',
+    });
   }
 
   start(initializerEventName:string){
@@ -74,38 +88,78 @@ export class SessionTrackerModule {
     });
   }
 
-  eventCounter(){}
+  getId(){
+    console.log('getId 1: ',this.key);
 
-  setIntemptSessionId(){
-    return setCookie({
-      name: this.key,
-      value: JSON.stringify({
-        id: generateId(),
-        startAction: new Date().getTime(),
-        lastAction: new Date().getTime(),
-        eventsCounter: 0
-      }),
-      path: '/',
-      maxAge: this._defaultSessionTimeWithoutActivity
-    })
+    const cookie = getCookie(this.key) as {intempt_session : string} | null;
+
+    console.log('getId 2: ',this.key);
+    console.log('getId 3: ',cookie);
+
+    const { id } = !!cookie
+      ? { ...JSON.parse(cookie[this.key]) } as {id: string}
+      : {id: ''};
+
+    return id
   }
 
 
-  private extendSessionActivityTime(){
-    console.log('extendSessionActivityTime');
-    const cookie = getCookie(this.key) as {intempt_session : string} | null;
-    const session = { ...JSON.parse(cookie![this.key]) } as { id:string, startAction:number, lastAction:number, eventsCounter:number}
-    const { id, startAction ,eventsCounter} =  session;
 
-    const currentActivityTime = new Date().getTime();
-    const newEventCount = eventsCounter + 1
-    const currentExpirationTime = startAction + this._defaultSessionTimeWithoutActivity;
-    const newExpirationTime = currentExpirationTime + this._defaultSessionTimeToExtend;
+  private _sessionActivityHandler(){
+    this._allTrackingEvents.forEach((domEventName) => {
+      document.addEventListener(domEventName, (event) => {
+        const { detail } = event as CustomEvent;
+        const { eventName } = detail;
+
+        const validatedSession = this._validateSession(eventName);
+        const incrementedSession = this._incrementSessionEventCounter(validatedSession);
+
+        if(this._isForegroundEvent(domEventName)){
+          this._onForegroundActionActivityTime(incrementedSession);
+        }
+        else if(this._isBackgroundEventNames(domEventName)){
+          this._onBackgroundActionActivityTime(eventName, incrementedSession);
+        }
+      })
+    })
+  }
+
+  private _onBackgroundActionActivityTime(eventName:string,{ lastBackgroundAction, lastForegroundAction}:SessionCookieObject){
+    const now = new Date().getTime();
+
+    const foregroundAction = lastForegroundAction ?? now;
+    const backgroundAction = lastBackgroundAction ?? now;
+
+    const timeSinceLastForegroundEvent = now - foregroundAction;
+    const timeSinceLastBackgroundEvent = now - backgroundAction;
+
+
+    if(
+      (timeSinceLastBackgroundEvent <= this._defaultSessionTimeToExtend) &&
+      (timeSinceLastForegroundEvent > this._defaultSessionTimeToExtend)
+    ){
+      this.end(eventName);
+      this.init();
+      this.start(eventName);
+    }
+
+
+
+
+  }
+
+  private _onForegroundActionActivityTime({ id, startAction, eventsCounter, lastBackgroundAction}:SessionCookieObject){
+    const now = new Date().getTime();
+    const remainingTime = this._getSessionRemainingExpirationTime(now ,startAction);
+    const newExpirationDuration  = remainingTime + this._defaultSessionTimeToExtend;
+
     const value = {
       id: id,
       startAction: startAction,
-      lastAction: currentActivityTime,
-      eventsCounter: newEventCount
+      lastForegroundAction: now,
+      lastBackgroundAction: lastBackgroundAction,
+      lastAction: now,
+      eventsCounter: eventsCounter
     }
 
 
@@ -113,21 +167,105 @@ export class SessionTrackerModule {
       name: this.key,
       value: JSON.stringify(value),
       path: '/',
-      maxAge: newExpirationTime
+      expiration: newExpirationDuration
     })
   }
 
-  private sessionActivityHandler(){
-    this._foregroundEventNames.forEach((name:string) =>
-      document.addEventListener(name, () => this.extendSessionActivityTime())
-    )
+  private _validateSession(currentEventName:string):SessionCookieObject {
+    let session:SessionCookieObject;
+
+    const cookie = getCookie(this.key) as SessionCookie | null;
+
+    if(!cookie){
+      const newSessionCookie = this._initSessionCookie();
+
+      session = { ...JSON.parse(newSessionCookie[this.key]) } as SessionCookieObject;
+
+      this.start(currentEventName);
+
+    }
+    else{
+      session = { ...JSON.parse(cookie[this.key]) } as SessionCookieObject;
+
+      const isValid = this._isValidSession(session.startAction, session.lastAction);
+
+      if(!isValid){
+        this.end(currentEventName);
+        this.init();
+        this.start(currentEventName);
+
+        const validSession = getCookie(this.key) as SessionCookie;
+
+        session = { ...JSON.parse(validSession[this.key]) } as SessionCookieObject;
+      }
+    }
+
+    return session;
   }
 
+  private _incrementSessionEventCounter(session:SessionCookieObject){
+    const {
+      id,
+      startAction,
+      eventsCounter,
+      lastForegroundAction,
+      lastBackgroundAction
+    } = session;
+    const now = new Date().getTime();
+    const remainingTime = this._getSessionRemainingExpirationTime(now ,startAction)
 
+    const incrementedSessionCookie = setCookie({
+      name: this.key,
+      value: JSON.stringify({
+        id: id,
+        startAction: startAction,
+        lastForegroundAction: lastForegroundAction,
+        lastBackgroundAction: lastBackgroundAction,
+        lastAction: now,
+        eventsCounter: eventsCounter + 1
+      }),
+      path: '/',
+      expiration: remainingTime
+    });
 
-  isValidSession(start:number, lastActivity:number) {
+    return { ...JSON.parse(incrementedSessionCookie[this.key]) } as SessionCookieObject;
+  }
+
+  private _initSessionCookie(){
+    return setCookie({
+      name: this.key,
+      value: JSON.stringify({
+        id: generateId(),
+        startAction: new Date().getTime(),
+        lastForegroundAction: null,
+        lastBackgroundAction: null,
+        lastAction: new Date().getTime(),
+        eventsCounter: 0
+      }),
+      path: '/',
+      expiration: this._defaultSessionTimeWithoutActivity
+    })
+  }
+
+  private _isValidSession(start:number, lastActivity:number) {
     return lastActivity - start < this._defaultSessionTimeWithoutActivity;
   }
 
+  private _isFirstSession(){
+    const cookie = getCookie(this.keyTwo) as {is_first_intempt_session : string} | null;
+    return !!cookie
+  }
+
+  private _isForegroundEvent(eventName:string){
+    return this._foregroundEventNames.includes(eventName);
+  }
+
+  private _isBackgroundEventNames(eventName:string){
+    return this._backgroundEventNames.includes(eventName);
+  }
+
+  private _getSessionRemainingExpirationTime(now: number, start: number){
+    return this._defaultSessionTimeWithoutActivity - (now - start);
+ }
 }
 
