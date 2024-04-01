@@ -44,8 +44,9 @@ export class SessionTrackerModule {
 
   init(){
     this.setIntemptSessionId();
-    this.start('Start Session');
     this.sessionActivityHandler();
+    this.start('Start Session');
+
   }
 
 
@@ -72,8 +73,6 @@ export class SessionTrackerModule {
       initializerName: initializerEventName
     });
   }
-
-
 
   eventCounter(){}
 

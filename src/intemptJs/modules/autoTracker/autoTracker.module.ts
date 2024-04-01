@@ -21,8 +21,6 @@ export class AutoTrackerModule {
   constructor() {
     this.trackSession();
 
-
-
     this.trackViewPage();
 
     this.trackLeavePage();
@@ -35,6 +33,8 @@ export class AutoTrackerModule {
     this._sessionTrackerModule.init();
     this._pagesTrackerModule.init();
     this._htmlTrackerModule.init();
+
+    this._trackEventPool();
   }
 
   private trackHtml(){
@@ -134,13 +134,39 @@ export class AutoTrackerModule {
     });
   }
 
+  private _trackEventPool() {
+    const eventPool:any = [];
 
 
-  private _getSessionId() {
+    document.addEventListener('intempt:event', (event) => {
+      const { detail } = event as CustomEvent;
+
+      if(detail.event instanceof HtmlEventModel){
+        console.log('html')
+      }
+      else{
+        console.log('other')
+      }
+
+      console.log('Event Pool', detail.event);
+
+
+      // eventPool.push(event);
+      // fetch('http://localhost:3000/api/messages/test', {
+      //   method: 'POST',
+      //   headers: {
+      //     'Content-Type': 'application/json',
+      //   },
+      //   body: JSON.stringify(detail),
+      // }).then()
+    });
+  }
+
+  _getSessionId() {
     return this._sessionTrackerModule.getId();
   }
 
-  private _getProfileId() {
+  _getProfileId() {
     return this._pagesTrackerModule.getId();
   }
 
