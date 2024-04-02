@@ -38,7 +38,7 @@ export class IntemptJs extends IntemptJsGuard {
 
     if(!this.isValidConfig(config)) return
 
-
+//<script async src='https://cdn.intempt.com/intempt.min.js?organization=intempt-demo&project=saas-demo&source=496392441735024640&key=9dfc6897a9934274acf8fb7236698ba0.12410a7599ee49528a898ff2764841a9'></script>
 
     this._autoTracker.init();
 
