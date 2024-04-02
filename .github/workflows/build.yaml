@@ -20,6 +20,7 @@ jobs:
       AWS_S3_BUCKET_NAME: "253548970387.cdn.intempt.com"
       AWS_S3_ROLE_NAME: "IntemptJSDeployer"
       INTEMPT_JS_SOURCE: "./dist/intempt.min.js"
+      VERSION_KEY: 'v1'
 
     strategy:
       matrix:
@@ -51,8 +52,7 @@ jobs:
       - name: Upload intempt.min.js to production bucket
         uses: zdurham/s3-upload-github-action@master
         env:
-          S3_VERSION_KEY: v1
-          S3_BUCKET: ${{ env.AWS_S3_BUCKET_NAME }}/${{env.S3_VERSION_KEY}}
+          S3_BUCKET: ${{ env.AWS_S3_BUCKET_NAME }}/${{env.VERSION_KEY}}
           AWS_REGION: ${{ env.AWS_REGION }}
           FILE: ${{ env.INTEMPT_JS_SOURCE }}
 
