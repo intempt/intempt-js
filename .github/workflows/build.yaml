@@ -41,21 +41,21 @@ jobs:
         run: npm run build
 
 
-#      - name: Configure AWS Credentials
-#        uses: aws-actions/configure-aws-credentials@master
-#        with:
-#          aws-region: ${{ env.AWS_REGION }}
-#          role-to-assume: ${{ env.AWS_DEPLOYER_ROLE }}
-#          role-session-name: JavascriptSourceDeployment
-#
-#      - name: Upload intempt.min.js to production bucket
-#        uses: zdurham/s3-upload-github-action@master
-#        env:
-#          S3_VERSION_KEY: v1
-#          S3_BUCKET: ${{ env.AWS_S3_BUCKET_NAME }}/${S3_VERSION_KEY}
-#          AWS_REGION: ${{ env.AWS_REGION }}
-#          FILE: ${{ env.INTEMPT_JS_SOURCE }}
-#
-#
-#      - name: Create invalidation
-#        run: aws cloudfront create-invalidation --distribution-id "E1E1XM6MRZKA1G" --paths '/*'
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@master
+        with:
+          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: ${{ env.AWS_DEPLOYER_ROLE }}
+          role-session-name: JavascriptSourceDeployment
+
+      - name: Upload intempt.min.js to production bucket
+        uses: zdurham/s3-upload-github-action@master
+        env:
+          S3_VERSION_KEY: v2
+          S3_BUCKET: ${{ env.AWS_S3_BUCKET_NAME }}/${S3_VERSION_KEY}
+          AWS_REGION: ${{ env.AWS_REGION }}
+          FILE: ${{ env.INTEMPT_JS_SOURCE }}
+
+
+      - name: Create invalidation
+        run: aws cloudfront create-invalidation --distribution-id "E1E1XM6MRZKA1G" --paths '/*'
