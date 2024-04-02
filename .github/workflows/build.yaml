@@ -52,7 +52,7 @@ jobs:
         uses: zdurham/s3-upload-github-action@master
         env:
           S3_VERSION_KEY: v1
-          S3_BUCKET: ${{ env.AWS_S3_BUCKET_NAME }}/${{S3_VERSION_KEY}}
+          S3_BUCKET: ${{ env.AWS_S3_BUCKET_NAME }}/${{env.S3_VERSION_KEY}}
           AWS_REGION: ${{ env.AWS_REGION }}
           FILE: ${{ env.INTEMPT_JS_SOURCE }}
 
