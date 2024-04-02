@@ -6,19 +6,18 @@ import { IntemptSessionEventNames, SessionEventParams, SessionEventPayload } fro
 
 export class SessionEventModel {
   name:IntemptSessionEventNames;
-  payload: SessionEventPayload;
+  private readonly payload: SessionEventPayload[] = [];
 
   constructor({ name, sessionId, profileId, userAttributes, data }:SessionEventParams) {
     this.name = name;
-    this.payload = {
+    this.payload.push({
       eventId: generateId(),
+      timestamp: new Date().getTime(),
       sessionId,
       profileId,
       userAttributes,
       data,
-    }
-
-
+    })
   }
 }
 

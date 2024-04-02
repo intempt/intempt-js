@@ -3,7 +3,7 @@ import {
   AliasParams,
   ConsentParams,
   GroupParams,
-  IdentifyParams,
+  IdentifyParams, IntemptConfig,
   RecordParams,
   TrackParams,
 } from './intemptJs.types.ts';
@@ -13,31 +13,28 @@ import { GroupModel } from './models/group.model.ts';
 import { TrackModel } from './models/track.model.ts';
 import { RecordModel } from './models/record.model.ts';
 import { AliasModel } from './models/alias.model.ts';
+import { dispatchIntemptEvent } from '../shared/shared.utils.ts';
 
 
 
 
 
 export class IntemptJs extends IntemptJsGuard {
+  private readonly _api = 'http://localhost:3000/api/messages/test';
+  private readonly _autoTracker:AutoTrackerModule
 
-  private readonly _organization:string;
-  private readonly _sourceId:string;
-  private readonly _project:string;
-  private readonly _writeKey:string;
-  private readonly api = 'http://localhost:6060/api/messages/test';
-  private readonly _autoTracker = new AutoTrackerModule();
+  private readonly _config:IntemptConfig;
 
 
   private _doNotTrack: boolean = false;
 
-  constructor(config:any) {
+  constructor(config:IntemptConfig) {
     super();
+    this._config = { ...config};
+    this._autoTracker = new AutoTrackerModule(this._config, this._api);
 
-    this._organization = config.organization;
-    this._sourceId = config.sourceId;
-    this._project = config.project;
-    this._writeKey = config.writeKey;
-    console.log('config: ',config);
+
+
     if(!this.isValidConfig(config)) return
 
 
@@ -82,16 +79,17 @@ export class IntemptJs extends IntemptJsGuard {
       ...params,
       timestamp: new Date().getTime(),
       source: 'web',
-      sourceId: this._sourceId,
+      sourceId: this._config.sourceId,
       profileId: this._autoTracker.getProfileId()
     }
     console.log(' body', body)
 
+    //dispatchIntemptEvent('intempt:event', { event: body});
    //TODO: api = v1/ORG/projects/PROJECT/optimization/choose-api
   }
 
-  //TODO:?? ask about 'data' field ??
-  //TODO:Finish group method
+
+
   identify(params:IdentifyParams){
     if (!this.isUserOptIn()) return;
     if (!this.isIdentifyValid(params)) return;
@@ -104,11 +102,12 @@ export class IntemptJs extends IntemptJsGuard {
       profileId,
       sessionId
     })
-
     console.log('identify',body);
+    dispatchIntemptEvent('intempt:event', { event: body});
+
   }
 
-  //TODO:Finish  group method
+
   group(params:GroupParams){
     if (!this.isUserOptIn()) return;
     if (!this.isGroupValid(params)) return;
@@ -122,11 +121,11 @@ export class IntemptJs extends IntemptJsGuard {
       sessionId
     })
 
-
+    dispatchIntemptEvent('intempt:event', { event: body});
     console.log('group',body);
   }
 
-  //TODO:Finish track method
+
   track(params:TrackParams){
     if (!this.isUserOptIn()) return;
     if (!this.isTrackValid(params)) return;
@@ -139,9 +138,10 @@ export class IntemptJs extends IntemptJsGuard {
     })
 
     console.log('track',body);
+    dispatchIntemptEvent('intempt:event', { event: body});
   }
 
-  //TODO:Finish  record method
+
   record(params:RecordParams){
     if (!this.isUserOptIn()) return;
     if (!this.isRecordValid(params)) return;
@@ -155,9 +155,10 @@ export class IntemptJs extends IntemptJsGuard {
     })
 
     console.log('record',body);
+    dispatchIntemptEvent('intempt:event', { event: body});
   }
 
-  //TODO:Finish alias method
+
   alias(params:AliasParams){
     if (!this.isUserOptIn()) return;
     if (!this.isAliasValid(params)) return;
@@ -172,13 +173,7 @@ export class IntemptJs extends IntemptJsGuard {
     })
 
     console.log('alias', body)
-  }
-
-
-  //TODO:Implement logIn method
-  logIn(){
-    console.log('logIn',)
-    return ''
+    dispatchIntemptEvent('intempt:event', { event: body});
   }
 
   //TODO:Implement logout method

@@ -1,4 +1,6 @@
-export class HtmlElementData {
+
+
+export class HtmlElementDataComponent {
   href: string;
   targetTag: string;
   targetId: string;

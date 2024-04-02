@@ -38,6 +38,7 @@ export class PageTrackerModule {
     const currentEventName = 'Leave Page';
     const startTime = this.getPageSessionStartTime();
     const previousPage = this.getPreviousPage();
+
     dispatchIntemptEvent('page:leave', {
       eventName: currentEventName,
       fullUrl: window.location.href,
@@ -49,14 +50,6 @@ export class PageTrackerModule {
     });
   }
 
-  // clear(){
-  //   return setCookie({
-  //     name: this.key,
-  //     value: '',
-  //     path: '/',
-  //     maxAge: -1,
-  //   });
-  // }
 
   getId(){
     const cookie = getCookie(this.key) as PageSessionCookie;
@@ -120,9 +113,5 @@ export class PageTrackerModule {
       ? JSON.parse(cookie[this.key]).previous_page
       : '';
   }
-
-
-
-
 
 }

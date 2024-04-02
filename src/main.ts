@@ -5,7 +5,7 @@ import { IntemptConfig } from './intemptJs/intemptJs.types.ts';
 console.log('version:', 'v1');
 
 function getIntemptConfig(): IntemptConfig {
-  //const cdnLink = 'https://cdn.intempt.com/intempt.min.js';
+  //const cdnLink = 'https://cdn.intempt.com/v2/intempt.min.js';
   const cdnLink = 'https://cdn.test.com/test.min.js';
   const scripts = document.scripts;
 
@@ -34,3 +34,15 @@ function getIntemptConfig(): IntemptConfig {
 window.intempt = new IntemptJs({...getIntemptConfig()});
 
 
+// window.addEventListener('visibilitychange',  (event) => {
+//     console.log(event);
+//     // eventPool.push(event);
+//     fetch('http://localhost:3000/api/messages/test', {
+//       method: 'POST',
+//       headers: {
+//         'Content-Type': 'application/json',
+//       },
+//       body: JSON.stringify({ visibilityState: document.visibilityState}),
+//       keepalive: true
+//     }).then()
+// })

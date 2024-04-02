@@ -1,25 +1,37 @@
-import { HtmlElementData } from '../../../shared/HtmlElementData.ts';
+import { HtmlElementDataComponent } from '../component/HtmlEventData.component.ts';
 import { SessionTrackerModule } from './modules/sessionTracker/sessionTracker.module.ts'
 import { ProfileTrackerModule } from './modules/profileTracker/profileTracker.module.ts'
 import { PageTrackerModule } from './modules/pagesTracker/pagesTracker.module.ts';
 import { SessionEventModel } from './models/session.model.ts';
 import { SessionEventDataComponent } from '../component/sessionEventData.component.ts';
-import { dispatchIntemptEvent, getLocationInfo } from '../../../shared/shared.utils.ts';
+import { debounce, dispatchIntemptEvent, getLocationInfo } from '../../../shared/shared.utils.ts';
 import { UserAttributeComponent } from '../component/userAttribute.component.ts';
 import { PageEventModel } from './models/pageEvent.model.ts';
 import { PageEventDataComponent } from '../component/pageEventData.component.ts';
 import { HtmlEventModel } from './models/HtmlEvent.model.ts';
 import { HtmlTrackerModule } from './modules/htmlTracker/htmlTracker.module.ts';
+import { IntemptConfig } from '../../intemptJs.types.ts';
 
 
 export class AutoTrackerModule {
+  private readonly _config:IntemptConfig;
   private readonly _sessionTrackerModule = new SessionTrackerModule();
   private readonly _profileTrackerModule = new ProfileTrackerModule();
   private readonly _pagesTrackerModule = new PageTrackerModule();
   private readonly _htmlTrackerModule = new HtmlTrackerModule();
 
-  constructor() {
-   // this._trackSessionActivity();
+  private readonly _api:string;
+
+
+  private readonly _eventPool:any[] = [];
+
+  constructor(intemptConfig: IntemptConfig, api:string) {
+    console.log('intemptConfig: ', intemptConfig);
+    this._config = { ...intemptConfig };
+    this._api = api;
+
+
+    this._eventPoolHandler();
 
     this._trackSession();
 
@@ -36,28 +48,21 @@ export class AutoTrackerModule {
     this._pagesTrackerModule.init();
     this._htmlTrackerModule.init();
 
-    this._eventPool();
+
   }
 
-  // private _trackSessionActivity(){
-  //   this._sessionTrackerModule.sessionActivityHandler();
-  // }
 
   private _trackHtml(){
     document.addEventListener('intempt:html', (event) => {
       const { detail } = event as CustomEvent;
       const { eventName, target } = detail;
-      console.log('track');
-      console.log(detail);
-
-
 
       const intemptEvent = new HtmlEventModel({
         name: eventName,
         sessionId: this.getSessionId(),
         profileId: this.getProfileId(),
         pageId: this._getPageId(),
-        data:  new HtmlElementData(target)
+        data: new HtmlElementDataComponent(target)
       })
 
       dispatchIntemptEvent('intempt:event', { event: intemptEvent});
@@ -149,36 +154,101 @@ export class AutoTrackerModule {
 
 
 
-  private _eventPool() {
-    const eventPool:any = [];
+  private _eventPoolHandler() {
+    let debouncedSendEvents:ReturnType<typeof debounce>;
+
+    document.addEventListener('intempt:event', (customDomEvent) => {
+      const { detail } = customDomEvent as CustomEvent;
+      const name = detail.event.name.toLowerCase();
+
+      console.log('Event Pool: ', detail.event);
 
 
-    document.addEventListener('intempt:event', (event) => {
-      const { detail } = event as CustomEvent;
+      this._eventPool.push(detail.event);
 
-      if(detail.event instanceof HtmlEventModel){
-        console.log('html')
+      if(name.toLowerCase() === 'leave page'){
+        debouncedSendEvents = debounce(() => this._sendTrackEventData(), 0);
       }
       else{
-        console.log('other')
+        debouncedSendEvents = debounce(() => this._sendTrackEventData(), 1000);
       }
 
-      console.log('Event Pool', detail.event);
-
-
-      // eventPool.push(event);
-      // fetch('http://localhost:3000/api/messages/test', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify(detail),
-      // }).then()
+      return debouncedSendEvents();
     });
   }
 
+
+  private _onTrackData(data:any){
+    let debouncedSendEvents:ReturnType<typeof debounce>;
+    const name = data.name.toLowerCase();
+    this._eventPool.push(data);
+
+    if(name.toLowerCase() === 'leave page'){
+      debouncedSendEvents = debounce(() => this._sendTrackEventData(), 0);
+    }
+    else{
+      debouncedSendEvents = debounce(() => this._sendTrackEventData(), 1000);
+    }
+
+    return debouncedSendEvents();
+
+
+
+  }
+
+  private _sendConsentTrackEventData(data:any) {
+    const {organization, sourceId, project, writeKey} = this._config;
+
+    const url = `${this._api}/${organization}/projects/${project}/consents/data`;
+
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({...data}),
+      keepalive: true
+    })
+
+  }
+
+  private _sendTrackEventData() {
+    /**
+     * Make deep copy of the eventPool
+     * */
+    const data = JSON.parse(JSON.stringify(this._eventPool));
+
+    this._clearEventPool();
+
+    const {organization, sourceId, project, writeKey} = this._config;
+
+    const url = `${this._api}/${organization}/projects/${project}/sources/${sourceId}/track`;
+
+    const [ username, password ] = writeKey.split('.');
+
+    const encodedCredentials = btoa(`${username}:${password}`);
+
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Basic ${encodedCredentials}`,
+      },
+      body: JSON.stringify({
+        track: data
+      }),
+      keepalive: true
+    })
+  }
+
+
+
   private _getPageId() {
     return this._pagesTrackerModule.getId();
+  }
+
+  private _clearEventPool() {
+    this._eventPool.length = 0;
   }
 
 

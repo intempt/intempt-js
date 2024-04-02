@@ -29,8 +29,6 @@ export class PageEventDataComponent {
     this.hash = urlHash;
     this.path = pathname;
     this.url = fullUrl;
-
-
   }
 
 

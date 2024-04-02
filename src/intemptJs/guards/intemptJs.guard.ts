@@ -12,6 +12,10 @@ export class IntemptJsGuard {
 
   private readonly _forbiddenEventNames:string[] = [
     'view page',
+    'leave page',
+    'change on',
+    'click on',
+    'submit on',
     'consent'
   ];
 
@@ -152,6 +156,5 @@ export class IntemptJsGuard {
 
     return true;
   }
-
 
 }

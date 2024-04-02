@@ -1,7 +1,9 @@
 import { SessionEventDataComponent } from '../component/sessionEventData.component.ts';
 import { UserAttributeComponent } from '../component/userAttribute.component.ts';
 import { PageEventDataComponent } from '../component/pageEventData.component.ts';
-import { HtmlElementData } from '../../../shared/HtmlElementData.ts';
+import { HtmlElementDataComponent } from '../component/HtmlEventData.component.ts';
+
+
 
 
 
@@ -12,21 +14,7 @@ export type IntemptPageEventNames = 'View Page' | 'Leave Page' ;
 export type DomEventName = 'click' | 'submit' | 'change' | 'input' | 'keyup' ;
 export type domEvent = {domEventName: DomEventName, intemptEventName: IntemptHtmlEventNames}
 
-export type SessionEventParams = {
-  name:IntemptSessionEventNames,
-  sessionId:string;
-  profileId:string;
-  data:SessionEventDataComponent;
-  userAttributes: UserAttributeComponent
-}
 
-export type SessionEventPayload = {
-  eventId:string;
-  sessionId:string;
-  profileId:string;
-  data:SessionEventDataComponent;
-  userAttributes:UserAttributeComponent
-}
 
 export type SessionCookie = {intempt_session : string}
 
@@ -39,17 +27,13 @@ export type SessionCookieObject = {
   eventsCounter:number;
 }
 
-export type HtmlEventParams = {
-  name:IntemptHtmlEventNames;
+export type SessionEventParams = {
+  name:IntemptSessionEventNames,
   sessionId:string;
   profileId:string;
-  pageId:string;
-  data:HtmlElementData
+  data:SessionEventDataComponent;
+  userAttributes: UserAttributeComponent
 }
-
-
-
-
 
 export type SetCookieParams = {
   name: string,
@@ -58,10 +42,47 @@ export type SetCookieParams = {
   expiration?: number,
 }
 
+export type HtmlEventParams = {
+  name:IntemptHtmlEventNames;
+  sessionId:string;
+  profileId:string;
+  pageId:string;
+  data:HtmlElementDataComponent
+}
+
+export type SessionEventPayload = {
+  eventId:string;
+  sessionId:string;
+  profileId:string;
+  timestamp: number;
+  data:SessionEventDataComponent;
+  userAttributes:UserAttributeComponent
+}
+
+export type HtmlEventPayload = {
+  eventId: string;
+  timestamp: number;
+  sessionId: string;
+  profileId: string;
+  pageId: string;
+  data: HtmlElementDataComponent
+}
+
 export type PageEventPayload = {
   sessionId:string;
   profileId:string;
   pageId:string;
   eventId:string;
+  timestamp: number;
   data:PageEventDataComponent
+}
+
+export type IdentifyModelPayload = {
+  eventId: string;
+  timestamp: number;
+  profileId: string;
+  sessionId: string;
+  userId: string;
+  userAttributes?:{[key:string]:any}
+  data?:{[key:string]:any}
 }
