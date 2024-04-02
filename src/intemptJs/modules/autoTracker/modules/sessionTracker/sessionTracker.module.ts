@@ -24,8 +24,11 @@ import { SessionCookie, SessionCookieObject } from '../../autoTracker.types.ts';
 
 
 export class SessionTrackerModule {
-  private readonly key = 'intempt_session';
-  private readonly keyTwo = 'is_first_intempt_session';
+  private readonly keys = ['intempt_session', 'is_first_intempt_session'];
+
+
+  private readonly intemptSession = 'intempt_session';
+  private readonly isFirstIntemptSession = 'is_first_intempt_session';
 
 
   private readonly millisecondsPerSecond  = 1000;
@@ -58,6 +61,9 @@ export class SessionTrackerModule {
 
   constructor() {}
 
+  get cookieKeys(){
+    return this.keys;
+  }
 
   init(){
     this._sessionActivityHandler();
@@ -67,16 +73,16 @@ export class SessionTrackerModule {
     this._initSessionCookie();
 
     setCookie({
-      name: this.keyTwo,
+      name: this.isFirstIntemptSession,
       value: JSON.stringify(false),
       path: '/',
     });
   }
 
   getId(){
-    const cookie = getCookie(this.key) as {intempt_session : string} | null;
+    const cookie = getCookie(this.intemptSession) as {intempt_session : string} | null;
     const { id } = !!cookie
-      ? { ...JSON.parse(cookie[this.key]) } as {id: string}
+      ? { ...JSON.parse(cookie[this.intemptSession]) } as {id: string}
       : {id: ''};
 
     return id
@@ -156,7 +162,7 @@ export class SessionTrackerModule {
 
 
     return setCookie({
-      name: this.key,
+      name: this.intemptSession,
       value: JSON.stringify(value),
       path: '/',
       expiration: newExpirationDuration
@@ -166,18 +172,18 @@ export class SessionTrackerModule {
   private _validateSession(currentEventName:string):SessionCookieObject {
     let session:SessionCookieObject;
 
-    const cookie = getCookie(this.key) as SessionCookie | null;
+    const cookie = getCookie(this.intemptSession) as SessionCookie | null;
 
     if(!cookie){
       const newSessionCookie = this._initSessionCookie();
 
-      session = { ...JSON.parse(newSessionCookie[this.key]) } as SessionCookieObject;
+      session = { ...JSON.parse(newSessionCookie[this.intemptSession]) } as SessionCookieObject;
 
       this._start(currentEventName);
 
     }
     else{
-      session = { ...JSON.parse(cookie[this.key]) } as SessionCookieObject;
+      session = { ...JSON.parse(cookie[this.intemptSession]) } as SessionCookieObject;
 
       const isValid = this._isValidSession(session.startAction, session.lastAction);
 
@@ -186,9 +192,9 @@ export class SessionTrackerModule {
         this.init();
         this._start(currentEventName);
 
-        const validSession = getCookie(this.key) as SessionCookie;
+        const validSession = getCookie(this.intemptSession) as SessionCookie;
 
-        session = { ...JSON.parse(validSession[this.key]) } as SessionCookieObject;
+        session = { ...JSON.parse(validSession[this.intemptSession]) } as SessionCookieObject;
       }
     }
 
@@ -207,7 +213,7 @@ export class SessionTrackerModule {
     const remainingTime = this._getSessionRemainingExpirationTime(now ,startAction)
 
     const incrementedSessionCookie = setCookie({
-      name: this.key,
+      name: this.intemptSession,
       value: JSON.stringify({
         id: id,
         startAction: startAction,
@@ -220,12 +226,12 @@ export class SessionTrackerModule {
       expiration: remainingTime
     });
 
-    return { ...JSON.parse(incrementedSessionCookie[this.key]) } as SessionCookieObject;
+    return { ...JSON.parse(incrementedSessionCookie[this.intemptSession]) } as SessionCookieObject;
   }
 
   private _initSessionCookie(){
     return setCookie({
-      name: this.key,
+      name: this.intemptSession,
       value: JSON.stringify({
         id: generateId(),
         startAction: new Date().getTime(),
@@ -244,7 +250,7 @@ export class SessionTrackerModule {
   }
 
   private _isFirstSession(){
-    const cookie = getCookie(this.keyTwo) as {is_first_intempt_session : string} | null;
+    const cookie = getCookie(this.isFirstIntemptSession) as {is_first_intempt_session : string} | null;
     return !!cookie
   }
 

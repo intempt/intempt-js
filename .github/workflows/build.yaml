@@ -15,9 +15,10 @@ jobs:
     runs-on: ubuntu-latest
 
     env:
-      AWS_DEPLOYER_ROLE: 'arn:aws:iam::253548970387:role/GithubActionsJavascriptSourceDeployer'
+      AWS_DEPLOYER_ROLE: 'arn:aws:iam::253548970387:role/GithubActionsIntemptJSDeployer'
       AWS_REGION: "us-east-1"
       AWS_S3_BUCKET_NAME: "253548970387.cdn.intempt.com"
+      AWS_S3_ROLE_NAME: "IntemptJSDeployer"
       INTEMPT_JS_SOURCE: "./dist/intempt.min.js"
 
     strategy:
@@ -45,7 +46,7 @@ jobs:
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_DEPLOYER_ROLE }}
-          role-session-name: JavascriptSourceDeployment
+          role-session-name: ${{ env.AWS_S3_ROLE_NAME }}
 
       - name: Upload intempt.min.js to production bucket
         uses: zdurham/s3-upload-github-action@master

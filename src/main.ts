@@ -2,7 +2,7 @@ import { IntemptJs } from './intemptJs/intemptJs.ts'
 import { IntemptConfig } from './intemptJs/intemptJs.types.ts';
 
 
-console.log('version:', 'v1');
+console.log('version:', 'v2');
 
 function getIntemptConfig(): IntemptConfig {
   //const cdnLink = 'https://cdn.intempt.com/v2/intempt.min.js';

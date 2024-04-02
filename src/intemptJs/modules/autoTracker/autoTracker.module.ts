@@ -20,6 +20,8 @@ export class AutoTrackerModule {
   private readonly _pagesTrackerModule = new PageTrackerModule();
   private readonly _htmlTrackerModule = new HtmlTrackerModule();
 
+  private readonly _keys:string[];
+
   private readonly _api:string;
 
 
@@ -29,6 +31,11 @@ export class AutoTrackerModule {
     console.log('intemptConfig: ', intemptConfig);
     this._config = { ...intemptConfig };
     this._api = api;
+    this._keys = [
+      ...this._sessionTrackerModule.cookieKeys,
+      ...this._profileTrackerModule.cookieKeys,
+      ...this._pagesTrackerModule.cookieKeys,
+    ];
 
 
     this._eventPoolHandler();
@@ -40,6 +47,10 @@ export class AutoTrackerModule {
     this._trackLeavePage();
 
     this._trackHtml();
+  }
+
+  get cookieKeys(){
+    return this._keys;
   }
 
   init() {

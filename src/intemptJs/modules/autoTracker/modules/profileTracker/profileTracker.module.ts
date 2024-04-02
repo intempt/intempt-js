@@ -6,7 +6,9 @@ import { generateId } from '../../../../../shared/shared.utils.ts'
 type ProfileIdCookie = { profileId: string } | null;
 
 export class ProfileTrackerModule {
-  private readonly key = 'profileId';
+  private readonly keys = ['profileId'];
+
+  private readonly profileId = 'profileId';
   /**
    * Duration of the cookie in milliseconds 30 days
    * */
@@ -20,19 +22,23 @@ export class ProfileTrackerModule {
     this.expiration = millisecondsPerSecond * secondsPerMinute * minutesPerHour * hoursPerDay * days;
   }
 
+  get cookieKeys(){
+    return this.keys;
+  }
+
 
   init(){
     this.setProfileId();
   }
 
    getId(){
-    const cookie = getCookie(this.key) as ProfileIdCookie;
+    const cookie = getCookie(this.profileId) as ProfileIdCookie;
 
     const result = !!cookie
       ? cookie
       : this.setProfileId();
 
-    return result[this.key];
+    return result[this.profileId];
   }
 
   /**
@@ -40,9 +46,9 @@ export class ProfileTrackerModule {
    * @return { profileId: string }
    * */
   setProfileId(){
-    const existingProfileId = getCookie(this.key) as ProfileIdCookie;
+    const existingProfileId = getCookie(this.profileId) as ProfileIdCookie;
     return !!existingProfileId
-      ? this._updateExistingProfileId(existingProfileId[this.key])
+      ? this._updateExistingProfileId(existingProfileId[this.profileId])
       : this._initProfileId();
   }
 
@@ -52,7 +58,7 @@ export class ProfileTrackerModule {
    * */
   private _initProfileId(){
     return setCookie({
-      name: this.key,
+      name: this.profileId,
       value: generateId(),
       expiration: this.expiration,
       path: '/',
@@ -65,7 +71,7 @@ export class ProfileTrackerModule {
    * */
   private _updateExistingProfileId(id:string){
     return setCookie({
-      name: this.key,
+      name: this.profileId,
       value: id,
       expiration: this.expiration,
       path: '/',

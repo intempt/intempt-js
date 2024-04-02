@@ -21,6 +21,7 @@ import { dispatchIntemptEvent } from '../shared/shared.utils.ts';
 
 export class IntemptJs extends IntemptJsGuard {
   private readonly _api = 'http://localhost:3000/api/messages/test';
+  // private readonly _api = 'https://api.intempt.com/v1';
   private readonly _autoTracker:AutoTrackerModule
 
   private readonly _config:IntemptConfig;
@@ -178,6 +179,9 @@ export class IntemptJs extends IntemptJsGuard {
 
   //TODO:Implement logout method
   logOut(){
+    const cookie = this._autoTracker.cookieKeys;
+    console.log(cookie);
+
     console.log('logOut')
     return ''
   }

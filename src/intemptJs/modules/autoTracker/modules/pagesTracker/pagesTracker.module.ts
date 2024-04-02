@@ -6,8 +6,12 @@ type PageSessionCookie = { page_session: string } | null;
 type ParsedPageSessionCookie = { id: string, current_page: string, previous_page: string };
 
 export class PageTrackerModule {
-  private readonly key = 'page_session';
+  private readonly keys = ['page_session'];
+
+  private readonly pageSession = 'page_session';
+
   constructor() {}
+
 
   init() {
 
@@ -52,18 +56,22 @@ export class PageTrackerModule {
 
 
   getId(){
-    const cookie = getCookie(this.key) as PageSessionCookie;
-    return !!cookie ? JSON.parse(cookie[this.key]).id : '';
+    const cookie = getCookie(this.pageSession) as PageSessionCookie;
+    return !!cookie ? JSON.parse(cookie[this.pageSession]).id : '';
+  }
+
+  get cookieKeys(){
+    return this.keys;
   }
 
 
   private setPageSession(){
-    const cookie = getCookie(this.key) as PageSessionCookie;
+    const cookie = getCookie(this.pageSession) as PageSessionCookie;
     const currentPage = window.location.href;
 
     if(!cookie){
       return setCookie({
-        name: this.key,
+        name: this.pageSession,
         value: JSON.stringify({
           id: generateId(),
           startTime: new Date().getTime(),
@@ -73,17 +81,17 @@ export class PageTrackerModule {
         path: '/',
       });
     }
-    console.log(cookie[this.key]);
+    console.log(cookie[this.pageSession]);
     try{
-      const { id, current_page,  previous_page} = JSON.parse(cookie[this.key]) as ParsedPageSessionCookie;
+      const { id, current_page,  previous_page} = JSON.parse(cookie[this.pageSession]) as ParsedPageSessionCookie;
 
 
       if(current_page === currentPage){
-        return { [this.key]: id };
+        return { [this.pageSession]: id };
       }
 
       return setCookie({
-        name: this.key,
+        name: this.pageSession,
         value: JSON.stringify({
           id: generateId(),
           previous_page: current_page,
@@ -101,16 +109,16 @@ export class PageTrackerModule {
   }
 
   private getPageSessionStartTime(){
-    const cookie = getCookie(this.key) as PageSessionCookie;
+    const cookie = getCookie(this.pageSession) as PageSessionCookie;
     return !!cookie
-      ? JSON.parse(cookie[this.key]).startTime
+      ? JSON.parse(cookie[this.pageSession]).startTime
       : new Date().getTime();
   }
 
   private getPreviousPage(){
-    const cookie = getCookie(this.key) as PageSessionCookie;
+    const cookie = getCookie(this.pageSession) as PageSessionCookie;
     return !!cookie
-      ? JSON.parse(cookie[this.key]).previous_page
+      ? JSON.parse(cookie[this.pageSession]).previous_page
       : '';
   }
 
