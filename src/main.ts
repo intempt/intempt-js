@@ -25,7 +25,7 @@ function getIntemptConfig(): IntemptConfig {
   return {
     project: source.searchParams.get('project') ?? '',
     writeKey: source.searchParams.get('key') ?? '',
-    sourceId: source.searchParams.get('sourceId') ?? '',
+    sourceId: source.searchParams.get('source') ?? '',
     organization: source.searchParams.get('organization') ?? '',
   };
 }
