@@ -14,14 +14,14 @@ import { TrackModel } from './models/track.model.ts';
 import { RecordModel } from './models/record.model.ts';
 import { AliasModel } from './models/alias.model.ts';
 import { dispatchIntemptEvent } from '../shared/shared.utils.ts';
+import { setCookie } from '../shared/storageHandler.ts';
 
 
 
 
 
 export class IntemptJs extends IntemptJsGuard {
-  // private readonly _api = 'http://localhost:3000/api/messages/test';
-  private readonly _api = 'https://api.intempt.com/v1';
+  private readonly _api = import.meta.env.VITE_API;
   private readonly _autoTracker:AutoTrackerModule
 
   private readonly _config:IntemptConfig;
@@ -34,11 +34,7 @@ export class IntemptJs extends IntemptJsGuard {
     this._config = { ...config};
     this._autoTracker = new AutoTrackerModule(this._config, this._api);
 
-
-
     if(!this.isValidConfig(config)) return
-
-//<script async src='https://cdn.intempt.com/intempt.min.js?organization=intempt-demo&project=saas-demo&source=496392441735024640&key=9dfc6897a9934274acf8fb7236698ba0.12410a7599ee49528a898ff2764841a9'></script>
 
     this._autoTracker.init();
 
@@ -177,13 +173,17 @@ export class IntemptJs extends IntemptJsGuard {
     dispatchIntemptEvent('intempt:event', { event: body});
   }
 
-  //TODO:Implement logout method
-  logOut(){
-    const cookie = this._autoTracker.cookieKeys;
-    console.log(cookie);
 
-    console.log('logOut')
-    return ''
+  logOut(){
+    const cookieNames = this._autoTracker.cookieKeys;
+    cookieNames.forEach((cookieName) => {
+     setCookie({
+        name: cookieName,
+        value: '',
+        path: '/',
+        expiration: -1
+     });
+    })
   }
 
 
