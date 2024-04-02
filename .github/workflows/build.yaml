@@ -1,0 +1,61 @@
+name: IntemptJs Build & Deployment
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+
+
+  Production:
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+      contents: read
+    runs-on: ubuntu-latest
+
+    env:
+      AWS_DEPLOYER_ROLE: 'arn:aws:iam::253548970387:role/GithubActionsJavascriptSourceDeployer'
+      AWS_REGION: "us-east-1"
+      AWS_S3_BUCKET_NAME: "253548970387.cdn.intempt.com"
+      INTEMPT_JS_SOURCE: "./dist/intempt.min.js"
+
+    strategy:
+      matrix:
+        node-version: [21.x]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: NPM Build Production
+        run: npm run build
+
+
+#      - name: Configure AWS Credentials
+#        uses: aws-actions/configure-aws-credentials@master
+#        with:
+#          aws-region: ${{ env.AWS_REGION }}
+#          role-to-assume: ${{ env.AWS_DEPLOYER_ROLE }}
+#          role-session-name: JavascriptSourceDeployment
+#
+#      - name: Upload intempt.min.js to production bucket
+#        uses: zdurham/s3-upload-github-action@master
+#        env:
+#          S3_VERSION_KEY: v1
+#          S3_BUCKET: ${{ env.AWS_S3_BUCKET_NAME }}/${S3_VERSION_KEY}
+#          AWS_REGION: ${{ env.AWS_REGION }}
+#          FILE: ${{ env.INTEMPT_JS_SOURCE }}
+#
+#
+#      - name: Create invalidation
+#        run: aws cloudfront create-invalidation --distribution-id "E1E1XM6MRZKA1G" --paths '/*'

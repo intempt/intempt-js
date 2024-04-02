@@ -73,29 +73,8 @@ export class SessionTrackerModule {
     });
   }
 
-  start(initializerEventName:string){
-    dispatchIntemptEvent('intempt:session', {
-      eventName: 'Start Session',
-      initializerName: initializerEventName
-    });
-
-  }
-
-  end(initializerEventName:string){
-    dispatchIntemptEvent('intempt:session', {
-      eventName: 'End Session',
-      initializerName: initializerEventName
-    });
-  }
-
   getId(){
-    console.log('getId 1: ',this.key);
-
     const cookie = getCookie(this.key) as {intempt_session : string} | null;
-
-    console.log('getId 2: ',this.key);
-    console.log('getId 3: ',cookie);
-
     const { id } = !!cookie
       ? { ...JSON.parse(cookie[this.key]) } as {id: string}
       : {id: ''};
@@ -103,7 +82,20 @@ export class SessionTrackerModule {
     return id
   }
 
+  private _start(initializerEventName:string){
+    dispatchIntemptEvent('intempt:session', {
+      eventName: 'Start Session',
+      initializerName: initializerEventName
+    });
 
+  }
+
+  private _end(initializerEventName:string){
+    dispatchIntemptEvent('intempt:session', {
+      eventName: 'End Session',
+      initializerName: initializerEventName
+    });
+  }
 
   private _sessionActivityHandler(){
     this._allTrackingEvents.forEach((domEventName) => {
@@ -138,9 +130,9 @@ export class SessionTrackerModule {
       (timeSinceLastBackgroundEvent <= this._defaultSessionTimeToExtend) &&
       (timeSinceLastForegroundEvent > this._defaultSessionTimeToExtend)
     ){
-      this.end(eventName);
+      this._end(eventName);
       this.init();
-      this.start(eventName);
+      this._start(eventName);
     }
 
 
@@ -181,7 +173,7 @@ export class SessionTrackerModule {
 
       session = { ...JSON.parse(newSessionCookie[this.key]) } as SessionCookieObject;
 
-      this.start(currentEventName);
+      this._start(currentEventName);
 
     }
     else{
@@ -190,9 +182,9 @@ export class SessionTrackerModule {
       const isValid = this._isValidSession(session.startAction, session.lastAction);
 
       if(!isValid){
-        this.end(currentEventName);
+        this._end(currentEventName);
         this.init();
-        this.start(currentEventName);
+        this._start(currentEventName);
 
         const validSession = getCookie(this.key) as SessionCookie;
 
