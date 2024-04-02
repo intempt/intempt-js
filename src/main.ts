@@ -5,8 +5,8 @@ import { IntemptConfig } from './intemptJs/intemptJs.types.ts';
 console.log('version:', 'v2');
 
 function getIntemptConfig(): IntemptConfig {
-  //const cdnLink = 'https://cdn.intempt.com/v1/intempt.min.js';
-  const cdnLink = 'https://cdn.test.com/test.min.js';
+  const cdnLink = 'https://cdn.intempt.com/v1/intempt.min.js';
+ // const cdnLink = 'https://cdn.test.com/test.min.js';
   const scripts = document.scripts;
 
   const intemptScript = Array.from(scripts).find(s => s.src.includes(cdnLink));
