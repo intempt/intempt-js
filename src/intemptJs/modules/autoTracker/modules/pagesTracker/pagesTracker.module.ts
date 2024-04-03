@@ -28,7 +28,7 @@ export class PageTrackerModule {
     const currentEventName = 'View Page';
     const previousPage = this.getPreviousPage();
 
-    dispatchIntemptEvent('page:view', {
+    dispatchIntemptEvent('intempt:page', {
       eventName: currentEventName,
       fullUrl: window.location.href,
       title: document.title,
@@ -43,7 +43,7 @@ export class PageTrackerModule {
     const startTime = this.getPageSessionStartTime();
     const previousPage = this.getPreviousPage();
 
-    dispatchIntemptEvent('page:leave', {
+    dispatchIntemptEvent('intempt:page', {
       eventName: currentEventName,
       fullUrl: window.location.href,
       title: document.title,

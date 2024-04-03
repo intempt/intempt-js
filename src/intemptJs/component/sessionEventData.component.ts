@@ -1,4 +1,4 @@
-import { BaseURLParser } from '../../_baseUrlParser.ts';
+import { BaseURLParser } from '../_baseUrlParser.ts';
 
 export class SessionEventDataComponent{
   private readonly sessionStartEventName:string;

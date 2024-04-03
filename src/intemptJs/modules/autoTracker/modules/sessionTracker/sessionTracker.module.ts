@@ -42,8 +42,6 @@ export class SessionTrackerModule {
   private readonly _foregroundEventNames = [
     'intempt:html',
     'intempt:page',
-    'page:leave',
-    'page:view',
     'intempt:identify ',
   ];
   private readonly _backgroundEventNames = [
@@ -66,6 +64,8 @@ export class SessionTrackerModule {
   }
 
   init(){
+    console.log('session init')
+
     this._sessionActivityHandler();
 
     if(this._isFirstSession()) return ;
@@ -141,9 +141,6 @@ export class SessionTrackerModule {
       this._start(eventName);
     }
 
-
-
-
   }
 
   private _onForegroundActionActivityTime({ id, startAction, eventsCounter, lastBackgroundAction}:SessionCookieObject){
@@ -174,6 +171,8 @@ export class SessionTrackerModule {
 
     const cookie = getCookie(this.intemptSession) as SessionCookie | null;
 
+    console.log('_validateSession cookie: ',!!cookie);
+
     if(!cookie){
       const newSessionCookie = this._initSessionCookie();
 
@@ -186,6 +185,7 @@ export class SessionTrackerModule {
       session = { ...JSON.parse(cookie[this.intemptSession]) } as SessionCookieObject;
 
       const isValid = this._isValidSession(session.startAction, session.lastAction);
+      console.log(isValid);
 
       if(!isValid){
         this._end(currentEventName);
@@ -229,6 +229,10 @@ export class SessionTrackerModule {
     return { ...JSON.parse(incrementedSessionCookie[this.intemptSession]) } as SessionCookieObject;
   }
 
+  /**
+   * Initialize the session cookie
+   * @returns {string} - The session cookie
+   * */
   private _initSessionCookie(){
     return setCookie({
       name: this.intemptSession,
@@ -245,23 +249,49 @@ export class SessionTrackerModule {
     })
   }
 
+  /**
+   * Validate the cookie session using the start and last activity time
+   * @param start {number} - The start time of the session
+   * @param lastActivity {number} - The last activity time of the session
+   * @returns {boolean} - The session is valid or not
+   * */
   private _isValidSession(start:number, lastActivity:number) {
     return lastActivity - start < this._defaultSessionTimeWithoutActivity;
   }
 
+  /**
+   * Check if the current session is generally the first session
+   * @returns {boolean} - The session is the first session or not
+   * */
   private _isFirstSession(){
     const cookie = getCookie(this.isFirstIntemptSession) as {is_first_intempt_session : string} | null;
     return !!cookie
   }
 
+  /**
+   * check if the event is a foreground event
+   * @param eventName {string} - The DOM event name
+   * @returns {boolean} - The event is a foreground event or not
+   * */
   private _isForegroundEvent(eventName:string){
     return this._foregroundEventNames.includes(eventName);
   }
 
+  /**
+   * check if the event is a background event
+   * @param eventName {string} - The DOM event name
+   * @returns {boolean} - The event is a background event or not
+   * */
   private _isBackgroundEventNames(eventName:string){
     return this._backgroundEventNames.includes(eventName);
   }
 
+  /**
+   * Helper method to get the remaining time of the session
+   * @param now {number} - The current time
+   * @param start {number} - The start time of the session
+   * @returns {number} - The remaining time of the session
+   * */
   private _getSessionRemainingExpirationTime(now: number, start: number){
     return this._defaultSessionTimeWithoutActivity - (now - start);
  }

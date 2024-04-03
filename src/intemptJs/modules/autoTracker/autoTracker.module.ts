@@ -1,13 +1,13 @@
-import { HtmlElementDataComponent } from '../component/HtmlEventData.component.ts';
+import { HtmlElementDataComponent } from '../../component/HtmlEventData.component.ts';
 import { SessionTrackerModule } from './modules/sessionTracker/sessionTracker.module.ts'
 import { ProfileTrackerModule } from './modules/profileTracker/profileTracker.module.ts'
 import { PageTrackerModule } from './modules/pagesTracker/pagesTracker.module.ts';
 import { SessionEventModel } from './models/session.model.ts';
-import { SessionEventDataComponent } from '../component/sessionEventData.component.ts';
+import { SessionEventDataComponent } from '../../component/sessionEventData.component.ts';
 import { debounce, dispatchIntemptEvent, getLocationInfo } from '../../../shared/shared.utils.ts';
-import { UserAttributeComponent } from '../component/userAttribute.component.ts';
+import { UserAttributeComponent } from '../../component/userAttribute.component.ts';
 import { PageEventModel } from './models/pageEvent.model.ts';
-import { PageEventDataComponent } from '../component/pageEventData.component.ts';
+import { PageEventDataComponent } from '../../component/pageEventData.component.ts';
 import { HtmlEventModel } from './models/HtmlEvent.model.ts';
 import { HtmlTrackerModule } from './modules/htmlTracker/htmlTracker.module.ts';
 import { IntemptConfig } from '../../intemptJs.types.ts';
@@ -28,7 +28,7 @@ export class AutoTrackerModule {
   private readonly _eventPool:any[] = [];
 
   constructor(intemptConfig: IntemptConfig, api:string) {
-    console.log('intemptConfig: ', intemptConfig);
+
     this._config = { ...intemptConfig };
     this._api = api;
     this._keys = [
@@ -42,9 +42,7 @@ export class AutoTrackerModule {
 
     this._trackSession();
 
-    this._trackViewPage();
-
-    this._trackLeavePage();
+    this._trackPage();
 
     this._trackHtml();
   }
@@ -80,38 +78,10 @@ export class AutoTrackerModule {
     })
   }
 
-  private _trackViewPage() {
-    document.addEventListener('page:view', (event) => {
-      const {detail} = event as CustomEvent;
-
-      const { eventName, fullUrl, title, windowWidth, pageId, previousPage} = detail;
-
-      const eventData = new PageEventDataComponent({
-        title,
-        fullUrl,
-        windowWidth,
-        previousPage
-      })
-
-      const pageEvent = new PageEventModel({
-        name: eventName,
-        sessionId: this.getSessionId(),
-        profileId: this.getProfileId(),
-        pageId,
-        data: eventData
-      });
-
-
-      dispatchIntemptEvent('intempt:event', { event: pageEvent});
-
-    });
-  }
-
-  private _trackLeavePage() {
-    document.addEventListener('page:leave', (event) => {
-      const {detail} = event as CustomEvent;
+  private _trackPage(){
+    document.addEventListener('intempt:page', (event) => {
+      const { detail } = event as CustomEvent;
       const { eventName, fullUrl, title, windowWidth, pageId, duration, previousPage } = detail;
-
 
       const eventData = new PageEventDataComponent({
         duration,
@@ -120,6 +90,7 @@ export class AutoTrackerModule {
         windowWidth,
         previousPage
       })
+
       const pageEvent = new PageEventModel({
         name: eventName,
         sessionId: this.getSessionId(),
@@ -131,7 +102,7 @@ export class AutoTrackerModule {
 
       dispatchIntemptEvent('intempt:event', { event: pageEvent});
 
-    });
+    })
   }
 
   private _trackSession(){

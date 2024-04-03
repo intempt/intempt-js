@@ -3,7 +3,13 @@
     "target": "ES2020",
     "useDefineForClassFields": true,
     "module": "ESNext",
-    "lib": ["ES2020", "DOM", "DOM.Iterable", "dom"],
+    "lib": [
+      "ES2020",
+      "DOM",
+      "DOM.Iterable",
+      "dom",
+      "es2021.weakref"
+    ],
     "types": ["web"],
     "skipLibCheck": true,
 
@@ -18,7 +24,7 @@
     "strict": true,
     "noUnusedLocals": false,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true,
+    "noFallthroughCasesInSwitch": true
   },
   "include": ["src"]
 }
