@@ -80,11 +80,13 @@ export class IntemptJs extends IntemptJsGuard {
 
     const profileId = this._autoTracker.getProfileId();
     const sessionId = this._autoTracker.getSessionId();
+    const pageId = this._autoTracker.getPageId();
 
     const eventData = new IdentifyModel({
       ...params,
       profileId,
-      sessionId
+      sessionId,
+      pageId
     })
     console.log('identify',eventData);
     dispatchIntemptEvent('intempt:identify', {
@@ -102,11 +104,13 @@ export class IntemptJs extends IntemptJsGuard {
 
     const profileId = this._autoTracker.getProfileId();
     const sessionId = this._autoTracker.getSessionId();
+    const pageId = this._autoTracker.getPageId();
 
     const eventData = new GroupModel({
       ...params,
       profileId,
-      sessionId
+      sessionId,
+      pageId
     })
     dispatchIntemptEvent('intempt:group', {
       eventName: eventData._name
@@ -121,10 +125,14 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isTrackValid(params)) return;
 
     const profileId = this._autoTracker.getProfileId();
+    const sessionId = this._autoTracker.getSessionId();
+    const pageId = this._autoTracker.getPageId();
 
     const eventData = new TrackModel({
       ...params,
       profileId,
+      sessionId,
+      pageId
     })
 
     console.log('track',eventData);
@@ -140,11 +148,14 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isRecordValid(params)) return;
 
     const profileId = this._autoTracker.getProfileId();
-
+    const sessionId = this._autoTracker.getSessionId();
+    const pageId = this._autoTracker.getPageId();
 
     const eventData = new RecordModel({
       ...params,
       profileId,
+      sessionId,
+      pageId
     })
 
     console.log('record',eventData);
@@ -160,12 +171,10 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isAliasValid(params)) return;
 
     const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
 
     const eventData = new AliasModel({
       ...params,
       profileId,
-      sessionId
     })
 
     console.log('alias', eventData)
@@ -188,11 +197,13 @@ export class IntemptJs extends IntemptJsGuard {
 
     const profileId = this._autoTracker.getProfileId();
     const sourceId = this._config.sourceId;
+    const pageId = this._autoTracker.getPageId();
 
     const eventData = new ConsentModel({
       ...params,
       profileId,
-      sourceId
+      sourceId,
+      pageId
     })
     console.log(' body', eventData)
     dispatchIntemptEvent('intempt:consent', {

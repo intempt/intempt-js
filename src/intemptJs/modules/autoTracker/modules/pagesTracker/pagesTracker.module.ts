@@ -18,7 +18,10 @@ export class PageTrackerModule {
 
     window.addEventListener('load', () => this.start());
 
-    window.addEventListener('popstate', () => this.start());
+    window.addEventListener('popstate', () => {
+      this.end()
+      this.start()
+    });
 
     window.addEventListener('beforeunload', () => this.end());
   }

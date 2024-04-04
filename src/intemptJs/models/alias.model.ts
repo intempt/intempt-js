@@ -15,7 +15,6 @@ export class AliasModel implements ModelAlias {
       eventId: generateId('ev'),
       timestamp: new Date().getTime(),
       profileId: params.profileId!,
-      sessionId: params.sessionId!,
       userId: params.userId,
       anotherUserId: params.anotherUserId,
     })

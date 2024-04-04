@@ -11,9 +11,9 @@ export class SessionEventModel {
   constructor({ name, sessionId, profileId, userAttributes, data }:SessionEventParams) {
     this.name = name;
     this.payload.push({
-      eventId: generateId('ev'),
+      eventId: sessionId,
       timestamp: new Date().getTime(),
-      sessionId,
+      //sessionId,
       profileId,
       userAttributes,
       data,

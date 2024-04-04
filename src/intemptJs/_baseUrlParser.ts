@@ -39,8 +39,4 @@ export class BaseURLParser {
       [key]:searchParams.get(key) || ''
     }), {})
  }
-
-
-
-
 }

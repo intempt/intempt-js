@@ -65,7 +65,7 @@ export type PageEventModelParams = {
 
 export type SessionEventPayload = {
   eventId:string;
-  sessionId:string;
+  // sessionId:string;
   profileId:string;
   timestamp: number;
   data:SessionEventDataComponent;
@@ -84,7 +84,7 @@ export type HtmlEventPayload = {
 export type PageEventPayload = {
   sessionId:string;
   profileId:string;
-  pageId:string;
+  // pageId:string;
   eventId:string;
   timestamp: number;
   data:PageEventDataComponent
@@ -95,6 +95,7 @@ export type IdentifyModelPayload = {
   timestamp: number;
   profileId: string;
   sessionId: string;
+  pageId:string,
   userId: string;
   userAttributes?:{[key:string]:any}
   data?:{[key:string]:any}
@@ -105,6 +106,7 @@ export type GroupModelPayload = {
   timestamp: number;
   profileId: string;
   sessionId: string;
+  pageId: string;
   accountId: string;
   accountAttributes?:{[key:string]:any}
 }
@@ -113,6 +115,8 @@ export type TrackModelPayload = {
   eventId: string;
   timestamp: number;
   profileId: string;
+  sessionId: string;
+  pageId: string;
   data?:{ [key:string]:any }
 }
 
@@ -120,6 +124,8 @@ export type RecordModelPayload = {
   eventId: string;
   timestamp: number;
   profileId: string;
+  pageId?: string;
+  sessionId?: string;
   accountId?: string;
   userId?: string;
   data?:{[key:string]:any}
@@ -131,7 +137,7 @@ export type AliasModelPayload = {
   eventId: string;
   timestamp: number;
   profileId: string;
-  sessionId: string;
+  //sessionId: string;
   userId: string;
   anotherUserId: string;
 }

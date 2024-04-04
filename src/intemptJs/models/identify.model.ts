@@ -17,6 +17,7 @@ export class IdentifyModel implements ModelIdentify {
       timestamp: new Date().getTime(),
       profileId: params.profileId!,
       sessionId: params.sessionId!,
+      pageId: params.pageId!,
       userId: params.userId,
       userAttributes: params.userAttributes ?? undefined,
       data: params.data ?? undefined

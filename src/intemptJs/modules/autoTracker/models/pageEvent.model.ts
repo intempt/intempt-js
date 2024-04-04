@@ -9,11 +9,11 @@ export class PageEventModel {
    constructor({ name, sessionId, profileId, pageId, data }:PageEventModelParams) {
      this.name = name;
      this.payload.push({
-       eventId: generateId('ev'),
+       eventId: pageId,
        timestamp: new Date().getTime(),
        sessionId,
        profileId,
-       pageId,
+       // pageId,
        data
      })
    }

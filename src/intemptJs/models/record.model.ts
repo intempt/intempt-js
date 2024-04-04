@@ -15,6 +15,8 @@ export class RecordModel implements ModelRecord {
       eventId: generateId('ev'),
       timestamp: new Date().getTime(),
       profileId: params.profileId!,
+      sessionId: params.sessionId!,
+      pageId: params.pageId!,
       userId: params.userId ?? undefined,
       accountId: params.accountId ?? undefined,
       data: params.data ?? undefined,
@@ -27,3 +29,6 @@ export class RecordModel implements ModelRecord {
     return '';
   }
 }
+
+
+

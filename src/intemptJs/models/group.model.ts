@@ -16,6 +16,7 @@ export class GroupModel implements ModelGroup{
       timestamp: new Date().getTime(),
       profileId: params.profileId!,
       sessionId: params.sessionId!,
+      pageId: params.pageId!,
       accountId: params.accountId,
       accountAttributes: params.accountAttributes ?? undefined
     })

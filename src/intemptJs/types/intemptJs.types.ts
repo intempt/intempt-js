@@ -6,6 +6,7 @@ export type IdType = 'pag' | 'ses' | 'ev' |'prof';
 export type IntemptIdsParams = {
   sessionId?:string,
   profileId?:string,
+  pageId?:string,
   sourceId?:string,
 }
 

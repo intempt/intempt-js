@@ -150,7 +150,6 @@ export class AutoTrackerModule {
       const { type   } = event;
 
       console.log('Event Pool event: ', detail);
-      // console.log('Event Pool type : ', type);
 
       switch (type) {
         case 'consent':
@@ -245,6 +244,11 @@ export class AutoTrackerModule {
     return this._profileTrackerModule.getId();
   }
 
+  getPageId(){
+    return this._pagesTrackerModule.getId();
+  }
+
 
 
 }
+//pageId i sessionid v eventid
