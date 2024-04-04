@@ -1,4 +1,4 @@
-import { UtmKeys } from './modules/autoTracker/autoTracker.types.ts';
+import { UtmKeys } from './types/autoTracker.types.ts';
 
 
 export class BaseURLParser {

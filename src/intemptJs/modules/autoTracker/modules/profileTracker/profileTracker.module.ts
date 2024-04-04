@@ -6,6 +6,7 @@ import { generateId } from '../../../../../shared/shared.utils.ts'
 type ProfileIdCookie = { profileId: string } | null;
 
 export class ProfileTrackerModule {
+  private readonly idType = 'prof';
   private readonly keys = ['profileId'];
 
   private readonly profileId = 'profileId';
@@ -22,9 +23,7 @@ export class ProfileTrackerModule {
     this.expiration = millisecondsPerSecond * secondsPerMinute * minutesPerHour * hoursPerDay * days;
   }
 
-  get cookieKeys(){
-    return this.keys;
-  }
+  get cookieKeys(){ return this.keys;}
 
 
   init(){
@@ -59,7 +58,7 @@ export class ProfileTrackerModule {
   private _initProfileId(){
     return setCookie({
       name: this.profileId,
-      value: generateId(),
+      value: generateId(this.idType),
       expiration: this.expiration,
       path: '/',
     });

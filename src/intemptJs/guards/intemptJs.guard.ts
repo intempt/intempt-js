@@ -5,18 +5,20 @@ import {
   IdentifyParams,
   RecordParams,
   TrackParams,
-} from '../intemptJs.types.ts';
+} from '../types/intemptJs.types.ts';
 
 
 export class IntemptJsGuard {
 
   private readonly _forbiddenEventNames:string[] = [
+    'auto-track',
     'view page',
     'leave page',
     'change on',
     'click on',
     'submit on',
-    'consent'
+    'identify',
+    'consent',
   ];
 
   isValidConfig(params:any){

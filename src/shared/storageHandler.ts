@@ -1,4 +1,4 @@
-import { SetCookieParams } from '../intemptJs/modules/autoTracker/autoTracker.types.ts';
+import { SetCookieParams } from '../intemptJs/types/autoTracker.types.ts';
 
 
 export function setCookie({name, value, path, expiration}:SetCookieParams){

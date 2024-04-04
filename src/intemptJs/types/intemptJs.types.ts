@@ -1,7 +1,13 @@
 
 
 
-export type IntemptIdsParams = { sessionId:string, profileId:string}
+export type IdType = 'pag' | 'ses' | 'ev' |'prof';
+
+export type IntemptIdsParams = {
+  sessionId?:string,
+  profileId?:string,
+  sourceId?:string,
+}
 
 
 export type IntemptConfig = {
@@ -15,10 +21,10 @@ export type ConsentAction = 'accept' | 'reject';
 
 export type ConsentParams = {
   action: ConsentAction,
+  validUntil: number
   email?:string,
   message?: string
   category?: string
-  validUntil?: number
 }
 
 

@@ -1,9 +1,10 @@
-import { HtmlEventModelParams, HtmlEventPayload, IntemptHtmlEventNames } from '../autoTracker.types.ts';
+import { HtmlEventModelParams, HtmlEventPayload, IntemptHtmlEventNames } from '../../../types/autoTracker.types.ts';
 import { generateId } from '../../../../shared/shared.utils.ts';
 import { HtmlElementDataComponent } from '../../../component/HtmlEventData.component.ts';
 
 
 export class HtmlEventModel {
+
   private readonly name: IntemptHtmlEventNames
   private readonly payload: HtmlEventPayload[] = [];
 
@@ -13,7 +14,7 @@ export class HtmlEventModel {
   constructor({name, data, sessionId, profileId, pageId}:HtmlEventModelParams) {
     this.name = name;
     this.payload.push({
-      eventId: generateId(),
+      eventId: generateId('ev'),
       timestamp: new Date().getTime(),
       sessionId,
       profileId,

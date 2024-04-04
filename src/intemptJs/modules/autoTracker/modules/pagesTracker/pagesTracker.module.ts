@@ -6,6 +6,7 @@ type PageSessionCookie = { page_session: string } | null;
 type ParsedPageSessionCookie = { id: string, current_page: string, previous_page: string };
 
 export class PageTrackerModule {
+  private readonly idType = 'pag';
   private readonly keys = ['page_session'];
 
   private readonly pageSession = 'page_session';
@@ -73,7 +74,7 @@ export class PageTrackerModule {
       return setCookie({
         name: this.pageSession,
         value: JSON.stringify({
-          id: generateId(),
+          id: generateId(this.idType),
           startTime: new Date().getTime(),
           current_page: currentPage,
           previous_page: '',
@@ -81,7 +82,7 @@ export class PageTrackerModule {
         path: '/',
       });
     }
-    console.log(cookie[this.pageSession]);
+   // console.log(cookie[this.pageSession]);
     try{
       const { id, current_page,  previous_page} = JSON.parse(cookie[this.pageSession]) as ParsedPageSessionCookie;
 
@@ -93,7 +94,7 @@ export class PageTrackerModule {
       return setCookie({
         name: this.pageSession,
         value: JSON.stringify({
-          id: generateId(),
+          id: generateId(this.idType),
           previous_page: current_page,
           current_page: currentPage,
           startTime: new Date().getTime(),

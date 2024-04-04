@@ -1,4 +1,4 @@
-import { IntemptPageEventNames, PageEventModelParams, PageEventPayload } from '../autoTracker.types.ts';
+import { IntemptPageEventNames, PageEventModelParams, PageEventPayload } from '../../../types/autoTracker.types.ts';
 import { generateId } from '../../../../shared/shared.utils.ts';
 
 
@@ -9,7 +9,7 @@ export class PageEventModel {
    constructor({ name, sessionId, profileId, pageId, data }:PageEventModelParams) {
      this.name = name;
      this.payload.push({
-       eventId: generateId(),
+       eventId: generateId('ev'),
        timestamp: new Date().getTime(),
        sessionId,
        profileId,

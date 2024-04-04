@@ -4,13 +4,13 @@ import { ProfileTrackerModule } from './modules/profileTracker/profileTracker.mo
 import { PageTrackerModule } from './modules/pagesTracker/pagesTracker.module.ts';
 import { SessionEventModel } from './models/session.model.ts';
 import { SessionEventDataComponent } from '../../component/sessionEventData.component.ts';
-import { debounce, dispatchIntemptEvent, getLocationInfo } from '../../../shared/shared.utils.ts';
+import { debounce, dispatchIntemptEvent } from '../../../shared/shared.utils.ts';
 import { UserAttributeComponent } from '../../component/userAttribute.component.ts';
 import { PageEventModel } from './models/pageEvent.model.ts';
 import { PageEventDataComponent } from '../../component/pageEventData.component.ts';
 import { HtmlEventModel } from './models/HtmlEvent.model.ts';
 import { HtmlTrackerModule } from './modules/htmlTracker/htmlTracker.module.ts';
-import { IntemptConfig } from '../../intemptJs.types.ts';
+import { IntemptConfig } from '../../types/intemptJs.types.ts';
 
 
 export class AutoTrackerModule {
@@ -47,17 +47,13 @@ export class AutoTrackerModule {
     this._trackHtml();
   }
 
-  get cookieKeys(){
-    return this._keys;
-  }
+  get cookieKeys(){ return this._keys }
 
   init() {
     this._profileTrackerModule.init();
     this._sessionTrackerModule.init();
     this._pagesTrackerModule.init();
     this._htmlTrackerModule.init();
-
-
   }
 
 
@@ -66,7 +62,7 @@ export class AutoTrackerModule {
       const { detail } = event as CustomEvent;
       const { eventName, target } = detail;
 
-      const intemptEvent = new HtmlEventModel({
+      const eventData = new HtmlEventModel({
         name: eventName,
         sessionId: this.getSessionId(),
         profileId: this.getProfileId(),
@@ -74,7 +70,7 @@ export class AutoTrackerModule {
         data: new HtmlElementDataComponent(target)
       })
 
-      dispatchIntemptEvent('intempt:event', { event: intemptEvent});
+      dispatchIntemptEvent('intempt:event', { event: eventData});
     })
   }
 
@@ -108,13 +104,22 @@ export class AutoTrackerModule {
   private _trackSession(){
     document.addEventListener('intempt:session', async (event) => {
       const { detail } = event as CustomEvent;
-      const { eventName, initializerName } = detail;
+      const { eventName, region, city, country , ip } = detail;
 
-      const eventData = new SessionEventDataComponent(initializerName);
+      const sessionId = this.getSessionId();
+      const profileId = this.getProfileId();
 
-      const { region, city, country , ip} = await getLocationInfo();
 
-      const attributes = new UserAttributeComponent({
+
+      console.log('intempt:session', detail);
+
+      const eventData = new SessionEventDataComponent(
+        this._sessionTrackerModule.getInitializerName(),
+      );
+
+      //const { region, city, country , ip} = await getLocationInfo();
+
+      const userAttributes = new UserAttributeComponent({
         region,
         city,
         country,
@@ -123,12 +128,13 @@ export class AutoTrackerModule {
 
       const sessionEvent = new SessionEventModel({
         name: eventName,
-        sessionId : this.getSessionId(),
-        profileId: this.getProfileId(),
+        sessionId,
+        profileId,
         data: eventData,
-        userAttributes: attributes
+        userAttributes
       })
 
+      console.log('Session Event: ', sessionEvent);
 
       dispatchIntemptEvent('intempt:event', { event: sessionEvent});
     })
@@ -137,25 +143,21 @@ export class AutoTrackerModule {
 
 
   private _eventPoolHandler() {
-    let debouncedSendEvents:ReturnType<typeof debounce>;
-
     document.addEventListener('intempt:event', (customDomEvent) => {
       const { detail } = customDomEvent as CustomEvent;
-      const name = detail.event.name.toLowerCase();
+      const { event  } = detail;
+      const { type   } = event;
 
-      console.log('Event Pool: ', detail.event);
+      console.log('Event Pool event: ', detail);
+      // console.log('Event Pool type : ', type);
 
-
-      this._eventPool.push(detail.event);
-
-      if(name.toLowerCase() === 'leave page'){
-        debouncedSendEvents = debounce(() => this._sendTrackEventData(), 0);
+      switch (type) {
+        case 'consent':
+          return this._sendConsentTrackEventData(event);
+         default:
+           this._onTrackData(event);
+           break;
       }
-      else{
-        debouncedSendEvents = debounce(() => this._sendTrackEventData(), 1000);
-      }
-
-      return debouncedSendEvents();
     });
   }
 
@@ -163,7 +165,7 @@ export class AutoTrackerModule {
   private _onTrackData(data:any){
     let debouncedSendEvents:ReturnType<typeof debounce>;
     const name = data.name.toLowerCase();
-    this._eventPool.push(data);
+     this._eventPool.push(data);
 
     if(name.toLowerCase() === 'leave page'){
       debouncedSendEvents = debounce(() => this._sendTrackEventData(), 0);
@@ -239,7 +241,7 @@ export class AutoTrackerModule {
   }
 
   getProfileId() {
-    return this._pagesTrackerModule.getId();
+    return this._profileTrackerModule.getId();
   }
 
 

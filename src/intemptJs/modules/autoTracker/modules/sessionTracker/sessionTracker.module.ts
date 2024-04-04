@@ -1,6 +1,6 @@
-import { dispatchIntemptEvent, generateId} from '../../../../../shared/shared.utils.ts';
+import { dispatchIntemptEvent, generateId } from '../../../../../shared/shared.utils.ts';
 import { getCookie, setCookie } from '../../../../../shared/storageHandler.ts'
-import { SessionCookie, SessionCookieObject } from '../../autoTracker.types.ts';
+import { LocationApi, SessionCookie, SessionCookieObject } from '../../../../types/autoTracker.types.ts';
 
 
 // [
@@ -24,11 +24,13 @@ import { SessionCookie, SessionCookieObject } from '../../autoTracker.types.ts';
 
 
 export class SessionTrackerModule {
-  private readonly keys = ['intempt_session', 'is_first_intempt_session'];
+  private readonly idType = 'ses';
+  private readonly keys = ['intempt_session', 'session_initializer_name'];
 
 
   private readonly intemptSession = 'intempt_session';
-  private readonly isFirstIntemptSession = 'is_first_intempt_session';
+  private readonly sessionInitializerName = 'session_initializer_name';
+
 
 
   private readonly millisecondsPerSecond  = 1000;
@@ -42,41 +44,29 @@ export class SessionTrackerModule {
   private readonly _foregroundEventNames = [
     'intempt:html',
     'intempt:page',
-    'intempt:identify ',
+    'intempt:identify',
   ];
   private readonly _backgroundEventNames = [
-    'intempt:track ',
-    'intempt:group ',
-    'intempt:track ',
-    'intempt:record ',
-    'intempt:alias ',
-    'intempt:logOut ',
-    'intempt:consent ',
+    'intempt:track',
+    'intempt:group',
+    'intempt:track',
+    'intempt:record',
+    'intempt:alias',
+    'intempt:logOut',
+    'intempt:consent',
   ];
 
   private _allTrackingEvents = [...this._foregroundEventNames, ...this._backgroundEventNames]
 
 
-  constructor() {}
-
-  get cookieKeys(){
-    return this.keys;
+  constructor() {
+    this._sessionActivityHandler();
   }
 
+  get cookieKeys() { return this.keys; }
+
   init(){
-    console.log('session init')
-
-    this._sessionActivityHandler();
-
-    if(this._isFirstSession()) return ;
-
     this._initSessionCookie();
-
-    setCookie({
-      name: this.isFirstIntemptSession,
-      value: JSON.stringify(false),
-      path: '/',
-    });
   }
 
   getId(){
@@ -88,29 +78,139 @@ export class SessionTrackerModule {
     return id
   }
 
-  private _start(initializerEventName:string){
+  getInitializerName(){
+    const cookie = getCookie(this.sessionInitializerName) as {session_initializer_name : string} | null;
+    return !!cookie ? cookie[this.sessionInitializerName] : '';
+  }
+
+
+  private async _getLocation():Promise<LocationApi>{
+    const locationApiUrl = import.meta.env.VITE_LOCATION_API_URL
+
+    try {
+      const response = await fetch(locationApiUrl);
+      const data = await response.json()
+      const {ip, region, city, country } = data
+      return {
+        ip: ip ?? '',
+        region: region ?? '',
+        city: city ?? '',
+        country: country ?? '',
+      }
+    } catch (error) {
+      console.log('Error fetching location information:', error)
+      return {
+        ip: '',
+        region: '',
+        city: '',
+        country: '',
+      }
+    }
+  }
+
+
+  /**
+   * Initialize the session cookie
+   * @returns {string} - The session cookie
+   * */
+  private _initSessionCookie(){
+    const cookie = getCookie(this.intemptSession) as SessionCookie | null;
+
+    return !!cookie
+      ? this._onActiveSession(cookie)
+      : this._onNewSession();
+
+  }
+
+  /**
+   * Runs when a new session should be created
+   * */
+  private _onNewSession(initEventName:string = 'Start Session'){
+    const newCookie = setCookie({
+      name: this.intemptSession,
+      value: JSON.stringify({
+        id: generateId(this.idType),
+        startAction: new Date().getTime(),
+        lastForegroundAction: null,
+        lastBackgroundAction: null,
+        lastAction: new Date().getTime(),
+        eventsCounter: 0,
+      }),
+      path: '/',
+      expiration: this._defaultSessionTimeWithoutActivity,
+    });
+
+    this._start(initEventName);
+
+    return { ...JSON.parse(newCookie[this.intemptSession]) } as SessionCookieObject;
+  }
+
+  /**
+   * Runs when session cookie is available and checks if the session is valid
+   * if the session is not valid, it ends the session and runs _onNewSession (creates a new session)
+   * */
+  private _onActiveSession(sessionCookie:SessionCookie){
+    const session = { ...JSON.parse(sessionCookie[this.intemptSession]) } as SessionCookieObject;
+
+    const isValid = this._isValidSession(session.startAction, session.lastAction);
+
+    if(!isValid){
+       this._end('End Session');
+       return this._onNewSession();
+    }
+  }
+
+  private async _start(initializerEventName:string){
+    setCookie({
+      name: this.sessionInitializerName,
+      value: initializerEventName,
+      path: '/',
+    })
+
+    const location = await this._getLocation();
+
     dispatchIntemptEvent('intempt:session', {
       eventName: 'Start Session',
-      initializerName: initializerEventName
+      initializerName: initializerEventName,
+      ...location
     });
 
   }
 
-  private _end(initializerEventName:string){
+  private async _end(initializerEventName:string){
+
+    const location = await this._getLocation();
+
     dispatchIntemptEvent('intempt:session', {
       eventName: 'End Session',
-      initializerName: initializerEventName
+      initializerName: initializerEventName,
+      ...location
     });
   }
 
   private _sessionActivityHandler(){
     this._allTrackingEvents.forEach((domEventName) => {
       document.addEventListener(domEventName, (event) => {
+        console.log('_sessionActivityHandler domEventName',domEventName);
+
+
         const { detail } = event as CustomEvent;
         const { eventName } = detail;
 
-        const validatedSession = this._validateSession(eventName);
-        const incrementedSession = this._incrementSessionEventCounter(validatedSession);
+        if(domEventName === 'intempt:logOut') {
+          return this._end(eventName);
+        }
+
+        const sessionCookie = getCookie(this.intemptSession) as SessionCookie;
+
+        if (!sessionCookie) {
+          return this._onNewSession(eventName);
+        }
+
+
+        const session = { ...JSON.parse(sessionCookie[this.intemptSession]) } as SessionCookieObject;
+
+        const incrementedSession = this._incrementSessionEventCounter(session);
 
         if(this._isForegroundEvent(domEventName)){
           this._onForegroundActionActivityTime(incrementedSession);
@@ -122,85 +222,6 @@ export class SessionTrackerModule {
     })
   }
 
-  private _onBackgroundActionActivityTime(eventName:string,{ lastBackgroundAction, lastForegroundAction}:SessionCookieObject){
-    const now = new Date().getTime();
-
-    const foregroundAction = lastForegroundAction ?? now;
-    const backgroundAction = lastBackgroundAction ?? now;
-
-    const timeSinceLastForegroundEvent = now - foregroundAction;
-    const timeSinceLastBackgroundEvent = now - backgroundAction;
-
-
-    if(
-      (timeSinceLastBackgroundEvent <= this._defaultSessionTimeToExtend) &&
-      (timeSinceLastForegroundEvent > this._defaultSessionTimeToExtend)
-    ){
-      this._end(eventName);
-      this.init();
-      this._start(eventName);
-    }
-
-  }
-
-  private _onForegroundActionActivityTime({ id, startAction, eventsCounter, lastBackgroundAction}:SessionCookieObject){
-    const now = new Date().getTime();
-    const remainingTime = this._getSessionRemainingExpirationTime(now ,startAction);
-    const newExpirationDuration  = remainingTime + this._defaultSessionTimeToExtend;
-
-    const value = {
-      id: id,
-      startAction: startAction,
-      lastForegroundAction: now,
-      lastBackgroundAction: lastBackgroundAction,
-      lastAction: now,
-      eventsCounter: eventsCounter
-    }
-
-
-    return setCookie({
-      name: this.intemptSession,
-      value: JSON.stringify(value),
-      path: '/',
-      expiration: newExpirationDuration
-    })
-  }
-
-  private _validateSession(currentEventName:string):SessionCookieObject {
-    let session:SessionCookieObject;
-
-    const cookie = getCookie(this.intemptSession) as SessionCookie | null;
-
-    console.log('_validateSession cookie: ',!!cookie);
-
-    if(!cookie){
-      const newSessionCookie = this._initSessionCookie();
-
-      session = { ...JSON.parse(newSessionCookie[this.intemptSession]) } as SessionCookieObject;
-
-      this._start(currentEventName);
-
-    }
-    else{
-      session = { ...JSON.parse(cookie[this.intemptSession]) } as SessionCookieObject;
-
-      const isValid = this._isValidSession(session.startAction, session.lastAction);
-      console.log(isValid);
-
-      if(!isValid){
-        this._end(currentEventName);
-        this.init();
-        this._start(currentEventName);
-
-        const validSession = getCookie(this.intemptSession) as SessionCookie;
-
-        session = { ...JSON.parse(validSession[this.intemptSession]) } as SessionCookieObject;
-      }
-    }
-
-    return session;
-  }
-
   private _incrementSessionEventCounter(session:SessionCookieObject){
     const {
       id,
@@ -210,7 +231,8 @@ export class SessionTrackerModule {
       lastBackgroundAction
     } = session;
     const now = new Date().getTime();
-    const remainingTime = this._getSessionRemainingExpirationTime(now ,startAction)
+    const remainingTime = this._getSessionRemainingExpirationTime(now ,startAction);
+
 
     const incrementedSessionCookie = setCookie({
       name: this.intemptSession,
@@ -229,23 +251,61 @@ export class SessionTrackerModule {
     return { ...JSON.parse(incrementedSessionCookie[this.intemptSession]) } as SessionCookieObject;
   }
 
-  /**
-   * Initialize the session cookie
-   * @returns {string} - The session cookie
-   * */
-  private _initSessionCookie(){
+  private _onBackgroundActionActivityTime(eventName:string,{ lastBackgroundAction, lastForegroundAction}:SessionCookieObject){
+    const now = new Date().getTime();
+
+    const foregroundAction = lastForegroundAction ?? now;
+    const backgroundAction = lastBackgroundAction ?? now;
+
+    const timeSinceLastForegroundEvent = now - foregroundAction;
+    const timeSinceLastBackgroundEvent = now - backgroundAction;
+
+
+    if(
+      (timeSinceLastBackgroundEvent <= this._defaultSessionTimeToExtend) &&
+      (timeSinceLastForegroundEvent > this._defaultSessionTimeToExtend)
+    ){
+      this._end(eventName);
+
+      setCookie({
+        name: this.intemptSession,
+        value: JSON.stringify({
+          id: generateId(this.idType),
+          startAction: new Date().getTime(),
+          lastForegroundAction: null,
+          lastBackgroundAction: null,
+          lastAction: new Date().getTime(),
+          eventsCounter: 0,
+        }),
+        path: '/',
+        expiration: this._defaultSessionTimeWithoutActivity,
+      });
+
+      this._start(eventName);
+    }
+
+  }
+
+  private _onForegroundActionActivityTime({ id, startAction, eventsCounter, lastBackgroundAction}:SessionCookieObject){
+    const now = new Date().getTime();
+    const remainingTime = this._getSessionRemainingExpirationTime(now ,startAction);
+
+    const newExpirationDuration  = remainingTime + this._defaultSessionTimeToExtend;
+
+    const value = {
+      id: id,
+      startAction: startAction,
+      lastForegroundAction: now,
+      lastBackgroundAction: lastBackgroundAction,
+      lastAction: now,
+      eventsCounter: eventsCounter
+    }
+
     return setCookie({
       name: this.intemptSession,
-      value: JSON.stringify({
-        id: generateId(),
-        startAction: new Date().getTime(),
-        lastForegroundAction: null,
-        lastBackgroundAction: null,
-        lastAction: new Date().getTime(),
-        eventsCounter: 0
-      }),
+      value: JSON.stringify(value),
       path: '/',
-      expiration: this._defaultSessionTimeWithoutActivity
+      expiration: newExpirationDuration
     })
   }
 
@@ -257,15 +317,6 @@ export class SessionTrackerModule {
    * */
   private _isValidSession(start:number, lastActivity:number) {
     return lastActivity - start < this._defaultSessionTimeWithoutActivity;
-  }
-
-  /**
-   * Check if the current session is generally the first session
-   * @returns {boolean} - The session is the first session or not
-   * */
-  private _isFirstSession(){
-    const cookie = getCookie(this.isFirstIntemptSession) as {is_first_intempt_session : string} | null;
-    return !!cookie
   }
 
   /**

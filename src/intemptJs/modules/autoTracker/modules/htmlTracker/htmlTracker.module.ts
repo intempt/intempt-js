@@ -1,5 +1,5 @@
 import { debounce, dispatchIntemptEvent } from '../../../../../shared/shared.utils.ts';
-import { domEvent, IntemptHtmlEventNames } from '../../autoTracker.types.ts';
+import { domEvent, IntemptHtmlEventNames } from '../../../../types/autoTracker.types.ts';
 
 
 export class HtmlTrackerModule {

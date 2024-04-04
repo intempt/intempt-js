@@ -1,5 +1,5 @@
 import { IntemptJs } from './intemptJs/intemptJs.ts'
-import { IntemptConfig } from './intemptJs/intemptJs.types.ts';
+import { IntemptConfig } from './intemptJs/types/intemptJs.types.ts';
 
 console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
 console.log('version:', 'v2');
