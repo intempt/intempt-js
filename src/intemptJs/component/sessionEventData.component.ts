@@ -9,13 +9,13 @@ export class SessionEventDataComponent{
   private readonly utmMedium:string;
   private readonly utmSource:string;
   private readonly utmTerm:string;
-  private readonly source:string;
+  private readonly source =  'web';
   private readonly sessionEventCount?:number;
   private readonly sessionDuration?:number;
 
 
 
-  constructor(sessionStartEventName:string, source = 'web'){
+  constructor(sessionStartEventName:string, eventCount?:number, sessionDuration?:number) {
     const {
       query,
       utmTerm,
@@ -27,6 +27,8 @@ export class SessionEventDataComponent{
     } = new BaseURLParser();
 
 
+    this.sessionEventCount = eventCount;
+    this.sessionDuration = sessionDuration;
     this.sessionStartEventName = sessionStartEventName;
     this.landingPageQuery = query;
     this.landingPageHash = urlHash;
@@ -35,6 +37,6 @@ export class SessionEventDataComponent{
     this.utmMedium = utmMedium;
     this.utmSource = utmSource;
     this.utmTerm = utmTerm;
-    this.source = source;
+
   }
 }

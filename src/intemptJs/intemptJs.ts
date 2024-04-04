@@ -204,23 +204,9 @@ export class IntemptJs extends IntemptJsGuard {
   logOut(){
     if (!this.isUserOptIn()) return;
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-
     dispatchIntemptEvent('intempt:logOut', {
       eventName: 'Log Out'
     });
-
-    // const cookieNames = this._autoTracker.cookieKeys;
-    // cookieNames.forEach((cookieName) => {
-    //  setCookie({
-    //     name: cookieName,
-    //     value: '',
-    //     path: '/',
-    //     expiration: -1
-    //  });
-    // });
-
   }
 
 

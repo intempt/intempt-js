@@ -83,6 +83,17 @@ export class SessionTrackerModule {
     return !!cookie ? cookie[this.sessionInitializerName] : '';
   }
 
+  clearCookies(cookieNames:string[]){
+    console.log('clearCookies: ',cookieNames);
+    cookieNames.forEach((cookieName) => setCookie({
+        name: cookieName,
+        value: '',
+        path: '/',
+        expiration: -1
+      })
+    )
+  }
+
 
   private async _getLocation():Promise<LocationApi>{
     const locationApiUrl = import.meta.env.VITE_LOCATION_API_URL
@@ -172,18 +183,28 @@ export class SessionTrackerModule {
     dispatchIntemptEvent('intempt:session', {
       eventName: 'Start Session',
       initializerName: initializerEventName,
-      ...location
+      ...location,
+      type: 'sessionStart',
     });
 
   }
 
   private async _end(initializerEventName:string){
-
     const location = await this._getLocation();
+    const sessionCookie = getCookie(this.intemptSession) as SessionCookie;
+    const session = { ...JSON.parse(sessionCookie[this.intemptSession]) } as SessionCookieObject;
+    console.log('_end',session);
+
+    const eventCounter = session.eventsCounter;
+    const duration = new Date().getTime() - session.startAction;
+
 
     dispatchIntemptEvent('intempt:session', {
       eventName: 'End Session',
       initializerName: initializerEventName,
+      type: 'sessionEnd',
+      eventCounter,
+      duration,
       ...location
     });
   }
@@ -191,9 +212,6 @@ export class SessionTrackerModule {
   private _sessionActivityHandler(){
     this._allTrackingEvents.forEach((domEventName) => {
       document.addEventListener(domEventName, (event) => {
-        console.log('_sessionActivityHandler domEventName',domEventName);
-
-
         const { detail } = event as CustomEvent;
         const { eventName } = detail;
 
@@ -346,5 +364,7 @@ export class SessionTrackerModule {
   private _getSessionRemainingExpirationTime(now: number, start: number){
     return this._defaultSessionTimeWithoutActivity - (now - start);
  }
+
+
 }
 

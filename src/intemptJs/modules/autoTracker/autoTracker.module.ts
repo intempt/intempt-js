@@ -104,20 +104,18 @@ export class AutoTrackerModule {
   private _trackSession(){
     document.addEventListener('intempt:session', async (event) => {
       const { detail } = event as CustomEvent;
-      const { eventName, region, city, country , ip } = detail;
+      const { eventName, region, city, country , ip, eventCounter, duration, type } = detail;
 
       const sessionId = this.getSessionId();
       const profileId = this.getProfileId();
 
-
-
-      console.log('intempt:session', detail);
-
       const eventData = new SessionEventDataComponent(
         this._sessionTrackerModule.getInitializerName(),
+        eventCounter,
+        duration,
       );
 
-      //const { region, city, country , ip} = await getLocationInfo();
+
 
       const userAttributes = new UserAttributeComponent({
         region,
@@ -134,11 +132,14 @@ export class AutoTrackerModule {
         userAttributes
       })
 
-      console.log('Session Event: ', sessionEvent);
-
       dispatchIntemptEvent('intempt:event', { event: sessionEvent});
+      console.log('_trackSession type: ',type);
+      if(type === 'sessionEnd'){
+        this._sessionTrackerModule.clearCookies(this._keys);
+      }
     })
   }
+
 
 
 
