@@ -175,9 +175,6 @@ export class AutoTrackerModule {
     }
 
     return debouncedSendEvents();
-
-
-
   }
 
   private _sendConsentTrackEventData(data:any) {
@@ -197,6 +194,7 @@ export class AutoTrackerModule {
   }
 
   private _sendTrackEventData() {
+    if(this._eventPool.length === 0) return;
     /**
      * Make deep copy of the eventPool
      * */
