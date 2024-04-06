@@ -140,9 +140,6 @@ export class AutoTrackerModule {
     })
   }
 
-
-
-
   private _eventPoolHandler() {
     document.addEventListener('intempt:event', (customDomEvent) => {
       const { detail } = customDomEvent as CustomEvent;
@@ -160,7 +157,6 @@ export class AutoTrackerModule {
       }
     });
   }
-
 
   private _onTrackData(data:any){
     let debouncedSendEvents:ReturnType<typeof debounce>;
@@ -249,4 +245,4 @@ export class AutoTrackerModule {
 
 
 }
-//pageId i sessionid v eventid
+
