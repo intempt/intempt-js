@@ -3,9 +3,31 @@ name: IntemptJs Build & Deployment
 on:
   push:
     branches:
-      - main
+      - '*'  # Push to any branch
 
 jobs:
+  Build-and-Test:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      matrix:
+        node-version: [21.x]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - name: Install Dependencies
+        run: npm install
+      - name: Run Cypress Tests
+        run: npm run test
+
+      - name: NPM Build Production
+        run: npm run build
+
 
   Production:
     if: github.ref == 'refs/heads/main'
@@ -20,7 +42,7 @@ jobs:
       AWS_S3_BUCKET_NAME: "253548970387.cdn.intempt.com"
       AWS_S3_ROLE_NAME: "IntemptJSDeployer"
       INTEMPT_JS_SOURCE: "./dist/intempt.min.js"
-      VERSION_KEY: 'v1'
+      VERSION_KEY: '/v1'
 
     strategy:
       matrix:
@@ -38,6 +60,9 @@ jobs:
       - name: Install Dependencies
         run: npm install
 
+      - name: Run Cypress Tests
+        run: npm run test
+
       - name: NPM Build Production
         run: npm run build
 
@@ -52,7 +77,7 @@ jobs:
       - name: Upload intempt.min.js to production bucket
         uses: zdurham/s3-upload-github-action@master
         env:
-          S3_BUCKET: ${{ env.AWS_S3_BUCKET_NAME }}/${{env.VERSION_KEY}}
+          S3_BUCKET: ${{ env.AWS_S3_BUCKET_NAME }}${{env.VERSION_KEY}}
           AWS_REGION: ${{ env.AWS_REGION }}
           FILE: ${{ env.INTEMPT_JS_SOURCE }}
 

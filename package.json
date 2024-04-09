@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build --mode production --minify",
-    "build:dev": "tsc && vite build --mode development --minify false"
+    "build:dev": "tsc && vite build --mode development --minify false",
+    "test": "cypress run"
   },
   "devDependencies": {
     "@types/cypress": "^1.1.3",
