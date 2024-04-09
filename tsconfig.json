@@ -10,7 +10,7 @@
       "dom",
       "es2021.weakref"
     ],
-    "types": ["web"],
+    "types": ["web", "cypress"],
     "skipLibCheck": true,
 
     /* Bundler mode */
@@ -26,5 +26,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src"]
+  "include": ["src", "__tests__/**/*.cy.ts"]
 }

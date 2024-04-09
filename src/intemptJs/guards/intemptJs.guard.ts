@@ -60,7 +60,7 @@ export class IntemptJsGuard {
       );
     }
 
-    if (params.userId === undefined || params.userId === null) {
+    if (!(!!params.userId)) {
       throw new Error(
         "Identify parameters are invalid: 'userId' is required."
       );

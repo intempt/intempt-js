@@ -1,4 +1,5 @@
 import { SetCookieParams } from '../intemptJs/types/autoTracker.types.ts';
+import { LocalStorageCache } from '../intemptJs/types/intemptJs.types.ts';
 
 
 export function setCookie({name, value, path, expiration}:SetCookieParams){
@@ -25,4 +26,14 @@ export function getCookie(name:string){
     : null;
 }
 
+export const localStorageCache: LocalStorageCache = {
+  get: (key: string): any => {
+    const data = localStorage.getItem(key);
+    return data ? JSON.parse(data) : null;
+  },
+  set: (key: string, value: any): void => localStorage.setItem(key, JSON.stringify(value)),
+  remove: (key: string): void => localStorage.removeItem(key),
+  getAllKeys: (): string[] => Object.keys(localStorage),
+  clear: (): void => localStorage.clear()
+};
 

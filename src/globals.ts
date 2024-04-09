@@ -6,6 +6,7 @@ declare global {
     readonly env: {
       readonly VITE_ENV: string;
       readonly VITE_API: string;
+      readonly VITE_CHOICES_API: string;
       readonly VITE_CDN_LINK: string;
       readonly VITE_LOCATION_API_URL: string;
 

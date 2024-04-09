@@ -16,6 +16,7 @@ import { AliasModel } from './models/alias.model.ts';
 import { dispatchIntemptEvent } from '../shared/shared.utils.ts';
 import { setCookie } from '../shared/storageHandler.ts';
 import { ConsentModel } from './models/consent.model.ts';
+import { ChoicesModule } from './modules/choices/choices.module.ts';
 
 
 
@@ -23,7 +24,8 @@ import { ConsentModel } from './models/consent.model.ts';
 
 export class IntemptJs extends IntemptJsGuard {
   private readonly _api = import.meta.env.VITE_API;
-  private readonly _autoTracker:AutoTrackerModule
+  private readonly _autoTracker!:AutoTrackerModule;
+  private readonly _choices!:ChoicesModule;
 
   private readonly _config:IntemptConfig;
 
@@ -33,11 +35,21 @@ export class IntemptJs extends IntemptJsGuard {
   constructor(config:IntemptConfig) {
     super();
     this._config = { ...config};
-    this._autoTracker = new AutoTrackerModule(this._config, this._api);
 
     if(!this.isValidConfig(config)) return
 
+    this._autoTracker = new AutoTrackerModule(this._config, this._api);
+
     this._autoTracker.init();
+
+    this._choices = new ChoicesModule({
+      ...config,
+      profileId: this._autoTracker.getProfileId(),
+      sessionId: this._autoTracker.getSessionId(),
+
+    });
+
+    this._choices.init();
   }
 
 
@@ -77,6 +89,7 @@ export class IntemptJs extends IntemptJsGuard {
   identify(params:IdentifyParams):void{
     if (!this.isUserOptIn()) return;
     if (!this.isIdentifyValid(params)) return;
+    console.log(params)
 
     const profileId = this._autoTracker.getProfileId();
     const sessionId = this._autoTracker.getSessionId();
@@ -96,7 +109,6 @@ export class IntemptJs extends IntemptJsGuard {
 
 
   }
-
 
   group(params:GroupParams){
     if (!this.isUserOptIn()) return;

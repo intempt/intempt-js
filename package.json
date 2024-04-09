@@ -5,13 +5,16 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build --mode production --minify true",
+    "build": "tsc && vite build --mode production --minify",
     "build:dev": "tsc && vite build --mode development --minify false"
   },
   "devDependencies": {
+    "@types/cypress": "^1.1.3",
+    "@types/node": "^20.12.5",
     "@types/uuid": "^9.0.8",
     "@types/web": "^0.0.142",
-    "typescript": "^5.2.2",
+    "cypress": "^13.7.2",
+    "typescript": "^5.4.4",
     "vite": "^5.2.0"
   },
   "dependencies": {
