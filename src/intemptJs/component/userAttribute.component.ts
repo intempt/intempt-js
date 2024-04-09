@@ -1,6 +1,4 @@
-
-type DeviceType = 'Desktop'|'Tablet'|'Mobile'| 'Not Recognized';
-type Location = {ip: string, region: string, city: string, country: string}
+import { DeviceType,Location } from '../types/autoTracker.types.ts';
 
 
 export class UserAttributeComponent{

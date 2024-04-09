@@ -13,7 +13,7 @@ export class PageEventModel {
        timestamp: new Date().getTime(),
        sessionId,
        profileId,
-       // pageId,
+       pageId,
        data
      })
    }

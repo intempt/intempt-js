@@ -13,7 +13,7 @@ export class SessionEventModel {
     this.payload.push({
       eventId: sessionId,
       timestamp: new Date().getTime(),
-      //sessionId,
+      sessionId,
       profileId,
       userAttributes,
       data,

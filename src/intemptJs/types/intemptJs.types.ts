@@ -1,5 +1,11 @@
 
-
+export type LocalStorageCache = {
+  get: (key: string) => any;
+  set: (key: string, value: any) => any;
+  remove: (key: string) => void;
+  getAllKeys: () => string[];
+  clear: () => void;
+};
 
 export type IdType = 'pag' | 'ses' | 'ev' |'prof';
 
@@ -16,6 +22,18 @@ export type IntemptConfig = {
   sourceId: string;
   project: string;
   writeKey: string;
+}
+
+export type IntemptVariables = {
+  orgName: string,
+  project: string,
+  sourceId: string,
+  profileId: string,
+  sessionId: string,
+  device: string,
+  username: string | null,
+  password: string | null,
+  url: string
 }
 
 export type ConsentAction = 'accept' | 'reject';
@@ -59,4 +77,9 @@ export type RecordParams = {
 export type AliasParams = {
   userId: string,
   anotherUserId: string,
+}
+
+export type AuthConfig = {
+  username: string,
+  password: string
 }

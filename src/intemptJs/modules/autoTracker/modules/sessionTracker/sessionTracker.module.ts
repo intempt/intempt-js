@@ -109,7 +109,7 @@ export class SessionTrackerModule {
         country: country ?? '',
       }
     } catch (error) {
-      console.log('Error fetching location information:', error)
+      console.log('Fetching location not allowed');
       return {
         ip: '',
         region: '',

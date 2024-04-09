@@ -71,7 +71,7 @@ export class PageTrackerModule {
 
   private setPageSession(){
     const cookie = getCookie(this.pageSession) as PageSessionCookie;
-    const currentPage = window.location.href;
+    const newPage = window.location.href;
 
     if(!cookie){
       return setCookie({
@@ -79,18 +79,18 @@ export class PageTrackerModule {
         value: JSON.stringify({
           id: generateId(this.idType),
           startTime: new Date().getTime(),
-          current_page: currentPage,
+          current_page: newPage,
           previous_page: '',
         }),
         path: '/',
       });
     }
-   // console.log(cookie[this.pageSession]);
+
     try{
       const { id, current_page,  previous_page} = JSON.parse(cookie[this.pageSession]) as ParsedPageSessionCookie;
 
 
-      if(current_page === currentPage){
+      if(current_page === newPage){
         return { [this.pageSession]: id };
       }
 
@@ -99,7 +99,7 @@ export class PageTrackerModule {
         value: JSON.stringify({
           id: generateId(this.idType),
           previous_page: current_page,
-          current_page: currentPage,
+          current_page: newPage,
           startTime: new Date().getTime(),
         }),
         path: '/',

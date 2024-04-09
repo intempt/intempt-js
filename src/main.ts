@@ -2,7 +2,7 @@ import { IntemptJs } from './intemptJs/intemptJs.ts'
 import { IntemptConfig } from './intemptJs/types/intemptJs.types.ts';
 
 console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
-console.log('version:', 'v2');
+console.log('version:', 'v3');
 
 function getIntemptConfig(): IntemptConfig {
   const cdnLink = import.meta.env.VITE_CDN_LINK;

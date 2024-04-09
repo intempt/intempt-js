@@ -6,7 +6,8 @@ import { HtmlElementDataComponent } from '../component/HtmlEventData.component.t
 
 
 
-
+export type DeviceType = 'Desktop'|'Tablet'|'Mobile'| 'Not Recognized';
+export type Location = {ip: string, region: string, city: string, country: string}
 
 export type UtmKeys = 'utm_campaign' | 'utm_content' | 'utm_medium' | 'utm_source' | 'utm_term';
 export type IntemptSessionEventNames = 'Start Session' | 'End Session';
@@ -65,7 +66,7 @@ export type PageEventModelParams = {
 
 export type SessionEventPayload = {
   eventId:string;
-  // sessionId:string;
+  sessionId:string;
   profileId:string;
   timestamp: number;
   data:SessionEventDataComponent;
@@ -84,7 +85,7 @@ export type HtmlEventPayload = {
 export type PageEventPayload = {
   sessionId:string;
   profileId:string;
-  // pageId:string;
+  pageId:string;
   eventId:string;
   timestamp: number;
   data:PageEventDataComponent
