@@ -3,10 +3,11 @@ name: IntemptJs Build & Deployment
 on:
   push:
     branches:
-      - '*'  # Push to any branch
+      - '*'
 
 jobs:
   Build-and-Test:
+    if: github.ref != 'refs/heads/main'
     runs-on: ubuntu-latest
     permissions:
       contents: read
