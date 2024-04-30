@@ -2,27 +2,6 @@ import { dispatchIntemptEvent, generateId } from '../../../../../shared/shared.u
 import { getCookie, setCookie } from '../../../../../shared/storageHandler.ts'
 import { LocationApi, SessionCookie, SessionCookieObject } from '../../../../types/autoTracker.types.ts';
 
-
-// [
-//   'keydown',
-//   'touchstart',
-//   'select',
-//   'focusin',
-//   'focusout',
-//   'drag',
-//   'scroll - Require Performance optimization',
-//   'pointermove - Require Performance optimization',
-//
-//   'click - intempt:html',
-//   'input - intempt:html',
-//   'change - intempt:html',
-//   'submit - intempt:html',
-//   'DOMContentLoaded - intempt:page',
-//   'beforeunload - intempt:page'
-// ];
-
-
-
 export class SessionTrackerModule {
   private readonly idType = 'ses';
   private readonly keys = ['intempt_session', 'session_initializer_name'];
@@ -151,9 +130,10 @@ export class SessionTrackerModule {
       expiration: this._defaultSessionTimeWithoutActivity,
     });
 
-    this._start(initEventName);
+    // this._start(initEventName);
 
-    return { ...JSON.parse(newCookie[this.intemptSession]) } as SessionCookieObject;
+    return this._start(initEventName)
+      .then(() => ({ ...JSON.parse(newCookie[this.intemptSession]) } as SessionCookieObject))
   }
 
   /**
@@ -333,7 +313,7 @@ export class SessionTrackerModule {
    * @param lastActivity {number} - The last activity time of the session
    * @returns {boolean} - The session is valid or not
    * */
-  private _isValidSession(start:number, lastActivity:number) {
+  private _isValidSession(start:number, lastActivity:number): boolean {
     return lastActivity - start < this._defaultSessionTimeWithoutActivity;
   }
 
@@ -342,7 +322,7 @@ export class SessionTrackerModule {
    * @param eventName {string} - The DOM event name
    * @returns {boolean} - The event is a foreground event or not
    * */
-  private _isForegroundEvent(eventName:string){
+  private _isForegroundEvent(eventName:string): boolean{
     return this._foregroundEventNames.includes(eventName);
   }
 
@@ -351,7 +331,7 @@ export class SessionTrackerModule {
    * @param eventName {string} - The DOM event name
    * @returns {boolean} - The event is a background event or not
    * */
-  private _isBackgroundEventNames(eventName:string){
+  private _isBackgroundEventNames(eventName:string): boolean{
     return this._backgroundEventNames.includes(eventName);
   }
 
@@ -361,7 +341,7 @@ export class SessionTrackerModule {
    * @param start {number} - The start time of the session
    * @returns {number} - The remaining time of the session
    * */
-  private _getSessionRemainingExpirationTime(now: number, start: number){
+  private _getSessionRemainingExpirationTime(now: number, start: number): number{
     return this._defaultSessionTimeWithoutActivity - (now - start);
  }
 
