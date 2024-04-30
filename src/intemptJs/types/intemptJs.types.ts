@@ -83,3 +83,4 @@ export type AuthConfig = {
   username: string,
   password: string
 }
+

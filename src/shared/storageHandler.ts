@@ -15,15 +15,28 @@ export function setCookie({name, value, path, expiration}:SetCookieParams){
 export function getCookie(name:string){
   const cookies = document.cookie.split(';');
   const cookie = cookies.find(
-    cookie => cookie.trim().split('=')[0] === name
+    // cookie => cookie.trim().split('=')[0] === name
+    cookie => cookie.trim().startsWith(name + '=')
   );
 
-  return !!cookie
-    ? cookie
-      .split(';')
-      .map(chunk => chunk.trim().split('='))
-      .reduce((acc, [key, value]) => ({...acc, [key]: value}), {})
-    : null;
+  if (!cookie) return null;
+
+  const firstEqualIndex = cookie.indexOf('=');
+  const key = cookie.substring(0, firstEqualIndex).trim();
+  const value = cookie.substring(firstEqualIndex + 1).trim();
+
+  if (key !== name.trim()) return null;
+
+
+  return { [name]: decodeURIComponent(value) };
+
+
+  // return !!cookie
+  //   ? cookie
+  //     .split(';')
+  //     .map(chunk => chunk.trim().split('='))
+  //     .reduce((acc, [key, value]) => ({...acc, [key]: value}), {})
+  //   : null;
 }
 
 export const localStorageCache: LocalStorageCache = {
