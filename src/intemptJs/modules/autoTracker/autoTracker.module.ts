@@ -173,23 +173,40 @@ export class AutoTrackerModule {
     return debouncedSendEvents();
   }
 
-  private _sendConsentTrackEventData(data:any) {
+  private async _sendConsentTrackEventData(data:any) {
     const {organization, sourceId, project, writeKey} = this._config;
 
     const url = `${this._api}/${organization}/projects/${project}/consents/data`;
 
-    return fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({...data}),
-      keepalive: true
-    })
+    const [ username, password ] = writeKey.split('.');
+
+    const encodedCredentials = btoa(`${username}:${password}`);
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${encodedCredentials}`,
+        },
+        body: JSON.stringify({ ...data }),
+        keepalive: true
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error sending track event data:', error);
+
+    }
 
   }
 
-  private _sendTrackEventData() {
+  private async _sendTrackEventData() {
     if(this._eventPool.length === 0) return;
     /**
      * Make deep copy of the eventPool
@@ -206,17 +223,30 @@ export class AutoTrackerModule {
 
     const encodedCredentials = btoa(`${username}:${password}`);
 
-    return fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${encodedCredentials}`,
-      },
-      body: JSON.stringify({
-        track: data
-      }),
-      keepalive: true
-    })
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${encodedCredentials}`,
+        },
+        body: JSON.stringify({
+          track: data
+        }),
+        keepalive: true
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      return await response.json()
+    } catch (error) {
+      console.error('Error sending track event data:', error);
+
+    }
+
   }
 
 
