@@ -5,6 +5,7 @@ import { IdType } from '../intemptJs/types/intemptJs.types.ts';
 
 export function generateId(type?: IdType) {
   const uuid = uuidv4();
+
   return !!type
     ? `${type}_${uuid}`
     : uuid;

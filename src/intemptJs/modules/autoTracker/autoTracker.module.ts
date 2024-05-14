@@ -109,14 +109,12 @@ export class AutoTrackerModule {
       const sessionId = this.getSessionId();
       const profileId = this.getProfileId();
 
-      console.log('sessionId: ',sessionId);
 
       const eventData = new SessionEventDataComponent(
         this._sessionTrackerModule.getInitializerName(),
         eventCounter,
         duration,
       );
-
 
 
       const userAttributes = new UserAttributeComponent({

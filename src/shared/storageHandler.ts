@@ -8,6 +8,10 @@ export const localIntemptSessionCookie = () => !!appLocalCookie['intempt_session
   ? JSON.parse(appLocalCookie['intempt_session'])
   : null;
 
+export const localIntemptSessionInitializerName = () => {
+  return appLocalCookie['session_initializer_name'] ?? ''
+}
+
 export function setCookie({name, value, path, expiration}:SetCookieParams){
 
    const cookieValue = `${name}=${value};`;
