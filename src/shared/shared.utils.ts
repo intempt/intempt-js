@@ -1,10 +1,23 @@
-import { v4 as uuidv4 } from 'uuid';
+
 import { IdType } from '../intemptJs/types/intemptJs.types.ts';
 
+function generateUniqueId() {
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const timestamp = Date.now().toString(36).split('');
+  const shuffledTimestamp = timestamp.slice().sort(() => Math.random() - 0.5);
+  const timestampNum = Date.now();
+  let id = '';
 
+  for (let i = 0; i < 10; i++) {
+    const char = i < shuffledTimestamp.length ? shuffledTimestamp[i] : alphabet.charAt(Math.floor(Math.random() * alphabet.length));
+    id += char;
+  }
+
+  return `${timestamp.join('')}_${timestampNum}_${id}`;
+}
 
 export function generateId(type?: IdType) {
-  const uuid = uuidv4();
+  const uuid = generateUniqueId();
 
   return !!type
     ? `${type}_${uuid}`

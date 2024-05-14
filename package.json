@@ -18,9 +18,7 @@
     "typescript": "^5.4.4",
     "vite": "^5.2.0"
   },
-  "dependencies": {
-    "uuid": "^9.0.1"
-  }
+  "dependencies": {}
 }
 
 
