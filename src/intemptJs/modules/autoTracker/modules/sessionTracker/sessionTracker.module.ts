@@ -1,5 +1,10 @@
 import { dispatchIntemptEvent, generateId } from '../../../../../shared/shared.utils.ts';
-import { getCookie, localIntemptSessionCookie, setCookie } from '../../../../../shared/storageHandler.ts';
+import {
+  getCookie,
+  localIntemptSessionCookie,
+  localIntemptSessionInitializerName,
+  setCookie,
+} from '../../../../../shared/storageHandler.ts';
 import { LocationApi, SessionCookie, SessionCookieObject } from '../../../../types/autoTracker.types.ts';
 
 export class SessionTrackerModule {
@@ -64,6 +69,13 @@ export class SessionTrackerModule {
 
   getInitializerName(){
     const cookie = getCookie(this.sessionInitializerName) as {session_initializer_name : string} | null;
+
+    const initializerName = !!cookie && !!cookie[this.sessionInitializerName]
+      ? cookie[this.sessionInitializerName]
+      : localIntemptSessionInitializerName() ;
+
+
+    console.log('initializerName',initializerName);
     return !!cookie ? cookie[this.sessionInitializerName] : '';
   }
 
