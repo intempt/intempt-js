@@ -3,11 +3,6 @@ import { IntemptConfig } from './intemptJs/types/intemptJs.types.ts';
 
 
 console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
-
-if(import.meta.env.VITE_ENV === 'production') {
-  window.console.log = function () { };
-}
-
 console.log('version:', 'v4.1');
 
 function getIntemptConfig(): IntemptConfig {
