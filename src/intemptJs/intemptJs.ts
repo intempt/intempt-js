@@ -89,7 +89,7 @@ export class IntemptJs extends IntemptJsGuard {
   identify(params:IdentifyParams):void{
     if (!this.isUserOptIn()) return;
     if (!this.isIdentifyValid(params)) return;
-    console.log(params)
+
 
     const profileId = this._autoTracker.getProfileId();
     const sessionId = this._autoTracker.getSessionId();
@@ -101,7 +101,7 @@ export class IntemptJs extends IntemptJsGuard {
       sessionId,
       pageId
     })
-    console.log('identify',eventData);
+
     dispatchIntemptEvent('intempt:identify', {
       eventName: eventData._name
     });

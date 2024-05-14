@@ -2,20 +2,28 @@ import { SetCookieParams } from '../intemptJs/types/autoTracker.types.ts';
 import { LocalStorageCache } from '../intemptJs/types/intemptJs.types.ts';
 
 
+const appLocalCookie:{[key:string]:any}= {};
+
+export const localIntemptSessionCookie = () => !!appLocalCookie['intempt_session']
+  ? JSON.parse(appLocalCookie['intempt_session'])
+  : null;
+
 export function setCookie({name, value, path, expiration}:SetCookieParams){
+
    const cookieValue = `${name}=${value};`;
    const cookiePath = ` path=${path};`;
    const expires = expiration ?
     ` expires=${new Date(Date.now() + expiration).toUTCString()};`
     :'';
   document.cookie = `${cookieValue}${expires}${cookiePath}`;
+  appLocalCookie[name] = value;
+
   return {[name]: value}
 }
 
 export function getCookie(name:string){
   const cookies = document.cookie.split(';');
   const cookie = cookies.find(
-    // cookie => cookie.trim().split('=')[0] === name
     cookie => cookie.trim().startsWith(name + '=')
   );
 
@@ -30,13 +38,6 @@ export function getCookie(name:string){
 
   return { [name]: decodeURIComponent(value) };
 
-
-  // return !!cookie
-  //   ? cookie
-  //     .split(';')
-  //     .map(chunk => chunk.trim().split('='))
-  //     .reduce((acc, [key, value]) => ({...acc, [key]: value}), {})
-  //   : null;
 }
 
 export const localStorageCache: LocalStorageCache = {

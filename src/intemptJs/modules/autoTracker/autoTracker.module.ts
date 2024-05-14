@@ -109,6 +109,8 @@ export class AutoTrackerModule {
       const sessionId = this.getSessionId();
       const profileId = this.getProfileId();
 
+      console.log('sessionId: ',sessionId);
+
       const eventData = new SessionEventDataComponent(
         this._sessionTrackerModule.getInitializerName(),
         eventCounter,
@@ -133,7 +135,7 @@ export class AutoTrackerModule {
       })
 
       dispatchIntemptEvent('intempt:event', { event: sessionEvent});
-      console.log('_trackSession type: ',type);
+
       if(type === 'sessionEnd'){
         this._sessionTrackerModule.clearCookies(this._keys);
       }
@@ -228,9 +230,7 @@ export class AutoTrackerModule {
           'Content-Type': 'application/json',
           'Authorization': `Basic ${encodedCredentials}`,
         },
-        body: JSON.stringify({
-          track: data
-        }),
+        body: JSON.stringify({ track: data }),
         keepalive: true
       });
 
@@ -257,7 +257,12 @@ export class AutoTrackerModule {
 
 
   getSessionId() {
-    return this._sessionTrackerModule.getId();
+    const browserSessionId = this._sessionTrackerModule.getId();
+    const localSessionId = this._sessionTrackerModule.getLocalId();
+
+    return !!browserSessionId
+            ? browserSessionId
+            : localSessionId
   }
 
   getProfileId() {
