@@ -74,8 +74,6 @@ export class SessionTrackerModule {
       ? cookie[this.sessionInitializerName]
       : localIntemptSessionInitializerName() ;
 
-
-    console.log('initializerName',initializerName);
     return !!cookie ? cookie[this.sessionInitializerName] : '';
   }
 
@@ -132,7 +130,6 @@ export class SessionTrackerModule {
    * Runs when a new session should be created
    * */
   private _onNewSession(initEventName:string = 'Start Session'){
-    console.log('_onNewSession');
     const newCookie = setCookie({
       name: this.intemptSession,
       value: JSON.stringify({

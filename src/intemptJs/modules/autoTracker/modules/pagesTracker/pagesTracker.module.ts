@@ -15,7 +15,6 @@ export class PageTrackerModule {
 
 
   init() {
-
     window.addEventListener('load', () => this.start());
 
     window.addEventListener('popstate', () => {
@@ -89,10 +88,9 @@ export class PageTrackerModule {
     try{
       const { id, current_page,  previous_page} = JSON.parse(cookie[this.pageSession]) as ParsedPageSessionCookie;
 
-
-      if(current_page === newPage){
-        return { [this.pageSession]: id };
-      }
+      // if(current_page === newPage){
+      //   return { [this.pageSession]: id };
+      // }
 
       return setCookie({
         name: this.pageSession,
