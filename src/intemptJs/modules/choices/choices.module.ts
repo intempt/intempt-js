@@ -20,14 +20,14 @@ export class ChoicesModule {
       const changesPromise = this._service.getChoices(this._config);
 
       document.addEventListener('DOMContentLoaded', async () => {
-        this._applyIntemptId();
+
 
         try {
           console.time('CHANGES APPLY TIME');
           const changes = await changesPromise;
 
           if(changes.length === 0) return console.log('no changes');
-
+          this._applyIntemptId();
           await this._applyChanges(changes);
           console.timeEnd('CHANGES APPLY TIME');
           console.log("Changes applied successfully");
@@ -82,7 +82,6 @@ export class ChoicesModule {
   private _applyChanges(changes:MergedChoices[]){
     this._service.createIntemptEditorStyleElement();
 
-    // const changesHandler = new ChangesHandler();
     const changesHandler = new MergedChoicesModel();
 
     if (!changes || changes.length === 0) {
