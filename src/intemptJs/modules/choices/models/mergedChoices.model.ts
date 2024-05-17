@@ -367,12 +367,7 @@ export class MergedChoicesModel {
     }
   }
 
-  private applyAllModifications({
-                                  attributes,
-                                  textContent,
-                                  styles,
-                                  selector
-                                }:any){
+  private applyAllModifications({ attributes, textContent, styles, selector }:any){
     const selectedElement = this.getElementBySelector(selector);
 
     if(!selectedElement) return console.error('selectedElement not found in applyAllModifications');
