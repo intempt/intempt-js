@@ -30,8 +30,6 @@ export class IntemptJs extends IntemptJsGuard {
   private readonly _config:IntemptConfig;
 
 
-  private _doNotTrack: boolean = false;
-
   constructor(config:IntemptConfig) {
     super();
     this._config = { ...config};
@@ -58,7 +56,7 @@ export class IntemptJs extends IntemptJsGuard {
    * @return void
    * */
   optIn(){
-    this._doNotTrack = false;
+    this._autoTracker.doNotTrack = false;
   }
 
   /**
@@ -66,7 +64,7 @@ export class IntemptJs extends IntemptJsGuard {
    * @return void
    * */
   optOut(){
-    this._doNotTrack = true;
+    this._autoTracker.doNotTrack = true;
   }
 
   /**
@@ -75,7 +73,7 @@ export class IntemptJs extends IntemptJsGuard {
    * Default: true
    * */
   isUserOptIn(): boolean{
-    return !this._doNotTrack
+    return !this._autoTracker.doNotTrack
   }
 
   /**

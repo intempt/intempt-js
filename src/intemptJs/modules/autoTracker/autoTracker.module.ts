@@ -19,6 +19,7 @@ export class AutoTrackerModule {
   private readonly _profileTrackerModule = new ProfileTrackerModule();
   private readonly _pagesTrackerModule = new PageTrackerModule();
   private readonly _htmlTrackerModule = new HtmlTrackerModule();
+  private _doNotTrack: boolean = false;
 
   private readonly _keys:string[];
 
@@ -49,6 +50,14 @@ export class AutoTrackerModule {
 
   get cookieKeys(){ return this._keys }
 
+  get doNotTrack(){
+    return this._doNotTrack;
+  }
+
+  set doNotTrack(value: boolean){
+    this._doNotTrack = value
+  }
+
   init() {
     this._profileTrackerModule.init();
     this._sessionTrackerModule.init();
@@ -56,9 +65,14 @@ export class AutoTrackerModule {
     this._htmlTrackerModule.init();
   }
 
+  isUserOptIn(): boolean{
+    return !this._doNotTrack
+  }
+
 
   private _trackHtml(){
     document.addEventListener('intempt:html', (event) => {
+      if (!this.isUserOptIn()) return;
       const { detail } = event as CustomEvent;
       const { eventName, target } = detail;
 
@@ -76,6 +90,7 @@ export class AutoTrackerModule {
 
   private _trackPage(){
     document.addEventListener('intempt:page', (event) => {
+      if (!this.isUserOptIn()) return;
       const { detail } = event as CustomEvent;
       const { eventName, fullUrl, title, windowWidth, pageId, duration, previousPage } = detail;
 
@@ -103,6 +118,7 @@ export class AutoTrackerModule {
 
   private _trackSession(){
     document.addEventListener('intempt:session', async (event) => {
+      if (!this.isUserOptIn()) return;
       const { detail } = event as CustomEvent;
       const { eventName, region, city, country , ip, eventCounter, duration, type } = detail;
 
@@ -142,6 +158,7 @@ export class AutoTrackerModule {
 
   private _eventPoolHandler() {
     document.addEventListener('intempt:event', (customDomEvent) => {
+      if (!this.isUserOptIn()) return;
       const { detail } = customDomEvent as CustomEvent;
       const { event  } = detail;
       const { type   } = event;
@@ -242,8 +259,6 @@ export class AutoTrackerModule {
     }
 
   }
-
-
 
   private _getPageId() {
     return this._pagesTrackerModule.getId();
