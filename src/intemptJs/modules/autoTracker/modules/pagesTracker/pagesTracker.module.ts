@@ -1,5 +1,9 @@
 import { dispatchIntemptEvent, generateId } from '../../../../../shared/shared.utils.ts';
-import { getCookie, setCookie } from '../../../../../shared/storageHandler.ts';
+import {
+  getCookie,
+  localIntemptPageSessionCookie,
+  setCookie,
+} from '../../../../../shared/storageHandler.ts';
 
 
 type PageSessionCookie = { page_session: string } | null;
@@ -57,10 +61,29 @@ export class PageTrackerModule {
     });
   }
 
-
-  getId(){
+  getId(): string {
+    let pageSessionId: string | undefined;
     const cookie = getCookie(this.pageSession) as PageSessionCookie;
-    return !!cookie ? JSON.parse(cookie[this.pageSession]).id : '';
+
+    if (cookie) {
+      try {
+        pageSessionId = JSON.parse(cookie[this.pageSession]).id;
+      } catch (error) {
+        console.error('Error parsing cookie:', error);
+      }
+    }
+    else {
+      const local = localIntemptPageSessionCookie();
+      if (local) {
+        pageSessionId = local.id;
+      } else {
+        this.setPageSession();
+        return this.getId();
+
+      }
+    }
+
+    return pageSessionId ?? '';
   }
 
   get cookieKeys(){
@@ -100,12 +123,13 @@ export class PageTrackerModule {
           current_page: newPage,
           startTime: new Date().getTime(),
         }),
-        path: '/',
+        path: window.location.pathname,
 
       });
     }
     catch(e:any){
       console.log(e)
+      return null
     }
 
   }
