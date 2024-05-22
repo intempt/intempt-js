@@ -22,7 +22,7 @@ export class PageEventDataComponent {
 
     this.previousPage = previousPage;
     this.windowWidth = windowWidth;
-    this.timeOnPage = duration;
+    this.timeOnPage = !!duration ? Math.round(duration / 1000) : duration
     this.domain = origin;
     this.title = title;
     this.query = query;
