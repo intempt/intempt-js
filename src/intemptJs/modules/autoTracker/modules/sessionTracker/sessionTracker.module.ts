@@ -44,13 +44,16 @@ export class SessionTrackerModule {
 
 
   constructor() {
+    console.log('session init', document.cookie);
     this._sessionActivityHandler();
+    this._initSessionCookie();
   }
 
   get cookieKeys() { return this.keys; }
 
   init(){
-    this._initSessionCookie();
+
+   // this._initSessionCookie();
   }
 
   getId(){
@@ -118,6 +121,7 @@ export class SessionTrackerModule {
    * @returns {string} - The session cookie
    * */
   private _initSessionCookie(){
+
     const cookie = getCookie(this.intemptSession) as SessionCookie | null;
 
     return !!cookie
@@ -158,7 +162,6 @@ export class SessionTrackerModule {
     const isValid = this._isValidSession(session.startAction, session.lastAction);
 
     if(!isValid){
-       await this._end('End Session');
        return this._onNewSession();
     }
   }
@@ -168,6 +171,7 @@ export class SessionTrackerModule {
       name: this.sessionInitializerName,
       value: initializerEventName,
       path: '/',
+      expiration: this._defaultSessionTimeWithoutActivity
     });
 
     const location = await this._getLocation();
@@ -209,6 +213,7 @@ export class SessionTrackerModule {
       document.addEventListener(domEventName, async (event) => {
         const { detail } = event as CustomEvent;
         const { eventName } = detail;
+
         if(domEventName === 'intempt:logOut') {
           return this._end(eventName);
         }
@@ -216,10 +221,9 @@ export class SessionTrackerModule {
         const sessionCookie = getCookie(this.intemptSession) as SessionCookie;
 
         if (!sessionCookie) {
-          await this._end(eventName);
+          // await this._end(eventName);
           return this._onNewSession(eventName);
         }
-
 
         const session = { ...JSON.parse(sessionCookie[this.intemptSession]) } as SessionCookieObject;
 

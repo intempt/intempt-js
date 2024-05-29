@@ -111,10 +111,6 @@ export class PageTrackerModule {
     try{
       const { id, current_page,  previous_page} = JSON.parse(cookie[this.pageSession]) as ParsedPageSessionCookie;
 
-      // if(current_page === newPage){
-      //   return { [this.pageSession]: id };
-      // }
-
       return setCookie({
         name: this.pageSession,
         value: JSON.stringify({

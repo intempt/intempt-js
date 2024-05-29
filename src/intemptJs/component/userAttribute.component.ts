@@ -55,7 +55,7 @@ export class UserAttributeComponent{
       ];
       const isMobileOrTablet = tabletMobileUserAgentStrings.some(ua => currentUserAgent.includes(ua.toLowerCase()));
 
-      if(!isMobileOrTablet) return 'Desktop'
+      if(!isMobileOrTablet) return 'Desktop';
       else{
 
         const isMobile = mobileMaxScreenWidth >= screenWidth;
@@ -80,7 +80,7 @@ export class UserAttributeComponent{
 
     try{
       const url = new URL(document.referrer);
-      referrer = url.origin;
+      referrer = url.host;
       fullReferrer = url.href;
     }
     catch (error:any){
@@ -93,46 +93,52 @@ export class UserAttributeComponent{
 
   }
 
-  private _getBrowser(){
-    if (!navigator.userAgent) {
-      return "Unknown";
+  private _getBrowser() {
+    const defaultBrowser = "Unknown";
+
+    const browserVersion = (userAgent: string,regex:RegExp) => {
+      const match = userAgent.match(regex);
+      return match && match.length > 2 ? match[2] : null;
     }
+    const userAgent = navigator.userAgent;
+    let browser = defaultBrowser;
+    // Detect browser name
+    browser = (/ucbrowser/i).test(userAgent) ? 'UCBrowser' : browser;
+    browser = (/edg/i).test(userAgent) ? 'Edge' : browser;
+    browser = (/googlebot/i).test(userAgent) ? 'GoogleBot' : browser;
+    browser = (/chromium/i).test(userAgent) ? 'Chromium' : browser;
+    browser = (/firefox|fxios/i).test(userAgent) && !(/seamonkey/i).test(userAgent) ? 'Firefox' : browser;
+    browser = (/; msie|trident/i).test(userAgent) && !(/ucbrowser/i).test(userAgent) ? 'IE' : browser;
+    browser = (/chrome|crios/i).test(userAgent) && !(/opr|opera|chromium|edg|ucbrowser|googlebot/i).test(userAgent) ? 'Chrome' : browser;
+    browser = (/safari/i).test(userAgent) && !(/chromium|edg|ucbrowser|chrome|crios|opr|opera|fxios|firefox/i).test(userAgent) ? 'Safari' : browser;
+    browser = (/opr|opera/i).test(userAgent) ? 'Opera' : browser;
 
-    const currentUserAgent = navigator.userAgent.toLowerCase();
-    const browserRegexes:{[key:string]: RegExp} = {
-      edge: /edge\/(\d+(\.\d+)?)/,
-      chrome: /(chrome|crios|crmo)\/(\d+(\.\d+)?)/,
-      firefox: /firefox\/(\d+(\.\d+)?)/,
-      safari: /version\/(\d+(\.\d+)?)/,
-      msie: /(msie |rv:)(\d+(\.\d+)?)/,
-      opera: /(opera|opr)\/(\d+(\.\d+)?)/,
-      android: /version\/(\d+(\.\d+)?)/
-    };
-
-    for (const key in browserRegexes) {
-      if (browserRegexes.hasOwnProperty(key)) {
-        const match = currentUserAgent.match(browserRegexes[key]);
-
-        if (match) {
-          const name = match[1].charAt(0).toUpperCase() + match[1].slice(1)
-          const version = match[2]
-          return `${ name } ${version }`
-        }
-
-      }
+    // detect browser version
+    switch (browser) {
+      case 'UCBrowser': return `${browser}/${browserVersion(userAgent,/(ucbrowser)\/([\d\.]+)/i)}`;
+      case 'Edge': return `${browser}/${browserVersion(userAgent,/(edge|edga|edgios|edg)\/([\d\.]+)/i)}`;
+      case 'GoogleBot': return `${browser}/${browserVersion(userAgent,/(googlebot)\/([\d\.]+)/i)}`;
+      case 'Chromium': return `${browser}/${browserVersion(userAgent,/(chromium)\/([\d\.]+)/i)}`;
+      case 'Firefox': return `${browser}/${browserVersion(userAgent,/(firefox|fxios)\/([\d\.]+)/i)}`;
+      case 'Chrome': return `${browser}/${browserVersion(userAgent,/(chrome|crios)\/([\d\.]+)/i)}`;
+      case 'Safari': return `${browser}/${browserVersion(userAgent,/(safari)\/([\d\.]+)/i)}`;
+      case 'Opera': return `${browser}/${browserVersion(userAgent,/(opera|opr)\/([\d\.]+)/i)}`;
+      case 'IE': const version = browserVersion(userAgent,/(trident)\/([\d\.]+)/i);
+        // IE version is mapped using trident version
+        // IE/8.0 = Trident/4.0, IE/9.0 = Trident/5.0
+        return version ? `${browser}/${parseFloat(version) + 4.0}` : `${browser}/7.0`;
+      default: return `${defaultBrowser}/0.0.0.0`;
     }
-
-     const match = currentUserAgent.match(/^(.*)\/(.*) /);
-     const name = match ?match[1].charAt(0).toUpperCase() + match[1].slice(1) : "Unknown";
-     const version = match ? match[2] : "";
-
-
-    return `${ name } ${version}`;
   }
 
+
+
   private _getPlatform(){
+
+    const defaultPlatform = "Unknown";
+
     if (!navigator.userAgent) {
-      return "Unknown";
+      return defaultPlatform;
     }
     const currentUserAgent = navigator.userAgent.toLowerCase();
     const osRegexes: { [key: string]: RegExp } = {
@@ -150,16 +156,35 @@ export class UserAttributeComponent{
         if (match) {
           let version = "";
           if (match.length > 1) {
-            version = match[1].replace(/_/g, '.'); // Replace underscores with dots for version format consistency
+            // Replace underscores with dots for version format consistency
+            version = match[1].replace(/_/g, '.');
           }
-          return `${key.charAt(0).toUpperCase() + key.slice(1)} ${version}`;
+
+          return this._getPlatformVersion(key, version, defaultPlatform);
         }
       }
     }
 
-    return "Unknown";
+    return defaultPlatform;
+  }
+
+  _getPlatformVersion(platformKey:string, version:string, defaultPlatform='Unknown'){
+    switch (platformKey) {
+      case 'windows':
+        return `Windows ${version}`;
+      case 'android':
+        return `Android ${version}`;
+      case 'ios':
+        return `iOS ${version}`;
+      case 'mac':
+        return `Mac OS X ${version}`;
+      case 'linux':
+        return `Linux`;
+      default:
+        return defaultPlatform;
+    }
   }
 
 
-
 }
+

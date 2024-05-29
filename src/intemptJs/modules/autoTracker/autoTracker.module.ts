@@ -15,8 +15,8 @@ import { IntemptConfig } from '../../types/intemptJs.types.ts';
 
 export class AutoTrackerModule {
   private readonly _config:IntemptConfig;
-  private readonly _sessionTrackerModule = new SessionTrackerModule();
   private readonly _profileTrackerModule = new ProfileTrackerModule();
+  private readonly _sessionTrackerModule = new SessionTrackerModule();
   private readonly _pagesTrackerModule = new PageTrackerModule();
   private readonly _htmlTrackerModule = new HtmlTrackerModule();
   private _doNotTrack: boolean = false;
@@ -60,7 +60,7 @@ export class AutoTrackerModule {
 
   init() {
     this._profileTrackerModule.init();
-    this._sessionTrackerModule.init();
+    // this._sessionTrackerModule.init();
     this._pagesTrackerModule.init();
     this._htmlTrackerModule.init();
   }
@@ -120,6 +120,9 @@ export class AutoTrackerModule {
     document.addEventListener('intempt:session', async (event) => {
       if (!this.isUserOptIn()) return;
       const { detail } = event as CustomEvent;
+
+      console.log('_trackSession: ',detail);
+
       const { eventName, region, city, country , ip, eventCounter, duration, type } = detail;
 
       const sessionId = this.getSessionId();
@@ -163,7 +166,7 @@ export class AutoTrackerModule {
       const { event  } = detail;
       const { type   } = event;
 
-      console.log('Event Pool event: ', detail);
+      console.log('Event pool', event)
 
       switch (type) {
         case 'consent':

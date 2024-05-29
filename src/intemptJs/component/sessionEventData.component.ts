@@ -28,7 +28,7 @@ export class SessionEventDataComponent{
 
 
     this.sessionEventCount = eventCount;
-    this.sessionDuration = sessionDuration;
+    this.sessionDuration = !!sessionDuration ? Math.round(sessionDuration / 1000) : sessionDuration;
     this.sessionStartEventName = sessionStartEventName;
     this.landingPageQuery = query;
     this.landingPageHash = urlHash;
