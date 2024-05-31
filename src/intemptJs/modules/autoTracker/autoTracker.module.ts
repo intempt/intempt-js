@@ -59,7 +59,7 @@ export class AutoTrackerModule {
   }
 
   init() {
-    this._profileTrackerModule.init();
+    //this._profileTrackerModule.init();
     // this._sessionTrackerModule.init();
     this._pagesTrackerModule.init();
     this._htmlTrackerModule.init();

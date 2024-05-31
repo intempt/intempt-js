@@ -21,6 +21,7 @@ export class ProfileTrackerModule {
     const hoursPerDay  = 24;
     const days  = 30;
     this.expiration = millisecondsPerSecond * secondsPerMinute * minutesPerHour * hoursPerDay * days;
+    this.setProfileId();
   }
 
   get cookieKeys(){ return this.keys;}
@@ -46,8 +47,9 @@ export class ProfileTrackerModule {
    * */
   setProfileId(){
     const existingProfileId = getCookie(this.profileId) as ProfileIdCookie;
+
     return !!existingProfileId
-      ? this._updateExistingProfileId(existingProfileId[this.profileId])
+      ? existingProfileId
       : this._initProfileId();
   }
 
@@ -59,7 +61,6 @@ export class ProfileTrackerModule {
     return setCookie({
       name: this.profileId,
       value: generateId(this.idType),
-      //expiration: this.expiration,
       path: '/',
     });
   }
@@ -72,10 +73,11 @@ export class ProfileTrackerModule {
     return setCookie({
       name: this.profileId,
       value: id,
-      // expiration: this.expiration,
       path: '/',
     })
   }
 
 
 }
+//prof_lwux28l2_1717173997814_2xll2u8wMz
+//prof_lwux28l2_1717173997814_2xll2u8wMz
