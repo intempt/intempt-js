@@ -131,8 +131,6 @@ export class UserAttributeComponent{
     }
   }
 
-
-
   private _getPlatform(){
 
     const defaultPlatform = "Unknown";
@@ -168,7 +166,7 @@ export class UserAttributeComponent{
     return defaultPlatform;
   }
 
-  _getPlatformVersion(platformKey:string, version:string, defaultPlatform='Unknown'){
+  private _getPlatformVersion(platformKey:string, version:string, defaultPlatform='Unknown'){
     switch (platformKey) {
       case 'windows':
         return `Windows ${version}`;

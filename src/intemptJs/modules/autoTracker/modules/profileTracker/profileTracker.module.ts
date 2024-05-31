@@ -59,7 +59,7 @@ export class ProfileTrackerModule {
     return setCookie({
       name: this.profileId,
       value: generateId(this.idType),
-      expiration: this.expiration,
+      //expiration: this.expiration,
       path: '/',
     });
   }
@@ -72,7 +72,7 @@ export class ProfileTrackerModule {
     return setCookie({
       name: this.profileId,
       value: id,
-      expiration: this.expiration,
+      // expiration: this.expiration,
       path: '/',
     })
   }
