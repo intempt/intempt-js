@@ -44,7 +44,7 @@ export class SessionTrackerModule {
 
 
   constructor() {
-    console.log('session init', document.cookie);
+    // console.log('session init', document.cookie);
     this._sessionActivityHandler();
     this._initSessionCookie();
   }
