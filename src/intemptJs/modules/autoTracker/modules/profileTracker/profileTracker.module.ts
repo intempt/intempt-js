@@ -21,6 +21,7 @@ export class ProfileTrackerModule {
     const hoursPerDay  = 24;
     const days  = 30;
     this.expiration = millisecondsPerSecond * secondsPerMinute * minutesPerHour * hoursPerDay * days;
+    this.setProfileId();
   }
 
   get cookieKeys(){ return this.keys;}
