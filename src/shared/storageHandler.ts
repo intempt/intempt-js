@@ -19,7 +19,7 @@ export const localIntemptSessionInitializerName = () => {
 export function setCookie({name, value, path, expiration}:SetCookieParams){
 
    const cookieValue = `${name}=${value};`;
-   const cookiePath = ` path=${path};`;
+   const cookiePath = `path=${path};`;
    const expires = expiration ?
     ` expires=${new Date(Date.now() + expiration).toUTCString()};`
     :'';
