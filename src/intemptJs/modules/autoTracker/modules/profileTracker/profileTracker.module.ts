@@ -21,31 +21,32 @@ export class ProfileTrackerModule {
     const hoursPerDay  = 24;
     const days  = 30;
     this.expiration = millisecondsPerSecond * secondsPerMinute * minutesPerHour * hoursPerDay * days;
-    this.setProfileId();
+    this.handleProfileId();
   }
 
   get cookieKeys(){ return this.keys;}
 
 
   init(){
-    this.setProfileId();
+    this.handleProfileId();
   }
 
    getId(){
-    const cookie = getCookie(this.profileId) as ProfileIdCookie;
+    //const cookie = getCookie(this.profileId) as ProfileIdCookie;
 
-    const result = !!cookie
-      ? cookie
-      : this.setProfileId();
-
-    return result[this.profileId];
+    // const result = !!cookie
+    //   ? cookie
+    //   : this.handleProfileId();
+     const result =  this.handleProfileId();
+     console.log('getId profile',result);
+     return result[this.profileId];
   }
 
   /**
    * Set or Update the profileId cookie,
    * @return { profileId: string }
    * */
-  setProfileId(){
+  handleProfileId(){
     const existingProfileId = getCookie(this.profileId) as ProfileIdCookie;
 
     return !!existingProfileId
@@ -62,6 +63,7 @@ export class ProfileTrackerModule {
       name: this.profileId,
       value: generateId(this.idType),
       path: '/',
+      expiration: this.expiration
     });
   }
   /**
@@ -81,3 +83,4 @@ export class ProfileTrackerModule {
 }
 //prof_lwux28l2_1717173997814_2xll2u8wMz
 //prof_lwux28l2_1717173997814_2xll2u8wMz
+//prof_lwuxsl0e_1717175226974_wlulex0sJB
