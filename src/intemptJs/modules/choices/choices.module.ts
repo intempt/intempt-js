@@ -2,6 +2,7 @@ import { ChoicesParams, HtmlElementLocationStack, MergedChoices } from '../../ty
 import { ChoicesService } from './choices.service.ts';
 import { ChoicesConfig } from './choices.config.ts';
 import { MergedChoicesModel } from './models/mergedChoices.model.ts';
+import { ModificationHandler } from './models/ModificationHandler.ts';
 
 
 export class ChoicesModule {
@@ -14,20 +15,23 @@ export class ChoicesModule {
   }
 
 
-  init(){
+  async init(){
     try{
       this._htmlVisibilityHandler('hide');
       const changesPromise = this._service.getChoices(this._config);
 
+
+      const changes = await changesPromise;
+      await this._applyChanges(changes);
+
       document.addEventListener('DOMContentLoaded', async () => {
-
-
+        console.log('DOMContentLoaded');
         try {
           console.time('CHANGES APPLY TIME');
           const changes = await changesPromise;
 
           if(changes.length === 0) return console.log('no changes');
-          this._applyIntemptId();
+          // this._applyIntemptId();
           await this._applyChanges(changes);
           console.timeEnd('CHANGES APPLY TIME');
           console.log("Changes applied successfully");
@@ -79,10 +83,13 @@ export class ChoicesModule {
     }
   }
 
-  private _applyChanges(changes:MergedChoices[]){
+  // private _applyChanges(changes:MergedChoices[]){
+  private _applyChanges(changes:any[]){
+    console.log('_applyChanges: ',changes);
     this._service.createIntemptEditorStyleElement();
 
-    const changesHandler = new MergedChoicesModel();
+    // const changesHandler = new MergedChoicesModel();
+    const changesHandler = new ModificationHandler();
 
     if (!changes || changes.length === 0) {
       console.log('No changes to apply.');
@@ -94,7 +101,8 @@ export class ChoicesModule {
 
       if (change && changesHandler.hasOwnProperty(change.type)) {
         try {
-          changesHandler[change.type](change as any);
+          // @ts-ignore
+          changesHandler[change.type ](change as any);
         } catch (error) {
           console.error('Error', error);
         }

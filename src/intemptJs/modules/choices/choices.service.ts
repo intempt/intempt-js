@@ -25,17 +25,17 @@ export const ChoicesService = {
     const { choices} = data;
 
     return choices.reduce((acc, item:{changes:Choice[], mergedChanges:MergedChoices[]}) => {
-
-      if (item && Array.isArray(item.mergedChanges) && item.mergedChanges.length > 0) {
-        acc.push(...item.mergedChanges);
-      }
-      else if (item && !item.mergedChanges && Array.isArray(item.changes) && item.changes.length > 0) {
-        const activeChanges = item.changes.filter((change: Choice) => change.active);
-        acc.push(...activeChanges);
-      }
-      else {
-        console.log("Either 'changes' or 'mergedChanges' in an item of data is null, undefined, or empty.");
-      }
+      acc.push(...item.changes);
+      // if (item && Array.isArray(item.mergedChanges) && item.mergedChanges.length > 0) {
+      //   acc.push(...item.mergedChanges);
+      // }
+      // else if (item && !item.mergedChanges && Array.isArray(item.changes) && item.changes.length > 0) {
+      //   const activeChanges = item.changes.filter((change: Choice) => change.active);
+      //   acc.push(...activeChanges);
+      // }
+      // else {
+      //   console.log("Either 'changes' or 'mergedChanges' in an item of data is null, undefined, or empty.");
+      // }
 
       return acc;
     }, [])
@@ -85,7 +85,7 @@ export const ChoicesService = {
 
     const storedData:StoredData = localStorageCache.get(key);
 
-    console.log('storedData',storedData);
+
 
     return storedData?.changes??[]
   },
@@ -162,7 +162,7 @@ export const ChoicesService = {
     const requestURL = `${this._api}/${path}`;
 
     const encodedCredentials = btoa(`${username}:${password}`);
-    console.log('fetchChoices: ',requestURL);
+
     return fetch(requestURL, {
       method: 'POST',
       headers: {
