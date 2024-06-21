@@ -406,6 +406,7 @@ export class MergedChoicesModel {
     const pseudoClassNames = Object.keys(styles);
 
     let css = ''
+
     pseudoClassNames.forEach((pseudoClassName:string) => {
       const pseudoClass = pseudoClassName === 'state' ? '' : `:${pseudoClassName}`;
       const cssProperties = Object.entries(styles[pseudoClassName]).reduce((acc, [key, value]) => {

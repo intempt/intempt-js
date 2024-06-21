@@ -38,7 +38,7 @@ export class ProfileTrackerModule {
     //   ? cookie
     //   : this.handleProfileId();
      const result =  this.handleProfileId();
-     console.log('getId profile',result);
+
      return result[this.profileId];
   }
 
@@ -81,6 +81,4 @@ export class ProfileTrackerModule {
 
 
 }
-//prof_lwux28l2_1717173997814_2xll2u8wMz
-//prof_lwux28l2_1717173997814_2xll2u8wMz
-//prof_lwuxsl0e_1717175226974_wlulex0sJB
+
