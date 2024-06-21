@@ -35,7 +35,7 @@ export class ChoicesModule {
           console.timeEnd('CHANGES APPLY TIME');
           console.log("Changes applied successfully");
         } catch (error) {
-          console.error("An error occurred:", error);
+          throw new Error(`An error occurred: ${error}`);
         }
       })
     }
