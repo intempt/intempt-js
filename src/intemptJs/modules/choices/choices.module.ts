@@ -20,7 +20,6 @@ export class ChoicesModule {
       this._htmlVisibilityHandler('hide');
       const changesPromise = this._service.getChoices(this._config);
 
-
       const changes = await changesPromise;
       await this._applyChanges(changes);
 
@@ -42,6 +41,7 @@ export class ChoicesModule {
     }
     catch (error) {
       console.error("An error occurred:", error);
+      this._htmlVisibilityHandler('visible');
     }
     finally {
       this._htmlVisibilityHandler('visible');
@@ -105,6 +105,7 @@ export class ChoicesModule {
           changesHandler[change.type ](change as any);
         } catch (error) {
           console.error('Error', error);
+          throw new Error(`Error applying change: ${error}`);
         }
       } else {
         console.log(change)
