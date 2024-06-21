@@ -17,11 +17,7 @@ export class ChoicesModule {
 
   async init(){
     try{
-      this._htmlVisibilityHandler('hide');
       const changesPromise = this._service.getChoices(this._config);
-
-      const changes = await changesPromise;
-      await this._applyChanges(changes);
 
       document.addEventListener('DOMContentLoaded', async () => {
         console.log('DOMContentLoaded');
@@ -30,7 +26,7 @@ export class ChoicesModule {
           const changes = await changesPromise;
 
           if(changes.length === 0) return console.log('no changes');
-          // this._applyIntemptId();
+
           await this._applyChanges(changes);
           console.timeEnd('CHANGES APPLY TIME');
           console.log("Changes applied successfully");
@@ -41,10 +37,10 @@ export class ChoicesModule {
     }
     catch (error) {
       console.error("An error occurred:", error);
-      this._htmlVisibilityHandler('visible');
+     // this._htmlVisibilityHandler('visible');
     }
     finally {
-      this._htmlVisibilityHandler('visible');
+     // this._htmlVisibilityHandler('visible');
     }
   }
 
@@ -83,12 +79,12 @@ export class ChoicesModule {
     }
   }
 
-  // private _applyChanges(changes:MergedChoices[]){
+
   private _applyChanges(changes:any[]){
     console.log('_applyChanges: ',changes);
     this._service.createIntemptEditorStyleElement();
 
-    // const changesHandler = new MergedChoicesModel();
+
     const changesHandler = new ModificationHandler();
 
     if (!changes || changes.length === 0) {
@@ -117,6 +113,7 @@ export class ChoicesModule {
   private _htmlVisibilityHandler(type:'hide' | 'visible'){
     const currentLocation = window.location.href;
     const { host } = new URL(currentLocation);
+
     if( host === 'www.intempt.com' ||
       host === 'intempt.webflow.io' ||
       host === 'https://www.troliunamas.lt'){
