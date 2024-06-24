@@ -28,7 +28,7 @@ export class ChoicesModule {
           await this._applyChanges(changes);
 
         } catch (error) {
-          console.log("An error occurred:", error);
+          throw new Error(`An error occurred: ${error}`);
         }
       })
     }
