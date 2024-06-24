@@ -166,8 +166,6 @@ export class AutoTrackerModule {
       const { event  } = detail;
       const { type   } = event;
 
-      console.log('Event pool', event)
-
       switch (type) {
         case 'consent':
           return this._sendConsentTrackEventData(event);
@@ -257,7 +255,7 @@ export class AutoTrackerModule {
       }
 
     } catch (error) {
-      console.error('Error sending track event data:', error);
+      console.log('[_sendTrackEventData ] ERROR:', error);
 
     }
 

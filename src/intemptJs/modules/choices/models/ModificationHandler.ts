@@ -16,7 +16,6 @@ export class ModificationHandler {
         this.insert = this.insertHandler;
         this.style = this.stylesHandler;
         this.typography = this.typographyHandler;
-
         this.move = this.moveHandler;
         this.attribute = this.attributeHandler;
     }
@@ -102,8 +101,30 @@ export class ModificationHandler {
 
 
 
-  private moveHandler(change: any) {
-    console.log('move',change);
+  private moveHandler(modification: any) {
+    const content = modification.current.modification;
+    const targetElement = this.elementGetterByXpath(modification);
+    const parentElement = this.elementGetterByXpath(content.parent);
+
+    if (!parentElement || !targetElement){
+      throw new Error('PARENT OR TARGET ELEMENT NOT FOUND');
+    }
+
+    if(content.nextSibling){
+      const nextSibling = this.elementGetterByXpath(content.nextSibling);
+
+      if (!nextSibling){
+        throw new Error('NEXT SIBLING ELEMENT NOT FOUND');
+      }
+
+      parentElement.insertBefore(targetElement, nextSibling);
+    }
+    else{
+      parentElement.appendChild(targetElement);
+    }
+
+
+
   }
 
   private attributeHandler(change: any) {
