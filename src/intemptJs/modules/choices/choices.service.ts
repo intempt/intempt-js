@@ -147,12 +147,7 @@ export const ChoicesService = {
         localStorageCache.set(key, {changes});
         resolve();
 
-            // .then( async ( data:any) => {
-            //   const changes = this.choicesDataGuard(data);
-            //   localStorageCache.set(key, {changes});
-            //   resolve();
-            // })
-        })
+      })
       const timeoutPromise = new Promise(resolve => setTimeout(resolve, responseMaxTime));
 
       await Promise.race([

@@ -28,7 +28,7 @@ export class ChoicesModule {
           await this._applyChanges(changes);
 
         } catch (error) {
-          throw new Error(`An error occurred: ${error}`);
+          console.log("An error occurred:", error);
         }
       })
     }
@@ -42,10 +42,7 @@ export class ChoicesModule {
 
 
   private _applyChanges(changes:any[]){
-    console.log('_applyChanges: ',changes);
     this._service.createIntemptEditorStyleElement();
-
-
     const changesHandler = new ModificationHandler();
 
     if (!changes || changes.length === 0) {
