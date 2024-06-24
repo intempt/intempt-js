@@ -37,11 +37,8 @@ export class ChoicesModule {
     }
     catch (error) {
       console.error("An error occurred:", error);
-     // this._htmlVisibilityHandler('visible');
     }
-    finally {
-     // this._htmlVisibilityHandler('visible');
-    }
+
   }
 
   private _applyIntemptId(){
