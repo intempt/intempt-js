@@ -44,7 +44,6 @@ export class IntemptJs extends IntemptJsGuard {
       ...config,
       profileId: this._autoTracker.getProfileId(),
       sessionId: this._autoTracker.getSessionId(),
-
     });
 
     this._choices.init();

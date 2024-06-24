@@ -16,7 +16,6 @@ export class ModificationHandler {
         this.insert = this.insertHandler;
         this.style = this.stylesHandler;
         this.typography = this.typographyHandler;
-
         this.move = this.moveHandler;
         this.attribute = this.attributeHandler;
     }

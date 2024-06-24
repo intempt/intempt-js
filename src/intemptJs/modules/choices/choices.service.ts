@@ -67,6 +67,52 @@ export const ChoicesService = {
     }
   },
 
+  getChoices: async function(config:ChoicesParams):Promise<MergedChoices[]> {
+    /**
+     * Get variables stored in SessionStorage
+     * */
+    try{  const {
+      orgName,
+      project,
+      sourceId,
+      profileId,
+      sessionId,
+      device,
+      username,
+      password,
+      url
+    } = this.getIntemptSessionVariables(config);
+
+      /**
+       * Return an empty array if the credentials not found
+       * */
+      if(!username || !password) {
+        console.error('credentials not found')
+        return []
+      }
+
+      const changesRequest = new ChoicesRequestModel({
+        sourceId,
+        profileId,
+        url,
+        device,
+        sessionId
+      });
+      const authRequest = new AuthRequest({username, password});
+
+      return this.getChoicesData({
+        changesRequest,
+        authRequest,
+        orgName,
+        project
+      })}
+    catch(error){
+      console.log('[getChoices] ERROR', error);
+      return []
+    }
+
+  },
+
   getChoicesData: async function (args: FetchChoicesData):Promise<MergedChoices[]>{
     const {changesRequest, orgName, project, authRequest} = args;
     const url =`${orgName}/projects/${project}/optimization/choose-web`;
@@ -87,61 +133,26 @@ export const ChoicesService = {
 
 
 
-    return storedData?.changes??[]
+    return storedData?.changes ?? []
   },
 
-  getChoices: async function(config:ChoicesParams):Promise<MergedChoices[]> {
-    /**
-     * Get variables stored in SessionStorage
-     * */
-    const {
-      orgName,
-      project,
-      sourceId,
-      profileId,
-      sessionId,
-      device,
-      username,
-      password,
-      url
-    } = this.getIntemptSessionVariables(config);
-
-    /**
-     * Return an empty array if the credentials not found
-     * */
-    if(!username || !password) {
-      console.error('credentials not found')
-      return []
-    }
-
-    const changesRequest = new ChoicesRequestModel({
-      sourceId,
-      profileId,
-      url,
-      device,
-      sessionId
-    });
-    const authRequest = new AuthRequest({username, password});
-
-    return this.getChoicesData({
-      changesRequest,
-      authRequest,
-      orgName,
-      project
-    })
-  },
 
   setChangesData: async function({ key, url, body, auth_config }:SetChoicesData){
     const responseMaxTime = 320;
     try{
-      const changesPromise = new Promise<void>(resolve =>
-        this.fetchChoices(url, body, auth_config.auth)
-          .then( async ( data:any) => {
-            const changes = this.choicesDataGuard(data);
-            localStorageCache.set(key, {changes});
-            resolve();
-          })
-      )
+      const changesPromise = new Promise<void>(async ( resolve ) => {
+        const data = await this.fetchChoices(url, body, auth_config.auth)
+
+        const changes = this.choicesDataGuard(data);
+        localStorageCache.set(key, {changes});
+        resolve();
+
+            // .then( async ( data:any) => {
+            //   const changes = this.choicesDataGuard(data);
+            //   localStorageCache.set(key, {changes});
+            //   resolve();
+            // })
+        })
       const timeoutPromise = new Promise(resolve => setTimeout(resolve, responseMaxTime));
 
       await Promise.race([
@@ -150,27 +161,39 @@ export const ChoicesService = {
       ])
     }
     catch(error:any){
-      console.log('--EXPERIMENT ERROR--', error);
+      console.log('[setChangesData] ERROR', error);
       localStorageCache.set(key, {changes:[]});
     }
   },
 
   fetchChoices: async function(path:string, body:ChoicesRequestModel, auth:AuthConfig) {
 
-    const { username, password } = auth;
+    try{
+      const { username, password } = auth;
 
-    const requestURL = `${this._api}/${path}`;
+      const requestURL = `${this._api}/${path}`;
 
-    const encodedCredentials = btoa(`${username}:${password}`);
+      const encodedCredentials = btoa(`${username}:${password}`);
 
-    return fetch(requestURL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Basic ${encodedCredentials}`,
-      },
-      body: JSON.stringify({...body}),
-    }).then((response) => response.json())
+      const response = await fetch(requestURL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${encodedCredentials}`,
+        },
+        body: JSON.stringify({...body}),
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! Status: ${response.status}`);
+      }
+
+      return response.json()
+    }
+    catch(error){
+      console.log('[fetchChoices] ERROR', error);
+      return []
+    }
   },
 
   createIntemptEditorStyleElement: function() {
