@@ -1,4 +1,5 @@
-import { DeviceType,Location } from '../types/autoTracker.types.ts';
+import { DeviceType, Location } from '../types/autoTracker.types.ts';
+import { getCookie, setCookie } from '../../shared/storageHandler.ts';
 
 
 export class UserAttributeComponent{
@@ -16,12 +17,14 @@ export class UserAttributeComponent{
 
   constructor({ country, region, city, ip}:Location) {
 
-    const {referrer, fullReferrer} = this._getReferrerValues();
+    const { referrer, fullReferrer } = this._getReferrerValues();
 
     this.deviceType = this._getDeviceType();
+
     this.referrer = referrer;
     this.fullReferrer = fullReferrer;
     this.landingPage = this._getLandingPageUrl();
+
     this.browser = this._getBrowser();
     this.platform = this._getPlatform();
     this.country = country;
@@ -66,13 +69,52 @@ export class UserAttributeComponent{
   }
 
   private _getLandingPageUrl(){
-    const url = new URL(document.location.href);
-    return url.origin
+    const cookie = getCookie('_intempt_landing_page');
+
+    if(cookie) {
+      return cookie['_intempt_landing_page']
+    }
+
+    try{
+      const url = new URL(document.location.href);
+
+      setCookie({
+        name: '_intempt_landing_page',
+        value:  url.origin,
+        path: '/',
+      });
+
+      return url.origin;
+    }
+    catch (error:any){
+      console.log('[_getLandingPageUrl] ERROR',error);
+      return ''
+    }
+
+    // const url = new URL(document.location.href);
+    //
+    // setCookie({
+    //   name: '_intempt_landing_page',
+    //   value:  url.origin,
+    //   path: '/',
+    // });
+    //
+    //
+    //
+    // return url.origin;
   }
 
   private _getReferrerValues(){
     let referrer = '';
     let fullReferrer = '';
+
+    const cookie = getCookie('_intempt_referrer');
+
+    if(cookie) {
+      const cookieObj = { ...JSON.parse(cookie['_intempt_referrer']) };
+      return { referrer: cookieObj.referrer, fullReferrer: cookieObj.fullReferrer };
+    }
+
 
     if (!document.referrer) {
       return { referrer, fullReferrer };
@@ -82,15 +124,19 @@ export class UserAttributeComponent{
       const url = new URL(document.referrer);
       referrer = url.host;
       fullReferrer = url.href;
+
+      setCookie({
+        name: '_intempt_referrer',
+        value: JSON.stringify({ referrer, fullReferrer }),
+        path: '/',
+      });
     }
     catch (error:any){
-      referrer = '';
-      fullReferrer = '';
-      console.log(error);
+      console.log('[_getReferrerValues] ERROR',error);
     }
 
-    return { referrer, fullReferrer };
 
+    return { referrer, fullReferrer };
   }
 
   private _getBrowser() {

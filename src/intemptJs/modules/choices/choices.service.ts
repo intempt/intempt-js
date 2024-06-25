@@ -18,7 +18,8 @@ export const ChoicesService = {
 
   choicesDataGuard: function(data:{choices:any[]}):MergedChoices[] {
     if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-      console.log("response or first element of choices array is null, undefined, or not an array with at least one element");
+      import.meta.env.VITE_ENV === 'development' && console.log("response or first element of choices array is null, undefined, or not an array with at least one element");
+
       return [];
     }
 
@@ -147,12 +148,7 @@ export const ChoicesService = {
         localStorageCache.set(key, {changes});
         resolve();
 
-            // .then( async ( data:any) => {
-            //   const changes = this.choicesDataGuard(data);
-            //   localStorageCache.set(key, {changes});
-            //   resolve();
-            // })
-        })
+      })
       const timeoutPromise = new Promise(resolve => setTimeout(resolve, responseMaxTime));
 
       await Promise.race([

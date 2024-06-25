@@ -4,6 +4,7 @@ declare global {
   interface Window { intempt: IntemptJs; }
   interface ImportMeta {
     readonly env: {
+      readonly DEV: boolean;
       readonly VITE_ENV: string;
       readonly VITE_API: string;
       readonly VITE_CHOICES_API: string;

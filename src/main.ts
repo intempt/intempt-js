@@ -2,8 +2,11 @@ import { IntemptJs } from './intemptJs/intemptJs.ts'
 import { IntemptConfig } from './intemptJs/types/intemptJs.types.ts';
 
 
-console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
-console.log('version:', 'v5.4');
+if(import.meta.env.VITE_ENV === 'development') {
+  console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
+  console.log('version:', 'v5.4');
+}
+
 
 function getIntemptConfig(): IntemptConfig {
   const cdnLink = import.meta.env.VITE_CDN_LINK;

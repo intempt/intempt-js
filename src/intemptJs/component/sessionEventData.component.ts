@@ -1,5 +1,13 @@
 import { BaseURLParser } from '../_baseUrlParser.ts';
 
+
+type Props = {
+  sessionStartEventName:string;
+  eventCount?:number;
+  sessionDuration?:number;
+
+}
+
 export class SessionEventDataComponent{
   private readonly sessionStartEventName:string;
   private readonly landingPageQuery:string;
@@ -10,12 +18,9 @@ export class SessionEventDataComponent{
   private readonly utmSource:string;
   private readonly utmTerm:string;
   private readonly source =  'web';
-  private readonly sessionEventCount?:number;
-  private readonly sessionDuration?:number;
 
 
-
-  constructor(sessionStartEventName:string, eventCount?:number, sessionDuration?:number) {
+  constructor({ sessionStartEventName, eventCount, sessionDuration}:Props) {
     const {
       query,
       utmTerm,
@@ -26,9 +31,6 @@ export class SessionEventDataComponent{
       utmCampaign
     } = new BaseURLParser();
 
-
-    this.sessionEventCount = eventCount;
-    this.sessionDuration = !!sessionDuration ? Math.round(sessionDuration / 1000) : sessionDuration;
     this.sessionStartEventName = sessionStartEventName;
     this.landingPageQuery = query;
     this.landingPageHash = urlHash;
@@ -37,6 +39,5 @@ export class SessionEventDataComponent{
     this.utmMedium = utmMedium;
     this.utmSource = utmSource;
     this.utmTerm = utmTerm;
-
   }
 }
