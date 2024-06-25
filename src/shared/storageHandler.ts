@@ -21,7 +21,7 @@ export function setCookie({name, value, path, expiration}:SetCookieParams){
    const cookieValue = `${name}=${value};`;
    const cookiePath = `path=${path};`;
    const expires = expiration ?
-    ` expires=${new Date(Date.now() + expiration).toUTCString()};`
+    `expires=${new Date(Date.now() + expiration).toUTCString()};`
     :'';
   document.cookie = `${cookieValue}${expires}${cookiePath}`;
   appLocalCookie[name] = value;

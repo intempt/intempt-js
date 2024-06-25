@@ -3,9 +3,9 @@ import { SessionTrackerModule } from './modules/sessionTracker/sessionTracker.mo
 import { ProfileTrackerModule } from './modules/profileTracker/profileTracker.module.ts'
 import { PageTrackerModule } from './modules/pagesTracker/pagesTracker.module.ts';
 import { SessionEventModel } from './models/session.model.ts';
-import { SessionEventDataComponent } from '../../component/sessionEventData.component.ts';
+// import { SessionEventDataComponent } from '../../component/sessionEventData.component.ts';
 import { debounce, dispatchIntemptEvent } from '../../../shared/shared.utils.ts';
-import { UserAttributeComponent } from '../../component/userAttribute.component.ts';
+// import { UserAttributeComponent } from '../../component/userAttribute.component.ts';
 import { PageEventModel } from './models/pageEvent.model.ts';
 import { PageEventDataComponent } from '../../component/pageEventData.component.ts';
 import { HtmlEventModel } from './models/HtmlEvent.model.ts';
@@ -59,14 +59,29 @@ export class AutoTrackerModule {
   }
 
   init() {
-    //this._profileTrackerModule.init();
-    // this._sessionTrackerModule.init();
     this._pagesTrackerModule.init();
     this._htmlTrackerModule.init();
   }
 
   isUserOptIn(): boolean{
     return !this._doNotTrack
+  }
+
+  getSessionId() {
+    const browserSessionId = this._sessionTrackerModule.getId();
+    const localSessionId = this._sessionTrackerModule.getLocalId();
+
+    return !!browserSessionId
+      ? browserSessionId
+      : localSessionId
+  }
+
+  getProfileId() {
+    return this._profileTrackerModule.getId();
+  }
+
+  getPageId(){
+    return this._pagesTrackerModule.getId();
   }
 
 
@@ -120,42 +135,21 @@ export class AutoTrackerModule {
     document.addEventListener('intempt:session', async (event) => {
       if (!this.isUserOptIn()) return;
       const { detail } = event as CustomEvent;
-
-      console.log('_trackSession: ',detail);
-
-      const { eventName, region, city, country , ip, eventCounter, duration, type } = detail;
-
+      const { eventName, userAttributes, eventAttributes } = detail;
       const sessionId = this.getSessionId();
       const profileId = this.getProfileId();
 
 
-      const eventData = new SessionEventDataComponent(
-        this._sessionTrackerModule.getInitializerName(),
-        eventCounter,
-        duration,
-      );
-
-
-      const userAttributes = new UserAttributeComponent({
-        region,
-        city,
-        country,
-        ip
-      });
 
       const sessionEvent = new SessionEventModel({
         name: eventName,
         sessionId,
         profileId,
-        data: eventData,
+        data: eventAttributes,
         userAttributes
       })
 
       dispatchIntemptEvent('intempt:event', { event: sessionEvent});
-
-      if(type === 'sessionEnd'){
-        this._sessionTrackerModule.clearCookies(this._keys);
-      }
     })
   }
 
@@ -165,6 +159,8 @@ export class AutoTrackerModule {
       const { detail } = customDomEvent as CustomEvent;
       const { event  } = detail;
       const { type   } = event;
+
+      import.meta.env.VITE_ENV === 'development' && console.log('intempt:event', event);
 
       switch (type) {
         case 'consent':
@@ -268,26 +264,5 @@ export class AutoTrackerModule {
   private _clearEventPool() {
     this._eventPool.length = 0;
   }
-
-
-  getSessionId() {
-    const browserSessionId = this._sessionTrackerModule.getId();
-    const localSessionId = this._sessionTrackerModule.getLocalId();
-
-    return !!browserSessionId
-            ? browserSessionId
-            : localSessionId
-  }
-
-  getProfileId() {
-    return this._profileTrackerModule.getId();
-  }
-
-  getPageId(){
-    return this._pagesTrackerModule.getId();
-  }
-
-
-
 }
 

@@ -23,7 +23,10 @@ export class ChoicesModule {
         try {
           const changes = await changesPromise;
 
-          if(changes.length === 0) return console.log('no changes');
+          if(changes.length === 0) {
+            import.meta.env.VITE_ENV === 'development' && console.log('no changes');
+            return;
+          }
 
           await this._applyChanges(changes);
 
@@ -47,7 +50,7 @@ export class ChoicesModule {
 
     if (!changes || changes.length === 0) {
       console.log('No changes to apply.');
-      return Promise.resolve(); // Return a resolved promise for consistency
+      return Promise.resolve();
     }
 
     for (let i = 0; i < changes.length; i++) {
@@ -61,8 +64,10 @@ export class ChoicesModule {
         }
       }
       else {
-        console.log(change)
-        console.log(`Handler for "${change?.type}" change type not found`)
+        if(import.meta.env.VITE_ENV === 'development'){
+          console.log(change)
+          console.log(`Handler for "${change?.type}" change type not found`)
+        }
       }
     }
   }
