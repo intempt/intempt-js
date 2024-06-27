@@ -10,7 +10,7 @@ export type DeviceType = 'Desktop'|'Tablet'|'Mobile'| 'Not Recognized';
 export type Location = {ip: string, region: string, city: string, country: string}
 
 export type UtmKeys = 'utm_campaign' | 'utm_content' | 'utm_medium' | 'utm_source' | 'utm_term';
-export type IntemptSessionEventNames = 'Session';
+export type IntemptSessionEventNames = 'Session start';
 export type IntemptHtmlEventNames = 'Click On' |  'Submit On' | 'Change On';
 export type IntemptPageEventNames = 'View Page' | 'Leave Page' ;
 export type DomEventName = 'click' | 'submit' | 'change' | 'input' | 'keyup' ;
