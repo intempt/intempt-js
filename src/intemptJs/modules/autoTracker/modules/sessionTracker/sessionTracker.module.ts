@@ -6,6 +6,7 @@ import { UserAttributeComponent } from '../../../../component/userAttribute.comp
 
 export class SessionTrackerModule {
   private readonly idType = 'ses';
+  private readonly _eventName = 'Session start';
 
   private readonly intemptSession = 'intempt_session';
   private readonly keys = [this.intemptSession];
@@ -92,19 +93,6 @@ export class SessionTrackerModule {
           path: '/',
           expiration: this._defaultSessionTimeWithoutActivity,
         });
-
-        // const incrementedSession = this._incrementSessionEventCounter(session);
-
-        // if(this._isForegroundEvent(domEventName)){
-        //   this._onForegroundActionActivityTime(incrementedSession);
-        // }
-        // else if(this._isBackgroundEventNames(domEventName)){
-        //   await this._onBackgroundActionActivityTime(eventName, incrementedSession);
-        // }
-
-
-
-
       })
     })
   }
@@ -136,7 +124,7 @@ export class SessionTrackerModule {
   /**
    * Runs when a new session should be created
    * */
-  private async _onNewSession(initializerEventName:string = 'Session'){
+  private async _onNewSession(initializerEventName:string = this._eventName){
     setCookie({
       name: this.intemptSession,
       value: JSON.stringify({
@@ -158,7 +146,7 @@ export class SessionTrackerModule {
 
 
     dispatchIntemptEvent('intempt:session', {
-      eventName: 'Session',
+      eventName: this._eventName,
       eventAttributes,
       userAttributes,
       type: 'sessionStart',
