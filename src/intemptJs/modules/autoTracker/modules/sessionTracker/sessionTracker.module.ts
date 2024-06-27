@@ -115,12 +115,12 @@ export class SessionTrackerModule {
     try {
       const response = await fetch(locationApiUrl);
       const data = await response.json()
-      const {ip, region, city, country } = data
+      const {ip, region, city, country, country_name } = data
       return {
         ip: ip ?? '',
         region: region ?? '',
         city: city ?? '',
-        country: country ?? '',
+        country: country_name ?? '',
       }
     } catch (error) {
       console.log('Fetching location not allowed');
