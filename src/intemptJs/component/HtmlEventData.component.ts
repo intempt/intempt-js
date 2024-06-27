@@ -8,12 +8,12 @@ export class HtmlElementDataComponent {
   targetText: string;
   hierarchy: string;
 
-  constructor(element: any) {
+  constructor(element: any, capturePasswords: boolean = false) {
     this.href = element.getAttribute('href') || '';
     this.targetTag = element.tagName.toLowerCase();
     this.targetId = this.getHtmlElementId(element);
     this.targetClass = Array.from(element.classList).join(' ');
-    this.targetText = (element.textContent || element.value || '').trim() ;
+    this.targetText = this.getHtmlElementText(element);
     this.hierarchy = this.generateHierarchy(element);
   }
 
@@ -61,5 +61,13 @@ export class HtmlElementDataComponent {
       .filter((attr) => !notAllowedAttributes.includes(attr))
       .map((attr) => `[${attr}='${element.getAttribute(attr)}']`)
       .join('');
+  }
+
+  private getHtmlElementText(element: any) {
+    if (element.hasAttribute('doNotCapture') || element.type && element.type === 'password') {
+      return '********';
+    }
+
+    return (element.textContent || element.value || '').trim();
   }
 }

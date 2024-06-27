@@ -17,13 +17,14 @@ export class PageEventDataComponent {
       query,
       urlHash,
       origin,
-      pathname
+      pathname,
+      domain
     } = new BaseURLParser(fullUrl);
 
     this.previousPage = previousPage;
     this.windowWidth = windowWidth;
     this.timeOnPage = !!duration ? Math.round(duration / 1000) : duration
-    this.domain = origin;
+    this.domain = domain;
     this.title = title;
     this.query = query;
     this.hash = urlHash;

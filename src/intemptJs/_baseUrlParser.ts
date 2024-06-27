@@ -11,6 +11,7 @@ export class BaseURLParser {
    readonly utmMedium :string;
    readonly utmContent :string;
    readonly utmCampaign :string;
+   readonly domain :string;
 
   constructor(urlProperty?:string){
     const url = urlProperty || window.location.href;
@@ -29,6 +30,7 @@ export class BaseURLParser {
 
     this.origin = urlObject.origin;
     this.pathname = urlObject.pathname;
+    this.domain = urlObject.hostname;
   }
 
 

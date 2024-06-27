@@ -19,7 +19,9 @@ export class AutoTrackerModule {
   private readonly _sessionTrackerModule = new SessionTrackerModule();
   private readonly _pagesTrackerModule = new PageTrackerModule();
   private readonly _htmlTrackerModule = new HtmlTrackerModule();
+
   private _doNotTrack: boolean = false;
+  private _capturePasswords: boolean = false;
 
   private readonly _keys:string[];
 
@@ -31,7 +33,7 @@ export class AutoTrackerModule {
   constructor(intemptConfig: IntemptConfig, api:string) {
 
     this._config = { ...intemptConfig };
-    this._api = api;
+    this._api = import.meta.env.VITE_API;
     this._keys = [
       ...this._sessionTrackerModule.cookieKeys,
       ...this._profileTrackerModule.cookieKeys,
@@ -46,6 +48,14 @@ export class AutoTrackerModule {
     this._trackPage();
 
     this._trackHtml();
+  }
+
+  get capturePasswords(){
+    return this._capturePasswords;
+  }
+
+  set capturePasswords(value: boolean){
+    this._capturePasswords = value;
   }
 
   get cookieKeys(){ return this._keys }
@@ -96,7 +106,7 @@ export class AutoTrackerModule {
         sessionId: this.getSessionId(),
         profileId: this.getProfileId(),
         pageId: this._getPageId(),
-        data: new HtmlElementDataComponent(target)
+        data: new HtmlElementDataComponent(target, this._capturePasswords)
       })
 
       dispatchIntemptEvent('intempt:event', { event: eventData});
@@ -138,8 +148,6 @@ export class AutoTrackerModule {
       const { eventName, userAttributes, eventAttributes } = detail;
       const sessionId = this.getSessionId();
       const profileId = this.getProfileId();
-
-
 
       const sessionEvent = new SessionEventModel({
         name: eventName,
