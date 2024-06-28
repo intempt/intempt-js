@@ -73,11 +73,10 @@ export class SessionTrackerModule {
       document.addEventListener(domEventName, (event) => {
         const { detail } = event as CustomEvent;
         const { eventName } = detail;
-        console.log('detail: ',detail);
 
         const sessionCookie = getCookie(this.intemptSession) as SessionCookie;
 
-        if (!sessionCookie) {
+        if (!sessionCookie && eventName.toLowerCase() !== 'leave page') {
           return this._onNewSession(eventName);
         }
 
@@ -163,38 +162,7 @@ export class SessionTrackerModule {
 
   private async _getPlatform(){
     const defaultPlatform = "Unknown";
-    //
-    // if (!navigator.userAgent) {
-    //   return defaultPlatform;
-    // }
-
-
-    // const currentUserAgent = navigator.userAgent.toLowerCase();
-    // const osRegexes: { [key: string]: RegExp } = {
-    //   windows: /windows nt (\d+\.\d+)/,
-    //   android: /android (\d+\.\d+)/,
-    //   ios: /(iphone|ipad|ipod) os (\d+_?\d+_?\d+)/,
-    //   mac: /mac os x (\d+(_\d+)*)/,
-    //   linux: /linux/,
-    // };
-    //
-    // for (const key in osRegexes) {
-    //   if (osRegexes.hasOwnProperty(key)) {
-    //     const match = currentUserAgent.match(osRegexes[key]);
-    //
-    //     if (match) {
-    //       let version = "";
-    //       if (match.length > 1) {
-    //         version = match[1].replace(/_/g, '.');
-    //       }
-    //
-    //       return this._getPlatformVersion(key, version, defaultPlatform);
-    //     }
-    //   }
-    // }
-    // return defaultPlatform;
-
-    if (navigator.userAgentData && navigator.userAgentData?.hasOwnProperty('getHighEntropyValues')) {
+    if (navigator.userAgentData) {
       return this._handleUserAgentEntropyValue(defaultPlatform);
     }
     else if (!navigator.userAgent) {
