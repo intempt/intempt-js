@@ -106,7 +106,7 @@ export class AutoTrackerModule {
         sessionId: this.getSessionId(),
         profileId: this.getProfileId(),
         pageId: this._getPageId(),
-        data: new HtmlElementDataComponent(target, this._capturePasswords)
+        data: new HtmlElementDataComponent(target)
       })
 
       dispatchIntemptEvent('intempt:event', { event: eventData});

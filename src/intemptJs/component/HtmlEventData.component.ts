@@ -8,7 +8,7 @@ export class HtmlElementDataComponent {
   targetText: string;
   hierarchy: string;
 
-  constructor(element: any, capturePasswords: boolean = false) {
+  constructor(element: any) {
     this.href = element.getAttribute('href') || '';
     this.targetTag = element.tagName.toLowerCase();
     this.targetId = this.getHtmlElementId(element);
