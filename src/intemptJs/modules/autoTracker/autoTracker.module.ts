@@ -50,13 +50,6 @@ export class AutoTrackerModule {
     this._trackHtml();
   }
 
-  get capturePasswords(){
-    return this._capturePasswords;
-  }
-
-  set capturePasswords(value: boolean){
-    this._capturePasswords = value;
-  }
 
   get cookieKeys(){ return this._keys }
 
@@ -98,15 +91,16 @@ export class AutoTrackerModule {
   private _trackHtml(){
     document.addEventListener('intempt:html', (event) => {
       if (!this.isUserOptIn()) return;
+
       const { detail } = event as CustomEvent;
-      const { eventName, target } = detail;
+      const { eventName, domEventName, target } = detail;
 
       const eventData = new HtmlEventModel({
         name: eventName,
         sessionId: this.getSessionId(),
         profileId: this.getProfileId(),
         pageId: this._getPageId(),
-        data: new HtmlElementDataComponent(target, this._capturePasswords)
+        data: new HtmlElementDataComponent(target, domEventName)
       })
 
       dispatchIntemptEvent('intempt:event', { event: eventData});

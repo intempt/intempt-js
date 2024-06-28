@@ -97,8 +97,8 @@ export class UserAttributeComponent{
   }
 
   private _getReferrerValues(){
-    let referrer = '';
-    let fullReferrer = '';
+    let referrer = 'direct';
+    let fullReferrer = 'direct';
 
     const cookie = getCookie('_intempt_referrer');
 

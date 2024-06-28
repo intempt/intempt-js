@@ -103,7 +103,7 @@ export class SessionTrackerModule {
     try {
       const response = await fetch(locationApiUrl);
       const data = await response.json()
-      const {ip, region, city, country, country_name } = data
+      const {ip, region, city, country_name } = data
       return {
         ip: ip ?? '',
         region: region ?? '',
