@@ -137,10 +137,6 @@ export class SessionTrackerModule {
 
     const [location, platform] = await Promise.all([this._getLocation(), this._getPlatform()]);
 
-    // const location = await this._getLocation();
-    //
-    // const platform = await this._getPlatform();
-
     const urlParams = new BaseURLParser();
 
     const eventAttributes = new SessionEventDataComponent({
@@ -171,80 +167,6 @@ export class SessionTrackerModule {
 
     return this._handleUserAgent();
 
-  }
-
-  private async _handleUserAgentEntropyValue(defaultPlatform= "Unknown"){
-    try {
-      const highEntropyData = await navigator['userAgentData']?.getHighEntropyValues(["platformVersion", "platform"]);
-      if (highEntropyData && highEntropyData?.platform && highEntropyData?.platformVersion) {
-        const majorPlatformVersion = parseInt(highEntropyData.platformVersion.split('.')[0]);
-        switch(navigator.userAgentData?.platform.toLowerCase()){
-          case 'ios':
-            if (majorPlatformVersion >= 17) {
-              return `iOS 17 or later`;
-            }
-            else if (majorPlatformVersion >= 16) {
-              return `iOS 16`;
-            }
-            else if (majorPlatformVersion >= 15) {
-              return `iOS 15`;
-            }
-            else if (majorPlatformVersion >= 14) {
-              return `iOS 14`;
-            }
-            else if (majorPlatformVersion >= 13) {
-              return `iOS 13`;
-            }
-            else if (majorPlatformVersion >= 12) {
-              return `iOS 12`;
-            }
-            else {
-              return `iOS version earlier than 12`;
-            }
-          case 'windows':
-            if (majorPlatformVersion >= 13) {
-              return `Windows 11 or later`;
-            }
-            else if (majorPlatformVersion > 0) {
-              return `Windows 10`;
-            }
-            else {
-              return `${navigator.userAgentData?.platform} ${highEntropyData.platformVersion}`;
-
-            }
-          case 'macos':
-            if (majorPlatformVersion >= 14) {
-              console.log("macOS 14 Sonoma or later");
-            }
-            else if (majorPlatformVersion >= 13) {
-              console.log("macOS 13 Ventura");
-            }
-            else if (majorPlatformVersion >= 12) {
-              console.log("macOS 12 Monterey");
-            }
-            else if (majorPlatformVersion >= 11) {
-              console.log("macOS 11 Big Sur");
-            }
-            else if (majorPlatformVersion >= 10) {
-              console.log("macOS 10 Catalina or earlier");
-            }
-            else {
-              console.log("Unknown macOS version");
-            }
-        }
-
-      }
-
-
-
-        //return this._getPlatformVersion(highEntropyData.platform, highEntropyData.platformVersion, defaultPlatform);
-
-      return defaultPlatform;
-    }
-    catch (error:any) {
-      console.error("Error fetching high entropy values:", error);
-      return defaultPlatform;
-    }
   }
 
   private _handleUserAgent(defaultPlatform= "Unknown"){
@@ -293,6 +215,153 @@ export class SessionTrackerModule {
   }
 
 
+  private async _handleUserAgentEntropyValue(defaultPlatform= "Unknown"){
+    try {
+      const highEntropyData = await navigator['userAgentData']?.getHighEntropyValues(["platformVersion", "platform"]);
+      if (highEntropyData && highEntropyData?.platform && highEntropyData?.platformVersion) {
+        switch(navigator.userAgentData?.platform.toLowerCase()){
+          case 'macos':
+            return this._macosCase(highEntropyData.platformVersion);
+          case 'ios':
+            return this._iosCase(highEntropyData.platformVersion);
+          case 'windows':
+            return this._windowsCase(highEntropyData.platformVersion);
+          case 'linux':
+            return this._linuxCase(highEntropyData.platformVersion)
+          case 'android':
+            return this._androidCase(highEntropyData.platformVersion);
+        }
+
+      }
+
+//0246d85af79e4be8b50b70d46141a07c.39a62c03490b4c31a51769055fe266e8
+
+        //return this._getPlatformVersion(highEntropyData.platform, highEntropyData.platformVersion, defaultPlatform);
+
+      return defaultPlatform;
+    }
+    catch (error:any) {
+      console.error("Error fetching high entropy values:", error);
+      return defaultPlatform;
+    }
+  }
+
+  private _iosCase(version:string){
+    return `iOS ${version}`;
+  }
+
+  private _macosCase(version:string){
+    const [platformVersion] = version.split('.');
+    const majorPlatformVersion = parseInt(platformVersion);
+
+    if (majorPlatformVersion >= 14) {
+      return `macOS 14 Sonoma or later`;
+    }
+    else if (majorPlatformVersion >= 13) {
+      return `macOS 13 Ventura`;
+    }
+    else if (majorPlatformVersion >= 12) {
+      return `macOS 12 Monterey`;
+    }
+    else if (majorPlatformVersion >= 11) {
+      return `macOS 11 Big Sur`;
+    }
+    else if (majorPlatformVersion >= 10) {
+      return `macOS 10 Catalina or earlier`;
+    }
+    else {
+      return 'Unknown macOS version';
+    }
+
+
+  }
+
+  private _windowsCase(version:string){
+    const [platformVersion] = version.split('.');
+    const majorPlatformVersion = parseInt(platformVersion);
+
+    if (majorPlatformVersion >= 13) {
+      return `Windows 11`;
+    }
+    else if (majorPlatformVersion === 10) {
+      return `Windows 10`;
+    }
+    else if (majorPlatformVersion === 6 && version.includes('1')) {
+      return `Windows 7`;
+    }
+    else if (majorPlatformVersion === 6 && version.includes('0')) {
+      return `Windows Vista`;
+    }
+    else if (majorPlatformVersion === 5 && version.includes('1')){
+      return `Windows XP`;
+    }
+    else {
+      return `Windows ${version}`;
+    }
+
+  }
+
+  private _linuxCase(version:string){
+    const [platformVersion] = version.split('.');
+
+    if (version.includes("ubuntu")) {
+      return `Ubuntu ${platformVersion}`;
+    }
+    else if (platformVersion.includes("fedora")) {
+      return `Fedora ${platformVersion}`;
+    }
+    else if (platformVersion.includes("debian")) {
+      return `Debian ${platformVersion}`;
+    }
+    else if (platformVersion.includes("arch")) {
+      return `Arch Linux ${platformVersion}`;
+    }
+    else {
+      return `Linux ${platformVersion}`;
+    }
+  }
+
+  private _androidCase(version:string){
+    const [platformVersion] = version.split('.');
+    const majorPlatformVersion = parseInt(platformVersion);
+
+
+    if (majorPlatformVersion >= 14) {
+      return `Android 14 or later`;
+    }
+    else if (majorPlatformVersion >= 13) {
+      return `Android 13`;
+    }
+    else if (majorPlatformVersion === 12) {
+      return `Android 12`;
+    }
+    else if (majorPlatformVersion === 11) {
+      return `Android 11`;
+    }
+    else if (majorPlatformVersion === 10) {
+      return `Android 10`;
+    }
+    else if (majorPlatformVersion === 9) {
+      return `Android 9 Pie`;
+    }
+    else if (majorPlatformVersion === 8) {
+      return `Android 8 Oreo`;
+    }
+    else if (majorPlatformVersion === 7) {
+      return `Android 7 Nougat`;
+    }
+    else if (majorPlatformVersion === 6) {
+      return `Android 6 Marshmallow`;
+    }
+    else if (majorPlatformVersion === 5) {
+      return `Android 5 Lollipop`;
+    } else {
+      return `Android version earlier than 5`;
+    }
+
+
+
+  }
 
 }
 
