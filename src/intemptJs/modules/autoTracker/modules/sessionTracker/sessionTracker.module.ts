@@ -3,6 +3,7 @@ import { getCookie, localIntemptSessionCookie, setCookie } from '../../../../../
 import { LocationApi, SessionCookie, SessionCookieObject } from '../../../../types/autoTracker.types.ts';
 import { SessionEventDataComponent } from '../../../../component/sessionEventData.component.ts';
 import { UserAttributeComponent } from '../../../../component/userAttribute.component.ts';
+import { BaseURLParser } from '../../../../_baseUrlParser.ts';
 
 export class SessionTrackerModule {
   private readonly idType = 'ses';
@@ -136,13 +137,15 @@ export class SessionTrackerModule {
 
     const location = await this._getLocation();
 
+    const urlParams = new BaseURLParser();
+
     const eventAttributes = new SessionEventDataComponent({
       sessionStartEventName: initializerEventName,
+      query: urlParams.query,
+      urlHash: urlParams.urlHash,
     });
 
-    const userAttributes = new UserAttributeComponent({
-     ...location
-    });
+    const userAttributes = new UserAttributeComponent(location, urlParams);
 
 
     dispatchIntemptEvent('intempt:session', {
