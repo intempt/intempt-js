@@ -10,7 +10,7 @@ export class HtmlElementDataComponent {
   hierarchy: string;
 
   constructor(element: any,domEventName: DomEventName) {
-    this.href = element.getAttribute('href') || '';
+    this.href = this.handleHref(element, domEventName)
     this.targetTag = element.tagName.toLowerCase();
     this.targetId = this.getHtmlElementId(element);
     this.targetClass = Array.from(element.classList).join(' ');
@@ -95,4 +95,13 @@ export class HtmlElementDataComponent {
 
     return (element.textContent || element.value || '').trim();
   }
+
+  private handleHref(element: any, domEventName: DomEventName) {
+    if (element.tagName.toLowerCase() === 'form' && domEventName === 'submit') {
+      return element?.action || '';
+    }
+
+    return element.getAttribute('href') || '';
+  }
+
 }
