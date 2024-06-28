@@ -208,41 +208,72 @@ export class SessionTrackerModule {
   private async _handleUserAgentEntropyValue(defaultPlatform= "Unknown"){
     try {
       const highEntropyData = await navigator['userAgentData']?.getHighEntropyValues(["platformVersion", "platform"]);
-      // if (navigator.userAgentData?.platform === "iOS") {
-      //   // Parse the major version of the iOS platform
-      //   const majorPlatformVersion = parseInt(highEntropyData?.platformVersion?.split('.')[0]);
-      //
-      //   if (majorPlatformVersion >= 15) {
-      //     console.log("iOS 15 or later");
-      //   } else if (majorPlatformVersion >= 14) {
-      //     console.log("iOS 14");
-      //   } else if (majorPlatformVersion >= 13) {
-      //     console.log("iOS 13");
-      //   } else if (majorPlatformVersion >= 12) {
-      //     console.log("iOS 12");
-      //   } else {
-      //     console.log("iOS version earlier than 12");
-      //   }
-      // } else {
-      //   console.log("Not running on iOS");
-      // }
-
-
-
-
-
-
       if (highEntropyData && highEntropyData?.platform && highEntropyData?.platformVersion) {
+        const majorPlatformVersion = parseInt(highEntropyData.platformVersion.split('.')[0]);
+        switch(navigator.userAgentData?.platform.toLowerCase()){
+          case 'ios':
+            if (majorPlatformVersion >= 17) {
+              return `iOS 17 or later`;
+            }
+            else if (majorPlatformVersion >= 16) {
+              return `iOS 16`;
+            }
+            else if (majorPlatformVersion >= 15) {
+              return `iOS 15`;
+            }
+            else if (majorPlatformVersion >= 14) {
+              return `iOS 14`;
+            }
+            else if (majorPlatformVersion >= 13) {
+              return `iOS 13`;
+            }
+            else if (majorPlatformVersion >= 12) {
+              return `iOS 12`;
+            }
+            else {
+              return `iOS version earlier than 12`;
+            }
+          case 'windows':
+            if (majorPlatformVersion >= 13) {
+              return `Windows 11 or later`;
+            }
+            else if (majorPlatformVersion > 0) {
+              return `Windows 10`;
+            }
+            else {
+              return `${navigator.userAgentData?.platform} ${highEntropyData.platformVersion}`;
 
-        return `${navigator.userAgentData?.platform} ${highEntropyData?.platformVersion}`;
-
-        //return this._getPlatformVersion(highEntropyData.platform, highEntropyData.platformVersion, defaultPlatform);
-
+            }
+          case 'macos':
+            if (majorPlatformVersion >= 14) {
+              console.log("macOS 14 Sonoma or later");
+            }
+            else if (majorPlatformVersion >= 13) {
+              console.log("macOS 13 Ventura");
+            }
+            else if (majorPlatformVersion >= 12) {
+              console.log("macOS 12 Monterey");
+            }
+            else if (majorPlatformVersion >= 11) {
+              console.log("macOS 11 Big Sur");
+            }
+            else if (majorPlatformVersion >= 10) {
+              console.log("macOS 10 Catalina or earlier");
+            }
+            else {
+              console.log("Unknown macOS version");
+            }
+        }
 
       }
 
+
+
+        //return this._getPlatformVersion(highEntropyData.platform, highEntropyData.platformVersion, defaultPlatform);
+
       return defaultPlatform;
-    } catch (error) {
+    }
+    catch (error:any) {
       console.error("Error fetching high entropy values:", error);
       return defaultPlatform;
     }
