@@ -21,7 +21,7 @@ export class UserAttributeComponent{
   private readonly utmTerm:string;
 
 
-  constructor({ country, region, city, ip}:Location, utmParams: BaseURLParser) {
+  constructor({ country, region, city, ip}:Location, utmParams: BaseURLParser, platform:string) {
 
     const { referrer, fullReferrer } = this._getReferrerValues();
 
@@ -32,7 +32,7 @@ export class UserAttributeComponent{
     this.landingPage = this._getLandingPageUrl();
 
     this.browser = this._getBrowser();
-    this.platform = this._getPlatform();
+    this.platform = platform
     this.country = country;
     this.region = region;
     this.city = city;
@@ -218,57 +218,9 @@ export class UserAttributeComponent{
     return `${defaultBrowser}/0.0.0.0`;
   }
 
-  private _getPlatform(){
 
-    const defaultPlatform = "Unknown";
 
-    if (!navigator.userAgent) {
-      return defaultPlatform;
-    }
-    const currentUserAgent = navigator.userAgent.toLowerCase();
-    const osRegexes: { [key: string]: RegExp } = {
-      windows: /windows nt (\d+\.\d+)/,
-      android: /android (\d+\.\d+)/,
-      ios: /(iphone|ipad|ipod) os (\d+_?\d+_?\d+)/,
-      mac: /mac os x (\d+(_\d+)*)/,
-      linux: /linux/,
-    };
 
-    for (const key in osRegexes) {
-      if (osRegexes.hasOwnProperty(key)) {
-        const match = currentUserAgent.match(osRegexes[key]);
-
-        if (match) {
-          let version = "";
-          if (match.length > 1) {
-            // Replace underscores with dots for version format consistency
-            version = match[1].replace(/_/g, '.');
-          }
-
-          return this._getPlatformVersion(key, version, defaultPlatform);
-        }
-      }
-    }
-
-    return defaultPlatform;
-  }
-
-  private _getPlatformVersion(platformKey:string, version:string, defaultPlatform='Unknown'){
-    switch (platformKey) {
-      case 'windows':
-        return `Windows ${version}`;
-      case 'android':
-        return `Android ${version}`;
-      case 'ios':
-        return `iOS ${version}`;
-      case 'mac':
-        return `Mac OS X ${version}`;
-      case 'linux':
-        return `Linux`;
-      default:
-        return defaultPlatform;
-    }
-  }
 
 
 }

@@ -1,7 +1,18 @@
 import { IntemptJs } from './intemptJs/intemptJs.ts';
 
 declare global {
-  interface Window { intempt: IntemptJs; }
+  interface Window {
+    intempt: IntemptJs;
+  }
+
+  interface NavigatorUAData {
+    getHighEntropyValues(hints: string[]): Promise<Record<string, string>>;
+    platform: string;
+  }
+
+  interface Navigator {
+    userAgentData?: NavigatorUAData;
+  }
   interface ImportMeta {
     readonly env: {
       readonly DEV: boolean;

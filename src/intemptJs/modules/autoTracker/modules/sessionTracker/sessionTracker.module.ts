@@ -73,6 +73,7 @@ export class SessionTrackerModule {
       document.addEventListener(domEventName, (event) => {
         const { detail } = event as CustomEvent;
         const { eventName } = detail;
+        console.log('detail: ',detail);
 
         const sessionCookie = getCookie(this.intemptSession) as SessionCookie;
 
@@ -135,7 +136,11 @@ export class SessionTrackerModule {
       expiration: this._defaultSessionTimeWithoutActivity,
     });
 
-    const location = await this._getLocation();
+    const [location, platform] = await Promise.all([this._getLocation(), this._getPlatform()]);
+
+    // const location = await this._getLocation();
+    //
+    // const platform = await this._getPlatform();
 
     const urlParams = new BaseURLParser();
 
@@ -145,7 +150,7 @@ export class SessionTrackerModule {
       urlHash: urlParams.urlHash,
     });
 
-    const userAttributes = new UserAttributeComponent(location, urlParams);
+    const userAttributes = new UserAttributeComponent(location, urlParams, platform);
 
 
     dispatchIntemptEvent('intempt:session', {
@@ -155,5 +160,140 @@ export class SessionTrackerModule {
       type: 'sessionStart',
     });
   }
+
+  private async _getPlatform(){
+    const defaultPlatform = "Unknown";
+    //
+    // if (!navigator.userAgent) {
+    //   return defaultPlatform;
+    // }
+
+
+    // const currentUserAgent = navigator.userAgent.toLowerCase();
+    // const osRegexes: { [key: string]: RegExp } = {
+    //   windows: /windows nt (\d+\.\d+)/,
+    //   android: /android (\d+\.\d+)/,
+    //   ios: /(iphone|ipad|ipod) os (\d+_?\d+_?\d+)/,
+    //   mac: /mac os x (\d+(_\d+)*)/,
+    //   linux: /linux/,
+    // };
+    //
+    // for (const key in osRegexes) {
+    //   if (osRegexes.hasOwnProperty(key)) {
+    //     const match = currentUserAgent.match(osRegexes[key]);
+    //
+    //     if (match) {
+    //       let version = "";
+    //       if (match.length > 1) {
+    //         version = match[1].replace(/_/g, '.');
+    //       }
+    //
+    //       return this._getPlatformVersion(key, version, defaultPlatform);
+    //     }
+    //   }
+    // }
+    // return defaultPlatform;
+
+    if (navigator.userAgentData && navigator.userAgentData?.hasOwnProperty('getHighEntropyValues')) {
+      return this._handleUserAgentEntropyValue(defaultPlatform);
+    }
+    else if (!navigator.userAgent) {
+      return defaultPlatform;
+    }
+
+    return this._handleUserAgent();
+
+  }
+
+  private async _handleUserAgentEntropyValue(defaultPlatform= "Unknown"){
+    try {
+      const highEntropyData = await navigator['userAgentData']?.getHighEntropyValues(["platformVersion", "platform"]);
+      // if (navigator.userAgentData?.platform === "iOS") {
+      //   // Parse the major version of the iOS platform
+      //   const majorPlatformVersion = parseInt(highEntropyData?.platformVersion?.split('.')[0]);
+      //
+      //   if (majorPlatformVersion >= 15) {
+      //     console.log("iOS 15 or later");
+      //   } else if (majorPlatformVersion >= 14) {
+      //     console.log("iOS 14");
+      //   } else if (majorPlatformVersion >= 13) {
+      //     console.log("iOS 13");
+      //   } else if (majorPlatformVersion >= 12) {
+      //     console.log("iOS 12");
+      //   } else {
+      //     console.log("iOS version earlier than 12");
+      //   }
+      // } else {
+      //   console.log("Not running on iOS");
+      // }
+
+
+
+
+
+
+      if (highEntropyData && highEntropyData?.platform && highEntropyData?.platformVersion) {
+
+        return `${navigator.userAgentData?.platform} ${highEntropyData?.platformVersion}`;
+
+        //return this._getPlatformVersion(highEntropyData.platform, highEntropyData.platformVersion, defaultPlatform);
+
+
+      }
+
+      return defaultPlatform;
+    } catch (error) {
+      console.error("Error fetching high entropy values:", error);
+      return defaultPlatform;
+    }
+  }
+
+  private _handleUserAgent(defaultPlatform= "Unknown"){
+    const currentUserAgent = navigator.userAgent.toLowerCase();
+    const osRegexes: { [key: string]: RegExp } = {
+      windows: /windows nt (\d+\.\d+)/,
+      android: /android (\d+\.\d+)/,
+      ios: /(iphone|ipad|ipod) os (\d+_?\d+_?\d+)/,
+      mac: /mac os x (\d+(_\d+)*)/,
+      linux: /linux/,
+    };
+
+    for (const key in osRegexes) {
+      if (osRegexes.hasOwnProperty(key)) {
+        const match = currentUserAgent.match(osRegexes[key]);
+
+        if (match) {
+          let version = "";
+          if (match.length > 1) {
+            version = match[1].replace(/_/g, '.');
+          }
+
+          return this._getPlatformVersion(key, version, defaultPlatform);
+        }
+      }
+    }
+
+    return defaultPlatform;
+  }
+
+  private _getPlatformVersion(platformKey:string, version:string, defaultPlatform='Unknown'){
+    switch (platformKey.toLowerCase()) {
+      case 'windows':
+        return `Windows ${version}`;
+      case 'android':
+        return `Android ${version}`;
+      case 'ios':
+        return `iOS ${version}`;
+      case 'mac':
+        return `Mac OS X ${version}`;
+      case 'linux':
+        return `Linux`;
+      default:
+        return defaultPlatform;
+    }
+  }
+
+
+
 }
 
