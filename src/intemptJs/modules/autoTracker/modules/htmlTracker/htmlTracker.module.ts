@@ -1,5 +1,5 @@
 import { debounce, dispatchIntemptEvent } from '../../../../../shared/shared.utils.ts';
-import { domEvent, IntemptHtmlEventNames } from '../../../../types/autoTracker.types.ts';
+import { domEvent, DomEventName, IntemptHtmlEventNames } from '../../../../types/autoTracker.types.ts';
 
 
 export class HtmlTrackerModule {
@@ -32,10 +32,10 @@ export class HtmlTrackerModule {
 
        switch (domEventName){
          case 'click':
-           document.addEventListener(domEventName,(event) => this._handleEvent(intemptEventName, event));
+           document.addEventListener(domEventName,(event) => this._handleEvent(domEventName,intemptEventName, event));
            break;
          default:
-           const debouncedListener = debounce((event:Event) => this._handleEvent(intemptEventName, event), debounceWaitTime);
+           const debouncedListener = debounce((event:Event) => this._handleEvent(domEventName,intemptEventName, event), debounceWaitTime);
            document.addEventListener(domEventName, debouncedListener);
            break;
        }
@@ -44,10 +44,11 @@ export class HtmlTrackerModule {
 
 
 
-  private _handleEvent(eventName: IntemptHtmlEventNames, event: Event){
+  private _handleEvent(domEventName: DomEventName, eventName: IntemptHtmlEventNames, event: Event){
     const target = event.target as HTMLElement;
     dispatchIntemptEvent('intempt:html', {
       eventName,
+      domEventName,
       target
     });
   }
