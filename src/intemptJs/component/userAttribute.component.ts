@@ -1,5 +1,6 @@
 import { DeviceType, Location } from '../types/autoTracker.types.ts';
 import { getCookie, setCookie } from '../../shared/storageHandler.ts';
+import { BaseURLParser } from '../_baseUrlParser.ts';
 
 
 export class UserAttributeComponent{
@@ -13,9 +14,14 @@ export class UserAttributeComponent{
   country:string;
   region:string;
   city:string;
+  private readonly utmCampaign:string;
+  private readonly utmContent:string;
+  private readonly utmMedium:string;
+  private readonly utmSource:string;
+  private readonly utmTerm:string;
 
 
-  constructor({ country, region, city, ip}:Location) {
+  constructor({ country, region, city, ip}:Location, utmParams: BaseURLParser) {
 
     const { referrer, fullReferrer } = this._getReferrerValues();
 
@@ -31,6 +37,12 @@ export class UserAttributeComponent{
     this.region = region;
     this.city = city;
     this.ipAddress = ip;
+
+    this.utmCampaign = utmParams.utmCampaign;
+    this.utmContent = utmParams.utmContent;
+    this.utmMedium = utmParams.utmMedium;
+    this.utmSource = utmParams.utmSource;
+    this.utmTerm = utmParams.utmTerm;
 
   }
 
