@@ -39,6 +39,7 @@ export class SessionTrackerModule {
 
   constructor() {
    this._sessionActivityHandler();
+   this._onNewSession();
   }
 
   get cookieKeys() { return this.keys; }
