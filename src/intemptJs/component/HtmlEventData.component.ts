@@ -2,11 +2,12 @@ import { DomEventName } from '../types/autoTracker.types.ts';
 
 
 export class HtmlElementDataComponent {
-  href: string;
+  href: string | undefined;
   targetTag: string;
   targetId: string;
   targetClass: string;
-  targetText: string | Record<string, string>;
+  targetText: string | undefined;
+  formDataText: {key:string, value:string}[] | undefined;
   hierarchy: string;
 
   constructor(element: any,domEventName: DomEventName) {
@@ -16,7 +17,39 @@ export class HtmlElementDataComponent {
     this.targetClass = Array.from(element.classList).join(' ');
     this.targetText = this.getHtmlElementText(element, domEventName);
     this.hierarchy = this.generateHierarchy(element);
+    this.formDataText = this.getSubmittedData(element,domEventName);
   }
+
+  private getSubmittedData(element: any, domEventName:DomEventName) {
+    if(element.tagName.toLowerCase() !== 'form' || domEventName !== 'submit'){
+      return undefined;
+    }
+      const formEntries:{key:string, value:string}[] = [];
+      let unnamedIndex = 0;
+      const formData = new FormData(element);
+      const unnamedInputs = element.querySelectorAll('input:not([name])');
+
+      for (let [key, value] of formData.entries()) {
+        formEntries.push({
+          key,
+          value: value.toString()
+        });
+      }
+
+      Array.from(unnamedInputs).forEach( (input:unknown) => {
+        const inputElement = input as HTMLInputElement;
+        if (inputElement.type !== 'submit' && inputElement.type !== 'hidden') {
+          formEntries.push({
+            key: `input-${unnamedIndex}`,
+            value : inputElement.value
+          });
+          unnamedIndex++;
+        }
+      });
+
+      return formEntries;
+  }
+
 
   private generateHierarchy(element: HTMLElement) {
     const stack: string[] = [];
@@ -64,28 +97,10 @@ export class HtmlElementDataComponent {
       .join('');
   }
 
-  private getHtmlElementText(element: any, domEventName: DomEventName):string | Record<string, string> {
+  private getHtmlElementText(element: any, domEventName: DomEventName):string | undefined {
 
-    if(element.tagName.toLowerCase() === 'form' && domEventName === 'submit'){
-      const formEntries:Record<string, any> = {};
-      let unnamedIndex = 0;
-      const formData = new FormData(element);
-      const unnamedInputs = element.querySelectorAll('input:not([name])');
-
-      for (let [key, value] of formData.entries()) {
-        formEntries[key] = value;
-      }
-
-      Array.from(unnamedInputs).forEach( (input:unknown) => {
-        const inputElement = input as HTMLInputElement;
-
-        if (inputElement.type !== 'submit' && inputElement.type !== 'hidden') {
-          formEntries[`input-${unnamedIndex}`] = inputElement.value;
-          unnamedIndex++;
-        }
-      });
-
-      return formEntries;
+    if(element.tagName.toLowerCase() === 'form' || domEventName === 'submit'){
+      return undefined;
     }
 
 
@@ -97,7 +112,12 @@ export class HtmlElementDataComponent {
   }
 
   private handleHref(element: any, domEventName: DomEventName) {
-    if (element.tagName.toLowerCase() === 'form' && domEventName === 'submit') {
+    if(domEventName === 'change'){
+      return undefined
+
+    }
+
+    else if (element.tagName.toLowerCase() === 'form' && domEventName === 'submit') {
       return element?.action || '';
     }
 
