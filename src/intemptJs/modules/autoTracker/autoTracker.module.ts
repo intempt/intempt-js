@@ -102,7 +102,6 @@ export class AutoTrackerModule {
         pageId: this._getPageId(),
         data: new HtmlElementDataComponent(target, domEventName)
       })
-
       dispatchIntemptEvent('intempt:event', { event: eventData});
     })
   }
