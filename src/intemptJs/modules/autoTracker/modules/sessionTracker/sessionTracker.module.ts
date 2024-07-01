@@ -39,7 +39,7 @@ export class SessionTrackerModule {
 
   constructor() {
    this._sessionActivityHandler();
-   this._onNewSession();
+   //this._onNewSession();
   }
 
   get cookieKeys() { return this.keys; }
@@ -133,6 +133,7 @@ export class SessionTrackerModule {
         id: generateId(this.idType),
       }),
       path: '/',
+      domain: window.location.hostname,
       expiration: this._defaultSessionTimeWithoutActivity,
     });
 
