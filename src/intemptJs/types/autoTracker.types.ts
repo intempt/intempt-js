@@ -45,6 +45,7 @@ export type SetCookieParams = {
   name: string,
   value: string,
   path: string,
+  domain?: string,
   expiration?: number,
 }
 

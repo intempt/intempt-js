@@ -76,7 +76,7 @@ export class AutoTrackerModule {
 
     return !!browserSessionId
       ? browserSessionId
-      : localSessionId
+      : localSessionId;
   }
 
   getProfileId() {

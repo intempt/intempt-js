@@ -12,18 +12,17 @@ export const localIntemptPageSessionCookie = () => !!appLocalCookie['intempt_ses
   ? JSON.parse(appLocalCookie['page_session'])
   : null;
 
-export const localIntemptSessionInitializerName = () => {
-  return appLocalCookie['session_initializer_name'] ?? ''
-}
 
-export function setCookie({name, value, path, expiration}:SetCookieParams){
+
+export function setCookie({name, value, path, expiration, domain = ''}:SetCookieParams){
 
    const cookieValue = `${name}=${value};`;
    const cookiePath = `path=${path};`;
    const expires = expiration ?
     `expires=${new Date(Date.now() + expiration).toUTCString()};`
     :'';
-  document.cookie = `${cookieValue}${expires}${cookiePath}`;
+   const cookieDomain = domain ? `domain=${domain};` : '';
+  document.cookie = `${cookieValue}${expires}${cookiePath}${cookieDomain}`;
   appLocalCookie[name] = value;
 
   return {[name]: value}
