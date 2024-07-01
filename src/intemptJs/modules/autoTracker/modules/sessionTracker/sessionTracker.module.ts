@@ -235,10 +235,6 @@ export class SessionTrackerModule {
 
       }
 
-//0246d85af79e4be8b50b70d46141a07c.39a62c03490b4c31a51769055fe266e8
-
-        //return this._getPlatformVersion(highEntropyData.platform, highEntropyData.platformVersion, defaultPlatform);
-
       return defaultPlatform;
     }
     catch (error:any) {
