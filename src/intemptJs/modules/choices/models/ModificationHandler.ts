@@ -127,8 +127,22 @@ export class ModificationHandler {
 
   }
 
-  private attributeHandler(change: any) {
-    console.log('attribute',change);
+  private attributeHandler(modification: any) {
+    console.log('attribute',modification);
+
+    const element = this.elementGetterByXpath(modification);
+    if(!element){
+      throw new Error('Element not found');
+    }
+
+    const { current:{ modification: { attributeValue, attributeName }} } = modification;
+
+    if(!attributeValue ){
+      element.removeAttribute(attributeName);
+    }
+    else{
+      element.setAttribute(attributeName, attributeValue);
+    }
   }
 
 
