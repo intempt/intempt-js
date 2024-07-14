@@ -29,6 +29,14 @@ export class ModificationHandler {
   }
 
   private stylesHandler(modification: any) {
+    const element = this.elementGetterByXpath(modification);
+
+    if(!element){
+      throw new Error('Element not found');
+    }
+
+    element.setAttribute('iwe_id', modification.iwe_id);
+
     const selectorCssRule = this.getIweStyleRule(modification.cssSelector);
 
     if(!selectorCssRule){
@@ -37,25 +45,6 @@ export class ModificationHandler {
     else{
       this.updateCssRule(selectorCssRule, modification.current.modification.css);
     }
-
-
-
-
-
-    // let css = '';
-    //
-    // const {styleDataAttribute} = ChoicesConfig;
-    // const stylesTag = document.querySelector(`[${styleDataAttribute}]`);
-    //
-    // if(!stylesTag) {
-    //   throw new Error('IweStylesElement:writeStyles - stylesTag not found');
-    // }
-    // const cssProperties = Object.entries(style.css).reduce((acc, [key, value]) => {
-    //   return `${acc}${key}: ${value}; `;
-    // }, '');
-    //
-    // css += `${cssSelector}${style.pseudoClass} { ${cssProperties} }`;
-    // stylesTag!.appendChild(document.createTextNode(css));
   }
 
   private typographyHandler(modification: any) {
