@@ -6,7 +6,7 @@ export class ModificationHandler {
   delete: (change: any) => (void);
   insert: (change: any) => (void);
   typography: (change: any) => (void);
-
+  replace: (change: any) => (void);
   move: (change: any) => (void);
   attribute: (change: any) => (void);
 
@@ -18,6 +18,7 @@ export class ModificationHandler {
         this.typography = this.typographyHandler;
         this.move = this.moveHandler;
         this.attribute = this.attributeHandler;
+        this.replace = this.replaceHandler;
     }
 
   private deleteHandler(modification: any) {
@@ -85,7 +86,16 @@ export class ModificationHandler {
     }
   }
 
+  private replaceHandler(modification: any) {
+    const element = this.elementGetterByXpath(modification);
 
+    const tempElement = document.createElement('div');
+    tempElement.innerHTML = modification.current.modification.html;
+    const contentEl = tempElement.firstChild;
+
+    element.replaceWith(contentEl as Element);
+
+  }
 
 
 
