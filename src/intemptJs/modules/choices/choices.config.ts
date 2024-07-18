@@ -1,24 +1,34 @@
 
 export const ChoicesConfig = {
   styleDataAttribute: "intemptEditor-style-v2",
-  intemptId: (id:string) => `intempt-id-${id}`,
-  initialStylesRules: `
-    .ve-sdk-col { height: 100px; padding: 10px; width: 100%;}
-    .ve-sdk-col2, 
-    .ve-sdk-col3, 
-    .ve-sdk-col3-7 { width: 100%; height: 100px; display: flex; justify-content: center; align-items: center; gap: 10px; padding:10px; }
-    .ve-sdk-col__child {flex:1; min-height: 100%;}
-    .ve-sdk-col__child-3-7:first-child {flex:.3;}
-    .ve-sdk-col__child-3-7 {flex:.7; min-height: 100%;}
-    .ve-sdk-text { min-height: min-content; min-width: min-content; margin: 0; }
-    .ve-sdk-text_section { min-height: min-content; padding: 10px; width: 100%; display: flex; flex-flow: column; align-items: center; justify-content: center; gap: 10px; }
-    .ve-sdk-link, a.ve-sdk-link { color:#0070E0; min-height: min-content; min-width: min-content;text-decoration: underline; }
-    .ve-sdk-link-text, a.ve-sdk-link-text { font-size:inherit;text-decoration: underline;color:#0070E0;}
-    .ve-sdk-link_block > *, a.ve-sdk-link_block > * {width: 100%; height: 100%;}
-    .ve-sdk-link_wrapper { display: block;text-decoration: underline; color:#0070E0;}
-    a.ve-sdk-link_wrapper{ text-decoration: underline; color:#0070E0;}
-    .ve-sdk-img {border: none;height: auto;width: auto;display: block; outline: none;object-fit: cover;cursor: pointer;outline-offset: -2px;}
-    .ve-sdk-video {aspect-ratio:16/9;height:100%;width:100%}
-    .ve-sdk-code {min-height: 100px; padding: 10px; width: 100%; display: block; }
-    `,
-    };
+
+  // initialStylesRules: `
+  //   .ve-sdk-col { height: 100px; padding: 10px; width: 100%;}
+  //   .ve-sdk-col2,
+  //   .ve-sdk-col3,
+  //   .ve-sdk-col3-7 { width: 100%; height: 100px; display: flex; justify-content: center; align-items: center; gap: 10px; padding:10px; }
+  //   .ve-sdk-col__child {flex:1; min-height: 100%;}
+  //   .ve-sdk-col__child-3-7:first-child {flex:.3;}
+  //   .ve-sdk-col__child-3-7 {flex:.7; min-height: 100%;}
+  //   .ve-sdk-text { min-height: min-content; min-width: min-content; margin: 0; }
+  //   .ve-sdk-text_section { min-height: min-content; padding: 10px; width: 100%; display: flex; flex-flow: column; align-items: center; justify-content: center; gap: 10px; }
+  //   .ve-sdk-link, a.ve-sdk-link { color:#0070E0; min-height: min-content; min-width: min-content;text-decoration: underline; }
+  //   .ve-sdk-link-text, a.ve-sdk-link-text { font-size:inherit;text-decoration: underline;color:#0070E0;}
+  //   .ve-sdk-link_block > *, a.ve-sdk-link_block > * {width: 100%; height: 100%;}
+  //   .ve-sdk-link_wrapper { display: block;text-decoration: underline; color:#0070E0;}
+  //   a.ve-sdk-link_wrapper{ text-decoration: underline; color:#0070E0;}
+  //   .ve-sdk-img {border: none;height: auto;width: auto;display: block; outline: none;object-fit: cover;cursor: pointer;outline-offset: -2px;}
+  //   .ve-sdk-video {aspect-ratio:16/9;height:100%;width:100%}
+  //   .ve-sdk-code {min-height: 100px; padding: 10px; width: 100%; display: block; }
+  //   `,
+
+
+  initialStylesRules:`
+  *[iwe-hide="true"]{display: none!important;}
+  .iwe-text-block{display: block; width: auto;height: auto;padding: 0;margin: 0;font-size: 16px;} 
+  .iwe-link{ color: #0080ff; text-decoration: underline;cursor: pointer;}
+  .iwe-image-block{width: 200px;height: 200px;background-image: url('data:image/svg+xml,%3Csvg width%3D%2224%22 height%3D%2224%22 viewBox%3D%220 0 24 24%22 fill%3D%22%230080ff%22 xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cpath opacity%3D%220.2%22 d%3D%22M22.0206 16.8203L18.8906 9.50027C18.3206 8.16027 17.4706 7.40027 16.5006 7.35027C15.5406 7.30027 14.6106 7.97027 13.9006 9.25027L12.0006 12.6603C11.6006 13.3803 11.0306 13.8103 10.4106 13.8603C9.78063 13.9203 9.15063 13.5903 8.64063 12.9403L8.42063 12.6603C7.71063 11.7703 6.83063 11.3403 5.93063 11.4303C5.03063 11.5203 4.26063 12.1403 3.75063 13.1503L2.02063 16.6003C1.40063 17.8503 1.46063 19.3003 2.19063 20.4803C2.92063 21.6603 4.19063 22.3703 5.58063 22.3703H18.3406C19.6806 22.3703 20.9306 21.7003 21.6706 20.5803C22.4306 19.4603 22.5506 18.0503 22.0206 16.8203Z%22%2F%3E%3Cpath d%3D%22M6.96984 8.38012C8.83657 8.38012 10.3498 6.86684 10.3498 5.00012C10.3498 3.13339 8.83657 1.62012 6.96984 1.62012C5.10312 1.62012 3.58984 3.13339 3.58984 5.00012C3.58984 6.86684 5.10312 8.38012 6.96984 8.38012Z%22%2F%3E%3C%2Fsvg%3E'); background-size: 50%; background-position: center;background-repeat: no-repeat;}
+  .iwe-container-block{display: block;width: 100%;height: 100px;padding: 0; margin: 0;}
+  `
+
+};

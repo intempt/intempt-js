@@ -4,7 +4,7 @@ import { IntemptConfig } from './intemptJs/types/intemptJs.types.ts';
 
 if(import.meta.env.VITE_ENV === 'development') {
   console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
-  console.log('version:', 'v5.4');
+  console.log('version:', 'v5.6');
 }
 
 
