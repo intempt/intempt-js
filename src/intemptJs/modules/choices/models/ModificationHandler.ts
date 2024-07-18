@@ -64,6 +64,7 @@ export class ModificationHandler {
 
     const tempElement = document.createElement('div');
           tempElement.innerHTML = content.html;
+    const [element] = tempElement.children;
 
     const parentElement = this.elementGetterByXpath(content.parent);
 
@@ -72,17 +73,16 @@ export class ModificationHandler {
     }
 
     if(content.nextSibling){
-      const element = this.elementGetterByXpath(content.nextSibling);
+      const nextSibling = this.elementGetterByXpath(content.nextSibling);
 
-      if (!element){
+      if (!nextSibling){
         throw new Error('NEXT SIBLING ELEMENT NOT FOUND');
       }
 
-      parentElement.insertBefore(tempElement.firstElementChild as Element, element);
-
+      parentElement.insertBefore(element, nextSibling);
     }
     else{
-      parentElement.appendChild(tempElement.firstElementChild as Element);
+      parentElement.appendChild(element);
     }
   }
 
