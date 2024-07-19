@@ -1,7 +1,5 @@
-import { ChoicesParams, HtmlElementLocationStack, MergedChoices } from '../../types/choices.types.ts';
+import { ChoicesParams} from '../../types/choices.types.ts';
 import { ChoicesService } from './choices.service.ts';
-import { ChoicesConfig } from './choices.config.ts';
-import { MergedChoicesModel } from './models/mergedChoices.model.ts';
 import { ModificationHandler } from './models/ModificationHandler.ts';
 
 
