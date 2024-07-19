@@ -50,12 +50,10 @@ export class ModificationHandler {
 
   private typographyHandler(modification: any) {
     const element = this.elementGetterByXpath(modification);
-
-    const tempElement = document.createElement('div');
-    tempElement.innerHTML = modification.current.modification;
-    const contentEl = tempElement.firstChild;
-
-    element.replaceWith(contentEl as Element);
+    if(!element){
+          throw new Error('Element not found');
+    }
+    element.innerHTML = modification.current.modification;
 
   }
 
@@ -96,9 +94,6 @@ export class ModificationHandler {
     element.replaceWith(contentEl as Element);
 
   }
-
-
-
 
   private moveHandler(modification: any) {
     const content = modification.current.modification;
@@ -147,47 +142,49 @@ export class ModificationHandler {
 
 
 
-    private elementGetterByXpath(modification: any) {
-      const { xPathSelector, xPathIndex } = modification;
-      const matchingElements = document.evaluate(xPathSelector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-      return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
+  private elementGetterByXpath(modification: any) {
+    const { xPathSelector, xPathIndex } = modification;
+    const matchingElements = document.evaluate(xPathSelector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
+  }
+
+  private getIweStyleSheet() {
+    const {styleDataAttribute} = ChoicesConfig;
+    const stylesTag = document.querySelector(`style[${styleDataAttribute}]`);
+    const stylesheet = Array.from(document.styleSheets).find(sheet => sheet.ownerNode === stylesTag);
+
+    if (!stylesheet) {
+      throw new Error('Stylesheet associated with the styles tag not found');
     }
 
-    private  getIweStyleSheet() {
-      const {styleDataAttribute} = ChoicesConfig;
-      const stylesTag = document.querySelector(`style[${styleDataAttribute}]`);
-      const stylesheet = Array.from(document.styleSheets).find(sheet => sheet.ownerNode === stylesTag);
+    return stylesheet
+  }
 
-      if (!stylesheet) {
-        throw new Error('Stylesheet associated with the styles tag not found');
-      }
+  private getIweStyleRule(ruleName:string){
+    const stylesheet = this.getIweStyleSheet();
+    const rules = Array.from(stylesheet.cssRules);
+    return rules.find((r) => r.cssText.includes(ruleName)) ?? null;
+  }
 
-      return stylesheet
+  private insertNewCssRule(cssSelector:string, data:{ pseudoClass: '', css: Record<string, any>}) {
+    const stylesheet = this.getIweStyleSheet();
+
+    const cssProperties = Object.entries(data.css).reduce((acc, [key, value]) => {
+      return `${acc}${key}: ${value}; `;
+    }, '');
+
+    const css = `${cssSelector}${data.pseudoClass} { ${cssProperties} }`;
+
+    stylesheet?.insertRule(css, stylesheet?.cssRules.length);
+
+  }
+
+  private updateCssRule(cssRule:CSSRule, styles:Record<string, any>) {
+    for (const [key, value] of Object.entries(styles)) {
+      (cssRule as any).style.setProperty(key, value);
     }
 
-    private getIweStyleRule(ruleName:string){
-      const stylesheet = this.getIweStyleSheet();
-      const rules = Array.from(stylesheet.cssRules);
-      return rules.find((r) => r.cssText.includes(ruleName)) ?? null;
-    }
+  }
 
-    private insertNewCssRule(cssSelector:string, data:{ pseudoClass: '', css: Record<string, any>}) {
-      const stylesheet = this.getIweStyleSheet();
 
-      const cssProperties = Object.entries(data.css).reduce((acc, [key, value]) => {
-        return `${acc}${key}: ${value}; `;
-      }, '');
-
-      const css = `${cssSelector}${data.pseudoClass} { ${cssProperties} }`;
-
-      stylesheet?.insertRule(css, stylesheet?.cssRules.length);
-
-    }
-
-    private updateCssRule(cssRule:CSSRule, styles:Record<string, any>) {
-      for (const [key, value] of Object.entries(styles)) {
-        (cssRule as any).style.setProperty(key, value);
-      }
-
-    }
 }
