@@ -97,25 +97,46 @@ export class ModificationHandler {
 
   private moveHandler(modification: any) {
     const content = modification.current.modification;
-    const targetElement = this.elementGetterByXpath(modification);
-    const parentElement = this.elementGetterByXpath(content.parent);
+
+    const targetElement = this.elementGetterByXpath(modification.previous.modification);
+
+    const parentElement = this.elementGetterByXpath(modification.parent);
+
+
 
     if (!parentElement || !targetElement){
       throw new Error('PARENT OR TARGET ELEMENT NOT FOUND');
     }
 
-    if(content.nextSibling){
-      const nextSibling = this.elementGetterByXpath(content.nextSibling);
 
-      if (!nextSibling){
-        throw new Error('NEXT SIBLING ELEMENT NOT FOUND');
+
+    if (content.isInside) {
+      if(content.isTop) {
+        parentElement.prepend(targetElement);
       }
-
-      parentElement.insertBefore(targetElement, nextSibling);
+      else{
+        parentElement.appendChild(targetElement);
+      }
     }
     else{
-      parentElement.appendChild(targetElement);
+      if(content.nextSibling){
+        const nextSibling = this.elementGetterByXpath(content.nextSibling);
+        console.log('nextSibling',nextSibling);
+
+        if (!nextSibling){
+          throw new Error('NEXT SIBLING ELEMENT NOT FOUND');
+        }
+
+        parentElement.insertBefore(targetElement, nextSibling);
+      }
+      else{
+        parentElement.appendChild(targetElement);
+      }
     }
+
+
+
+
 
 
 
