@@ -102,12 +102,9 @@ export class ModificationHandler {
 
     const parentElement = this.elementGetterByXpath(modification.parent);
 
-
-
     if (!parentElement || !targetElement){
       throw new Error('PARENT OR TARGET ELEMENT NOT FOUND');
     }
-
 
 
     if (content.isInside) {
@@ -121,7 +118,7 @@ export class ModificationHandler {
     else{
       if(content.nextSibling){
         const nextSibling = this.elementGetterByXpath(content.nextSibling);
-        console.log('nextSibling',nextSibling);
+
 
         if (!nextSibling){
           throw new Error('NEXT SIBLING ELEMENT NOT FOUND');
@@ -133,12 +130,6 @@ export class ModificationHandler {
         parentElement.appendChild(targetElement);
       }
     }
-
-
-
-
-
-
 
   }
 
@@ -159,7 +150,6 @@ export class ModificationHandler {
       element.setAttribute(attributeName, attributeValue);
     }
   }
-
 
 
 
