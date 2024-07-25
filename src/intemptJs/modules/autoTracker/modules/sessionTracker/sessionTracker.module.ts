@@ -38,9 +38,11 @@ export class SessionTrackerModule {
 
 
   constructor() {
+    this.initReferrerCookie();
    this._sessionActivityHandler();
-   //this._onNewSession();
+
   }
+
 
   get cookieKeys() { return this.keys; }
 
@@ -67,6 +69,38 @@ export class SessionTrackerModule {
         expiration: -1
       })
     )
+  }
+
+  private initReferrerCookie(){
+    const cookie = getCookie('_intempt_referrer');
+    if(cookie) { return;}
+
+    let referrerCookieObj = {referrer:'direct', fullReferrer:'direct'};
+
+      if (!document.referrer) {
+        return referrerCookieObj;
+      }
+      else{
+        try{
+          const url = new URL(document.referrer);
+          referrerCookieObj = {
+            referrer: url.host,
+            fullReferrer:  url.href
+          };
+        }
+        catch (error:any){
+          console.log('[_getReferrerValues] ERROR',error);
+        }
+      }
+
+    setCookie({
+      name: '_intempt_referrer',
+      value: JSON.stringify(referrerCookieObj),
+      path: '/',
+    });
+
+
+
   }
 
   private _sessionActivityHandler(){

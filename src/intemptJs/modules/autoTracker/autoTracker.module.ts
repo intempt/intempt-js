@@ -3,9 +3,7 @@ import { SessionTrackerModule } from './modules/sessionTracker/sessionTracker.mo
 import { ProfileTrackerModule } from './modules/profileTracker/profileTracker.module.ts'
 import { PageTrackerModule } from './modules/pagesTracker/pagesTracker.module.ts';
 import { SessionEventModel } from './models/session.model.ts';
-// import { SessionEventDataComponent } from '../../component/sessionEventData.component.ts';
 import { debounce, dispatchIntemptEvent } from '../../../shared/shared.utils.ts';
-// import { UserAttributeComponent } from '../../component/userAttribute.component.ts';
 import { PageEventModel } from './models/pageEvent.model.ts';
 import { PageEventDataComponent } from '../../component/pageEventData.component.ts';
 import { HtmlEventModel } from './models/HtmlEvent.model.ts';
@@ -21,7 +19,7 @@ export class AutoTrackerModule {
   private readonly _htmlTrackerModule = new HtmlTrackerModule();
 
   private _doNotTrack: boolean = false;
-  private _capturePasswords: boolean = false;
+
 
   private readonly _keys:string[];
 
@@ -49,9 +47,6 @@ export class AutoTrackerModule {
 
     this._trackHtml();
   }
-
-
-  get cookieKeys(){ return this._keys }
 
   get doNotTrack(){
     return this._doNotTrack;
