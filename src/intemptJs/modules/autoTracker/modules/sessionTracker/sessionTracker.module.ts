@@ -77,10 +77,10 @@ export class SessionTrackerModule {
 
     let referrerCookieObj = {referrer:'direct', fullReferrer:'direct'};
 
-      if (!document.referrer) {
-        return referrerCookieObj;
-      }
-      else{
+      // if (!document.referrer) {
+      //   return referrerCookieObj;
+      // }
+      // else{
         try{
           const url = new URL(document.referrer);
           referrerCookieObj = {
@@ -91,7 +91,7 @@ export class SessionTrackerModule {
         catch (error:any){
           console.log('[_getReferrerValues] ERROR',error);
         }
-      }
+      // }
 
     setCookie({
       name: '_intempt_referrer',
