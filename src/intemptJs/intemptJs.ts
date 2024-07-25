@@ -214,7 +214,7 @@ export class IntemptJs extends IntemptJsGuard {
       sourceId,
       pageId
     })
-    console.log(' body', eventData)
+
     dispatchIntemptEvent('intempt:consent', {
       eventName: eventData._name
     });

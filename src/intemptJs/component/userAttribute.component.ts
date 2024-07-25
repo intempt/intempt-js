@@ -94,18 +94,6 @@ export class UserAttributeComponent{
       console.log('[_getLandingPageUrl] ERROR',error);
       return ''
     }
-
-    // const url = new URL(document.location.href);
-    //
-    // setCookie({
-    //   name: '_intempt_landing_page',
-    //   value:  url.origin,
-    //   path: '/',
-    // });
-    //
-    //
-    //
-    // return url.origin;
   }
 
   private _getReferrerValues(){
@@ -129,11 +117,11 @@ export class UserAttributeComponent{
       referrer = url.host;
       fullReferrer = url.href;
 
-      setCookie({
-        name: '_intempt_referrer',
-        value: JSON.stringify({ referrer, fullReferrer }),
-        path: '/',
-      });
+      // setCookie({
+      //   name: '_intempt_referrer',
+      //   value: JSON.stringify({ referrer, fullReferrer }),
+      //   path: '/',
+      // });
     }
     catch (error:any){
       console.log('[_getReferrerValues] ERROR',error);

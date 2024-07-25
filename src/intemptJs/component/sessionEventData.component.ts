@@ -1,6 +1,3 @@
-import { BaseURLParser } from '../_baseUrlParser.ts';
-
-
 type Props = {
   sessionStartEventName:string;
   eventCount?:number;
