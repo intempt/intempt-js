@@ -186,7 +186,7 @@ export class IntemptJs extends IntemptJsGuard {
       profileId,
     })
 
-    console.log('alias', eventData)
+
     dispatchIntemptEvent('intempt:alias', {
       eventName: eventData._name
     });
@@ -218,6 +218,7 @@ export class IntemptJs extends IntemptJsGuard {
     dispatchIntemptEvent('intempt:consent', {
       eventName: eventData._name
     });
+
     dispatchIntemptEvent('intempt:event', { event: eventData});
   }
 
