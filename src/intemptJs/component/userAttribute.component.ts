@@ -49,13 +49,13 @@ export class UserAttributeComponent{
 
 
   private _getDeviceType():DeviceType {
-    const screenWidth = window.innerWidth;
+    const screenWidth = window.innerWidth / (window.devicePixelRatio || 1);
     const mobileMaxScreenWidth = 480;
     const tabletMaxScreenWidth = 1024;
 
-    const userAgent = navigator.userAgent ;
+    const userAgent = navigator.userAgent;
 
-    // Regex patterns to detect mobile and tablet devices
+
     const mobileRegex = /Mobile|Android|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Windows Phone/i;
     const tabletRegex = /Tablet|iPad/i;
 
@@ -71,6 +71,11 @@ export class UserAttributeComponent{
       return 'Desktop';
     }
   }
+
+
+
+
+
 
   private _getLandingPageUrl(){
     const cookie = getCookie('_intempt_landing_page');

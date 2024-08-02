@@ -1,4 +1,5 @@
 import { ChoicesConfig } from '../choices.config.ts';
+import { ChoicesService } from '../choices.service.ts';
 
 
 export class ModificationHandler {
@@ -62,7 +63,7 @@ export class ModificationHandler {
 
     const tempElement = document.createElement('div');
           tempElement.innerHTML = content.html;
-    const [element] = tempElement.children;
+    const [elementToInsert] = tempElement.children;
 
     const parentElement = this.elementGetterByXpath(content.parent);
 
@@ -70,18 +71,24 @@ export class ModificationHandler {
       throw new Error('PARENT ELEMENT NOT FOUND');
     }
 
-    if(content.nextSibling){
-      const nextSibling = this.elementGetterByXpath(content.nextSibling);
+    ChoicesService.insertResultHandler({
+      content,
+      parentElement,
+      elementToInsert
+    })
 
-      if (!nextSibling){
-        throw new Error('NEXT SIBLING ELEMENT NOT FOUND');
-      }
-
-      parentElement.insertBefore(element, nextSibling);
-    }
-    else{
-      parentElement.appendChild(element);
-    }
+    // if(content.nextSibling){
+    //   const nextSibling = this.elementGetterByXpath(content.nextSibling);
+    //
+    //   if (!nextSibling){
+    //     throw new Error('NEXT SIBLING ELEMENT NOT FOUND');
+    //   }
+    //
+    //   parentElement.insertBefore(element, nextSibling);
+    // }
+    // else{
+    //   parentElement.appendChild(element);
+    // }
   }
 
   private replaceHandler(modification: any) {
@@ -105,6 +112,7 @@ export class ModificationHandler {
     if (!parentElement || !targetElement){
       throw new Error('PARENT OR TARGET ELEMENT NOT FOUND');
     }
+
 
 
     if (content.isInside) {

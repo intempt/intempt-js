@@ -198,6 +198,37 @@ export const ChoicesService = {
     style.setAttribute(styleDataAttribute, '');
     style.textContent = initialStylesRules;
     document.head.appendChild(style);
+  },
+
+  elementGetterByXpath(modification: any) {
+    const { xPathSelector, xPathIndex } = modification;
+    const matchingElements = document.evaluate(xPathSelector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+    return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
+  },
+
+  insertResultHandler({ content, parentElement, elementToInsert}:any){
+    if (content.isInside) {
+      if(content.isTop) {
+        parentElement.prepend(elementToInsert);
+      }
+      else{
+        parentElement.appendChild(elementToInsert);
+      }
+    }
+    else{
+      if(content.nextSibling){
+        const nextSibling = this.elementGetterByXpath(content.nextSibling);
+
+        if (!nextSibling){
+          throw new Error('NEXT SIBLING ELEMENT NOT FOUND');
+        }
+
+        parentElement.insertBefore(elementToInsert, nextSibling);
+      }
+      else{
+        parentElement.appendChild(elementToInsert);
+      }
+    }
   }
 
 }
