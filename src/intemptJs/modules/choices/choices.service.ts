@@ -205,17 +205,17 @@ export const ChoicesService = {
     const matchingElements = document.evaluate(xPathSelector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
     const element = matchingElements.snapshotItem(xPathIndex) as Element;
 
-    // const voidElements = ['STYLE', 'LINK', 'NOSCRIPT', 'META', 'SCRIPT', 'BASE', 'TITLE'];
-    //
-    // if (element) {
-    //   // Get the parent element
-    //   const parentElement = element.parentElement;
-    //
-    //   // Check if the element is a void element and not a child of the parent element
-    //   if (voidElements.includes(element.tagName) && parentElement && parentElement.contains(element) && parentElement !== document.body) {
-    //     return null;
-    //   }
-    // }
+    const voidElements = ['STYLE', 'LINK', 'NOSCRIPT', 'META', 'SCRIPT', 'BASE', 'TITLE'];
+
+    if (element) {
+      // Get the parent element
+      const parentElement = element.parentElement;
+
+      // Check if the element is a void element and not a child of the parent element
+      if (voidElements.includes(element.tagName) && parentElement && parentElement.contains(element) && parentElement !== document.body) {
+        return null;
+      }
+    }
 
 
     return element ?? null;
