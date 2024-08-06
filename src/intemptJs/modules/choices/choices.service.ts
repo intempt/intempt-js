@@ -203,22 +203,40 @@ export const ChoicesService = {
   elementGetterByXpath(modification: any) {
     const { xPathSelector, xPathIndex } = modification;
     const matchingElements = document.evaluate(xPathSelector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-    return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
+    const element = matchingElements.snapshotItem(xPathIndex) as Element;
+
+    // const voidElements = ['STYLE', 'LINK', 'NOSCRIPT', 'META', 'SCRIPT', 'BASE', 'TITLE'];
+    //
+    // if (element) {
+    //   // Get the parent element
+    //   const parentElement = element.parentElement;
+    //
+    //   // Check if the element is a void element and not a child of the parent element
+    //   if (voidElements.includes(element.tagName) && parentElement && parentElement.contains(element) && parentElement !== document.body) {
+    //     return null;
+    //   }
+    // }
+
+
+    return element ?? null;
+
+    //return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
+
+
   },
 
   insertResultHandler({ content, parentElement, elementToInsert}:any){
     if (content.isInside) {
-      if(content.isTop) {
-        parentElement.prepend(elementToInsert);
-      }
-      else{
-        parentElement.appendChild(elementToInsert);
-      }
+        if(content.isTop) {
+          parentElement.prepend(elementToInsert);
+        }
+        else{
+          parentElement.appendChild(elementToInsert);
+        }
     }
     else{
       if(content.nextSibling){
         const nextSibling = this.elementGetterByXpath(content.nextSibling);
-
         if (!nextSibling){
           throw new Error('NEXT SIBLING ELEMENT NOT FOUND');
         }

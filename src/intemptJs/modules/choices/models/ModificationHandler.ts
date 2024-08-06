@@ -76,19 +76,6 @@ export class ModificationHandler {
       parentElement,
       elementToInsert
     })
-
-    // if(content.nextSibling){
-    //   const nextSibling = this.elementGetterByXpath(content.nextSibling);
-    //
-    //   if (!nextSibling){
-    //     throw new Error('NEXT SIBLING ELEMENT NOT FOUND');
-    //   }
-    //
-    //   parentElement.insertBefore(element, nextSibling);
-    // }
-    // else{
-    //   parentElement.appendChild(element);
-    // }
   }
 
   private replaceHandler(modification: any) {
