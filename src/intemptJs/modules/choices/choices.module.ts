@@ -58,7 +58,7 @@ export class ChoicesModule {
         try {
           changesHandler[change.type as keyof ModificationHandler](change as any);
         } catch (error) {
-          throw new Error(`Error applying change: ${error}`);
+          console.error(`Error applying change of type "${change.type}":`, error);
         }
       }
       else {
