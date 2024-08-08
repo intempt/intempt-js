@@ -167,7 +167,6 @@ export class IntemptJs extends IntemptJsGuard {
       pageId
     })
 
-    console.log('record',eventData);
     dispatchIntemptEvent('intempt:record', {
       eventName: eventData._name
     });
