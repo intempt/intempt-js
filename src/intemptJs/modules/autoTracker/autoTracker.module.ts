@@ -156,8 +156,6 @@ export class AutoTrackerModule {
       const { event  } = detail;
       const { type   } = event;
 
-      import.meta.env.VITE_ENV === 'development' && console.log('intempt:event', event);
-
       switch (type) {
         case 'consent':
           return this._sendConsentTrackEventData(event);

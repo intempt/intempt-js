@@ -31,13 +31,37 @@ export class ModificationHandler {
   }
 
   private stylesHandler(modification: any) {
+    console.log('stylesHandler modification: ',modification);
+
+
+    const observer = new MutationObserver((mutations, observer) => {
+      const element = this.elementGetterByXpath(modification);
+      if (element) {
+        observer.disconnect();
+        element.setAttribute('iwe_id', modification.iwe_id);
+      }
+    });
+    observer.observe(document.body, {
+      attributes:true,
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
     const element = this.elementGetterByXpath(modification);
 
-    if(!element){
-      throw new Error('Element not found');
+    if (element) {
+      observer.disconnect();
+      element.setAttribute('iwe_id', modification.iwe_id);
+    } else {
+      setTimeout(() => {
+        observer.disconnect();
+        const element = this.elementGetterByXpath(modification);
+        if (!element) {
+          throw new Error('Element not found after waiting for 1000ms');
+        }
+      }, 1000);
     }
-
-    element.setAttribute('iwe_id', modification.iwe_id);
 
     const selectorCssRule = this.getIweStyleRule(modification.cssSelector);
 
@@ -47,6 +71,9 @@ export class ModificationHandler {
     else{
       this.updateCssRule(selectorCssRule, modification.current.modification.css);
     }
+
+
+
   }
 
   private typographyHandler(modification: any) {
@@ -89,41 +116,29 @@ export class ModificationHandler {
 
   }
 
-  private moveHandler(modification: any) {
-    const content = modification.current.modification;
+  private moveHandler(action: any) {
+    const { modification } = action.current;
 
-    const targetElement = this.elementGetterByXpath(modification.previous.modification);
-
+    const targetElement = this.elementGetterByXpath(modification.targetElement);
     const parentElement = this.elementGetterByXpath(modification.parent);
+    const moveToElement = modification.moveTo
+      ? this.elementGetterByXpath(modification.moveTo)
+      : null;
 
     if (!parentElement || !targetElement){
       throw new Error('PARENT OR TARGET ELEMENT NOT FOUND');
     }
 
+    if (modification.isInside) {
+      modification.isTop
+        ? parentElement.prepend(targetElement)
+        : parentElement.appendChild(targetElement);
 
-
-    if (content.isInside) {
-      if(content.isTop) {
-        parentElement.prepend(targetElement);
-      }
-      else{
-        parentElement.appendChild(targetElement);
-      }
     }
     else{
-      if(content.nextSibling){
-        const nextSibling = this.elementGetterByXpath(content.nextSibling);
-
-
-        if (!nextSibling){
-          throw new Error('NEXT SIBLING ELEMENT NOT FOUND');
-        }
-
-        parentElement.insertBefore(targetElement, nextSibling);
-      }
-      else{
-        parentElement.appendChild(targetElement);
-      }
+      moveToElement
+        ? parentElement.insertBefore(targetElement, moveToElement)
+        : parentElement.appendChild(targetElement);
     }
 
   }
@@ -179,18 +194,28 @@ export class ModificationHandler {
       return `${acc}${key}: ${value}; `;
     }, '');
 
-    const css = `${cssSelector}${data.pseudoClass} { ${cssProperties} }`;
+    const css = data.pseudoClass !== ''
+      ? `${cssSelector}:${data.pseudoClass} { ${cssProperties} }`
+      : `${cssSelector} { ${cssProperties} }`;
 
     stylesheet?.insertRule(css, stylesheet?.cssRules.length);
 
   }
 
   private updateCssRule(cssRule:CSSRule, styles:Record<string, any>) {
-    for (const [key, value] of Object.entries(styles)) {
-      (cssRule as any).style.setProperty(key, value);
-    }
+    let propertyValue = '';
+    let importantFlag = '';
 
+    for (const [key, value] of Object.entries(styles)) {
+      if(value){
+        const match = value.match(/(.*?)(\s*!important)?$/);
+        propertyValue = match[1].trim();
+        importantFlag = match[2] ? 'important' : '';
+      }
+      (cssRule as any).style.setProperty(key,  propertyValue, !!importantFlag ? 'important' : '');
+    }
   }
+
 
 
 }
