@@ -31,11 +31,10 @@ export class ModificationHandler {
   }
 
   private stylesHandler(modification: any) {
-    console.log('stylesHandler modification: ',modification);
-
-
     const observer = new MutationObserver((mutations, observer) => {
       const element = this.elementGetterByXpath(modification);
+
+      console.log('stylesHandler: ',element);
       if (element) {
         observer.disconnect();
         element.setAttribute('iwe_id', modification.iwe_id);
@@ -49,6 +48,8 @@ export class ModificationHandler {
     });
 
     const element = this.elementGetterByXpath(modification);
+
+
 
     if (element) {
       observer.disconnect();
