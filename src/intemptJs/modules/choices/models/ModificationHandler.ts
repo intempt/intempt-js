@@ -11,6 +11,8 @@ export class ModificationHandler {
   move: (change: any) => (void);
   attribute: (change: any) => (void);
 
+  private readonly timeout= 1000;
+
     constructor() {
 
         this.delete = this.deleteHandler;
@@ -34,7 +36,6 @@ export class ModificationHandler {
     const observer = new MutationObserver((mutations, observer) => {
       const element = this.elementGetterByXpath(modification);
 
-      console.log('stylesHandler: ',element);
       if (element) {
         observer.disconnect();
         element.setAttribute('iwe_id', modification.iwe_id);
@@ -49,8 +50,6 @@ export class ModificationHandler {
 
     const element = this.elementGetterByXpath(modification);
 
-
-
     if (element) {
       observer.disconnect();
       element.setAttribute('iwe_id', modification.iwe_id);
@@ -61,7 +60,7 @@ export class ModificationHandler {
         if (!element) {
           throw new Error('Element not found after waiting for 1000ms');
         }
-      }, 1000);
+      }, this.timeout);
     }
 
     const selectorCssRule = this.getIweStyleRule(modification.cssSelector);
@@ -78,11 +77,50 @@ export class ModificationHandler {
   }
 
   private typographyHandler(modification: any) {
-    const element = this.elementGetterByXpath(modification);
-    if(!element){
-          throw new Error('Element not found');
+    let observer:MutationObserver;
+
+    const handleTypographyChange = (element:Element) => {
+      if (!observer) return;
+
+      observer.disconnect();
+      element.innerHTML = modification.current.modification;
     }
-    element.innerHTML = modification.current.modification;
+
+    observer = new MutationObserver((mutations, observer) => {
+      const element = this.elementGetterByXpath(modification);
+
+      if (element) {
+        handleTypographyChange(element);
+      }
+    });
+    observer.observe(document.body, {
+      attributes:true,
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    const element = this.elementGetterByXpath(modification);
+    if (element) {
+      handleTypographyChange(element);
+    }
+    else{
+      setTimeout(() => {
+        if (observer) {
+          observer.disconnect();
+        }
+        const element = this.elementGetterByXpath(modification);
+        if (!element) {
+          throw new Error('Element not found after waiting for 1000ms');
+        }
+      }, this.timeout);
+    }
+
+    // const element = this.elementGetterByXpath(modification);
+    // if(!element){
+    //       throw new Error('Element not found');
+    // }
+    // element.innerHTML = modification.current.modification;
 
   }
 
@@ -137,28 +175,76 @@ export class ModificationHandler {
 
     }
     else{
-      moveToElement
-        ? parentElement.insertBefore(targetElement, moveToElement)
-        : parentElement.appendChild(targetElement);
+      if(!!moveToElement){
+        if(parentElement.contains(moveToElement)){
+          parentElement.insertBefore(targetElement, moveToElement)
+        }
+        else{
+          const nextValidElement = this.getNextValidSibling(moveToElement as HTMLElement, parentElement as HTMLElement);
+
+          nextValidElement
+              ? parentElement.insertBefore(targetElement, nextValidElement)
+              : parentElement.appendChild(targetElement);
+        }
+      }
+      else{
+        parentElement.appendChild(targetElement);
+      }
     }
 
   }
 
-  private attributeHandler(modification: any) {
-    console.log('attribute',modification);
+  private attributeHandler(action: any) {
+    let observer:MutationObserver;
+    const {
+      current:{
+        modification: {
+          attributeValue,
+          attributeName,
+          targetElement
+        }
+      }
+    } = action;
 
-    const element = this.elementGetterByXpath(modification);
-    if(!element){
-      throw new Error('Element not found');
+    const handleAttributeChange = (element:Element) => {
+      if (!observer) return;
+
+      observer.disconnect();
+
+      !!attributeValue
+        ? element.setAttribute(attributeName, attributeValue)
+        : element.removeAttribute(attributeName);
     }
 
-    const { current:{ modification: { attributeValue, attributeName }} } = modification;
+    observer = new MutationObserver((mutations, observer) => {
+      const element = this.elementGetterByXpath(targetElement);
 
-    if(!attributeValue ){
-      element.removeAttribute(attributeName);
+      if (element) {
+        handleAttributeChange(element);
+      }
+    });
+
+    observer.observe(document.body, {
+      attributes:true,
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
+    const element = this.elementGetterByXpath(action);
+    if (element) {
+      handleAttributeChange(element);
     }
     else{
-      element.setAttribute(attributeName, attributeValue);
+      setTimeout(() => {
+        if (observer) {
+          observer.disconnect();
+        }
+        const element = this.elementGetterByXpath(targetElement);
+        if (!element) {
+          throw new Error('Element not found after waiting for 1000ms');
+        }
+      }, this.timeout);
     }
   }
 
@@ -217,6 +303,11 @@ export class ModificationHandler {
     }
   }
 
+  private getNextValidSibling(element: HTMLElement | null, parentElement: HTMLElement | null): HTMLElement | null {
+      while (element && !parentElement?.contains(element)) {
+        element = element.nextElementSibling as HTMLElement | null;
+      }
 
-
+      return element;
+  };
 }
