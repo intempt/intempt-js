@@ -211,9 +211,30 @@ export class ModificationHandler {
 
       observer.disconnect();
 
-      !!attributeValue
-        ? element.setAttribute(attributeName, attributeValue)
-        : element.removeAttribute(attributeName);
+      if(!attributeValue ){
+        element.removeAttribute(attributeName);
+      }
+      else{
+        //  element.setAttribute(attributeName, attributeValue);
+
+        if(attributeName === 'src'){
+          Array.from(element.attributes).forEach(attr => {
+            if (attr.name.toLowerCase().includes('src')) {
+              element.setAttribute(attr.name, attributeValue);
+            }
+          });
+        }
+        else{
+          element.setAttribute(attributeName,attributeValue);
+        }
+
+      }
+
+
+      //
+      // !!attributeValue
+      //   ? element.setAttribute(attributeName, attributeValue)
+      //   : element.removeAttribute(attributeName);
     }
 
     observer = new MutationObserver((mutations, observer) => {
