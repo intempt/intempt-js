@@ -3,6 +3,7 @@ import { ChoicesService } from './choices.service.ts';
 import { ModificationHandler } from './models/ModificationHandler.ts';
 
 
+
 export class ChoicesModule {
   private readonly _config:ChoicesParams;
   private readonly _service= ChoicesService;
@@ -19,14 +20,13 @@ export class ChoicesModule {
 
       document.addEventListener('DOMContentLoaded', async () => {
         try {
-          const changes = await changesPromise;
-
+         const changes = await changesPromise;
           if(changes.length === 0) {
             import.meta.env.VITE_ENV === 'development' && console.log('no changes');
             return;
           }
 
-          await this._applyChanges(changes);
+          await this._applyChanges(changes );
 
         } catch (error) {
           throw new Error(`An error occurred: ${error}`);
