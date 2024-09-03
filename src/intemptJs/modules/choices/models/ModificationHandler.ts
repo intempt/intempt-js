@@ -10,6 +10,7 @@ export class ModificationHandler {
   replace: (change: any) => (void);
   move: (change: any) => (void);
   attribute: (change: any) => (void);
+  clone: (modification: any) => void;
 
   private readonly timeout= 1000;
 
@@ -22,6 +23,52 @@ export class ModificationHandler {
         this.move = this.moveHandler;
         this.attribute = this.attributeHandler;
         this.replace = this.replaceHandler;
+        this.clone = this.cloneHandler;
+    }
+
+  private cloneHandler(action: any) {
+    console.log('cloneHandler',action);
+    const { modification } = action.current;
+    const elementToClone = this.elementGetterByXpath(modification.elementToClone);
+
+    const tempElement = document.createElement('div');
+    tempElement.innerHTML = modification.clone.html;
+    if (!tempElement.children.length) {
+      console.warn('No valid children in tempElement, HTML may be malformed:', modification.clone.html);
+      return;
+    }
+    else{
+      const clonedElementChildren = tempElement.querySelectorAll('[iwe_id]');
+
+      Array.from(clonedElementChildren).forEach((element, index) => {
+        const iweId = element.getAttribute('iwe_id');
+
+        if(iweId){
+          const cssMapping = modification.clone.cssSelectors[iweId];
+          if (cssMapping) {
+            const {oldSelector, newCssSelector} = cssMapping;
+            const oldCssRule = this.getIweStyleRule(oldSelector);
+            if(oldCssRule){
+              (oldCssRule as CSSStyleRule).selectorText +=`, ${newCssSelector}`;
+            }
+          }
+          else {
+            console.warn('No CSS mapping found for iwe_id:', iweId);
+          }
+
+        }
+      })
+
+      const [clonedElement] = tempElement.children;
+
+      if (!clonedElement) {
+        console.warn('Cloned element is undefined. Possible issue with HTML:', tempElement.innerHTML);
+        return;
+      }
+
+      elementToClone?.insertAdjacentElement('afterend', clonedElement);
+    }
+
     }
 
   private deleteHandler(modification: any) {
@@ -52,7 +99,10 @@ export class ModificationHandler {
 
     if (element) {
       observer.disconnect();
-      element.setAttribute('iwe_id', modification.iwe_id);
+      if(!element.hasAttribute('iwe_id')){
+        element.setAttribute('iwe_id', modification.iwe_id);
+      }
+
     } else {
       setTimeout(() => {
         observer.disconnect();
@@ -208,15 +258,12 @@ export class ModificationHandler {
 
     const handleAttributeChange = (element:Element) => {
       if (!observer) return;
-
       observer.disconnect();
 
       if(!attributeValue ){
         element.removeAttribute(attributeName);
       }
       else{
-        //  element.setAttribute(attributeName, attributeValue);
-
         if(attributeName === 'src'){
           Array.from(element.attributes).forEach(attr => {
             if (attr.name.toLowerCase().includes('src')) {
@@ -227,14 +274,11 @@ export class ModificationHandler {
         else{
           element.setAttribute(attributeName,attributeValue);
         }
-
       }
 
-
-      //
-      // !!attributeValue
-      //   ? element.setAttribute(attributeName, attributeValue)
-      //   : element.removeAttribute(attributeName);
+     if(!element.hasAttribute('iwe_id')){
+       element.setAttribute('iwe_id', targetElement.iwe_id);
+     }
     }
 
     observer = new MutationObserver((mutations, observer) => {
@@ -252,7 +296,7 @@ export class ModificationHandler {
       characterData: true,
     });
 
-    const element = this.elementGetterByXpath(action);
+    const element = this.elementGetterByXpath(targetElement);
     if (element) {
       handleAttributeChange(element);
     }
@@ -271,8 +315,15 @@ export class ModificationHandler {
 
 
 
-  private elementGetterByXpath(modification: any) {
-    const { xPathSelector, xPathIndex } = modification;
+  private elementGetterByXpath(iweElement: any) {
+    const { xPathSelector, xPathIndex, iwe_id } = iweElement;
+    const element = document.querySelector(`[iwe_id='${iwe_id}']`);
+
+    if (element) return element;
+
+
+
+
     const matchingElements = document.evaluate(xPathSelector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
     return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
   }
