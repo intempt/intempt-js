@@ -27,7 +27,6 @@ export class ModificationHandler {
     }
 
   private cloneHandler(action: any) {
-    console.log('cloneHandler',action);
     const { modification } = action.current;
     const elementToClone = this.elementGetterByXpath(modification.elementToClone);
 
@@ -312,7 +311,6 @@ export class ModificationHandler {
       }, this.timeout);
     }
   }
-
 
 
   private elementGetterByXpath(iweElement: any) {
