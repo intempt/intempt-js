@@ -165,12 +165,6 @@ export class ModificationHandler {
       }, this.timeout);
     }
 
-    // const element = this.elementGetterByXpath(modification);
-    // if(!element){
-    //       throw new Error('Element not found');
-    // }
-    // element.innerHTML = modification.current.modification;
-
   }
 
   private insertHandler(modification: any) {
@@ -318,9 +312,6 @@ export class ModificationHandler {
     const element = document.querySelector(`[iwe_id='${iwe_id}']`);
 
     if (element) return element;
-
-
-
 
     const matchingElements = document.evaluate(xPathSelector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
     return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
