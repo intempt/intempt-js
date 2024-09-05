@@ -219,7 +219,7 @@ export class SessionTrackerModule {
         if (match) {
           let version = "";
           if (match.length > 1) {
-            version = match[1].replace(/_/g, '.');
+            version = match[match.length - 1].replace(/_/g, '.');
           }
 
           return this._getPlatformVersion(key, version, defaultPlatform);
@@ -237,7 +237,7 @@ export class SessionTrackerModule {
       case 'android':
         return `Android ${version}`;
       case 'ios':
-        return `iOS ${version}`;
+        return this._iosCase(version);
       case 'mac':
         return `Mac OS X ${version}`;
       case 'linux':
@@ -275,8 +275,12 @@ export class SessionTrackerModule {
     }
   }
 
-  private _iosCase(version:string){
-    return `iOS ${version}`;
+  private _iosCase(platformVersion:string){
+    const versionParts = platformVersion.split('.');
+
+    const majorVersion = versionParts[0];
+    const minorVersion = versionParts[1] || '0';
+    return `iOS ${majorVersion}.${minorVersion}`;
   }
 
   private _macosCase(version:string){
