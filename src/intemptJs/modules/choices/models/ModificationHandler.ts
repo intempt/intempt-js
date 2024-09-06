@@ -258,9 +258,29 @@ export class ModificationHandler {
       }
       else{
         if(attributeName === 'src'){
+          // Array.from(element.attributes).forEach(attr => {
+          //   if (attr.name.toLowerCase().includes('src')) {
+          //     element.setAttribute(attr.name, attributeValue);
+          //   }
+          // });
           Array.from(element.attributes).forEach(attr => {
             if (attr.name.toLowerCase().includes('src')) {
               element.setAttribute(attr.name, attributeValue);
+
+              if (attr.name === 'srcset') {
+                // Adjust the srcset to the correct format
+                const srcset = attr.value.split(',').map(set => {
+                  let [url, descriptor] = set.trim().split(' ');
+
+                  // Ensure descriptor is provided (e.g., 1000w)
+                  if (!descriptor) descriptor = "1000w"; // Default descriptor
+
+                  return `${url.trim()} ${descriptor}`;
+                }).join(', ');
+
+                // Set the correctly formatted srcset back on the element
+                element.setAttribute('srcset', srcset);
+              }
             }
           });
         }

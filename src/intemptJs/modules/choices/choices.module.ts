@@ -47,7 +47,10 @@ export class ChoicesModule {
     const changesHandler = new ModificationHandler();
 
     if (!changes || changes.length === 0) {
-      console.log('No changes to apply.');
+      if(import.meta.env.VITE_ENV === 'development'){
+        console.log('No changes to apply.');
+      }
+
       return Promise.resolve();
     }
 
@@ -58,7 +61,11 @@ export class ChoicesModule {
         try {
           changesHandler[change.type as keyof ModificationHandler](change as any);
         } catch (error) {
-          console.error(`Error applying change of type "${change.type}":`, error);
+          if(import.meta.env.VITE_ENV === 'development'){
+            console.warn(`Error applying change of type "${change.type}":`, error);
+            console.warn(change);
+          }
+
         }
       }
       else {
