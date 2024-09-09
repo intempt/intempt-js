@@ -50,7 +50,6 @@ export class HtmlElementDataComponent {
       return formEntries;
   }
 
-
   private generateHierarchy(element: HTMLElement) {
     const stack: string[] = [];
     let currentElement: HTMLElement | null = element;

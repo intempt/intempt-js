@@ -8,7 +8,7 @@ import {
 
 
 
-export interface BaseModel {
+interface BaseModel {
   readonly name: string;
   readonly type: string;
   readonly payload: any[];

@@ -2,8 +2,9 @@ import { IntemptJs } from './intemptJs/intemptJs.ts'
 import { IntemptConfig } from './intemptJs/types/intemptJs.types.ts';
 
 
-if(import.meta.env.VITE_ENV === 'development') {
+if(import.meta.env.VITE_ENV !== 'production') {
   console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
+  console.log('ENVIRONMENT ',import.meta.env);
   console.log('version:', 'v5.8');
 }
 
