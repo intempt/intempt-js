@@ -25,7 +25,7 @@ export class PlatformParser {
   private readonly osRegexes:Record<string, RegExp> = {
     windows: /windows nt (\d+\.\d+)/,
     android: /android (\d+(\.\d+)?)/,
-    ios: /(iphone|ipad|ipod) os (\d+_?\d+_?\d+)/,
+    ios: /(iphone|ipad|ipod).*os (\d+_?\d+_?\d*)/,
     mac: /mac os x (\d+(_\d+)*)/,
     linux: /linux/,
   };
@@ -109,30 +109,6 @@ export class PlatformParser {
     }
 
     return this.defaultPlatform
-  }
-
-  protected _getDeviceType():DeviceType {
-    const screenWidth = window.innerWidth / (window.devicePixelRatio || 1);
-    const mobileMaxScreenWidth = 480;
-    const tabletMaxScreenWidth = 1024;
-
-    const userAgent = navigator.userAgent;
-
-
-    const mobileRegex = /Mobile|Android|iPhone|iPod|BlackBerry|IEMobile|Opera Mini|Windows Phone/i;
-    const tabletRegex = /Tablet|iPad/i;
-
-    if (mobileRegex.test(userAgent)) {
-      return 'Mobile';
-    } else if (tabletRegex.test(userAgent)) {
-      return 'Tablet';
-    } else if (screenWidth <= mobileMaxScreenWidth) {
-      return 'Mobile';
-    } else if (screenWidth <= tabletMaxScreenWidth) {
-      return 'Tablet';
-    } else {
-      return 'Desktop';
-    }
   }
 
   protected _getBrowser() {
@@ -388,37 +364,6 @@ export class PlatformParser {
     return this._handleUserAgent();
 
   }
-
-
-//DEVICE TYPE
-//   var deviceDetector = function(userAgentString) {
-//     var b = userAgentString ? userAgentString.toLowerCase() : navigator.userAgent.toLowerCase();
-//
-//     // Regex for detecting tablet or phone based on user agent
-//     var isTablet = /(ipad|tablet|(android(?!.*mobile))|(windows(?!.*phone)(.*touch))|kindle|playbook|silk|(puffin(?!.*(IP|AP|WP))))/.test(b);
-//     var isPhone = /(mobi|ipod|phone|blackberry|opera mini|fennec|minimo|symbian|psp|nintendo ds|archos|skyfire|puffin|blazer|bolt|gobrowser|iris|maemo|semc|teashark|uzard)/.test(b);
-//
-//     // Check for touch capability and screen size
-//     var isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-//     var screenWidth = window.screen.width;
-//
-//     // Define better thresholds for mobile/tablet detection based on screen size
-//     var isSmallScreen = screenWidth <= 480;
-//     var isMediumScreen = screenWidth > 480 && screenWidth <= 1024;
-//
-//     // Use a combination of user agent and screen size for better accuracy
-//     if (isTablet || (isTouchDevice && isMediumScreen)) {
-//       return 'tablet';
-//     } else if (isPhone || (isTouchDevice && isSmallScreen)) {
-//       return 'phone';
-//     } else {
-//       return 'desktop';
-//     }
-//   };
-//
-// // Usage example
-//   var device = deviceDetector();
-//   console.log("Detected device type: " + device);
 
 
 }
