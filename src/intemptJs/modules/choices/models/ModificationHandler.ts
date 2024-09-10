@@ -48,7 +48,17 @@ export class ModificationHandler {
             const {oldSelector, newCssSelector} = cssMapping;
             const oldCssRule = this.getIweStyleRule(oldSelector);
             if(oldCssRule){
-              (oldCssRule as CSSStyleRule).selectorText +=`, ${newCssSelector}`;
+              const cssStyles = Array.from(oldCssRule.style).reduce((acc, key) => {
+                const style = oldCssRule.style as unknown as Record<string, string>;
+                acc[key] = style[key];
+                return acc;
+              }, {} as Record<string, string>);
+
+
+              this.insertNewCssRule(newCssSelector, {
+                pseudoClass: '',
+                css: cssStyles
+              })
             }
           }
           else {
@@ -258,11 +268,6 @@ export class ModificationHandler {
       }
       else{
         if(attributeName === 'src'){
-          // Array.from(element.attributes).forEach(attr => {
-          //   if (attr.name.toLowerCase().includes('src')) {
-          //     element.setAttribute(attr.name, attributeValue);
-          //   }
-          // });
           Array.from(element.attributes).forEach(attr => {
             if (attr.name.toLowerCase().includes('src')) {
               element.setAttribute(attr.name, attributeValue);
@@ -352,7 +357,7 @@ export class ModificationHandler {
   private getIweStyleRule(ruleName:string){
     const stylesheet = this.getIweStyleSheet();
     const rules = Array.from(stylesheet.cssRules);
-    return rules.find((r) => r.cssText.includes(ruleName)) ?? null;
+    return rules.find((r) => r.cssText.includes(ruleName)) as CSSStyleRule ?? null;
   }
 
   private insertNewCssRule(cssSelector:string, data:{ pseudoClass: '', css: Record<string, any>}) {
