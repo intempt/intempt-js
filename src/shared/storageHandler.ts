@@ -15,14 +15,14 @@ export const localIntemptPageSessionCookie = () => !!appLocalCookie['intempt_ses
 
 
 export function setCookie({name, value, path, expiration, domain = ''}:SetCookieParams){
-
-   const cookieValue = `${name}=${value};`;
+  const cookieValue = `${name}=${value};`;
    const cookiePath = `path=${path};`;
    const expires = expiration ?
     `expires=${new Date(Date.now() + expiration).toUTCString()};`
     :'';
-   const cookieDomain = domain ? `domain=${domain};` : '';
+   const cookieDomain = domain ? `domain=.${domain};` : '';
   document.cookie = `${cookieValue}${expires}${cookiePath}${cookieDomain}`;
+
   appLocalCookie[name] = value;
 
   return {[name]: value}
@@ -30,6 +30,7 @@ export function setCookie({name, value, path, expiration, domain = ''}:SetCookie
 
 export function getCookie(name:string){
   const cookies = document.cookie.split(';');
+
   const cookie = cookies.find(
     cookie => cookie.trim().startsWith(name + '=')
   );

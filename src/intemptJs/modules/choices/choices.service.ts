@@ -14,7 +14,7 @@ import { ChoicesConfig } from './choices.config.ts';
 
 
 export const ChoicesService = {
-  _api: import.meta.env.VITE_CHOICES_API,
+  _api: import.meta.env.VITE_API,
 
   choicesDataGuard: function(data:{choices:any[]}):MergedChoices[] {
     if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
