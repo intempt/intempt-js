@@ -17,7 +17,7 @@ export class SessionTrackerModule extends PlatformParser{
 
   private readonly millisecondsPerSecond  = 1000;
   private readonly secondsPerMinute  = 60;
-  private readonly minutesStep  = 2;
+  private readonly minutesStep  = 30;
 
   private readonly _defaultSessionTimeWithoutActivity = this.minutesStep * this.secondsPerMinute * this.millisecondsPerSecond;
 
