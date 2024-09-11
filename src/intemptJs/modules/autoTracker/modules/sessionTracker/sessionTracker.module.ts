@@ -17,7 +17,7 @@ export class SessionTrackerModule extends PlatformParser{
 
   private readonly millisecondsPerSecond  = 1000;
   private readonly secondsPerMinute  = 60;
-  private readonly minutesStep  = 30;
+  private readonly minutesStep  = 2;
 
   private readonly _defaultSessionTimeWithoutActivity = this.minutesStep * this.secondsPerMinute * this.millisecondsPerSecond;
 
@@ -73,6 +73,21 @@ export class SessionTrackerModule extends PlatformParser{
     )
   }
 
+  setSessionCookie(id?:string){
+    const sessionId = id ?? generateId(this.idType);
+
+
+    setCookie({
+      name: this.intemptSession,
+      value: JSON.stringify({
+        id: sessionId,
+      }),
+      domain: window.location.hostname,
+      path: '/',
+      expiration: this._defaultSessionTimeWithoutActivity,
+    });
+  }
+
   private initReferrerCookie(){
     const cookie = getCookie('_intempt_referrer');
     if(cookie) { return;}
@@ -120,14 +135,9 @@ export class SessionTrackerModule extends PlatformParser{
 
         const session = { ...JSON.parse(sessionCookie[this.intemptSession]) } as SessionCookieObject;
 
-        setCookie({
-          name: this.intemptSession,
-          value: JSON.stringify({
-            id: session.id,
-          }),
-          path: '/',
-          expiration: this._defaultSessionTimeWithoutActivity,
-        });
+        this.setSessionCookie(session.id);
+
+
       })
     })
   }
@@ -138,15 +148,7 @@ export class SessionTrackerModule extends PlatformParser{
    * Runs when a new session should be created
    * */
   private async _onNewSession(initializerEventName:string = this._eventName){
-    setCookie({
-      name: this.intemptSession,
-      value: JSON.stringify({
-        id: generateId(this.idType),
-      }),
-      path: '/',
-      domain: window.location.hostname,
-      expiration: this._defaultSessionTimeWithoutActivity,
-    });
+    this.setSessionCookie();
 
     const [location, platform] = await Promise.all([
       this._getLocation(),
@@ -154,8 +156,7 @@ export class SessionTrackerModule extends PlatformParser{
     ]);
 
     const urlParams = new BaseURLParser();
-    //const deviceType = this._getDeviceType();
-   // const browser = this._getBrowser();
+
 
     const eventAttributes = new SessionEventDataComponent({
       sessionStartEventName: initializerEventName,
