@@ -1,6 +1,7 @@
 import { ChoicesParams} from '../../types/choices.types.ts';
 import { ChoicesService } from './choices.service.ts';
 import { ModificationHandler } from './models/ModificationHandler.ts';
+import { dummyData } from '../../../../dummyData.ts';
 
 
 
@@ -21,7 +22,8 @@ export class ChoicesModule {
 
       document.addEventListener('DOMContentLoaded', async () => {
         try {
-         const changes = await changesPromise;
+          const changes = await changesPromise;
+
           if(changes.length === 0) {
             import.meta.env.VITE_ENV === 'development' && console.log('no changes');
             return;

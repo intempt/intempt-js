@@ -131,7 +131,13 @@ export class ModificationHandler {
       this.updateCssRule(selectorCssRule, modification.current.modification.css);
     }
 
+    if(!!modification.current.modification.inline){
+      const inlineStyles = modification.current.modification.inline as Record<string, any>;
 
+      Object.entries(inlineStyles).forEach(([key, value]) => {
+        (element as HTMLElement).style.setProperty(key, value);
+      })
+    }
 
   }
 
