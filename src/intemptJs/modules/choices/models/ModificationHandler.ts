@@ -217,7 +217,11 @@ export class ModificationHandler {
   private moveHandler(action: any) {
     const { modification } = action.current;
 
-    const targetElement = this.elementGetterByXpath(modification.targetElement);
+    const targetElementProps = !!modification.targetElement.iwe_id
+      ? modification.targetElement
+      : {...modification.targetElement, iwe_id: action.iwe_id};
+
+    const targetElement = this.elementGetterByXpath(targetElementProps);
     const parentElement = this.elementGetterByXpath(modification.parent);
     const moveToElement = modification.moveTo
       ? this.elementGetterByXpath(modification.moveTo)
