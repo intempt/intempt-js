@@ -120,7 +120,7 @@ jobs:
         run: npm run test
 
       - name: NPM Build Staging
-        run: npm run build
+        run: npm run build:staging
 
 
       - name: Configure AWS Credentials
