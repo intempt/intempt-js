@@ -46,6 +46,11 @@ export type ConsentParams = {
   category?: string
 }
 
+export type ProductParams = {
+  productId:string,
+  quantity?:number
+}
+
 
 export type IdentifyParams = {
    userId: string,

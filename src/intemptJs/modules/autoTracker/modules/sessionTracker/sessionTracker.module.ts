@@ -32,6 +32,7 @@ export class SessionTrackerModule extends PlatformParser{
     'intempt:track',
     'intempt:record',
     'intempt:alias',
+    'intempt:product',
     'intempt:logOut',
     'intempt:consent',
   ];
