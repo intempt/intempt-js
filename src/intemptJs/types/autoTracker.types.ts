@@ -2,20 +2,43 @@ import { SessionEventDataComponent } from '../component/sessionEventData.compone
 import { UserAttributeComponent } from '../component/userAttribute.component.ts';
 import { PageEventDataComponent } from '../component/pageEventData.component.ts';
 import { HtmlElementDataComponent } from '../component/HtmlEventData.component.ts';
+import { DeviceTypeName, IntemptDomEventName, IntemptEventName, UtmKey } from './constants.types.ts';
+import { IntemptShopifyEvent } from '../interfaces/events.interface.ts';
 
 
 
 
-export type DeviceType = 'Desktop'|'Tablet'|'Mobile'| 'Not Recognized';
+export type DeviceType = DeviceTypeName.DESKTOP
+                       | DeviceTypeName.TABLET
+                       | DeviceTypeName.MOBILE
+                       | DeviceTypeName.DEFAULT;
 export type Location = {ip: string, region: string, city: string, country: string}
 
-export type UtmKeys = 'utm_campaign' | 'utm_content' | 'utm_medium' | 'utm_source' | 'utm_term';
-export type IntemptSessionEventNames = 'Session start';
-export type IntemptHtmlEventNames = 'Click On' |  'Submit On' | 'Change On';
-export type IntemptPageEventNames = 'View Page' | 'Leave Page' ;
-export type DomEventName = 'click' | 'submit' | 'change' | 'input' | 'keyup' ;
+export type UtmKeys = UtmKey.CAMPAIGN
+                    | UtmKey.CONTENT
+                    | UtmKey.MEDIUM
+                    | UtmKey.SOURCE
+                    | UtmKey.TERM;
+export type IntemptSessionEventNames = IntemptEventName.SESSION_START;
+export type IntemptHtmlEventNames = IntemptEventName.CLICK_ON
+                                  | IntemptEventName.SUBMIT_ON
+                                  | IntemptEventName.CHANGE_ON ;
+export type IntemptPageEventName = IntemptEventName.PAGE_VIEW
+                                  | IntemptEventName.PAGE_LEAVE;
+export type DomEventName = IntemptDomEventName.CLICK
+                         | IntemptDomEventName.SUBMIT
+                         | IntemptDomEventName.CHANGE
+                         | IntemptDomEventName.INPUT
+                         | IntemptDomEventName.KEYUP
+
+export type IntemptShopifyAutoTrackedEventNames = IntemptEventName.PRODUCT_VIEW | IntemptEventName.PRODUCT_ADD
+export type IntemptShopifyEventNames = IntemptEventName.PRODUCT_VIEW | IntemptEventName.PRODUCT_ADD | IntemptEventName.PRODUCT_ORDER
 
 export type LocationApi = {ip: string, region: string, city: string, country: string}
+
+export type ShopifyEvent = CustomEvent<IntemptShopifyEvent>
+
+
 
 export type domEvent = {
   domEventName: DomEventName,
@@ -58,7 +81,7 @@ export type HtmlEventModelParams = {
 }
 
 export type PageEventModelParams = {
-  name:IntemptPageEventNames;
+  name:IntemptPageEventName;
   sessionId:string;
   profileId:string;
   pageId:string;

@@ -22,6 +22,7 @@ export type IntemptConfig = {
   sourceId: string;
   project: string;
   writeKey: string;
+  shopify: boolean;
 }
 
 export type IntemptVariables = {

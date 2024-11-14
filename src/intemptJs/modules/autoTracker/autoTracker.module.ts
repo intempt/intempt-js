@@ -8,7 +8,11 @@ import { PageEventModel } from './models/pageEvent.model.ts';
 import { PageEventDataComponent } from '../../component/pageEventData.component.ts';
 import { HtmlEventModel } from './models/HtmlEvent.model.ts';
 import { HtmlTrackerModule } from './modules/htmlTracker/htmlTracker.module.ts';
-import { IntemptConfig } from '../../types/intemptJs.types.ts';
+import { IntemptConfig, ProductParams } from '../../types/intemptJs.types.ts';
+import { ShopifyTrackerModule } from './modules/shopifyTracker/shopifyTracker.module.ts';
+import { IntemptEventListenerName, IntemptEventName } from '../../types/constants.types.ts';
+import { IntemptPageEventName, ShopifyEvent } from '../../types/autoTracker.types.ts';
+import { ProductModel } from '../../models/product.model.ts';
 
 
 export class AutoTrackerModule {
@@ -17,26 +21,22 @@ export class AutoTrackerModule {
   private readonly _sessionTrackerModule = new SessionTrackerModule();
   private readonly _pagesTrackerModule = new PageTrackerModule();
   private readonly _htmlTrackerModule = new HtmlTrackerModule();
+  private readonly _shopifyTrackerModule: ShopifyTrackerModule | undefined ;
 
   private _doNotTrack: boolean = false;
 
+  private readonly _api: string;
 
-  private readonly _keys:string[];
+  private readonly _eventPool: any[] = [];
 
-  private readonly _api:string;
-
-
-  private readonly _eventPool:any[] = [];
-
-  constructor(intemptConfig: IntemptConfig, api:string) {
+  constructor(intemptConfig: IntemptConfig, api: string) {
 
     this._config = { ...intemptConfig };
-    this._api = import.meta.env.VITE_API;
-    this._keys = [
-      ...this._sessionTrackerModule.cookieKeys,
-      ...this._profileTrackerModule.cookieKeys,
-      ...this._pagesTrackerModule.cookieKeys,
-    ];
+    this._api = api;
+
+    this._shopifyTrackerModule = intemptConfig.shopify
+      ? new ShopifyTrackerModule()
+      : undefined;
 
 
     this._eventPoolHandler();
@@ -44,6 +44,8 @@ export class AutoTrackerModule {
     this._trackSession();
 
     this._trackPage();
+
+    this._trackShopify();
 
     this._trackHtml();
   }
@@ -82,9 +84,37 @@ export class AutoTrackerModule {
     return this._pagesTrackerModule.getId();
   }
 
+  private handleShopifyEvent(eventName: IntemptPageEventName) {
+    if(eventName === IntemptEventName.PAGE_LEAVE) return;
+    this._shopifyTrackerModule?.track()
+  }
+
+  private _trackShopify(){
+    if(!this._shopifyTrackerModule) return;
+
+    document.addEventListener(IntemptEventListenerName.SHOPIFY, (event) => {
+      if (!this.isUserOptIn()) return;
+      const { detail } = event as ShopifyEvent;
+      const { eventName, product } = detail;
+
+      const profileId = this.getProfileId();
+      const sessionId = this.getSessionId();
+      const pageId = this.getPageId();
+
+      const eventData = new ProductModel({
+        eventTitle: eventName,
+        products: [product],
+        profileId,
+        sessionId,
+        pageId,
+      })
+
+      dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
+    })
+  }
 
   private _trackHtml(){
-    document.addEventListener('intempt:html', (event) => {
+    document.addEventListener(IntemptEventListenerName.HTML, (event) => {
       if (!this.isUserOptIn()) return;
 
       const { detail } = event as CustomEvent;
@@ -97,15 +127,19 @@ export class AutoTrackerModule {
         pageId: this._getPageId(),
         data: new HtmlElementDataComponent(target, domEventName)
       })
-      dispatchIntemptEvent('intempt:event', { event: eventData});
+
+
+      dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
     })
   }
 
   private _trackPage(){
-    document.addEventListener('intempt:page', (event) => {
+    document.addEventListener(IntemptEventListenerName.PAGE, (event) => {
       if (!this.isUserOptIn()) return;
       const { detail } = event as CustomEvent;
       const { eventName, fullUrl, title, windowWidth, pageId, duration, previousPage } = detail;
+
+      this.handleShopifyEvent(eventName);
 
       const eventData = new PageEventDataComponent({
         duration,
@@ -124,13 +158,12 @@ export class AutoTrackerModule {
       })
 
 
-      dispatchIntemptEvent('intempt:event', { event: pageEvent});
-
+      dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: pageEvent});
     })
   }
 
   private _trackSession(){
-    document.addEventListener('intempt:session', async (event) => {
+    document.addEventListener(IntemptEventListenerName.SESSION, async (event) => {
       if (!this.isUserOptIn()) return;
       const { detail } = event as CustomEvent;
       const { eventName, userAttributes, eventAttributes } = detail;
@@ -145,12 +178,12 @@ export class AutoTrackerModule {
         userAttributes
       })
 
-      dispatchIntemptEvent('intempt:event', { event: sessionEvent});
+      dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: sessionEvent});
     })
   }
 
   private _eventPoolHandler() {
-    document.addEventListener('intempt:event', (customDomEvent) => {
+    document.addEventListener(IntemptEventListenerName.EVENT, (customDomEvent) => {
       if (!this.isUserOptIn()) return;
       const { detail } = customDomEvent as CustomEvent;
       const { event  } = detail;

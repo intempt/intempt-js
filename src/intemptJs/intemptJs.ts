@@ -18,6 +18,7 @@ import { setCookie } from '../shared/storageHandler.ts';
 import { ConsentModel } from './models/consent.model.ts';
 import { ChoicesModule } from './modules/choices/choices.module.ts';
 import { ProductModel } from './models/product.model.ts';
+import { IntemptEventListenerName, IntemptEventName } from './types/constants.types.ts';
 
 
 
@@ -230,17 +231,17 @@ export class IntemptJs extends IntemptJsGuard {
     const pageId = this._autoTracker.getPageId();
 
     const eventData = new ProductModel({
-      eventTitle: 'Added to cart',
+      eventTitle: IntemptEventName.PRODUCT_ADD,
       products: [ params ],
       profileId,
       sessionId,
       pageId,
     })
 
-    dispatchIntemptEvent('intempt:product', {
+    dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
       eventName: eventData._name
     });
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
   }
 
   productOrdered(params: ProductParams[]){
@@ -251,17 +252,17 @@ export class IntemptJs extends IntemptJsGuard {
     const pageId = this._autoTracker.getPageId();
 
     const eventData = new ProductModel({
-      eventTitle: 'Product ordered',
+      eventTitle: IntemptEventName.PRODUCT_ORDER,
       products: params,
       profileId,
       sessionId,
       pageId,
     })
 
-    dispatchIntemptEvent('intempt:product', {
+    dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
       eventName: eventData._name
     });
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
 
   }
 
@@ -272,16 +273,16 @@ export class IntemptJs extends IntemptJsGuard {
     const pageId = this._autoTracker.getPageId();
 
     const eventData = new ProductModel({
-      eventTitle: 'Product viewed',
+      eventTitle: IntemptEventName.PRODUCT_VIEW,
       products: [{ productId } as ProductParams],
       profileId,
       sessionId,
       pageId,
     })
-    dispatchIntemptEvent('intempt:product', {
+    dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
       eventName: eventData._name
     });
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
 
   }
 
