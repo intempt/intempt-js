@@ -1,7 +1,7 @@
 import {
   AliasModelPayload,
   GroupModelPayload,
-  IdentifyModelPayload,
+  IdentifyModelPayload, ProductModelPayload,
   RecordModelPayload,
   TrackModelPayload,
 } from '../types/autoTracker.types.ts';
@@ -23,6 +23,11 @@ export interface ModelIdentify extends BaseModel {
 export interface ModelGroup extends BaseModel {
   readonly type: 'group';
   readonly payload: GroupModelPayload[];
+}
+
+export interface ModelProduct extends BaseModel {
+  readonly type: 'product';
+  readonly payload: ProductModelPayload[];
 }
 
 export interface ModelAlias extends BaseModel {

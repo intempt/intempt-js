@@ -144,6 +144,15 @@ export type AliasModelPayload = {
   anotherUserId: string;
 }
 
+export type ProductModelPayload = {
+  eventId: string;
+  sessionId: string;
+  timestamp: number;
+  profileId: string;
+  pageId: string;
+  data: {productId:string, quantity?:number}
+}
+
 
 
 
