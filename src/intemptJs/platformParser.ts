@@ -1,11 +1,11 @@
 import { DeviceType, LocationApi } from './types/autoTracker.types.ts';
+import { DeviceTypeName } from './types/constants.types.ts';
 
 export class PlatformParser {
-
   defaultPlatform = "Unknown";
   defaultBrowser = "Unknown";
 
-  private readonly _deviceType:DeviceType = 'Not Recognized';
+  private readonly _deviceType:DeviceType = DeviceTypeName.DEFAULT;
   private readonly _browser:string = 'Unknown';
 
   private readonly _platformVersions:Record<string, (version:string)=> string> = {
@@ -69,11 +69,11 @@ export class PlatformParser {
     const isMediumScreen = screenWidth > mobileMaxScreenWidth && screenWidth <= tabletMaxScreenWidth;
 
     if (isTablet || (isTouchDevice && isMediumScreen)) {
-      return 'Tablet';
+      return DeviceTypeName.TABLET;
     } else if (isPhone || (isTouchDevice && isSmallScreen)) {
-      return 'Mobile';
+      return DeviceTypeName.MOBILE;
     } else {
-      return 'Desktop';
+      return DeviceTypeName.DESKTOP;
     }
   }
 

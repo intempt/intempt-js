@@ -1,4 +1,5 @@
 import { UtmKeys } from './types/autoTracker.types.ts';
+import { UtmKey } from './types/constants.types.ts';
 
 
 export class BaseURLParser {
@@ -35,7 +36,7 @@ export class BaseURLParser {
 
 
  private getUtmProperties(searchParams:URLSearchParams){
-    const utmKeys:UtmKeys[] = ['utm_campaign','utm_content','utm_medium','utm_source','utm_term'];
+    const utmKeys:UtmKeys[] = Object.values(UtmKey);
     return utmKeys.reduce((acc:any,key:UtmKeys)=>({
       ...acc,
       [key]:searchParams.get(key) || ''
