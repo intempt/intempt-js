@@ -22,6 +22,7 @@ export type IntemptConfig = {
   sourceId: string;
   project: string;
   writeKey: string;
+  shopify: boolean;
 }
 
 export type IntemptVariables = {
@@ -44,6 +45,11 @@ export type ConsentParams = {
   email?:string,
   message?: string
   category?: string
+}
+
+export type ProductParams = {
+  productId:string,
+  quantity?:number
 }
 
 

@@ -3,7 +3,7 @@ import {
   AliasParams,
   ConsentParams,
   GroupParams,
-  IdentifyParams, IntemptConfig,
+  IdentifyParams, IntemptConfig, ProductParams,
   RecordParams,
   TrackParams,
 } from './types/intemptJs.types.ts';
@@ -17,6 +17,8 @@ import { dispatchIntemptEvent } from '../shared/shared.utils.ts';
 import { setCookie } from '../shared/storageHandler.ts';
 import { ConsentModel } from './models/consent.model.ts';
 import { ChoicesModule } from './modules/choices/choices.module.ts';
+import { ProductModel } from './models/product.model.ts';
+import { IntemptEventListenerName, IntemptEventName } from './types/constants.types.ts';
 
 
 
@@ -219,6 +221,69 @@ export class IntemptJs extends IntemptJsGuard {
     });
 
     dispatchIntemptEvent('intempt:event', { event: eventData});
+  }
+
+  productAdd(params: ProductParams){
+    if (!this.isUserOptIn()) return;
+
+    const profileId = this._autoTracker.getProfileId();
+    const sessionId = this._autoTracker.getSessionId();
+    const pageId = this._autoTracker.getPageId();
+
+    const eventData = new ProductModel({
+      eventTitle: IntemptEventName.PRODUCT_ADD,
+      products: [ params ],
+      profileId,
+      sessionId,
+      pageId,
+    })
+
+    dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
+      eventName: eventData._name
+    });
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
+  }
+
+  productOrdered(params: ProductParams[]){
+    if (!this.isUserOptIn()) return;
+
+    const profileId = this._autoTracker.getProfileId();
+    const sessionId = this._autoTracker.getSessionId();
+    const pageId = this._autoTracker.getPageId();
+
+    const eventData = new ProductModel({
+      eventTitle: IntemptEventName.PRODUCT_ORDER,
+      products: params,
+      profileId,
+      sessionId,
+      pageId,
+    })
+
+    dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
+      eventName: eventData._name
+    });
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
+
+  }
+
+  productView(productId: string){
+    if (!this.isUserOptIn()) return;
+    const profileId = this._autoTracker.getProfileId();
+    const sessionId = this._autoTracker.getSessionId();
+    const pageId = this._autoTracker.getPageId();
+
+    const eventData = new ProductModel({
+      eventTitle: IntemptEventName.PRODUCT_VIEW,
+      products: [{ productId } as ProductParams],
+      profileId,
+      sessionId,
+      pageId,
+    })
+    dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
+      eventName: eventData._name
+    });
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
+
   }
 
   logOut(){

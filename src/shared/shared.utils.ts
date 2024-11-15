@@ -3,9 +3,9 @@ import { IdType } from '../intemptJs/types/intemptJs.types.ts';
 
 function generateUniqueId() {
   const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const timestamp = Date.now().toString(36).split('');
+  const timestamp = new Date().getTime().toString(36).split('');
   const shuffledTimestamp = timestamp.slice().sort(() => Math.random() - 0.5);
-  const timestampNum = Date.now();
+  const timestampNum = new Date().getTime();
   let id = '';
 
   for (let i = 0; i < 10; i++) {
@@ -18,7 +18,6 @@ function generateUniqueId() {
 
 export function generateId(type?: IdType) {
   const uuid = generateUniqueId();
-
   return !!type
     ? `${type}_${uuid}`
     : uuid;

@@ -1,8 +1,20 @@
 import { IntemptJs } from './intemptJs/intemptJs.ts';
 
+
+type ShopifyMeta = {
+  page?: { pageType: string }
+  product?: { id: string }
+}
+
+
 declare global {
   interface Window {
     intempt: IntemptJs;
+    Shopify: { meta: ShopifyMeta};
+    meta: ShopifyMeta
+    theme: {
+      productStrings:{addToCart: string}
+    };
   }
 
   interface NavigatorUAData {

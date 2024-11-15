@@ -19,7 +19,8 @@ function getIntemptConfig(): IntemptConfig {
       project:'',
       writeKey:'',
       sourceId:'',
-      organization:''
+      organization:'',
+      shopify:false
     }
   }
   const source = new URL(intemptScript.src)
@@ -28,6 +29,7 @@ function getIntemptConfig(): IntemptConfig {
     writeKey: source.searchParams.get('key') ?? '',
     sourceId: source.searchParams.get('source') ?? '',
     organization: source.searchParams.get('organization') ?? '',
+    shopify: !!source.searchParams.get('shopify')
   };
 }
 
