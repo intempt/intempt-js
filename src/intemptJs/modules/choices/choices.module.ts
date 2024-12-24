@@ -1,6 +1,7 @@
 import { ChoicesParams} from '../../types/choices.types.ts';
 import { ChoicesService } from './choices.service.ts';
 import { ModificationHandler } from './models/ModificationHandler.ts';
+import { dummy } from '../../../../dummy.ts';
 
 
 
@@ -29,7 +30,9 @@ export class ChoicesModule {
             return;
           }
 
-          await this._applyChanges(changes );
+          console.log('changes', changes);
+
+          await this._applyChanges(changes);
 
         } catch (error) {
           throw new Error(`An error occurred: ${error}`);
@@ -41,7 +44,6 @@ export class ChoicesModule {
     }
 
   }
-
 
 
 
