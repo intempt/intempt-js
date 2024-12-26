@@ -20,17 +20,16 @@ export class ChoicesModule {
   async init(){
     try{
       const changesPromise = this._service.getChoices(this._config);
-
       document.addEventListener('DOMContentLoaded', async () => {
         try {
           const changes = await changesPromise;
-
+          console.log('changes', changes);
           if(changes.length === 0) {
             import.meta.env.VITE_ENV === 'development' && console.log('no changes');
             return;
           }
 
-          console.log('changes', changes);
+
 
           await this._applyChanges(changes);
 
