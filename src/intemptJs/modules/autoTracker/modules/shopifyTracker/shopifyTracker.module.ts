@@ -22,7 +22,7 @@ export class ShopifyTrackerModule {
     dispatchIntemptEvent(IntemptEventListenerName.SHOPIFY, {
       eventName: eventTitle,
       product: {
-        productId: id,
+        productId: id.toString(),
         quantity: quantity && quantity > 0 ? quantity : undefined
       }
     })
