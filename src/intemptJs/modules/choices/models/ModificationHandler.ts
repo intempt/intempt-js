@@ -204,13 +204,17 @@ export class ModificationHandler {
   }
 
   private replaceHandler(modification: any) {
+    console.log('replaceHandler: ',modification);
     const element = this.elementGetterByXpath(modification);
 
     const tempElement = document.createElement('div');
     tempElement.innerHTML = modification.current.modification.html;
-    const contentEl = tempElement.firstChild;
+    const contentEl = tempElement.firstChild as HTMLElement;
 
-    element.replaceWith(contentEl as Element);
+    element.replaceWith(contentEl);
+
+    const iweId = contentEl!.getAttribute('iwe_id');
+    this.updateProductScriptTag(iweId);
 
   }
 
@@ -406,4 +410,20 @@ export class ModificationHandler {
 
       return element;
   };
+
+  private updateProductScriptTag(iweId:string|null){
+    const oldScriptTag = document.querySelector(`[data-product-slider-id="${iweId}"]`)
+    if (!oldScriptTag) {
+      return;
+    }
+
+    const newScriptTag = document.createElement('script');
+    newScriptTag.setAttribute('src', oldScriptTag.getAttribute('src') ?? '');
+    newScriptTag.setAttribute('data-product-slider-id', oldScriptTag.getAttribute('data-product-slider-id') ?? '');
+    newScriptTag.setAttribute('type', oldScriptTag.getAttribute('text/javascript') ?? '');
+
+    oldScriptTag.replaceWith(newScriptTag)
+
+  }
+
 }

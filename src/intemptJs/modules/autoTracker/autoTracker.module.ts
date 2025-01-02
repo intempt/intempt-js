@@ -8,7 +8,7 @@ import { PageEventModel } from './models/pageEvent.model.ts';
 import { PageEventDataComponent } from '../../component/pageEventData.component.ts';
 import { HtmlEventModel } from './models/HtmlEvent.model.ts';
 import { HtmlTrackerModule } from './modules/htmlTracker/htmlTracker.module.ts';
-import { IntemptConfig, ProductParams } from '../../types/intemptJs.types.ts';
+import { IntemptConfig, ProductParams, RecommendationParams } from '../../types/intemptJs.types.ts';
 import { ShopifyTrackerModule } from './modules/shopifyTracker/shopifyTracker.module.ts';
 import { IntemptEventListenerName, IntemptEventName } from '../../types/constants.types.ts';
 import { IntemptPageEventName, ShopifyEvent } from '../../types/autoTracker.types.ts';
@@ -197,6 +197,17 @@ export class AutoTrackerModule {
            break;
       }
     });
+  }
+
+  private async _getFeedData(data:RecommendationParams){
+    const {organization, sourceId, project, writeKey} = this._config;
+    console.log('_getFeedData: ',data);
+    const {id, quantity, fields} = data
+    const url = `${this._api}/${organization}/projects/${project}/feeds/${id}/data`;
+
+    try{}
+    catch(error){}
+
   }
 
   private _onTrackData(data:any){
