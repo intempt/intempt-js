@@ -2,6 +2,7 @@ import { dispatchIntemptEvent } from '../../../../../shared/shared.utils.ts';
 import { IntemptEventListenerName, IntemptEventName } from '../../../../types/constants.types.ts';
 import { IntemptShopifyAutoTrackedEventNames } from '../../../../types/autoTracker.types.ts';
 
+
 export class ShopifyTrackerModule {
   track() {
     const meta = window.meta ?? window.Shopify?.meta;
@@ -16,7 +17,6 @@ export class ShopifyTrackerModule {
       }
     }
   }
-
 
   private dispatchProductEvent({id, quantity, eventTitle}:{id:string, quantity?:number, eventTitle:IntemptShopifyAutoTrackedEventNames}) {
     dispatchIntemptEvent(IntemptEventListenerName.SHOPIFY, {

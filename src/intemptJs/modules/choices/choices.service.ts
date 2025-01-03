@@ -11,6 +11,7 @@ import { AuthRequest } from '../../models/auth.model.ts';
 import { AuthConfig, IntemptVariables } from '../../types/intemptJs.types.ts';
 import { localStorageCache } from '../../../shared/storageHandler.ts';
 import { ChoicesConfig } from './choices.config.ts';
+import { IntemptEventName } from '../../types/constants.types.ts';
 
 
 export const ChoicesService = {
@@ -72,18 +73,19 @@ export const ChoicesService = {
     /**
      * Get variables stored in SessionStorage
      * */
-    try{  const {
-      orgName,
-      project,
-      sourceId,
-      profileId,
-      sessionId,
-      device,
-      username,
-      password,
-      url
-    } = this.getIntemptSessionVariables(config);
-
+    try{
+      const {
+        orgName,
+        project,
+        sourceId,
+        profileId,
+        sessionId,
+        device,
+        username,
+        password,
+        url
+      } = this.getIntemptSessionVariables(config);
+      console.log('getChoices config',config);
       /**
        * Return an empty array if the credentials not found
        * */
@@ -92,12 +94,29 @@ export const ChoicesService = {
         return []
       }
 
+      let productId = undefined;
+      if(config.shopify){
+        productId = this.handleShopifyProductId();
+      }
+      else if(config.magento){
+        productId = this.handleMagentoProductId();
+      }
+
+      if(productId){
+        localStorageCache.set('productId', productId);
+      }
+      else{
+        localStorageCache.remove('productId');
+      }
+
+
       const changesRequest = new ChoicesRequestModel({
         sourceId,
         profileId,
         url,
         device,
-        sessionId
+        sessionId,
+        productId
       });
       const authRequest = new AuthRequest({username, password});
 
@@ -247,6 +266,27 @@ export const ChoicesService = {
         parentElement.appendChild(elementToInsert);
       }
     }
+  },
+
+  handleShopifyProductId(){
+    const meta = window.meta ?? window.Shopify?.meta;
+    if (!meta) return undefined;
+    else if (meta.page?.pageType && meta.page?.pageType === 'product') {
+      return  meta.product?.id?.toString();
+    }
+    else{
+      return undefined;
+    }
+  },
+
+  handleMagentoProductId(){
+    if(document.body.classList.contains('catalog-product-view') ){
+      return document.querySelector('[data-product-id]')?.getAttribute('data-product-id') ||
+        document.querySelector('[product-id]')?.getAttribute('product-id') ||
+        undefined;
+    }
+
+    return undefined
   }
 
 }

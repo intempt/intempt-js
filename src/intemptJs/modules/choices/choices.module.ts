@@ -29,8 +29,6 @@ export class ChoicesModule {
             return;
           }
 
-
-
           await this._applyChanges(changes);
 
         } catch (error) {

@@ -14,7 +14,7 @@ import { TrackModel } from './models/track.model.ts';
 import { RecordModel } from './models/record.model.ts';
 import { AliasModel } from './models/alias.model.ts';
 import { dispatchIntemptEvent } from '../shared/shared.utils.ts';
-import { setCookie } from '../shared/storageHandler.ts';
+import { localStorageCache, setCookie } from '../shared/storageHandler.ts';
 import { ConsentModel } from './models/consent.model.ts';
 import { ChoicesModule } from './modules/choices/choices.module.ts';
 import { ProductModel } from './models/product.model.ts';
@@ -300,11 +300,13 @@ export class IntemptJs extends IntemptJsGuard {
     const url = `${this._api}/${organization}/projects/${project}/feeds/${id}/data`;
     const [ username, password ] = writeKey.split('.');
     const profileId = this._autoTracker.getProfileId();
+    const productId = localStorageCache.get('productId');
     const body = {
       profileId,
       sourceId,
       limit: quantity,
-      fields
+      fields,
+      productId: productId?.toString(),
     }
 
     const encodedCredentials = btoa(`${username}:${password}`);

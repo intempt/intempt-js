@@ -23,6 +23,7 @@ export type IntemptConfig = {
   project: string;
   writeKey: string;
   shopify: boolean;
+  magento: boolean;
 }
 
 export type IntemptVariables = {
