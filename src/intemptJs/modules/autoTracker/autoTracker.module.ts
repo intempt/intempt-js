@@ -199,16 +199,6 @@ export class AutoTrackerModule {
     });
   }
 
-  private async _getFeedData(data:RecommendationParams){
-    const {organization, sourceId, project, writeKey} = this._config;
-    console.log('_getFeedData: ',data);
-    const {id, quantity, fields} = data
-    const url = `${this._api}/${organization}/projects/${project}/feeds/${id}/data`;
-
-    try{}
-    catch(error){}
-
-  }
 
   private _onTrackData(data:any){
     let debouncedSendEvents:ReturnType<typeof debounce>;

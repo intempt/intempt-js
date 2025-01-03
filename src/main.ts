@@ -4,7 +4,7 @@ import { IntemptConfig } from './intemptJs/types/intemptJs.types.ts';
 
 if(import.meta.env.VITE_ENV !== 'production') {
   console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
-  console.log('version:', 'v5.8');
+  console.log('version:', 'v5.9');
 }
 
 
@@ -20,7 +20,8 @@ function getIntemptConfig(): IntemptConfig {
       writeKey:'',
       sourceId:'',
       organization:'',
-      shopify:false
+      shopify:false,
+      magento:false
     }
   }
   const source = new URL(intemptScript.src)
@@ -29,7 +30,8 @@ function getIntemptConfig(): IntemptConfig {
     writeKey: source.searchParams.get('key') ?? '',
     sourceId: source.searchParams.get('source') ?? '',
     organization: source.searchParams.get('organization') ?? '',
-    shopify: !!source.searchParams.get('shopify')
+    shopify: !!source.searchParams.get('shopify'),
+    magento: !!source.searchParams.get('magento')
   };
 }
 

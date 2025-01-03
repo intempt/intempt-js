@@ -63,6 +63,7 @@ export type ChoicesRequestData = {
   sourceId:string,
   device:string,
   profileId:string,
+  productId:string | null | undefined,
   sessionId:string,
   url:string,
 }
