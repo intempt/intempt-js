@@ -52,6 +52,12 @@ export type ProductParams = {
   quantity?:number
 }
 
+export type RecommendationParams = {
+  id:number,
+  quantity:number
+  fields:string[]
+}
+
 
 export type IdentifyParams = {
    userId: string,

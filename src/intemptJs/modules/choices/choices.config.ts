@@ -56,6 +56,7 @@ export const ChoicesConfig = {
     justify-content: center;
     flex-direction: column;
     gap: 8px;
+    pointer-events: all;
     & > *  {
         box-sizing: border-box;
         margin: 0;
@@ -103,6 +104,162 @@ export const ChoicesConfig = {
     }
     [data-iwe-block="product:title"]{
       font-weight: 500
+    }
+}
+.iwe-product-slider {
+    --space: 8px;
+    --btn-bg: #E8E9ED;
+    --colsPerDesktop: 0;
+    --colsPerTablet: 0;
+    --colsPerMobile: 0;
+
+    --itemsPerView: var(--colsPerDesktop);
+    --btn-size: 60px;
+    --btn-border-radius: 100%;
+    --btn-container-width:calc(100% + var(--btn-size) * 2 + var(--space) * 2);
+
+    display:flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--space);
+    flex-flow: column;
+    width: 100%;
+    padding: 0 30px;
+    .slider {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        position: relative;
+        width: calc( (200px * var(--itemsPerView)) + ( var(--space) * (var(--itemsPerView) - 1)));
+        z-index: 2;
+        .slider-wrapper {
+            overflow: hidden;
+            width: 100%;
+            z-index: 2;
+            .slider-container {
+                pointer-events: none;
+                display: flex;
+                transition: transform 0.3s ease-in-out;
+                width: max-content;
+                gap: var(--space);
+                align-items: center;
+                justify-content: flex-start;
+                .iwe-product-card{
+                    flex:1;
+                }
+            }
+        }
+    }
+    .buttons-container{
+        width: var(--btn-container-width);
+        position: absolute;
+        display:flex;
+        align-items: center;
+        justify-content: space-between;
+        z-index: 1;
+        gap: var(--space);
+        button {
+            display:flex;
+            align-items: center;
+            justify-content: center;
+            width: var(--btn-size);
+            height: var(--btn-size);
+            border: none;
+            cursor: pointer;
+            border-radius: var(--btn-border-radius);
+            background-color: var(--btn-bg);
+            .btn-img{
+                width: 100%;
+                height: 100%;
+                object-fit: contain;
+            }
+            &:hover {
+                background-color: color-mix(in srgb, var(--btn-bg) 90%, #000000);
+            }
+            &:disabled {
+                filter: grayscale(1) opacity(0.5);
+                pointer-events: none;
+            }
+        }
+        &.topRight{
+            --btn-size: 40px;
+            --btn-border-radius: 8px;
+            top: 0;
+            width: max-content;
+            right: 0;
+            translate: calc(100% + var(--space)) 0;
+        }
+        &.topLeft{
+            --btn-size: 40px;
+            --btn-border-radius: 8px;
+            top: 0;
+            width: max-content;
+            left: 0;
+            translate: calc(-100% - 8px) 0;
+        }
+        &.bottomLeft{
+            --btn-size: 40px;
+            --btn-border-radius: 8px;
+            bottom: 0;
+            width: max-content;
+            left: 0;
+            translate: calc(-100% - 8px) 0;
+        }
+        &.bottomRight{
+            --btn-size: 40px;
+            bottom: 0;
+            width: max-content;
+            right: 0;
+            translate: calc(100% + var(--space)) 0;
+        }
+    }
+    .dots-container {
+        display: flex;
+        justify-content: center;
+        margin-top: 10px;
+        gap: 5px;
+
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background-color: var(--btn-bg);
+            cursor: pointer;
+            padding: 0;
+            box-shadow: none;
+            border: none;
+        }
+
+        .dot.active {
+            background: #333;
+        }
+    }
+    [data-iwe-block-controls-type='bordered']{
+            button{
+                border: 1px solid #000000;
+            }
+
+            .dot{
+                border: 1px solid #000000;
+            }
+
+    }
+    [data-iwe-block-controls-type='noBackground']{
+            button{
+                background-color: transparent;
+                &:hover {
+                    background-color: transparent;
+                }
+            }
+
+    }
+
+    @media only screen and (max-width: 766px) {
+        --itemsPerView: var(--colsPerTablet);
+
+    }
+    @media only screen and (max-width: 376px) {
+        --itemsPerView: var(--colsPerMobile);
     }
 }
   `

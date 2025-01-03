@@ -3,7 +3,7 @@ import {
   AliasParams,
   ConsentParams,
   GroupParams,
-  IdentifyParams, IntemptConfig, ProductParams,
+  IdentifyParams, IntemptConfig, ProductParams, RecommendationParams,
   RecordParams,
   TrackParams,
 } from './types/intemptJs.types.ts';
@@ -292,6 +292,38 @@ export class IntemptJs extends IntemptJsGuard {
     dispatchIntemptEvent('intempt:logOut', {
       eventName: 'Log Out'
     });
+  }
+
+  async recommendation (params:RecommendationParams){
+    const {organization, sourceId, project, writeKey} = this._config;
+    const {id, quantity, fields} = params
+    const url = `${this._api}/${organization}/projects/${project}/feeds/${id}/data`;
+    const [ username, password ] = writeKey.split('.');
+    const profileId = this._autoTracker.getProfileId();
+    const body = {
+      profileId,
+      sourceId,
+      limit: quantity,
+      fields
+    }
+
+    const encodedCredentials = btoa(`${username}:${password}`);
+    try{
+      const response =  await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${encodedCredentials}`,
+        },
+        body: JSON.stringify({...body }),
+        keepalive: true
+      });
+      return response?.json();
+    }
+    catch(error){
+      return null
+    }
+
   }
 
 

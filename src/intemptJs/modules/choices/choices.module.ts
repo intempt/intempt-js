@@ -23,7 +23,7 @@ export class ChoicesModule {
       document.addEventListener('DOMContentLoaded', async () => {
         try {
           const changes = await changesPromise;
-          console.log('changes', changes);
+
           if(changes.length === 0) {
             import.meta.env.VITE_ENV === 'development' && console.log('no changes');
             return;
