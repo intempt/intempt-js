@@ -56,6 +56,7 @@ export const ChoicesConfig = {
     justify-content: center;
     flex-direction: column;
     gap: 8px;
+    pointer-events: all;
     & > *  {
         box-sizing: border-box;
         margin: 0;
@@ -114,6 +115,7 @@ export const ChoicesConfig = {
 
     --itemsPerView: var(--colsPerDesktop);
     --btn-size: 60px;
+    --btn-border-radius: 100%;
     --btn-container-width:calc(100% + var(--btn-size) * 2 + var(--space) * 2);
 
     display:flex;
@@ -135,6 +137,7 @@ export const ChoicesConfig = {
             width: 100%;
             z-index: 2;
             .slider-container {
+                pointer-events: none;
                 display: flex;
                 transition: transform 0.3s ease-in-out;
                 width: max-content;
@@ -154,6 +157,7 @@ export const ChoicesConfig = {
         align-items: center;
         justify-content: space-between;
         z-index: 1;
+        gap: var(--space);
         button {
             display:flex;
             align-items: center;
@@ -162,7 +166,7 @@ export const ChoicesConfig = {
             height: var(--btn-size);
             border: none;
             cursor: pointer;
-            border-radius: 100%;
+            border-radius: var(--btn-border-radius);
             background-color: var(--btn-bg);
             .btn-img{
                 width: 100%;
@@ -176,6 +180,37 @@ export const ChoicesConfig = {
                 filter: grayscale(1) opacity(0.5);
                 pointer-events: none;
             }
+        }
+        &.topRight{
+            --btn-size: 40px;
+            --btn-border-radius: 8px;
+            top: 0;
+            width: max-content;
+            right: 0;
+            translate: calc(100% + var(--space)) 0;
+        }
+        &.topLeft{
+            --btn-size: 40px;
+            --btn-border-radius: 8px;
+            top: 0;
+            width: max-content;
+            left: 0;
+            translate: calc(-100% - 8px) 0;
+        }
+        &.bottomLeft{
+            --btn-size: 40px;
+            --btn-border-radius: 8px;
+            bottom: 0;
+            width: max-content;
+            left: 0;
+            translate: calc(-100% - 8px) 0;
+        }
+        &.bottomRight{
+            --btn-size: 40px;
+            bottom: 0;
+            width: max-content;
+            right: 0;
+            translate: calc(100% + var(--space)) 0;
         }
     }
     .dots-container {
