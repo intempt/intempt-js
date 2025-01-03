@@ -85,7 +85,7 @@ export const ChoicesService = {
         password,
         url
       } = this.getIntemptSessionVariables(config);
-      console.log('getChoices config',config);
+
       /**
        * Return an empty array if the credentials not found
        * */
