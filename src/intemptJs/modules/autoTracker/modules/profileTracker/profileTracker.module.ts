@@ -7,7 +7,7 @@ type ProfileIdCookie = { profileId: string } | null;
 
 export class ProfileTrackerModule {
   private readonly idType = 'prof';
-  private readonly keys = ['profileId'];
+
 
   private readonly profileId = 'profileId';
   /**
@@ -24,19 +24,9 @@ export class ProfileTrackerModule {
     this.handleProfileId();
   }
 
-  get cookieKeys(){ return this.keys;}
-
-
-  init(){
-    this.handleProfileId();
-  }
 
    getId(){
-    //const cookie = getCookie(this.profileId) as ProfileIdCookie;
 
-    // const result = !!cookie
-    //   ? cookie
-    //   : this.handleProfileId();
      const result =  this.handleProfileId();
 
      return result[this.profileId];
@@ -63,21 +53,11 @@ export class ProfileTrackerModule {
       name: this.profileId,
       value: generateId(this.idType),
       path: '/',
-      expiration: this.expiration
+      expiration: this.expiration,
+      domain: window.location.hostname
     });
   }
-  /**
-   * Update the existing profileId cookie with expiration date
-   * @param id - the existing profileId
-   * @return {profileId: string}
-   * */
-  private _updateExistingProfileId(id:string){
-    return setCookie({
-      name: this.profileId,
-      value: id,
-      path: '/',
-    })
-  }
+
 
 
 }
