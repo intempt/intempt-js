@@ -1,6 +1,6 @@
 import { dispatchIntemptEvent, generateId } from '../../../../../shared/shared.utils.ts';
 import { getCookie, localIntemptSessionCookie, setCookie } from '../../../../../shared/storageHandler.ts';
-import { LocationApi, SessionCookie, SessionCookieObject } from '../../../../types/autoTracker.types.ts';
+import {  SessionCookie, SessionCookieObject } from '../../../../types/autoTracker.types.ts';
 import { SessionEventDataComponent } from '../../../../component/sessionEventData.component.ts';
 import { UserAttributeComponent } from '../../../../component/userAttribute.component.ts';
 import { BaseURLParser } from '../../../../_baseUrlParser.ts';

@@ -6,7 +6,7 @@ import { BaseURLParser } from '../_baseUrlParser.ts';
 export class UserAttributeComponent{
   deviceType:DeviceType;
   referrer:string;
-  fullReferrer:string ;
+  fullReferrer:string;
   landingPage:string ;
   browser:string;
   platform:string;
@@ -25,14 +25,13 @@ export class UserAttributeComponent{
 
     const { referrer, fullReferrer } = this._getReferrerValues();
 
-    // this.deviceType = this._getDeviceType();
     this.deviceType = _deviceType;
 
     this.referrer = referrer;
     this.fullReferrer = fullReferrer;
     this.landingPage = this._getLandingPageUrl();
 
-    // this.browser = this._getBrowser();
+
     this.browser = _browser;
     this.platform = platform
     this.country = country;
