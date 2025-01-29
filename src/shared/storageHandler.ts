@@ -49,8 +49,15 @@ export function getCookie(name:string){
 }
 
 export function handleDomain(domain:string){
-  const parts = domain.split('.');
-  return `.${parts.slice(-2).join('.')}`
+  // const parts = domain.split('.');
+  // return `.${parts.slice(-2).join('.')}`
+
+  if (domain.endsWith('intempt.com')) {
+    const parts = domain.split('.');
+    return `.${parts.slice(-2).join('.')}`;
+  }
+
+  return `.${domain}`;
 }
 
 export const localStorageCache: LocalStorageCache = {
