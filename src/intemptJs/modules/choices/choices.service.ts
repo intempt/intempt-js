@@ -220,28 +220,13 @@ export const ChoicesService = {
   },
 
   elementGetterByXpath(modification: any) {
-    const { xPathSelector, xPathIndex } = modification;
+    const { xPathSelector, xPathIndex, iwe_id } = modification;
+    const element = document.querySelector(`[iwe_id='${iwe_id}']`);
+
+    if (element) return element;
+
     const matchingElements = document.evaluate(xPathSelector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-    const element = matchingElements.snapshotItem(xPathIndex) as Element;
-
-    const voidElements = ['STYLE', 'LINK', 'NOSCRIPT', 'META', 'SCRIPT', 'BASE', 'TITLE'];
-
-    if (element) {
-      // Get the parent element
-      const parentElement = element.parentElement;
-
-      // Check if the element is a void element and not a child of the parent element
-      if (voidElements.includes(element.tagName) && parentElement && parentElement.contains(element) && parentElement !== document.body) {
-        return null;
-      }
-    }
-
-
-    return element ?? null;
-
-    //return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
-
-
+    return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
   },
 
   insertResultHandler({ content, parentElement, elementToInsert}:any){
