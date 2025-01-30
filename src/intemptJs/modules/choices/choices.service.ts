@@ -96,10 +96,10 @@ export const ChoicesService = {
 
       let productId = undefined;
       if(config.shopify){
-        productId = this.handleShopifyProductId();
+        productId = await this.handleShopifyProductId();
       }
       else if(config.magento){
-        productId = this.handleMagentoProductId();
+        productId = await this.handleMagentoProductId();
       }
 
       if(productId){
@@ -268,25 +268,54 @@ export const ChoicesService = {
     }
   },
 
-  handleShopifyProductId(){
-    const meta = window.meta ?? window.Shopify?.meta;
-    if (!meta) return undefined;
-    else if (meta.page?.pageType && meta.page?.pageType === 'product') {
-      return  meta.product?.id?.toString();
-    }
-    else{
-      return undefined;
-    }
+  handleShopifyProductId():Promise<string|undefined>{
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        const meta = window.meta ?? window.Shopify?.meta;
+
+        if (!meta) return resolve(undefined);
+
+        if (meta.page?.pageType === 'product') {
+          resolve(meta.product?.id?.toString());
+        } else {
+          resolve(undefined);
+        }
+      }, 320);
+    });
+
+
+
+    // const meta = window.meta ?? window.Shopify?.meta;
+    // if (!meta) return undefined;
+    // else if (meta.page?.pageType && meta.page?.pageType === 'product') {
+    //   return  meta.product?.id?.toString();
+    // }
+    // else{
+    //   return undefined;
+    // }
   },
 
-  handleMagentoProductId(){
-    if(document.body.classList.contains('catalog-product-view') ){
-      return document.querySelector('[data-product-id]')?.getAttribute('data-product-id') ||
-        document.querySelector('[product-id]')?.getAttribute('product-id') ||
-        undefined;
-    }
-
-    return undefined
+  handleMagentoProductId():Promise<string|undefined>{
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        if (document.body.classList.contains('catalog-product-view')) {
+          resolve(
+            document.querySelector('[data-product-id]')?.getAttribute('data-product-id') ||
+            document.querySelector('[product-id]')?.getAttribute('product-id') ||
+            undefined
+          );
+        } else {
+          resolve(undefined);
+        }
+      }, 320);
+    });
+    // if(document.body.classList.contains('catalog-product-view') ){
+    //   return document.querySelector('[data-product-id]')?.getAttribute('data-product-id') ||
+    //     document.querySelector('[product-id]')?.getAttribute('product-id') ||
+    //     undefined;
+    // }
+    //
+    // return undefined
   }
 
 }
