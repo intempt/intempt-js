@@ -1,6 +1,6 @@
 import { SetCookieParams } from '../intemptJs/types/autoTracker.types.ts';
 import { LocalStorageCache } from '../intemptJs/types/intemptJs.types.ts';
-
+import psl from 'psl';
 
 const appLocalCookie:{[key:string]:any}= {};
 
@@ -49,13 +49,18 @@ export function getCookie(name:string){
 }
 
 export function handleDomain(domain:string){
-  // const parts = domain.split('.');
-  // return `.${parts.slice(-2).join('.')}`
-
-  if (domain.endsWith('intempt.com')) {
     const parts = domain.split('.');
-    return `.${parts.slice(-2).join('.')}`;
-  }
+    let index = 2;
+    while (index <= parts.length) {
+      const candidate = `.${parts.slice(-index).join('.')}`;
+      const parsed = psl.parse(candidate.replace(/^\./, ''));
+
+      if (!parsed.error && parsed.domain) {
+        return candidate;
+      }
+
+      index++;
+    }
 
   return `.${domain}`;
 }
