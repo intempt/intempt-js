@@ -16,7 +16,61 @@ export const ChoicesConfig = {
             }
         }
     }
-
+    &[data-iwe-block-mode='dynamic']{
+        .iwe-product-card{
+            .card_content__text{
+                p{
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    overflow: unset;
+                    color: transparent;
+                    position: relative;
+                    &::before, & > *::before  {
+                        font-weight: 400;
+                        position: absolute;
+                        top: 0;
+                        color: var(--primary);
+                        border-radius: 4px;
+                        padding: 0 4px;
+                        background-color: color-mix(in srgb, var(--primary) 20%, transparent);
+                        border: 1px solid var(--primary);
+                        white-space: nowrap;
+                        display: inline-flex;
+                        justify-content: center;
+                    }
+                }
+                [data-iwe-block="product:title"]{
+                    &::before{
+                        content: 'Product title';
+                    }
+                }
+                [data-iwe-block="product:description"]{
+                    &::before{
+                        content: 'Product description';
+                    }
+                }
+                [data-iwe-block="product:price_container"]{
+                    display: inline-flex;
+                    justify-content: center;
+                    gap: var(--space);
+                    [data-iwe-block="product:original_price"]{
+                        width: 48px;
+                        &::before{
+                            content: '$0.00';
+                            text-decoration-line: line-through !important;
+                        }
+                    }
+                    [data-iwe-block="product:price"]{
+                        width: 48px;
+                        &::before{
+                            content: '$0.00';
+                        }
+                    }
+                }
+            }
+        }
+    }
     & > *  {
         box-sizing: border-box;
         margin: 0;
@@ -28,35 +82,36 @@ export const ChoicesConfig = {
     --colsPerTablet: 0;
     --colsPerMobile: 0;
     --itemsPerRow: var(--colsPerDesktop);
-   
+
     display: grid;
-    grid-template-columns: repeat(var(--itemsPerRow), max-content);
-    grid-template-rows: repeat(var(--rows), 1fr);
+    grid-template-columns: repeat(var(--itemsPerRow), auto);
     justify-content: center;
     gap: 8px;
 
     @media only screen and (max-width: 766px) {
         --itemsPerRow: var(--colsPerTablet);
-       
+
     }
     @media only screen and (max-width: 376px) {
         --itemsPerRow: var(--colsPerMobile);
-        
     }
 }
 .iwe-product-card{
     font-weight: inherit;
     font-size: inherit;
     line-height: inherit;
-    height: 270px;
-    width: 200px;
+    height: auto;
+    width: auto;
+    min-height: 100%;
+    padding: 8px;
     border: 2px solid #AEB5CB;
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
     flex-direction: column;
     gap: 8px;
     pointer-events: all;
+    min-width: 200px;
     & > *  {
         box-sizing: border-box;
         margin: 0;
@@ -65,14 +120,13 @@ export const ChoicesConfig = {
     .card_content__image{
         border-radius: 12px;
         border: 1px solid #E8E9ED;
-        height: 36.545%;
-        width: 60%;
+        height: 100px;
+        width: 120px;
         object-fit: cover;
-        max-width: 120px;
     }
     .card-button{
         border-radius: 8px;
-        background-color: #0080ff;
+        background-color: var(--primary);
         padding: 14px 24px;
         color: #ffffff;
         font-size: 16px;
@@ -86,10 +140,8 @@ export const ChoicesConfig = {
         gap: 4px;
         width: 100%;
         p{
+
             max-width: 180px;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
             font-size: 14px;
             line-height: 22px;
             margin:0;
@@ -100,13 +152,14 @@ export const ChoicesConfig = {
         }
     }
     [data-iwe-block="product:original_price"]{
-      text-decoration-line: line-through !important;
+        text-decoration-line: line-through !important;
     }
     [data-iwe-block="product:title"]{
-      font-weight: 500
+        font-weight: 500
     }
 }
 .iwe-product-slider {
+    --cardWidth: 200px;
     --space: 8px;
     --btn-bg: #E8E9ED;
     --colsPerDesktop: 0;
@@ -118,19 +171,23 @@ export const ChoicesConfig = {
     --btn-border-radius: 100%;
     --btn-container-width:calc(100% + var(--btn-size) * 2 + var(--space) * 2);
 
+
     display:flex;
     align-items: center;
     justify-content: center;
     gap: var(--space);
     flex-flow: column;
+
     width: 100%;
     padding: 0 30px;
     .slider {
         display: flex;
         align-items: center;
+
         justify-content: center;
         position: relative;
-        width: calc( (200px * var(--itemsPerView)) + ( var(--space) * (var(--itemsPerView) - 1)));
+        width: calc( (var(--cardWidth) * var(--itemsPerView)) + ( var(--space) * (var(--itemsPerView) - 1)));
+
         z-index: 2;
         .slider-wrapper {
             overflow: hidden;
@@ -139,13 +196,15 @@ export const ChoicesConfig = {
             .slider-container {
                 pointer-events: none;
                 display: flex;
-                transition: transform 0.3s ease-in-out;
+                transition: transform 0.5s ease-in-out;
                 width: max-content;
                 gap: var(--space);
-                align-items: center;
+                align-items: stretch;
                 justify-content: flex-start;
                 .iwe-product-card{
                     flex:1;
+
+
                 }
             }
         }
@@ -183,7 +242,6 @@ export const ChoicesConfig = {
         }
         &.topRight{
             --btn-size: 40px;
-            --btn-border-radius: 8px;
             top: 0;
             width: max-content;
             right: 0;
@@ -191,7 +249,6 @@ export const ChoicesConfig = {
         }
         &.topLeft{
             --btn-size: 40px;
-            --btn-border-radius: 8px;
             top: 0;
             width: max-content;
             left: 0;
@@ -199,7 +256,6 @@ export const ChoicesConfig = {
         }
         &.bottomLeft{
             --btn-size: 40px;
-            --btn-border-radius: 8px;
             bottom: 0;
             width: max-content;
             left: 0;
@@ -212,6 +268,7 @@ export const ChoicesConfig = {
             right: 0;
             translate: calc(100% + var(--space)) 0;
         }
+
     }
     .dots-container {
         display: flex;
@@ -261,6 +318,7 @@ export const ChoicesConfig = {
     @media only screen and (max-width: 376px) {
         --itemsPerView: var(--colsPerMobile);
     }
+
 }
   `
 };
