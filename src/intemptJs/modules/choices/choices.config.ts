@@ -7,6 +7,24 @@ export const ChoicesConfig = {
   .iwe-link{ color: #0080ff; text-decoration: underline;cursor: pointer;}
   .iwe-image-block{}
   .iwe-container-block{display: block;width: 100%;height: 100px;padding: 0; margin: 0;}
+  .iwe-product-wrapper{
+    display: block;
+    width: 100%;
+    height: max-content;
+    padding: 16px;
+    .iwe-container-block{
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        .iwe-text-block{
+            text-align: center;
+            font-weight: 600;
+            font-size: 24px;
+            line-height: 36px;
+
+        }
+    }
+  }
   .iwe-product-block {
     &[data-iwe-block-isready='false']{
         filter: grayscale(1) opacity(0.5);
