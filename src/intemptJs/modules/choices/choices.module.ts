@@ -1,7 +1,7 @@
 import { ChoicesParams} from '../../types/choices.types.ts';
 import { ChoicesService } from './choices.service.ts';
 import { ModificationHandler } from './models/ModificationHandler.ts';
-import { dummy } from '../../../../dummy.ts';
+
 
 
 
@@ -11,11 +11,9 @@ export class ChoicesModule {
   private readonly _config:ChoicesParams;
   private readonly _service= ChoicesService;
 
-
   constructor(config: ChoicesParams) {
     this._config = { ...config };
   }
-
 
   async init(){
     try{
@@ -23,7 +21,6 @@ export class ChoicesModule {
       document.addEventListener('DOMContentLoaded', async () => {
         try {
           const changes = await changesPromise;
-
           if(changes.length === 0) {
             import.meta.env.VITE_ENV === 'development' && console.log('no changes');
             return;
@@ -42,9 +39,8 @@ export class ChoicesModule {
 
   }
 
-
-
   private _applyChanges(changes:any[]){
+
     this._service.createIntemptEditorStyleElement();
     const changesHandler = new ModificationHandler();
 
@@ -55,6 +51,7 @@ export class ChoicesModule {
 
       return Promise.resolve();
     }
+
 
     for (let i = 0; i < changes.length; i++) {
       let change = changes[i];
@@ -78,6 +75,4 @@ export class ChoicesModule {
       }
     }
   }
-
-
 }
