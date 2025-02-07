@@ -204,7 +204,7 @@ export class ModificationHandler {
   }
 
   private replaceHandler(modification: any) {
-    console.log('replaceHandler: ',modification);
+
     const element = this.elementGetterByXpath(modification);
 
     const tempElement = document.createElement('div');
@@ -212,6 +212,7 @@ export class ModificationHandler {
     const contentEl = tempElement.firstChild as HTMLElement;
 
     element.replaceWith(contentEl);
+
 
     const iweId = contentEl!.getAttribute('iwe_id');
     this.updateProductScriptTag(iweId);

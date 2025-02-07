@@ -66,13 +66,11 @@ export const ChoicesConfig = {
     font-weight: inherit;
     font-size: inherit;
     line-height: inherit;
-    height: 270px;
-    width: 200px;
+    height: auto;
+    width: auto;
     border: 2px solid #AEB5CB;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
     gap: 8px;
     pointer-events: all;
     & > *  {
@@ -83,10 +81,11 @@ export const ChoicesConfig = {
     .card_content__image{
         border-radius: 12px;
         border: 1px solid #E8E9ED;
-        height: 36.545%;
-        width: 60%;
+        height: auto;
+        width: auto;
         object-fit: cover;
         max-width: 120px;
+        justify-self: center;
     }
     .card-button{
         border-radius: 8px;
@@ -95,11 +94,13 @@ export const ChoicesConfig = {
         color: #ffffff;
         font-size: 16px;
         font-weight: 500;
+        align-self: flex-end;
+        justify-self: center;
     }
     .card_content__text{
         display: flex;
         align-items: center;
-        justify-content: center;
+        justify-content: flex-start;
         flex-direction: column;
         gap: 4px;
         width: 100%;
@@ -148,7 +149,7 @@ export const ChoicesConfig = {
         align-items: center;
         justify-content: center;
         position: relative;
-        width: calc( (200px * var(--itemsPerView)) + ( var(--space) * (var(--itemsPerView) - 1)));
+        width: calc( (var(--cardWidth) * var(--itemsPerView)) + ( var(--space) * (var(--itemsPerView) - 1)));
         z-index: 2;
         .slider-wrapper {
             overflow: hidden;
