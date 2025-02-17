@@ -62,17 +62,29 @@ export const ChoicesConfig = {
         
     }
 }
+
 .iwe-product-card{
     font-weight: inherit;
     font-size: inherit;
     line-height: inherit;
     height: auto;
     width: auto;
+    min-height: 100%;
+    padding: 8px;
     border: 2px solid #AEB5CB;
-    display: grid;
-    grid-template-rows: auto 1fr auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-direction: column;
+    min-width: 200px;
     gap: 8px;
     pointer-events: all;
+    & [data-iwe-block-enabled=false]{
+      display: none !important;
+    }
+    
+    
+    
     & > *  {
         box-sizing: border-box;
         margin: 0;
@@ -94,8 +106,6 @@ export const ChoicesConfig = {
         color: #ffffff;
         font-size: 16px;
         font-weight: 500;
-        align-self: flex-end;
-        justify-self: center;
     }
     .card_content__text{
         display: flex;
