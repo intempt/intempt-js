@@ -209,15 +209,10 @@ export class ModificationHandler {
       tempElement.innerHTML = modification.current.modification.html;
       const contentEl = tempElement.firstChild as HTMLElement;
       element.replaceWith(contentEl);
-     // const iweId = contentEl!.getAttribute('iwe_id');
 
       const iweId = contentEl?.getAttribute("data-iwe-block") === "product:container"
-        ? contentEl.getAttribute("iwe_id")  // Case 1: contentEl itself has the attribute
-        : contentEl?.querySelector('[data-iwe-block="product:container"]')?.getAttribute("iwe_id"); // Case 2: It's inside contentEl
-
-      //console.log('iweId:', iweId);
-
-
+        ? contentEl.getAttribute("iwe_id")
+        : contentEl?.querySelector('[data-iwe-block="product:container"]')?.getAttribute("iwe_id");
 
       this.updateProductScriptTag(iweId);
     }
@@ -250,17 +245,6 @@ export class ModificationHandler {
         }
       },  this.timeout)
     }
-
-    // const tempElement = document.createElement('div');
-    // tempElement.innerHTML = modification.current.modification.html;
-    // const contentEl = tempElement.firstChild as HTMLElement;
-    //
-    // element.replaceWith(contentEl);
-    //
-    //
-    // const iweId = contentEl!.getAttribute('iwe_id');
-    // this.updateProductScriptTag(iweId);
-
   }
 
   private moveHandler(action: any) {
