@@ -204,17 +204,53 @@ export class ModificationHandler {
   }
 
   private replaceHandler(modification: any) {
+    const handler = (element:Element) => {
+      const tempElement = document.createElement('div');
+      tempElement.innerHTML = modification.current.modification.html;
+      const contentEl = tempElement.firstChild as HTMLElement;
+      element.replaceWith(contentEl);
+      const iweId = contentEl!.getAttribute('iwe_id');
+      this.updateProductScriptTag(iweId);
+    }
+
+    const observer = new MutationObserver((mutations, observer) => {
+      const element = this.elementGetterByXpath(modification);
+      if (element && element.hasAttribute('iwe_id') && element.getAttribute('iwe_id') !== modification.iwe_id) {
+        observer.disconnect();
+        handler(element);
+      }
+    });
+    observer.observe(document.body, {
+      attributes:true,
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
     const element = this.elementGetterByXpath(modification);
+    if (element && element.hasAttribute('iwe_id') && element.getAttribute('iwe_id') !== modification.iwe_id) {
+      observer.disconnect();
+      handler(element);
+    }
+    // else{
+    //   setTimeout(() => {
+    //     observer.disconnect();
+    //     const element = this.elementGetterByXpath(modification);
+    //     if (element) {
+    //       handler(element);
+    //     }
+    //   },  this.timeout)
+    // }
 
-    const tempElement = document.createElement('div');
-    tempElement.innerHTML = modification.current.modification.html;
-    const contentEl = tempElement.firstChild as HTMLElement;
-
-    element.replaceWith(contentEl);
-
-
-    const iweId = contentEl!.getAttribute('iwe_id');
-    this.updateProductScriptTag(iweId);
+    // const tempElement = document.createElement('div');
+    // tempElement.innerHTML = modification.current.modification.html;
+    // const contentEl = tempElement.firstChild as HTMLElement;
+    //
+    // element.replaceWith(contentEl);
+    //
+    //
+    // const iweId = contentEl!.getAttribute('iwe_id');
+    // this.updateProductScriptTag(iweId);
 
   }
 
@@ -412,6 +448,7 @@ export class ModificationHandler {
   };
 
   private updateProductScriptTag(iweId:string|null){
+    console.log('updateProductScriptTag',iweId);
     const oldScriptTag = document.querySelector(`[data-product-slider-id="${iweId}"]`)
     if (!oldScriptTag) {
       return;
