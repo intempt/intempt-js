@@ -204,7 +204,6 @@ export class ModificationHandler {
   }
 
   private replaceHandler(modification: any) {
-
     const element = this.elementGetterByXpath(modification);
 
     const tempElement = document.createElement('div');

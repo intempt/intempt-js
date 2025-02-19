@@ -25,16 +25,10 @@ export const ChoicesConfig = {
         }
     }
   }
+ .iwe-product-wrapper:has([data-iwe-block-isready="false"]){
+    display:none
+  }
   .iwe-product-block {
-    &[data-iwe-block-isready='false']{
-        filter: grayscale(1) opacity(0.5);
-        .card{
-            .card_content__image{
-                object-fit: fill !important;
-            }
-        }
-    }
-
     & > *  {
         box-sizing: border-box;
         margin: 0;
@@ -79,7 +73,7 @@ export const ChoicesConfig = {
     min-width: 200px;
     gap: 8px;
     pointer-events: all;
-    & [data-iwe-block-enabled=false]{
+    & [data-iwe-block-enabled=false], [data-iwe-block-enabled=false] *{
       display: none !important;
     }
     
