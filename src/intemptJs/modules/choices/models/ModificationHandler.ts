@@ -204,18 +204,47 @@ export class ModificationHandler {
   }
 
   private replaceHandler(modification: any) {
+    const handler = (element:Element) => {
+      const tempElement = document.createElement('div');
+      tempElement.innerHTML = modification.current.modification.html;
+      const contentEl = tempElement.firstChild as HTMLElement;
+      element.replaceWith(contentEl);
+
+      const iweId = contentEl?.getAttribute("data-iwe-block") === "product:container"
+        ? contentEl.getAttribute("iwe_id")
+        : contentEl?.querySelector('[data-iwe-block="product:container"]')?.getAttribute("iwe_id");
+
+      this.updateProductScriptTag(iweId);
+    }
+
+    const observer = new MutationObserver((mutations, observer) => {
+      const element = this.elementGetterByXpath(modification);
+      if (element && element.hasAttribute('iwe_id') && element.getAttribute('iwe_id') !== modification.iwe_id) {
+        observer.disconnect();
+        handler(element);
+      }
+    });
+    observer.observe(document.body, {
+      attributes:true,
+      childList: true,
+      subtree: true,
+      characterData: true,
+    });
+
     const element = this.elementGetterByXpath(modification);
-
-    const tempElement = document.createElement('div');
-    tempElement.innerHTML = modification.current.modification.html;
-    const contentEl = tempElement.firstChild as HTMLElement;
-
-    element.replaceWith(contentEl);
-
-
-    const iweId = contentEl!.getAttribute('iwe_id');
-    this.updateProductScriptTag(iweId);
-
+    if (element && element.hasAttribute('iwe_id') && element.getAttribute('iwe_id') !== modification.iwe_id) {
+      observer.disconnect();
+      handler(element);
+    }
+    else{
+      setTimeout(() => {
+        observer.disconnect();
+        const element = this.elementGetterByXpath(modification);
+        if (element) {
+          handler(element);
+        }
+      },  this.timeout)
+    }
   }
 
   private moveHandler(action: any) {
@@ -411,11 +440,12 @@ export class ModificationHandler {
       return element;
   };
 
-  private updateProductScriptTag(iweId:string|null){
-    const oldScriptTag = document.querySelector(`[data-product-slider-id="${iweId}"]`)
-    if (!oldScriptTag) {
-      return;
-    }
+  private updateProductScriptTag(iweId:string|null|undefined) {
+    if(!iweId) return;
+
+    const oldScriptTag = document.querySelector(`[data-product-slider-id="${iweId}"]`);
+
+    if (!oldScriptTag) return;
 
     const newScriptTag = document.createElement('script');
     newScriptTag.setAttribute('src', oldScriptTag.getAttribute('src') ?? '');
