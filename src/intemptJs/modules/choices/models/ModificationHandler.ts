@@ -448,7 +448,6 @@ export class ModificationHandler {
   };
 
   private updateProductScriptTag(iweId:string|null){
-    console.log('updateProductScriptTag',iweId);
     const oldScriptTag = document.querySelector(`[data-product-slider-id="${iweId}"]`)
     if (!oldScriptTag) {
       return;
