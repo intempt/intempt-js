@@ -209,7 +209,16 @@ export class ModificationHandler {
       tempElement.innerHTML = modification.current.modification.html;
       const contentEl = tempElement.firstChild as HTMLElement;
       element.replaceWith(contentEl);
-      const iweId = contentEl!.getAttribute('iwe_id');
+     // const iweId = contentEl!.getAttribute('iwe_id');
+
+      const iweId = contentEl?.getAttribute("data-iwe-block") === "product:container"
+        ? contentEl.getAttribute("iwe_id")  // Case 1: contentEl itself has the attribute
+        : contentEl?.querySelector('[data-iwe-block="product:container"]')?.getAttribute("iwe_id"); // Case 2: It's inside contentEl
+
+      //console.log('iweId:', iweId);
+
+
+
       this.updateProductScriptTag(iweId);
     }
 
@@ -232,15 +241,15 @@ export class ModificationHandler {
       observer.disconnect();
       handler(element);
     }
-    // else{
-    //   setTimeout(() => {
-    //     observer.disconnect();
-    //     const element = this.elementGetterByXpath(modification);
-    //     if (element) {
-    //       handler(element);
-    //     }
-    //   },  this.timeout)
-    // }
+    else{
+      setTimeout(() => {
+        observer.disconnect();
+        const element = this.elementGetterByXpath(modification);
+        if (element) {
+          handler(element);
+        }
+      },  this.timeout)
+    }
 
     // const tempElement = document.createElement('div');
     // tempElement.innerHTML = modification.current.modification.html;
@@ -447,11 +456,12 @@ export class ModificationHandler {
       return element;
   };
 
-  private updateProductScriptTag(iweId:string|null){
-    const oldScriptTag = document.querySelector(`[data-product-slider-id="${iweId}"]`)
-    if (!oldScriptTag) {
-      return;
-    }
+  private updateProductScriptTag(iweId:string|null|undefined) {
+    if(!iweId) return;
+
+    const oldScriptTag = document.querySelector(`[data-product-slider-id="${iweId}"]`);
+
+    if (!oldScriptTag) return;
 
     const newScriptTag = document.createElement('script');
     newScriptTag.setAttribute('src', oldScriptTag.getAttribute('src') ?? '');
