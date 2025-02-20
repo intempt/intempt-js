@@ -294,13 +294,6 @@ export const ChoicesService = {
         }
       }, 320);
     });
-    // if(document.body.classList.contains('catalog-product-view') ){
-    //   return document.querySelector('[data-product-id]')?.getAttribute('data-product-id') ||
-    //     document.querySelector('[product-id]')?.getAttribute('product-id') ||
-    //     undefined;
-    // }
-    //
-    // return undefined
   }
 
 }

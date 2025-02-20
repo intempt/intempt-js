@@ -84,7 +84,7 @@ export const ChoicesConfig = {
         margin: 0;
         padding: 0;
     }
-    .card_content__image{
+    .card_content__image, .iwe-card_content__image{
         border-radius: 12px;
         border: 1px solid #E8E9ED;
         height: auto;
@@ -93,7 +93,7 @@ export const ChoicesConfig = {
         max-width: 120px;
         justify-self: center;
     }
-    .card-button{
+    .card-button, .iwe-card-button{
         border-radius: 8px;
         background-color: #0080ff;
         padding: 14px 24px;
@@ -101,14 +101,14 @@ export const ChoicesConfig = {
         font-size: 16px;
         font-weight: 500;
     }
-    .card_content__text{
+    .card_content__text, .iwe-card_content__text{
         display: flex;
         align-items: center;
         justify-content: flex-start;
         flex-direction: column;
         gap: 4px;
         width: 100%;
-        p{
+        p, .iwe-card_content__text-p{
             max-width: 180px;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -148,18 +148,18 @@ export const ChoicesConfig = {
     flex-flow: column;
     width: 100%;
     padding: 0 30px;
-    .slider {
+    .slider, .iwe-slider {
         display: flex;
         align-items: center;
         justify-content: center;
         position: relative;
         width: calc( (var(--cardWidth) * var(--itemsPerView)) + ( var(--space) * (var(--itemsPerView) - 1)));
         z-index: 2;
-        .slider-wrapper {
+        .slider-wrapper, .iwe-slider-wrapper {
             overflow: hidden;
             width: 100%;
             z-index: 2;
-            .slider-container {
+            .slider-container, .iwe-slider-container {
                 pointer-events: none;
                 display: flex;
                 transition: transform 0.3s ease-in-out;
@@ -173,7 +173,7 @@ export const ChoicesConfig = {
             }
         }
     }
-    .buttons-container{
+    .buttons-container, .iwe-buttons-container{
         width: var(--btn-container-width);
         position: absolute;
         display:flex;
@@ -181,7 +181,7 @@ export const ChoicesConfig = {
         justify-content: space-between;
         z-index: 1;
         gap: var(--space);
-        button {
+        button, .iwe-button {
             display:flex;
             align-items: center;
             justify-content: center;
@@ -191,7 +191,7 @@ export const ChoicesConfig = {
             cursor: pointer;
             border-radius: var(--btn-border-radius);
             background-color: var(--btn-bg);
-            .btn-img{
+            .btn-img, .iwe-btn-img {
                 width: 100%;
                 height: 100%;
                 object-fit: contain;
@@ -204,7 +204,7 @@ export const ChoicesConfig = {
                 pointer-events: none;
             }
         }
-        &.topRight{
+        &.topRight, &.iwe-topRight {
             --btn-size: 40px;
             --btn-border-radius: 8px;
             top: 0;
@@ -212,7 +212,7 @@ export const ChoicesConfig = {
             right: 0;
             translate: calc(100% + var(--space)) 0;
         }
-        &.topLeft{
+        &.topLeft, &.iwe-topLeft{
             --btn-size: 40px;
             --btn-border-radius: 8px;
             top: 0;
@@ -220,7 +220,7 @@ export const ChoicesConfig = {
             left: 0;
             translate: calc(-100% - 8px) 0;
         }
-        &.bottomLeft{
+        &.bottomLeft, &.iwe-bottomLeft {
             --btn-size: 40px;
             --btn-border-radius: 8px;
             bottom: 0;
@@ -228,7 +228,7 @@ export const ChoicesConfig = {
             left: 0;
             translate: calc(-100% - 8px) 0;
         }
-        &.bottomRight{
+        &.bottomRight, &.iwe-bottomRight{
             --btn-size: 40px;
             bottom: 0;
             width: max-content;
@@ -236,13 +236,13 @@ export const ChoicesConfig = {
             translate: calc(100% + var(--space)) 0;
         }
     }
-    .dots-container {
+    .dots-container, .iwe-dots-container {
         display: flex;
         justify-content: center;
         margin-top: 10px;
         gap: 5px;
 
-        .dot {
+        .dot, .iwe-dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
@@ -253,22 +253,22 @@ export const ChoicesConfig = {
             border: none;
         }
 
-        .dot.active {
+        .dot.active, .iwe-dot.active {
             background: #333;
         }
     }
     [data-iwe-block-controls-type='bordered']{
-            button{
+            button, .iwe-button{
                 border: 1px solid #000000;
             }
 
-            .dot{
+            .dot, .iwe-dot{
                 border: 1px solid #000000;
             }
 
     }
     [data-iwe-block-controls-type='noBackground']{
-            button{
+            button, .iwe-button{
                 background-color: transparent;
                 &:hover {
                     background-color: transparent;
