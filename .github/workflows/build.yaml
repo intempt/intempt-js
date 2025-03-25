@@ -7,7 +7,6 @@ on:
 
 jobs:
   Build-and-Test:
-
     if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/staging'
     runs-on: ubuntu-latest
     permissions:
