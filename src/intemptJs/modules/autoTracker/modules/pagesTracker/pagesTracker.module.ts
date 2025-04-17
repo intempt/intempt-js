@@ -119,8 +119,7 @@ export class PageTrackerModule {
           current_page: newPage,
           startTime: new Date().getTime(),
         }),
-        path: window.location.pathname,
-
+        path: '/',
       });
     }
     catch(e:any){
