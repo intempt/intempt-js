@@ -2,9 +2,10 @@ import { defineConfig } from 'vite'
 
 export default defineConfig({
   esbuild: {
-    pure: ['console.log'],
+   // pure: ['console.log'],
     minifyIdentifiers: false,
   },
+
   build: {
     outDir: 'dist/',
     minify:true,

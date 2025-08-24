@@ -38,6 +38,12 @@ export type IntemptVariables = {
   url: string
 }
 
+export type EditorPayload = {
+  experience: any,
+  variantId: string,
+  token: string,
+}
+
 export type ConsentAction = 'accept' | 'reject';
 
 export type ConsentParams = {

@@ -14,11 +14,13 @@ import { TrackModel } from './models/track.model.ts';
 import { RecordModel } from './models/record.model.ts';
 import { AliasModel } from './models/alias.model.ts';
 import { dispatchIntemptEvent } from '../shared/shared.utils.ts';
-import { localStorageCache, setCookie } from '../shared/storageHandler.ts';
+import { localStorageCache } from '../shared/storageHandler.ts';
 import { ConsentModel } from './models/consent.model.ts';
 import { ChoicesModule } from './modules/choices/choices.module.ts';
 import { ProductModel } from './models/product.model.ts';
 import { IntemptEventListenerName, IntemptEventName } from './types/constants.types.ts';
+
+
 
 
 
