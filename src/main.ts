@@ -13,8 +13,6 @@ import { WEB_EDITOR } from './loaders/webEditorLoader.ts';
     console.log('version:', 'v5.9');
     console.log('cameFromOpener',cameFromOpener);
   }
-
-
   if (cameFromOpener) {
     WEB_EDITOR.init();
   } else {

@@ -95,7 +95,7 @@ jobs:
     env:
       AWS_DEPLOYER_ROLE: 'arn:aws:iam::763337247345:role/GithubActionsIntemptJSDeployer'
       AWS_REGION: "us-east-1"
-      AWS_S3_BUCKET_NAME: "763337247345.cdn.staging.intempt.com"
+      AWS_S3_BUCKET_NAME: "763337247345.cdn.intempt.com"
       AWS_S3_ROLE_NAME: "IntemptJSDeployer"
       INTEMPT_JS_SOURCE: "./dist/intempt.min.js"
       VERSION_KEY: '/v1'
