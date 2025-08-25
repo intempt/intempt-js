@@ -3,18 +3,18 @@ import { WEB_EDITOR } from './loaders/webEditorLoader.ts';
 
 
 (()=> {
-  if(import.meta.env.VITE_ENV !== 'production') {
-    console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
-    console.log('version:', 'v5.9');
-  }
-
   const qs = new URLSearchParams(location.search);
   const openerOrigin = (qs.get('openerOrigin') || '').replace(/\/+$/, '');
   const channel      = qs.get('channel') || '';
-
   const cameFromOpener = Boolean(openerOrigin && channel);
 
-  console.log('cameFromOpener',cameFromOpener);
+  if(import.meta.env.VITE_ENV !== 'production') {
+    console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
+    console.log('version:', 'v5.9');
+    console.log('cameFromOpener',cameFromOpener);
+  }
+
+
   if (cameFromOpener) {
     WEB_EDITOR.init();
   } else {
