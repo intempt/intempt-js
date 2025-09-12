@@ -101,3 +101,46 @@ export type MergedChoices = {
   styles:{[key:string]:string|number}| undefined;
   type: MergedChoiceTypes;
 };
+
+export type ModificationType = 'insert' | 'remove' | 'update';
+export type BlockId = 'base' | 'carousel' | 'grid' | 'image' | 'divider' | 'content' | 'spacer' | 'paragraph' | 'heading' | 'button';
+export type  SelectionPtr = {
+  _tagName: string
+  _cssSelector: string
+  _attributes: Record<string, string>
+  _name: string
+  _blockId: BlockId
+  _iweId: string
+  _xPathSelector: string
+  _xPathIndex: number
+  _text: string | null
+}
+export type  Modification = {
+  type: ModificationType;
+  blockId: BlockId;
+  t: number;
+  parent: SelectionPtr | null;
+  refNode: SelectionPtr | null;
+  style: Record<string, string>;
+  attributes: {
+    [p
+    :
+    string
+      ]:
+      string
+  }
+  ;
+  iweId: string;
+  tag: string;
+  html: string;
+  js: string | undefined;
+  xPathSelector: string;
+  xPathIndex: number;
+  text: string | null;
+  params:  Record<string, any>
+}
+export type XPtr = {
+  _xPathSelector: string;
+  _xPathIndex: number;
+  _iweId: string;
+};
