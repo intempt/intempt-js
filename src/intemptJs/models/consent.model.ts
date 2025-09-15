@@ -22,7 +22,7 @@ export class ConsentModel implements ConsentTrack {
     this.sourceId = params.sourceId!;
     this.profileId = params.profileId!;
     this.validUntil = params.validUntil;
-    this.timestamp = new Date().getTime();
+    //this.timestamp = new Date().getTime();
   }
 
   get _name(): string {
