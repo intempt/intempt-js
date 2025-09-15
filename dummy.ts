@@ -1,12 +1,12 @@
 export const dummy =[
   {
-    "iweId": "6496-sVVxu1paQN",
+    "iweId": "iwe-id",
     "type": "insert",
-    "blockId": "grid",
-    "t": 1757668113619,
+    "blockId": "image",
+    "t": 1757946450382,
     "parent": {
       "_tagName": "div",
-      "_cssSelector": "div[iwe-id=\"null\"]",
+      "_cssSelector": "div[null=\"true\"]",
       "_attributes": {
         "class": "page-width text-center"
       },
@@ -32,6 +32,18 @@ export const dummy =[
             },
             {
               "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
               "children": []
             },
             {
@@ -152,188 +164,762 @@ export const dummy =[
         }
       ],
       "_name": "Content block",
-      "_blockId": "base",
-      "_iweId": "6496-2VbzUifdj9",
+      "_blockId": "content",
+      "_iweId": "iwe-id-6136-NqKr_Tp7TA",
       "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" page-width \")]",
       "_xPathIndex": 0,
       "_text": "\n      \n        Top Season Deals\n      \n      \n        Personalized fashion for any season\n      \n      \n        \n          Shop now\n        \n      \n    "
     },
-    "refNode": null,
-    "style": {
-      "display": "grid",
-      "gridTemplateColumns": "repeat(3, auto)",
-      "justifyContent": "center",
-      "padding": "16px",
-      "gap": "8px"
-    },
-    "attributes": {
-      "iwe-id": "6496-sVVxu1paQN",
-      "iwe-name": "Grid",
-      "iwe-block-id": "grid",
-      "stackonmobile": "true",
-      "style": "display: grid; grid-template-columns: repeat(3, auto); justify-content: center; padding: 16px; gap: 8px;"
-    },
-    "tag": "div",
-    "html": "<div iwe-id=\"6496-sVVxu1paQN\" iwe-name=\"Grid\" iwe-block-id=\"grid\" stackonmobile=\"true\" style=\"display: grid; grid-template-columns: repeat(3, auto); justify-content: center; padding: 16px; gap: 8px;\"><div iwe-no-select=\"true\" style=\"display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border-width: 0px; border-style: none; border-color: rgb(0, 0, 0); border-radius: 0px; background-color: rgb(255, 255, 255); padding: 8px; width: 250px;\"><img src=\"https://cdn.shopify.com/s/files/1/0017/3611/4234/products/2015-03-15_Lana_Look_45_10425_14056.jpg?v=1554808574\" alt=\"3486524337351096698\" loading=\"lazy\" iwe-no-select=\"true\" style=\"max-height: 150px; width: 200px; object-fit: contain; object-position: center top;\"><div style=\"display: flex; align-items: center; flex-direction: column; justify-content: flex-start;\"><p iwe-no-select=\"true\" style=\"margin: 0px; color: rgb(0, 0, 0); text-align: center; font-family: inherit; font-size: inherit; line-height: inherit; text-transform: none; font-weight: normal;\">Ginger Jacket</p><p iwe-no-select=\"true\" style=\"margin: 0px; color: rgb(0, 0, 0); text-align: center; font-family: inherit; font-size: inherit; line-height: inherit; text-transform: none; font-weight: normal;\">516.6</p><p iwe-no-select=\"true\" style=\"margin: 0px; color: rgb(0, 0, 0); text-align: center; font-family: inherit; font-size: inherit; line-height: inherit; text-transform: none; font-weight: normal;\"><s>$0.00</s></p><a href=\"https://intempt1.myshopify.com/products/ginger-jacket-black-white\" target=\"_blank\" iwe-no-select=\"true\" style=\"user-select: none; appearance: none; display: inline-block; cursor: pointer; box-shadow: none; background-color: rgb(0, 0, 0); padding: 12px 24px; border-width: 0px; border-style: none; border-color: rgb(0, 0, 0); border-radius: 4px; font-family: inherit; font-size: 16px; font-style: normal; font-weight: 400; text-align: center; color: rgb(255, 255, 255); opacity: 1;\">Shop now</a></div></div><div iwe-no-select=\"true\" style=\"display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border-width: 0px; border-style: none; border-color: rgb(0, 0, 0); border-radius: 0px; background-color: rgb(255, 255, 255); padding: 8px; width: 250px;\"><img src=\"https://cdn.shopify.com/s/files/1/0017/3611/4234/products/2015-04-02_Accessories_25_21638_17899.jpg?v=1554808577\" alt=\"9093341565156850035\" loading=\"lazy\" iwe-no-select=\"true\" style=\"max-height: 150px; width: 200px; object-fit: contain; object-position: center top;\"><div style=\"display: flex; align-items: center; flex-direction: column; justify-content: flex-start;\"><p iwe-no-select=\"true\" style=\"margin: 0px; color: rgb(0, 0, 0); text-align: center; font-family: inherit; font-size: inherit; line-height: inherit; text-transform: none; font-weight: normal;\">Kioh Bag</p><p iwe-no-select=\"true\" style=\"margin: 0px; color: rgb(0, 0, 0); text-align: center; font-family: inherit; font-size: inherit; line-height: inherit; text-transform: none; font-weight: normal;\">558</p><p iwe-no-select=\"true\" style=\"margin: 0px; color: rgb(0, 0, 0); text-align: center; font-family: inherit; font-size: inherit; line-height: inherit; text-transform: none; font-weight: normal;\"><s>$0.00</s></p><a href=\"https://intempt1.myshopify.com/products/kioh-bag-black\" target=\"_blank\" iwe-no-select=\"true\" style=\"user-select: none; appearance: none; display: inline-block; cursor: pointer; box-shadow: none; background-color: rgb(0, 0, 0); padding: 12px 24px; border-width: 0px; border-style: none; border-color: rgb(0, 0, 0); border-radius: 4px; font-family: inherit; font-size: 16px; font-style: normal; font-weight: 400; text-align: center; color: rgb(255, 255, 255); opacity: 1;\">Shop now</a></div></div><div iwe-no-select=\"true\" style=\"display: flex; flex-direction: column; align-items: center; justify-content: flex-start; border-width: 0px; border-style: none; border-color: rgb(0, 0, 0); border-radius: 0px; background-color: rgb(255, 255, 255); padding: 8px; width: 250px;\"><img src=\"https://cdn.shopify.com/s/files/1/0017/3611/4234/products/2015-03-13_Product_37_21640_12813.jpg?v=1554808580\" alt=\"6794254565270485364\" loading=\"lazy\" iwe-no-select=\"true\" style=\"max-height: 150px; width: 200px; object-fit: contain; object-position: center top;\"><div style=\"display: flex; align-items: center; flex-direction: column; justify-content: flex-start;\"><p iwe-no-select=\"true\" style=\"margin: 0px; color: rgb(0, 0, 0); text-align: center; font-family: inherit; font-size: inherit; line-height: inherit; text-transform: none; font-weight: normal;\">Ring Belt</p><p iwe-no-select=\"true\" style=\"margin: 0px; color: rgb(0, 0, 0); text-align: center; font-family: inherit; font-size: inherit; line-height: inherit; text-transform: none; font-weight: normal;\">166.6</p><p iwe-no-select=\"true\" style=\"margin: 0px; color: rgb(0, 0, 0); text-align: center; font-family: inherit; font-size: inherit; line-height: inherit; text-transform: none; font-weight: normal;\"><s>$0.00</s></p><a href=\"https://intempt1.myshopify.com/products/leather-rings-in-black\" target=\"_blank\" iwe-no-select=\"true\" style=\"user-select: none; appearance: none; display: inline-block; cursor: pointer; box-shadow: none; background-color: rgb(0, 0, 0); padding: 12px 24px; border-width: 0px; border-style: none; border-color: rgb(0, 0, 0); border-radius: 4px; font-family: inherit; font-size: 16px; font-style: normal; font-weight: 400; text-align: center; color: rgb(255, 255, 255); opacity: 1;\">Shop now</a></div></div></div>",
-    "xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" page-width \")]/div",
-    "xPathIndex": 1,
-    "text": "Product titleProduct description$0.00$0.00Shop nowProduct titleProduct description$0.00$0.00Shop nowProduct titleProduct description$0.00$0.00Shop now",
-    "params": {
-      "button": {
-        "link": "#",
-        "target": "_blank",
-        "text": "Shop now",
-        "tag": "a",
-        "inlines": [],
-        "style": {
-          "userSelect": "none",
-          "appearance": "none",
-          "display": "inline-block",
-          "cursor": "pointer",
-          "boxShadow": "none",
-          "backgroundColor": "#000000",
-          "paddingTop": 12,
-          "paddingBottom": 12,
-          "paddingRight": 24,
-          "paddingLeft": 24,
-          "borderWidth": 0,
-          "borderStyle": "none",
-          "borderColor": "#000000",
-          "borderRadius": 4,
-          "fontFamily": "inherit",
-          "fontSize": "16px",
-          "fontStyle": "normal",
-          "fontWeight": "400",
-          "textAlign": "center",
-          "color": "#FFFFFF",
-          "opacity": 1
-        }
+    "refNode": {
+      "_tagName": "h2",
+      "_cssSelector": "h2[null=\"true\"]",
+      "_attributes": {
+        "class": "h1 mega-title mega-title--large iwe_hovered"
       },
-      "text": {
-        "title": {
-          "tag": "p",
-          "inlines": [],
-          "style": {
-            "margin": "0px",
-            "color": "#000000",
-            "textAlign": "center",
-            "fontFamily": "inherit",
-            "fontSize": "inherit",
-            "lineHeight": "inherit",
-            "textTransform": "none",
-            "fontWeight": "normal"
-          }
-        },
-        "price": {
-          "tag": "p",
-          "inlines": [],
-          "style": {
-            "margin": "0px",
-            "color": "#000000",
-            "textAlign": "center",
-            "fontFamily": "inherit",
-            "fontSize": "inherit",
-            "lineHeight": "inherit",
-            "textTransform": "none",
-            "fontWeight": "normal"
-          }
-        },
-        "description": {
-          "tag": "p",
-          "inlines": [],
-          "style": {
-            "margin": "0px",
-            "color": "#000000",
-            "textAlign": "center",
-            "fontFamily": "inherit",
-            "fontSize": "inherit",
-            "lineHeight": "inherit",
-            "textTransform": "none",
-            "fontWeight": "normal"
-          }
-        },
-        "originPrice": {
-          "tag": "p",
-          "inlines": [
-            "strikethrough"
-          ],
-          "style": {
-            "margin": "0px",
-            "color": "#000000",
-            "textAlign": "center",
-            "fontFamily": "inherit",
-            "fontSize": "inherit",
-            "lineHeight": "inherit",
-            "textTransform": "none",
-            "fontWeight": "normal"
-          }
-        }
-      },
-      "card": {
-        "style": {
-          "borderWidth": 0,
-          "borderStyle": "none",
-          "borderColor": "#000000",
-          "borderRadius": 0,
-          "backgroundColor": "#ffffff",
-          "paddingTop": 8,
-          "paddingBottom": 8,
-          "paddingRight": 8,
-          "paddingLeft": 8
-        }
-      },
-      "isFeed": false,
-      "feedId": null,
-      "items": [
+      "_pathFromBody": [
         {
-          "intempt_id": "3486524337351096698",
-          "title": "Ginger Jacket",
-          "image_link": "https://cdn.shopify.com/s/files/1/0017/3611/4234/products/2015-03-15_Lana_Look_45_10425_14056.jpg?v=1554808574",
-          "id": "2369431863354",
-          "description": "This is a demonstration store. You can purchase products like this from Baby & CompanyThis cropped, yet sensible jacket is a water resistant beauty. The Ginger wears with a boxy silhouette, and pairs well with the day to day needs. Double breasted button placket closure. Side angled pockets at front. Raglan sleeves. Fully lined. Ivan Grundahl. Color Black. 65% Cotton, 35% Polyamide, Lining 100% Acetate. Made in the EU. Lana is wearing a Size 36. Shop our collection of Ivan Grundahl.",
-          "price": 516.6,
-          "original_price": null,
-          "link": "https://intempt1.myshopify.com/products/ginger-jacket-black-white",
-          "categories": null
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "a",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
         },
         {
-          "intempt_id": "9093341565156850035",
-          "title": "Kioh Bag",
-          "image_link": "https://cdn.shopify.com/s/files/1/0017/3611/4234/products/2015-04-02_Accessories_25_21638_17899.jpg?v=1554808577",
-          "id": "2369431928890",
-          "description": "This is a demonstration store. You can purchase products like this from Baby & CompanyWith international recognition for his work, Ivan Grundahl is a new Baby & Company favorite. Scandinavian designer experiments with architectural shapes while inherently chic. Muted palette, variance of texture, and asymmetry are exhibited throughout the collection. Color Black. 100% Cow Leather, 100% Cotton. Made in Portugal. Shop our collection of Ivan Grundahl.",
-          "price": 558,
-          "original_price": null,
-          "link": "https://intempt1.myshopify.com/products/kioh-bag-black",
-          "categories": null
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "main",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
         },
         {
-          "intempt_id": "6794254565270485364",
-          "title": "Ring Belt",
-          "image_link": "https://cdn.shopify.com/s/files/1/0017/3611/4234/products/2015-03-13_Product_37_21640_12813.jpg?v=1554808580",
-          "id": "2369431961658",
-          "description": "With international recognition for his work, Ivan Grundahl is a Baby & Company favorite. Scandinavian designer experiments with architectural shapes while inherently chic. Muted palette, variance of texture, and asymmetry are exhibited throughout the collection. Color Black. 100% Leather. Made in Portugal. Shop our collection of Ivan Grundahl",
-          "price": 166.6,
-          "original_price": null,
-          "link": "https://intempt1.myshopify.com/products/leather-rings-in-black",
-          "categories": null
+          "tagName": "main",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "noscript",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "picture",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h2",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "a",
+              "children": []
+            }
+          ]
         }
       ],
-      "elementsCount": 3,
-      "space": 8,
-      "padding": 16,
-      "rows": 1,
-      "columns": 3,
-      "hasTitle": true,
-      "hasDesc": false,
-      "hasPrice": true,
-      "hasOriginPrice": true,
-      "hasButton": true,
-      "preset": "default",
-      "layout": "center",
-      "stackOnMobile": true,
-      "maxImageHeight": 150
+      "_name": "heading 2",
+      "_blockId": "heading",
+      "_iweId": "iwe-id-6136-8NygRO7nUr",
+      "_xPathSelector": "//h2[contains(concat(' ', normalize-space(@class), ' '), \" h1 \")]",
+      "_xPathIndex": 0,
+      "_text": "Top Season Deals"
+    },
+    "style": {
+      "width": "100px",
+      "height": "100px",
+      "display": "block"
+    },
+    "attributes": {
+      "iwe-id": "iwe-id-6136-zq5iway3XF",
+      "iwe-name": "Image",
+      "iwe-block-id": "image",
+      "alt": "image-block",
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100' fill='none'%3E%3Crect width='100' height='100' fill='%230088FF' fill-opacity='0.99'/%3E%3Cpath d='M79.1667 12.5H20.8333C16.231 12.5 12.5 16.231 12.5 20.8333V79.1667C12.5 83.769 16.231 87.5 20.8333 87.5H79.1667C83.769 87.5 87.5 83.769 87.5 79.1667V20.8333C87.5 16.231 83.769 12.5 79.1667 12.5Z' stroke='white' stroke-width='8.33333' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M37.4993 45.8307C42.1017 45.8307 45.8327 42.0998 45.8327 37.4974C45.8327 32.895 42.1017 29.1641 37.4993 29.1641C32.897 29.1641 29.166 32.895 29.166 37.4974C29.166 42.0998 32.897 45.8307 37.4993 45.8307Z' stroke='white' stroke-width='8.33333' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M87.5 62.5013L74.6417 49.643C73.0789 48.0808 70.9597 47.2031 68.75 47.2031C66.5403 47.2031 64.4211 48.0808 62.8583 49.643L25 87.5013' stroke='white' stroke-width='8.33333' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E",
+      "style": "width: 100px; height: 100px; display: block;"
+    },
+    "tag": "img",
+    "html": "<img iwe-id=\"iwe-id-6136-zq5iway3XF\" iwe-name=\"Image\" iwe-block-id=\"image\" alt=\"image-block\" src=\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100' fill='none'%3E%3Crect width='100' height='100' fill='%230088FF' fill-opacity='0.99'/%3E%3Cpath d='M79.1667 12.5H20.8333C16.231 12.5 12.5 16.231 12.5 20.8333V79.1667C12.5 83.769 16.231 87.5 20.8333 87.5H79.1667C83.769 87.5 87.5 83.769 87.5 79.1667V20.8333C87.5 16.231 83.769 12.5 79.1667 12.5Z' stroke='white' stroke-width='8.33333' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M37.4993 45.8307C42.1017 45.8307 45.8327 42.0998 45.8327 37.4974C45.8327 32.895 42.1017 29.1641 37.4993 29.1641C32.897 29.1641 29.166 32.895 29.166 37.4974C29.166 42.0998 32.897 45.8307 37.4993 45.8307Z' stroke='white' stroke-width='8.33333' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M87.5 62.5013L74.6417 49.643C73.0789 48.0808 70.9597 47.2031 68.75 47.2031C66.5403 47.2031 64.4211 48.0808 62.8583 49.643L25 87.5013' stroke='white' stroke-width='8.33333' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E\" style=\"width: 100px; height: 100px; display: block;\">",
+    "xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" page-width \")]/img",
+    "xPathIndex": 0,
+    "text": "",
+    "params": {
+      "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100' height='100' viewBox='0 0 100 100' fill='none'%3E%3Crect width='100' height='100' fill='%230088FF' fill-opacity='0.99'/%3E%3Cpath d='M79.1667 12.5H20.8333C16.231 12.5 12.5 16.231 12.5 20.8333V79.1667C12.5 83.769 16.231 87.5 20.8333 87.5H79.1667C83.769 87.5 87.5 83.769 87.5 79.1667V20.8333C87.5 16.231 83.769 12.5 79.1667 12.5Z' stroke='white' stroke-width='8.33333' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M37.4993 45.8307C42.1017 45.8307 45.8327 42.0998 45.8327 37.4974C45.8327 32.895 42.1017 29.1641 37.4993 29.1641C32.897 29.1641 29.166 32.895 29.166 37.4974C29.166 42.0998 32.897 45.8307 37.4993 45.8307Z' stroke='white' stroke-width='8.33333' stroke-linecap='round' stroke-linejoin='round'/%3E%3Cpath d='M87.5 62.5013L74.6417 49.643C73.0789 48.0808 70.9597 47.2031 68.75 47.2031C66.5403 47.2031 64.4211 48.0808 62.8583 49.643L25 87.5013' stroke='white' stroke-width='8.33333' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E",
+      "alt": "image-block",
+      "style": {
+        "width": "100px",
+        "height": "100px",
+        "display": "block"
+      }
     }
+  },
+  {
+    "iweId": "iwe-id-6136-ekvht-xkpi",
+    "type": "update",
+    "blockId": "paragraph",
+    "t": 1757946467271,
+    "parent": {
+      "_tagName": "div",
+      "_cssSelector": "div[iwe-id-6136-a0dk_ma3kx=\"true\"]",
+      "_attributes": {
+        "class": "page-width text-center",
+        "iwe-id-6136-a0dk_ma3kx": "true"
+      },
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "a",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "main",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "main",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "noscript",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "picture",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_name": "Content block",
+      "_blockId": "content",
+      "_iweId": "iwe-id-6136-a0dk_ma3kx",
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" page-width \")]",
+      "_xPathIndex": 0,
+      "_text": "\n      \n        Top Season Deals\n      \n      \n        \n      \n      \n        Personalized fashion for any season\n          Shop now\n        \n      \n    "
+    },
+    "refNode": null,
+    "style": {},
+    "attributes": {
+      "class": "iwe_selected_element",
+      "iwe-id-6136-ekvht-xkpi": "true"
+    },
+    "tag": "p",
+    "html": "<p class=\"iwe_selected_element\" iwe-id-6136-ekvht-xkpi=\"true\">Personalized fashion for any season</p>",
+    "xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" page-width \")]/p",
+    "xPathIndex": 0,
+    "text": "Personalized fashion for any season",
+    "params": {}
+  },
+  {
+    "iweId": "iwe-id-6136-svx93yefih",
+    "type": "update",
+    "blockId": "heading",
+    "t": 1757946471013,
+    "parent": {
+      "_tagName": "div",
+      "_cssSelector": "div[iwe-id-6136-a0dk_ma3kx=\"true\"]",
+      "_attributes": {
+        "class": "page-width text-center iwe_hovered",
+        "iwe-id-6136-a0dk_ma3kx": "true"
+      },
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "a",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "main",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "main",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "noscript",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "picture",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_name": "Content block",
+      "_blockId": "content",
+      "_iweId": "iwe-id-6136-a0dk_ma3kx",
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" page-width \")]",
+      "_xPathIndex": 0,
+      "_text": "\n      \n        Top Season Deals\n      \n      \n        \n      \n      \n        \n          Shop now\n        \n      \n    Personalized fashion for any season"
+    },
+    "refNode": {
+      "_tagName": "div",
+      "_cssSelector": "div[iwe-id-6136-af-ogjrjow=\"true\"]",
+      "_attributes": {
+        "class": "rte-setting mega-subtitle mega-subtitle--large",
+        "iwe-id-6136-af-ogjrjow": "true"
+      },
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "a",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "main",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "main",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "noscript",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "picture",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "img",
+              "children": []
+            },
+            {
+              "tagName": "h2",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "a",
+              "children": []
+            },
+            {
+              "tagName": "p",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_name": "Content block",
+      "_blockId": "content",
+      "_iweId": "iwe-id-6136-af-ogjrjow",
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" rte-setting \")]",
+      "_xPathIndex": 0,
+      "_text": ""
+    },
+    "style": {
+      "color": "rgb(210, 7, 7)"
+    },
+    "attributes": {
+      "class": "h1 mega-title mega-title--large iwe_selected_element",
+      "iwe-id-6136-svx93yefih": "true",
+      "style": "color: rgb(210, 7, 7) !important;"
+    },
+    "tag": "h2",
+    "html": "<h2 class=\"h1 mega-title mega-title--large iwe_selected_element\" iwe-id-6136-svx93yefih=\"true\" style=\"color: rgb(210, 7, 7) !important;\">Top Season Deals</h2>",
+    "xPathSelector": "//h2[contains(concat(' ', normalize-space(@class), ' '), \" h1 \")]",
+    "xPathIndex": 0,
+    "text": "Top Season Deals",
+    "params": {}
   }
 ]
 

@@ -15,7 +15,7 @@ export class HtmlEventModel {
     this.name = name;
     this.payload.push({
       eventId: generateId('ev'),
-      timestamp: new Date().getTime(),
+      //timestamp: new Date().getTime(),
       sessionId,
       profileId,
       pageId,

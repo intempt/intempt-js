@@ -23,8 +23,8 @@ export class ChoicesModule {
       const changesPromise = this._service.getChoices(this._config);
       document.addEventListener('DOMContentLoaded', async () => {
         try {
-         // const changes = await changesPromise;
-          const changes = [ ...dummy,...dummy2,]
+          const changes = await changesPromise;
+
           if(changes.length === 0) {
             import.meta.env.VITE_ENV === 'development' && console.log('no changes');
             return;
@@ -46,8 +46,6 @@ export class ChoicesModule {
   private _applyChanges(changes:any[]){
     this.markPointersFromChanges(changes);
 
-    //this._service.createIntemptEditorStyleElement();
-    // const changesHandler = new ModificationHandler();
     const changesHandler = new WebEditorModificationHandler();
 
     if (!changes || changes.length === 0) {
@@ -64,7 +62,7 @@ export class ChoicesModule {
 
       if (change && changesHandler.hasOwnProperty(change.type)) {
         try {
-          // changesHandler[change.type as keyof ModificationHandler](change as any);
+
           (changesHandler as any)[change.type](change as any);
         } catch (error) {
           if(import.meta.env.VITE_ENV === 'development'){
@@ -110,12 +108,12 @@ export class ChoicesModule {
         }
         if (!el) continue;
 
-        el.setAttribute(`${HTML_ATTRIBUTES.ID}-${p._iweId}`, 'true');
-        console.log('markPointersFromChanges el',el);
+        el.setAttribute(p._iweId,'true')
         out.push({ el, iweId: p._iweId });
         seen.add(key);
       }
     }
+
     return out;
   }
 }

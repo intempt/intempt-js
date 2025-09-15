@@ -13,7 +13,7 @@ export class TrackModel implements ModelTrack {
     this.name = params.eventTitle;
     this.payload.push({
       eventId: generateId('ev'),
-      timestamp: new Date().getTime(),
+      //timestamp: new Date().getTime(),
       sessionId: params.sessionId!,
       pageId: params.pageId!,
       profileId: params.profileId!,

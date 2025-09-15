@@ -62,11 +62,11 @@ export class WebEditorModificationHandler {
     setTimeout(() => s.remove(), 40);
   }
 
-  private elementGetterByIweId(id?:string):HTMLElement | null {
-    if(!id) return null;
-    //const selector = `[${HTML_ATTRIBUTES.ID}="${id}"]`;
-    const selector = `[${HTML_ATTRIBUTES.ID}-${id}="true"]`;
-   // const element = document.querySelector(`[${HTML_ATTRIBUTES.ID}-${iwe_id}='true']`);
+  private elementGetterByIweId(key?:string):HTMLElement | null {
+    if(!key) return null;
+
+    const selector = `[${key}="true"]`;
+
     return document.querySelector(selector) || null;
   }
 

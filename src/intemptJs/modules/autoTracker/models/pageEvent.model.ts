@@ -10,7 +10,7 @@ export class PageEventModel {
      this.name = name;
      this.payload.push({
        eventId: pageId,
-       timestamp: new Date().getTime(),
+      // timestamp: new Date().getTime(),
        sessionId,
        profileId,
        pageId,

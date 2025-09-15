@@ -14,7 +14,7 @@ export class ProductModel implements ModelProduct {
     this.payload.push(
       ...params.products.map( product => ({
         eventId: generateId('ev'),
-        timestamp: new Date().getTime(),
+        //timestamp: new Date().getTime(),
         profileId: params.profileId!,
         sessionId: params.sessionId!,
         pageId: params.pageId!,
