@@ -10,8 +10,9 @@ import { WEB_EDITOR } from './loaders/webEditorLoader.ts';
 
   if(import.meta.env.VITE_ENV !== 'production') {
     console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
-    console.log('version:', 'v5.9');
+    console.log('version:', 'v6.0');
     console.log('cameFromOpener',cameFromOpener);
+
   }
   if (cameFromOpener) {
     WEB_EDITOR.init();

@@ -13,7 +13,7 @@ export class AliasModel implements ModelAlias {
     this.name = 'Identify'
     this.payload.push({
       eventId: generateId('ev'),
-      timestamp: new Date().getTime(),
+      //timestamp: new Date().getTime(),
       profileId: params.profileId!,
       userId: params.userId,
       anotherUserId: params.anotherUserId,

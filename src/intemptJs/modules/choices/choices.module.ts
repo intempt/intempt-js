@@ -1,6 +1,9 @@
-import { ChoicesParams} from '../../types/choices.types.ts';
+import { ChoicesParams, XPtr } from '../../types/choices.types.ts';
 import { ChoicesService } from './choices.service.ts';
 import { ModificationHandler } from './models/ModificationHandler.ts';
+import { dummy, dummy2 } from '../../../../dummy.ts';
+import { WebEditorModificationHandler } from './models/WebEditorModificationHandler.ts';
+import { HTML_ATTRIBUTES } from '../../types/constants.types.ts';
 
 
 
@@ -21,6 +24,7 @@ export class ChoicesModule {
       document.addEventListener('DOMContentLoaded', async () => {
         try {
           const changes = await changesPromise;
+
           if(changes.length === 0) {
             import.meta.env.VITE_ENV === 'development' && console.log('no changes');
             return;
@@ -40,9 +44,9 @@ export class ChoicesModule {
   }
 
   private _applyChanges(changes:any[]){
+    this.markPointersFromChanges(changes);
 
-    this._service.createIntemptEditorStyleElement();
-    const changesHandler = new ModificationHandler();
+    const changesHandler = new WebEditorModificationHandler();
 
     if (!changes || changes.length === 0) {
       if(import.meta.env.VITE_ENV === 'development'){
@@ -58,7 +62,8 @@ export class ChoicesModule {
 
       if (change && changesHandler.hasOwnProperty(change.type)) {
         try {
-          changesHandler[change.type as keyof ModificationHandler](change as any);
+
+          (changesHandler as any)[change.type](change as any);
         } catch (error) {
           if(import.meta.env.VITE_ENV === 'development'){
             console.warn(`Error applying change of type "${change.type}":`, error);
@@ -74,5 +79,41 @@ export class ChoicesModule {
         }
       }
     }
+  }
+
+  private markPointersFromChanges(
+    changes: any[],
+    resolver = ChoicesService.elementGetterByXpath
+  ): Array<{ el: HTMLElement; iweId: string }> {
+    const cache = new Map<string, HTMLElement | null>();
+    const seen  = new Set<string>();
+    const out: Array<{ el: HTMLElement; iweId: string }> = [];
+
+    for (const c of changes) {
+      // Build a flat list of pointers: parent, refNode, self
+      const pointers: XPtr[] = [
+        c.parent as XPtr,
+        c.refNode as XPtr,
+        { _xPathSelector: c.xPathSelector, _xPathIndex: c.xPathIndex, _iweId: c.iweId } as XPtr,
+      ].filter(Boolean);
+
+      for (const p of pointers) {
+        const key = `${p._xPathSelector}|${p._xPathIndex}`;
+        if (seen.has(key)) continue;
+
+        let el = cache.get(key);
+        if (el === undefined) {
+          el = resolver({ xPathSelector: p._xPathSelector, xPathIndex: p._xPathIndex }) as HTMLElement | null;
+          cache.set(key, el ?? null);
+        }
+        if (!el) continue;
+
+        el.setAttribute(p._iweId,'true')
+        out.push({ el, iweId: p._iweId });
+        seen.add(key);
+      }
+    }
+
+    return out;
   }
 }

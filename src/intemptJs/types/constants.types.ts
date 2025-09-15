@@ -41,3 +41,13 @@ export enum IntemptEventListenerName {
   SHOPIFY = "intempt:shopify",
   PRODUCT = 'intempt:product'
 }
+
+export const HTML_ATTRIBUTES = {
+  NAME:'iwe-name',
+  BLOCK_ID:'iwe-block-id',
+  ID:'iwe-id',
+  TYPE:'custom',
+  NO_SELECT:'iwe-no-select',
+  EDITABLE:'iwe-editable',
+  EDITING:'iwe-editing',
+}
