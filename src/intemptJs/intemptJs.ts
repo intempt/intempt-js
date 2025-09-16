@@ -53,6 +53,9 @@ export class IntemptJs extends IntemptJsGuard {
     this._choices.init();
   }
 
+  getProfileId(){
+    return this._autoTracker.getProfileId();
+  }
 
   /**
    * Allow tracking
