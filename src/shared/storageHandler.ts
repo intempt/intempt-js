@@ -43,9 +43,7 @@ export function getCookie(name:string){
 
   if (key !== name.trim()) return null;
 
-
   return { [name]: decodeURIComponent(value) };
-
 }
 
 export function handleDomain(domain:string){

@@ -43,11 +43,12 @@ export class SessionTrackerModule extends PlatformParser{
     super();
     this.initReferrerCookie();
     this._sessionActivityHandler();
-
   }
 
 
-  get cookieKeys() { return this.keys; }
+  get cookieKeys() {
+    return this.keys;
+  }
 
   getId(){
     const cookie = getCookie(this.intemptSession) as {intempt_session : string} | null;
@@ -171,7 +172,6 @@ export class SessionTrackerModule extends PlatformParser{
       this.browser
     );
 
-
     dispatchIntemptEvent('intempt:session', {
       eventName: this._eventName,
       eventAttributes,
@@ -179,6 +179,5 @@ export class SessionTrackerModule extends PlatformParser{
       type: 'sessionStart',
     });
   }
-
 }
 
