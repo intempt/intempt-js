@@ -8,7 +8,7 @@ import { PageEventModel } from './models/pageEvent.model.ts';
 import { PageEventDataComponent } from '../../component/pageEventData.component.ts';
 import { HtmlEventModel } from './models/HtmlEvent.model.ts';
 import { HtmlTrackerModule } from './modules/htmlTracker/htmlTracker.module.ts';
-import { IntemptConfig, ProductParams, RecommendationParams } from '../../types/intemptJs.types.ts';
+import { IntemptConfig } from '../../types/intemptJs.types.ts';
 import { ShopifyTrackerModule } from './modules/shopifyTracker/shopifyTracker.module.ts';
 import { IntemptEventListenerName, IntemptEventName } from '../../types/constants.types.ts';
 import { IntemptPageEventName, ShopifyEvent } from '../../types/autoTracker.types.ts';
@@ -45,9 +45,20 @@ export class AutoTrackerModule {
 
     this._trackPage();
 
+    try {
+      this._pagesTrackerModule.start();
+    } catch (e) {
+      console.error(e);
+    }
+
     this._trackShopify();
 
     this._trackHtml();
+  }
+
+  init() {
+    this._pagesTrackerModule.init();
+    this._htmlTrackerModule.init();
   }
 
   get doNotTrack(){
@@ -56,11 +67,6 @@ export class AutoTrackerModule {
 
   set doNotTrack(value: boolean){
     this._doNotTrack = value
-  }
-
-  init() {
-    this._pagesTrackerModule.init();
-    this._htmlTrackerModule.init();
   }
 
   isUserOptIn(): boolean{
@@ -101,6 +107,8 @@ export class AutoTrackerModule {
       const sessionId = this.getSessionId();
       const pageId = this.getPageId();
 
+      if(!profileId || !sessionId || !pageId) return;
+
       const eventData = new ProductModel({
         eventTitle: eventName,
         products: [product],
@@ -119,6 +127,12 @@ export class AutoTrackerModule {
 
       const { detail } = event as CustomEvent;
       const { eventName, domEventName, target } = detail;
+
+      const profileId = this.getProfileId();
+      const sessionId = this.getSessionId();
+      const pageId = this.getPageId();
+
+      if(!profileId || !sessionId || !pageId) return;
 
       const eventData = new HtmlEventModel({
         name: eventName,
@@ -147,12 +161,18 @@ export class AutoTrackerModule {
         fullUrl,
         windowWidth,
         previousPage
-      })
+      });
+
+      const profileId = this.getProfileId();
+      const sessionId = this.getSessionId();
+
+
+      if(!profileId || !sessionId || !pageId) return;
 
       const pageEvent = new PageEventModel({
         name: eventName,
-        sessionId: this.getSessionId(),
-        profileId: this.getProfileId(),
+        sessionId,
+        profileId,
         pageId,
         data: eventData
       })
@@ -167,8 +187,11 @@ export class AutoTrackerModule {
       if (!this.isUserOptIn()) return;
       const { detail } = event as CustomEvent;
       const { eventName, userAttributes, eventAttributes } = detail;
+
       const sessionId = this.getSessionId();
       const profileId = this.getProfileId();
+
+      if(!profileId || !sessionId) return;
 
       const sessionEvent = new SessionEventModel({
         name: eventName,
@@ -189,6 +212,8 @@ export class AutoTrackerModule {
       const { event  } = detail;
       const { type   } = event;
 
+
+
       switch (type) {
         case 'consent':
           return this._sendConsentTrackEventData(event);
@@ -198,7 +223,6 @@ export class AutoTrackerModule {
       }
     });
   }
-
 
   private _onTrackData(data:any){
     let debouncedSendEvents:ReturnType<typeof debounce>;
