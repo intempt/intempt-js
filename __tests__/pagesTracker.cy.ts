@@ -1,6 +1,10 @@
-import { getCookie, localIntemptPageSessionCookie, setCookie } from '../src/shared/storageHandler.ts';
-import { dispatchIntemptEvent, generateId } from '../src/shared/shared.utils.ts';
 import { PageTrackerModule } from '../src/intemptJs/modules/autoTracker/modules/pagesTracker/pagesTracker.module.ts';
+
+
+function setCookieRaw(name: string, value: string) {
+  // Keep it simple: jsdom accepts direct assignment
+  document.cookie = `${name}=${encodeURIComponent(value)}; path=/`;
+}
 
 describe('PageTrackerModule', () => {
   let pageTracker: any;
@@ -15,30 +19,6 @@ describe('PageTrackerModule', () => {
   beforeEach(() => {
    cy.stub(window, 'addEventListener').as('addEventListener');
 
-   // cy.stub(dispatchIntemptEvent).as('dispatchIntemptEvent');
-    //cy.stub(getCookie)
-   // cy.stub(mockCookie, getCookie).callsFake(() => mockCookie);
-
-
-    //cy.stub(setCookie);
-    //
-    //
-    // cy.stub(localIntemptPageSessionCookie).callsFake(() => null);
-    //
-    //
-
-    //
-    //
-    // cy.stub(generateId).callsFake(() => 'generated-id');
-
-    // Mock window.location.href using a getter
-    // Object.defineProperty(window, 'location', {
-    //   value: {
-    //     href: 'http://example.com'
-    //   },
-    //   writable: true
-    // });
-
     // Initialize the class
     pageTracker = new PageTrackerModule() ;
     pageTracker.init();
@@ -46,7 +26,7 @@ describe('PageTrackerModule', () => {
 
 
   it('should add event listeners on init', () => {
-    expect(window.addEventListener).to.be.calledWith('load');
+    expect(window.addEventListener).to.be.calledWith('pageshow');
     expect(window.addEventListener).to.be.calledWith('popstate');
     expect(window.addEventListener).to.be.calledWith('beforeunload');
   });
