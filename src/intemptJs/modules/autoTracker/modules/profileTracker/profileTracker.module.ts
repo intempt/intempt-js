@@ -29,7 +29,10 @@ export class ProfileTrackerModule {
 
      const result =  this.handleProfileId();
 
+     console.log(result);
+
      return result[this.profileId];
+     // return '';
   }
 
   /**

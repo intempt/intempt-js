@@ -1,9 +1,6 @@
 import { ChoicesParams, XPtr } from '../../types/choices.types.ts';
 import { ChoicesService } from './choices.service.ts';
-import { ModificationHandler } from './models/ModificationHandler.ts';
-import { dummy, dummy2 } from '../../../../dummy.ts';
 import { WebEditorModificationHandler } from './models/WebEditorModificationHandler.ts';
-import { HTML_ATTRIBUTES } from '../../types/constants.types.ts';
 
 
 

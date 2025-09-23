@@ -10,8 +10,6 @@ import { ChoicesRequestModel } from './models/choicesRequest.model.ts';
 import { AuthRequest } from '../../models/auth.model.ts';
 import { AuthConfig, IntemptVariables } from '../../types/intemptJs.types.ts';
 import { localStorageCache } from '../../../shared/storageHandler.ts';
-import { ChoicesConfig } from './choices.config.ts';
-import { HTML_ATTRIBUTES, IntemptEventName } from '../../types/constants.types.ts';
 
 
 export const ChoicesService = {
@@ -211,31 +209,10 @@ export const ChoicesService = {
     }
   },
 
-  createIntemptEditorStyleElement: function() {
-    const {styleDataAttribute, initialStylesRules} = ChoicesConfig;
-    const style = document.createElement('style');
-    style.setAttribute(styleDataAttribute, '');
-    style.textContent = initialStylesRules;
-    document.head.appendChild(style);
-  },
-
   elementGetterByXpath({ xPathSelector, xPathIndex }:{xPathSelector:string, xPathIndex:number}) {
     const matchingElements = document.evaluate(xPathSelector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
     return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
   },
-
-  // elementGetterByXpath(modification: any) {
-  //   const { xPathSelector, xPathIndex, iwe_id } = modification;
-  //   //const element = document.querySelector(`[iwe_id='${iwe_id}']`);
-  //   const selector = `[${HTML_ATTRIBUTES.ID}-${iwe_id}="true"]`;
-  //   //return document.querySelector(selector) || null;
-  //  // const element = document.querySelector(`[${HTML_ATTRIBUTES.ID}-${iwe_id}='true']`);
-  //  //
-  //  //  if (element) return element;
-  //  //
-  //   const matchingElements = document.evaluate(xPathSelector, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
-  //   return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
-  // },
 
   insertResultHandler({ content, parentElement, elementToInsert}:any){
     if (content.isInside) {
@@ -303,11 +280,5 @@ export const ChoicesService = {
       }, 320);
     });
   },
-
-  elementGetterByIweId(id?:string):HTMLElement | null {
-    if(!id) return null;
-    const selector = `[${HTML_ATTRIBUTES.ID}="${id}"]`;
-    return document.querySelector(selector) || null;
-  }
 
 }
