@@ -8,9 +8,8 @@ import { Modification } from '../../../types/choices.types.ts';
 
 
 export class WebEditorModificationHandler {
-
   update = async (change: Modification)=> {
-    const {html, tag, parent, refNode, blockId, style, iweId, attributes,text} = change;
+    const {html,  parent, refNode,  iweId} = change;
     const parentEl = this.elementGetterByIweId(parent?._iweId);
     const refEl = this.elementGetterByIweId(refNode?._iweId);
     const targetEl = this.elementGetterByIweId(iweId);
@@ -26,21 +25,21 @@ export class WebEditorModificationHandler {
 
   insert = async (change: Modification) => {
 
-  const {html, parent, refNode, blockId, iweId, js } = change;
-  const parentEl = this.elementGetterByIweId(parent?._iweId);
-  const refEl = this.elementGetterByIweId(refNode?._iweId);
+      const {html, parent, refNode, blockId, iweId, js } = change;
+      const parentEl = this.elementGetterByIweId(parent?._iweId);
+      const refEl = this.elementGetterByIweId(refNode?._iweId);
 
-  if(!parentEl) return;
-  const {fragment} = this.htmlToFragment(html)
-  parentEl.insertBefore( fragment, refEl);
-  if(blockId === 'base'){
-    const targetEl = this.elementGetterByIweId(iweId);
-    targetEl?.remove()
-  }
+      if(!parentEl) return;
+      const {fragment} = this.htmlToFragment(html)
+      parentEl.insertBefore( fragment, refEl);
+      if(blockId === 'base'){
+        const targetEl = this.elementGetterByIweId(iweId);
+        targetEl?.remove()
+      }
 
-  if (js && js.trim()) {
-    this.appendInlineScriptAfter(js);
-  }
+      if (js && js.trim()) {
+        this.appendInlineScriptAfter(js);
+      }
 
   }
 

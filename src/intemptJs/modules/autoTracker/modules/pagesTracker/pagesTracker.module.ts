@@ -116,10 +116,22 @@ export class PageTrackerModule {
       const local = localIntemptPageSessionCookie();
       if (local) {
         pageSessionId = local.id;
-      } else {
-        this.setPageSession();
-        return this.getId();
+      }
+      else {
+        // this.setPageSession();
+        const newCookie = this.setPageSession() as PageSessionCookie;
 
+        if (newCookie) {
+          try {
+            pageSessionId = JSON.parse(newCookie[this.pageSession]).id;
+          }
+          catch (error) {
+            console.error('Error parsing newly set cookie:', error);
+          }
+        }
+
+        // return this.setPageSession();
+        // return this.getId();
       }
     }
 
