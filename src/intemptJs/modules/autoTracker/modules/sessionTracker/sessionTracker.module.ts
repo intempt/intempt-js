@@ -135,7 +135,7 @@ export class SessionTrackerModule extends PlatformParser{
           return this.clearCookies(eventName);
         }
 
-        const session = sessionCookie[this.intemptSession]
+        const session = sessionCookie?.[this.intemptSession]
           ? { ...JSON.parse(sessionCookie[this.intemptSession]) }
           : { id:null };
 
