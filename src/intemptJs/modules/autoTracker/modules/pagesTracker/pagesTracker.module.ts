@@ -129,9 +129,6 @@ export class PageTrackerModule {
             console.error('Error parsing newly set cookie:', error);
           }
         }
-
-        // return this.setPageSession();
-        // return this.getId();
       }
     }
 

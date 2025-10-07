@@ -13,49 +13,6 @@ export const localIntemptPageSessionCookie = () => !!appLocalCookie['intempt_ses
   : null;
 
 
-// export function setCookie({
-//   name,
-//   value,
-//   path = '/',
-//   expiration,
-//   domain = '',
-//   sameSite = 'None',
-//   secure,
-//   partitioned = true,
-// }: any) {
-//   // Always URL-encode; JSON-stringify non-string values
-//   const raw = typeof value === 'string' ? value : JSON.stringify(value);
-//   const enc = encodeURIComponent(raw);
-//
-//   // SameSite=None requires Secure (and HTTPS)
-//   const mustSecure = sameSite === 'None';
-//   const useSecure = secure ?? mustSecure;
-//
-//   const parts: string[] = [
-//     `${name}=${enc}`,
-//     `Path=${path}`,
-//     `SameSite=${sameSite}`,
-//   ];
-//
-//   if (expiration != null) {
-//     parts.push(`Expires=${new Date(Date.now() + expiration).toUTCString()}`);
-//   }
-//   if (domain) {
-//     parts.push(`Domain=${handleDomain(domain)}`); // your existing normalizer
-//   }
-//   if (useSecure) parts.push('Secure');
-//   // Partitioned is valid only with SameSite=None
-//   if (partitioned && sameSite === 'None') parts.push('Partitioned');
-//
-//   document.cookie = parts.join('; ');
-//
-//   // keep your local mirror if you want it
-//   appLocalCookie[name] = enc;
-//
-//   // return a simple shape (string value), not {[name]: value}
-//   return enc;
-// }
-
 export function setCookie({name, value, path, expiration, domain = ''}:SetCookieParams){
    const cookieValue = `${name}=${value};`;
    const cookiePath = `path=${path};`;

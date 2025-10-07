@@ -19,21 +19,28 @@ export class HtmlTrackerModule {
     }
   ];
 
-   init() {
-     this._domEvents.forEach((event) => {
-       const {domEventName, intemptEventName} = event;
+  private _listeners = new Map<IntemptDomEventName, EventListener>();
+  private get root(): HTMLElement | Document {
+    // attach to <body> if available; otherwise fall back to document (e.g., very early init)
+    return document.body ?? document;
+  }
 
-       switch (domEventName){
-         case IntemptDomEventName.CLICK:
-           document.addEventListener(domEventName,(event) => this._handleEvent(domEventName,intemptEventName, event));
-           break;
-         default:
-           const debouncedListener = debounce((event:Event) => this._handleEvent(domEventName,intemptEventName, event), 250);
-           document.addEventListener(domEventName, debouncedListener);
-         break;
-       }
-     })
+   init() {
+     this._domEvents.forEach(({ domEventName, intemptEventName }) => {
+       const handler: EventListener = domEventName === IntemptDomEventName.CLICK
+           ? (e) => this._handleEvent(domEventName, intemptEventName, e)
+           : (debounce((e: Event) => this._handleEvent(domEventName, intemptEventName, e), 250) as unknown as EventListener);
+
+       // keep a reference so we can remove later
+       this._listeners.set(domEventName, handler);
+
+       // capture submit early; others bubble fine from body
+       const opts: AddEventListenerOptions | boolean = domEventName === IntemptDomEventName.SUBMIT ? { capture: true } : false;
+
+       (this.root as any).addEventListener(domEventName, handler, opts);
+     });
    }
+
 
   private _handleEvent(domEventName: DomEventName, eventName: IntemptHtmlEventNames, event: Event){
     const target = event.target as HTMLElement;
