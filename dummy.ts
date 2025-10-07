@@ -1833,3 +1833,3144 @@ export const dummy2 = [
     "xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" rte-setting \")]/p"
   }
 ]
+
+const dummy3 = [
+  {
+    "t": 1758468612716,
+    "tag": "div",
+    "html": "<div class=\"black font-size-26 font-weight-600 mb-5\" iwe-id-6422-avgtdqbmxc=\"true\">ANNUAL Save&nbsp;<mark data-color=\"#1F7E5C\" style=\"background-color: rgb(31, 126, 92); color: inherit;\">&nbsp;</mark><span style=\"color: rgb(250, 243, 243);\"><mark data-color=\"#1F7E5C\" style=\"background-color: rgb(31, 126, 92); color: inherit;\">-$129.45</mark></span></div>",
+
+    "text": "ANNUAL Save  -$129.45",
+    "type": "update",
+    "iweId": "iwe-id-6422-avgtdqbmxc",
+    "style": {},
+    "params": {},
+    "parent": {
+      "_name": "Content block",
+      "_text": "\n                        \n                        \n                    ANNUAL Save  -$129.45$19.16 / month ($29.95)",
+      "_iweId": "iwe-id-6422-7pf2n3mwqv",
+      "_blockId": "content",
+      "_tagName": "div",
+      "_attributes": {
+        "class": "",
+        "iwe-id-6422-7pf2n3mwqv": "true"
+      },
+      "_xPathIndex": 8,
+      "_cssSelector": "div[iwe-id-6422-7pf2n3mwqv=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h1",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "form",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" card-body \")]/div"
+    },
+    "blockId": "content",
+    "refNode": {
+      "_name": "Content block",
+      "_text": "$19.16 / month ($29.95)",
+      "_iweId": "iwe-id-6422-h4czinwfcs",
+      "_blockId": "content",
+      "_tagName": "div",
+      "_attributes": {
+        "class": "black font-size-18 font-weight-500 mb-15",
+        "iwe-id-6422-h4czinwfcs": "true"
+      },
+      "_xPathIndex": 14,
+      "_cssSelector": "div[iwe-id-6422-h4czinwfcs=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h1",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "form",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" black \")]"
+    },
+    "attributes": {
+      "class": "black font-size-26 font-weight-600 mb-5",
+      "iwe-id-6422-avgtdqbmxc": "true"
+    },
+    "xPathIndex": 13,
+    "xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" black \")]"
+  },
+  {
+    "t": 1758468470069,
+    "tag": "div",
+    "html": "<div class=\"black font-size-18 font-weight-500 mb-15\" iwe-id-6422-h4czinwfcs=\"true\">$19.16 / month&nbsp;<s>($29.95)</s></div>",
+    "text": "$19.16 / month ($29.95)",
+    "type": "update",
+    "iweId": "iwe-id-6422-h4czinwfcs",
+    "style": {},
+    "params": {},
+    "parent": {
+      "_name": "Content block",
+      "_text": "\n                        \n                        ANNUAL Save  -$129.45\n                    $19.16 / month ($29.95)",
+      "_iweId": "iwe-id-6422-7pf2n3mwqv",
+      "_blockId": "content",
+      "_tagName": "div",
+      "_attributes": {
+        "class": "",
+        "iwe-id-6422-7pf2n3mwqv": "true"
+      },
+      "_xPathIndex": 8,
+      "_cssSelector": "div[iwe-id-6422-7pf2n3mwqv=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h1",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "form",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" card-body \")]/div"
+    },
+    "blockId": "content",
+    "refNode": null,
+    "attributes": {
+      "class": "black font-size-18 font-weight-500 mb-15",
+      "iwe-id-6422-h4czinwfcs": "true"
+    },
+    "xPathIndex": 14,
+    "xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" black \")]"
+  },
+
+  {
+    "t": 1758468217452,
+    "tag": "div",
+    "html": "<div class=\"card-header text-center font-size-16 font-weight-600 text-shadow white iwe_selected_element\" style=\"border-top-left-radius: 15px;border-top-right-radius: 15px;background:#5471D0;\" iwe-id-6422-crkijatg8g=\"true\">PREMIUM (AI Enhanced)</div>",
+    "text": "PREMIUM (AI Enhanced)",
+    "type": "update",
+    "iweId": "iwe-id-6422-crkijatg8g",
+    "style": {
+      "background": "#5471D0",
+      "borderTopLeftRadius": "15px",
+      "borderTopRightRadius": "15px"
+    },
+    "params": {},
+    "parent": {
+      "_name": "Content block",
+      "_text": "\n            PREMIUM (AI Enhanced)\n            \n                \n                    LIFETIME\n                \n                \n                                        $699.95\n                    / once\n                \n                \n                    \n                                                            \n                    \n                        GET LIFETIME ACCESS\n                    \n                    \n\n                        \n                    \n                \n                \n                    Access to +45k analyzed assets\n                    Unlimited stock analysis\n                    Daily AI-powered analyses\n                    Full access to trading indicators\n                    Golden Star Signal \n                    \n                    Full access to lists\n                    \"Daily Picks\" Email\n                    Access to all tools without limits\n                    Ad-free experience\n                \n            \n        ",
+      "_iweId": "iwe-id-6422-bskvntkfw9",
+      "_blockId": "content",
+      "_tagName": "div",
+      "_attributes": {
+        "class": "card box-shadow-v4 card-grey border-radius-15 flex-grow-1 bg-linear-blue iwe_hovered",
+        "style": "max-width:420px;",
+        "iwe-id-6422-bskvntkfw9": "true"
+      },
+      "_xPathIndex": 3,
+      "_cssSelector": "div[iwe-id-6422-bskvntkfw9=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h1",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" card \")]"
+    },
+    "blockId": "content",
+    "refNode": {
+      "_name": "Content block",
+      "_text": "\n                \n                    LIFETIME\n                \n                \n                                        $699.95\n                    / once\n                \n                \n                    \n                                                            \n                    \n                        GET LIFETIME ACCESS\n                    \n                    \n\n                        \n                    \n                \n                \n                    Access to +45k analyzed assets\n                    Unlimited stock analysis\n                    Daily AI-powered analyses\n                    Full access to trading indicators\n                    Golden Star Signal \n                    \n                    Full access to lists\n                    \"Daily Picks\" Email\n                    Access to all tools without limits\n                    Ad-free experience\n                \n            ",
+      "_iweId": "iwe-id-6422-g7kzx42qvj",
+      "_blockId": "content",
+      "_tagName": "div",
+      "_attributes": {
+        "class": "card-body",
+        "iwe-id-6422-g7kzx42qvj": "true"
+      },
+      "_xPathIndex": 3,
+      "_cssSelector": "div[iwe-id-6422-g7kzx42qvj=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h1",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" card-body \")]"
+    },
+    "attributes": {
+      "class": "card-header text-center font-size-16 font-weight-600 text-shadow white iwe_selected_element",
+      "style": "border-top-left-radius: 15px;border-top-right-radius: 15px;background:#5471D0;",
+      "iwe-id-6422-crkijatg8g": "true"
+    },
+    "xPathIndex": 3,
+    "xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" card-header \")]"
+  },
+  {
+    "t": 1758468227509,
+    "tag": "div",
+    "html": "<div class=\"card-header text-center font-size-16 font-weight-600 text-shadow white\" style=\"border-top-left-radius: 15px;border-top-right-radius: 15px;background:#5471D0;\" iwe-id-6422--ewuhq13kb=\"true\">PREMIUM (AI Enhanced)</div>",
+    "text": "PREMIUM (AI Enhanced)",
+    "type": "update",
+    "iweId": "iwe-id-6422--ewuhq13kb",
+    "style": {
+      "background": "#5471D0",
+      "borderTopLeftRadius": "15px",
+      "borderTopRightRadius": "15px"
+    },
+    "params": {},
+    "parent": {
+      "_name": "Content block",
+      "_text": "\n                PREMIUM (AI Enhanced)\n                \n                    \n                        \n    \n        \n        \n        Monthly\n    \n    \n        \n        \n        Annual (Save 37%)\n    \n                    \n                    \n                        \n                            ANNUAL Save $129.45\n                        \n                        \n                                                        $19.16\n                            / month\n                    \n                    \n                        \n                                                                        \n                        \n                            \n                                TRY FREE FOR 14 DAYS\n                            \n                        \n                        \n                                                            \n                                    Purchase without trial \n                                \n                                                    \n                        \n\n                            \n                        \n                    \n                    \n                        Access to +45k analyzed assets\n                        Unlimited stock analysis\n                        Daily AI-powered analyses\n                        Full access to trading indicators\n                        Golden Star Signal \n                        \n                        Full access to lists\n                        \"Daily Picks\" Email\n                        Access to all tools without limits\n                        Ad-free experience\n                    \n                \n            ",
+      "_iweId": "iwe-id-6422--j41vfz_gm",
+      "_blockId": "content",
+      "_tagName": "div",
+      "_attributes": {
+        "id": "card-annual-plan",
+        "class": "card box-shadow-v4 card-grey border-radius-15 mb-30 flex-grow-1 bg-linear-blue",
+        "style": "max-width:420px;transform: scale(1.03);",
+        "iwe-id-6422--j41vfz_gm": "true"
+      },
+      "_xPathIndex": 2,
+      "_cssSelector": "div[iwe-id-6422--j41vfz_gm=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h1",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" card \")]"
+    },
+    "blockId": "content",
+    "refNode": {
+      "_name": "Content block",
+      "_text": "\n                    \n                        \n    \n        \n        \n        Monthly\n    \n    \n        \n        \n        Annual (Save 37%)\n    \n                    \n                    \n                        \n                            ANNUAL Save $129.45\n                        \n                        \n                                                        $19.16\n                            / month\n                    \n                    \n                        \n                                                                        \n                        \n                            \n                                TRY FREE FOR 14 DAYS\n                            \n                        \n                        \n                                                            \n                                    Purchase without trial \n                                \n                                                    \n                        \n\n                            \n                        \n                    \n                    \n                        Access to +45k analyzed assets\n                        Unlimited stock analysis\n                        Daily AI-powered analyses\n                        Full access to trading indicators\n                        Golden Star Signal \n                        \n                        Full access to lists\n                        \"Daily Picks\" Email\n                        Access to all tools without limits\n                        Ad-free experience\n                    \n                ",
+      "_iweId": "iwe-id-6422-gzsc71dsn8",
+      "_blockId": "content",
+      "_tagName": "div",
+      "_attributes": {
+        "class": "card-body",
+        "iwe-id-6422-gzsc71dsn8": "true"
+      },
+      "_xPathIndex": 2,
+      "_cssSelector": "div[iwe-id-6422-gzsc71dsn8=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h1",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" card-body \")]"
+    },
+    "attributes": {
+      "class": "card-header text-center font-size-16 font-weight-600 text-shadow white",
+      "style": "border-top-left-radius: 15px;border-top-right-radius: 15px;background:#5471D0;",
+      "iwe-id-6422--ewuhq13kb": "true"
+    },
+    "xPathIndex": 2,
+    "xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" card-header \")]"
+  },
+
+  {
+    "t": 1758468652229,
+    "tag": "h1",
+    "html": "<h1 id=\"pricing-plans-title\" class=\"text-center mb-50 font-size-50 font-size-sm-36 font-weight-600\" iwe-id-6422-f_ae7psmqi=\"true\">Start Your New Trading Journey Today!</h1>",
+    "text": "Start Your New Trading Journey Today!",
+    "type": "update",
+    "iweId": "iwe-id-6422-f_ae7psmqi",
+    "style": {},
+    "params": {},
+    "parent": {
+      "_name": "Content block",
+      "_text": "\n                \n                Start Your New Trading Journey Today!\n\n\n\n                        \n    \n        \n    \n        \n        \n        Monthly\n    \n    \n        \n        \n        Annual (Save 37%)\n    \n    \n\n\n\n    \n        \n            \n                BASIC\n            \n            \n                \n                    STARTER\n                \n                \n                    Keep light, until Premium feels right\n                \n                \n                                            \n                            YOUR CURRENT PLAN\n                        \n                    \n                \n                \n                    Access to +45k analyzed assets\n                    Stock analysis\n                    Daily AI-powered analyses\n                    Full access to trading indicators\n                    Golden Star Signal \n                    \n                    Full access to lists\n                    \"Daily Picks\" Email\n                    Access to all tools without limits\n                    Ad-free experience\n                \n            \n        \n    \n    \n        \n            \n                \n                    \n                    PREMIUM\n                \n                \n                    \n                        \n    \n        \n        \n        Monthly\n    \n    \n        \n        \n        Annual (Save 37%)\n    \n                    \n                    \n                        MONTHLY \n                        \n                                                        $29.95\n                            / month\n                    \n                    \n                        \n                                                                        \n                        \n                            \n                                TRY FREE FOR 14 DAYS\n                            \n                        \n                        \n                                                            \n                                    Purchase without trial \n                                \n                                                    \n                        \n\n                            \n                        \n                    \n                    \n                        Access to +45k analyzed assets\n                        Unlimited stock analysis\n                        Daily AI-powered analyses\n                        Full access to trading indicators\n                        Golden Star Signal \n                        \n                        Full access to lists\n                        \"Daily Picks\" Email\n                        Access to all tools without limits\n                        Ad-free experience\n                    \n                \n            \n            \n                \n                PREMIUM (AI Enhanced)\n                    \n                        \n    \n        \n        \n        Monthly\n    \n    \n        \n        \n        Annual (Save 37%)\n    \n                    \n                    \n                        \n                        \n                    ANNUAL Save  -$129.45$19.16 / month ($29.95)\n                    \n                        \n                                                                        \n                        \n                            \n                                TRY FREE FOR 14 DAYS\n                            \n                        \n                        \n                                                            \n                                    Purchase without trial \n                                \n                                                    \n                        \n\n                            \n                        \n                    \n                    \n                        Access to +45k analyzed assets\n                        Unlimited stock analysis\n                        Daily AI-powered analyses\n                        Full access to trading indicators\n                        Golden Star Signal \n                        \n                        Full access to lists\n                        \"Daily Picks\" Email\n                        Access to all tools without limits\n                        Ad-free experience\n                    \n                \n            \n        \n\n    \n    \n        \n            \n            PREMIUM (AI Enhanced)\n                \n                    LIFETIME\n                \n                \n                                        $699.95\n                    / once\n                \n                \n                    \n                                                            \n                    \n                        GET LIFETIME ACCESS\n                    \n                    \n\n                        \n                    \n                \n                \n                    Access to +45k analyzed assets\n                    Unlimited stock analysis\n                    Daily AI-powered analyses\n                    Full access to trading indicators\n                    Golden Star Signal \n                    \n                    Full access to lists\n                    \"Daily Picks\" Email\n                    Access to all tools without limits\n                    Ad-free experience\n                \n            \n        \n    \n\n\n\n    10-day money-back guarantee\n    \n\n\n\n    Compare All Features\n    \n        \n        \n            \n            Starter\n            Premium\n            Premium Lifetime\n        \n        \n        \n        \n            General\n        \n        \n            Ads\n            No ads for the first 24 hours\n            Ad-free\n            Ad-free for life\n        \n        \n            42 exchanges worldwide\n            \n            \n            \n        \n        \n            Professional support\n            \n            \n            \n        \n        \n            \"Daily Picks\" email\n            \n            \n            \n        \n        \n            Trading Ideas\n        \n        \n            StockInvest.us Score\n            \n            \n            \n        \n        \n            Lists access\n            Limited Access\n            Full Access\n            Full Access\n        \n        \n            Golden Star lists\n            \n            \n            \n        \n        \n            Death Star lists\n            \n            \n            \n        \n        \n            Bollinger Bands list\n            \n            \n            \n        \n        \n            Possible Runners list\n            \n            \n            \n        \n        \n            Stock Analysis\n        \n        \n            Advanced technical stock analysis\n            Unlimited\n            Unlimited\n            Unlimited\n        \n        \n            \n                AI credits for AI-powered analysis tools:\n                \n                • AI-powered Stock Analysis\n                • AI-powered Risk Assessment\n                • AI-powered Trading Strategy\n                • AI-powered Dividend Analysis\n                • AI-powered Financials Analysis\n            \n            \n            2 (total)\n            20 credits / day\n            20 credits / day\n        \n        \n            Trading levels for each analyzed stock\n            \n            \n            \n        \n        \n            Market Data\n        \n        \n            Earnings call transcripts powered by AI\n            \n            \n            \n        \n        \n            Heatmaps for different regions\n            \n            \n            \n        \n        \n            Earnings and ex-dividend calendars\n            \n            \n            \n        \n        \n            Commodities prices and charts\n            \n            \n            \n        \n        \n            Intraday prices for US markets\n            \n            \n            \n        \n        \n            Dividends lists\n            \n            \n            \n        \n        \n            Research Tools\n        \n        \n            Stock Screener\n            Core filters (no export)\n            All filters plus parameter sorting\n            All filters plus parameter sorting\n        \n        \n            Watchlists\n            \n            \n            \n        \n        \n            Insider Trading Power\n            \n            \n            \n        \n        \n            Heatmap mode for Watchlists\n            \n            \n            \n        \n        \n            PDF and CSV download on stock screener\n            \n            \n            \n        \n        \n            PDF and CSV download using lists\n            \n            \n            \n        \n        \n    \n\n\n    \n        Back to Plans\n    \n\n                \n            ",
+      "_iweId": "iwe-id-6422-hwcry1vvxp",
+      "_blockId": "content",
+      "_tagName": "div",
+      "_attributes": {
+        "class": "container",
+        "iwe-id-6422-hwcry1vvxp": "true"
+      },
+      "_xPathIndex": 0,
+      "_cssSelector": "div[iwe-id-6422-hwcry1vvxp=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" container \")]"
+    },
+    "blockId": "heading",
+    "refNode": {
+      "_name": "Content block",
+      "_text": "\n\n\n\n                        \n    \n        \n    \n        \n        \n        Monthly\n    \n    \n        \n        \n        Annual (Save 37%)\n    \n    \n\n\n\n    \n        \n            \n                BASIC\n            \n            \n                \n                    STARTER\n                \n                \n                    Keep light, until Premium feels right\n                \n                \n                                            \n                            YOUR CURRENT PLAN\n                        \n                    \n                \n                \n                    Access to +45k analyzed assets\n                    Stock analysis\n                    Daily AI-powered analyses\n                    Full access to trading indicators\n                    Golden Star Signal \n                    \n                    Full access to lists\n                    \"Daily Picks\" Email\n                    Access to all tools without limits\n                    Ad-free experience\n                \n            \n        \n    \n    \n        \n            \n                \n                    \n                    PREMIUM\n                \n                \n                    \n                        \n    \n        \n        \n        Monthly\n    \n    \n        \n        \n        Annual (Save 37%)\n    \n                    \n                    \n                        MONTHLY \n                        \n                                                        $29.95\n                            / month\n                    \n                    \n                        \n                                                                        \n                        \n                            \n                                TRY FREE FOR 14 DAYS\n                            \n                        \n                        \n                                                            \n                                    Purchase without trial \n                                \n                                                    \n                        \n\n                            \n                        \n                    \n                    \n                        Access to +45k analyzed assets\n                        Unlimited stock analysis\n                        Daily AI-powered analyses\n                        Full access to trading indicators\n                        Golden Star Signal \n                        \n                        Full access to lists\n                        \"Daily Picks\" Email\n                        Access to all tools without limits\n                        Ad-free experience\n                    \n                \n            \n            \n                \n                PREMIUM (AI Enhanced)\n                    \n                        \n    \n        \n        \n        Monthly\n    \n    \n        \n        \n        Annual (Save 37%)\n    \n                    \n                    \n                        \n                        \n                    ANNUAL Save  -$129.45$19.16 / month ($29.95)\n                    \n                        \n                                                                        \n                        \n                            \n                                TRY FREE FOR 14 DAYS\n                            \n                        \n                        \n                                                            \n                                    Purchase without trial \n                                \n                                                    \n                        \n\n                            \n                        \n                    \n                    \n                        Access to +45k analyzed assets\n                        Unlimited stock analysis\n                        Daily AI-powered analyses\n                        Full access to trading indicators\n                        Golden Star Signal \n                        \n                        Full access to lists\n                        \"Daily Picks\" Email\n                        Access to all tools without limits\n                        Ad-free experience\n                    \n                \n            \n        \n\n    \n    \n        \n            \n            PREMIUM (AI Enhanced)\n                \n                    LIFETIME\n                \n                \n                                        $699.95\n                    / once\n                \n                \n                    \n                                                            \n                    \n                        GET LIFETIME ACCESS\n                    \n                    \n\n                        \n                    \n                \n                \n                    Access to +45k analyzed assets\n                    Unlimited stock analysis\n                    Daily AI-powered analyses\n                    Full access to trading indicators\n                    Golden Star Signal \n                    \n                    Full access to lists\n                    \"Daily Picks\" Email\n                    Access to all tools without limits\n                    Ad-free experience\n                \n            \n        \n    \n\n\n\n    10-day money-back guarantee\n    \n\n\n\n    Compare All Features\n    \n        \n        \n            \n            Starter\n            Premium\n            Premium Lifetime\n        \n        \n        \n        \n            General\n        \n        \n            Ads\n            No ads for the first 24 hours\n            Ad-free\n            Ad-free for life\n        \n        \n            42 exchanges worldwide\n            \n            \n            \n        \n        \n            Professional support\n            \n            \n            \n        \n        \n            \"Daily Picks\" email\n            \n            \n            \n        \n        \n            Trading Ideas\n        \n        \n            StockInvest.us Score\n            \n            \n            \n        \n        \n            Lists access\n            Limited Access\n            Full Access\n            Full Access\n        \n        \n            Golden Star lists\n            \n            \n            \n        \n        \n            Death Star lists\n            \n            \n            \n        \n        \n            Bollinger Bands list\n            \n            \n            \n        \n        \n            Possible Runners list\n            \n            \n            \n        \n        \n            Stock Analysis\n        \n        \n            Advanced technical stock analysis\n            Unlimited\n            Unlimited\n            Unlimited\n        \n        \n            \n                AI credits for AI-powered analysis tools:\n                \n                • AI-powered Stock Analysis\n                • AI-powered Risk Assessment\n                • AI-powered Trading Strategy\n                • AI-powered Dividend Analysis\n                • AI-powered Financials Analysis\n            \n            \n            2 (total)\n            20 credits / day\n            20 credits / day\n        \n        \n            Trading levels for each analyzed stock\n            \n            \n            \n        \n        \n            Market Data\n        \n        \n            Earnings call transcripts powered by AI\n            \n            \n            \n        \n        \n            Heatmaps for different regions\n            \n            \n            \n        \n        \n            Earnings and ex-dividend calendars\n            \n            \n            \n        \n        \n            Commodities prices and charts\n            \n            \n            \n        \n        \n            Intraday prices for US markets\n            \n            \n            \n        \n        \n            Dividends lists\n            \n            \n            \n        \n        \n            Research Tools\n        \n        \n            Stock Screener\n            Core filters (no export)\n            All filters plus parameter sorting\n            All filters plus parameter sorting\n        \n        \n            Watchlists\n            \n            \n            \n        \n        \n            Insider Trading Power\n            \n            \n            \n        \n        \n            Heatmap mode for Watchlists\n            \n            \n            \n        \n        \n            PDF and CSV download on stock screener\n            \n            \n            \n        \n        \n            PDF and CSV download using lists\n            \n            \n            \n        \n        \n    \n\n\n    \n        Back to Plans\n    \n\n                ",
+      "_iweId": "iwe-id-6422-vehltzuief",
+      "_blockId": "content",
+      "_tagName": "div",
+      "_attributes": {
+        "id": "orderSelect",
+        "class": "",
+        "iwe-id-6422-vehltzuief": "true"
+      },
+      "_xPathIndex": 0,
+      "_cssSelector": "div[iwe-id-6422-vehltzuief=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h1",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" container \")]/div"
+    },
+    "attributes": {
+      "id": "pricing-plans-title",
+      "class": "text-center mb-50 font-size-50 font-size-sm-36 font-weight-600",
+      "iwe-id-6422-f_ae7psmqi": "true"
+    },
+    "xPathIndex": 0,
+    "xPathSelector": "//h1[contains(concat(' ', normalize-space(@class), ' '), \" text-center \")]"
+  },
+
+
+  {
+    "t": 1758468540386,
+    "tag": "button",
+    "html": "<button name=\"trial\" value=\"1\" class=\"btn btn-lg btn-order font-weight-500 width-100p font-size-sm-16 border-radius-15 order-checkout-button iwe_selected_element\" type=\"submit\" data-order-plan=\"annual\" data-order-variant=\"light-free\" iwe-id-6422--qj-ixx8hp=\"true\" style=\"background-color: rgb(46, 138, 10) !important; background-image: none !important;\">\n                                TRY FREE FOR 14 DAYS\n                            </button>",
+    "text": "\n                                TRY FREE FOR 14 DAYS\n                            ",
+    "type": "update",
+    "iweId": "iwe-id-6422--qj-ixx8hp",
+    "style": {
+      "backgroundColor": "rgb(46, 138, 10)",
+      "backgroundImage": "none"
+    },
+    "params": {},
+    "parent": {
+      "_name": "Content block",
+      "_text": "\n                            \n                                TRY FREE FOR 14 DAYS\n                            \n                        ",
+      "_iweId": "iwe-id-6422-xrlkiafbgq",
+      "_blockId": "content",
+      "_tagName": "div",
+      "_attributes": {
+        "class": "",
+        "iwe-id-6422-xrlkiafbgq": "true"
+      },
+      "_xPathIndex": 3,
+      "_cssSelector": "div[iwe-id-6422-xrlkiafbgq=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h1",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "form",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "form",
+          "children": [
+            {
+              "tagName": "input",
+              "children": []
+            },
+            {
+              "tagName": "input",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//form[contains(concat(' ', normalize-space(@class), ' '), \" mb-15 \")]/div"
+    },
+    "blockId": "base",
+    "refNode": null,
+    "attributes": {
+      "name": "trial",
+      "type": "submit",
+      "class": "btn btn-lg btn-order font-weight-500 width-100p font-size-sm-16 border-radius-15 order-checkout-button iwe_selected_element",
+      "style": "background-color: rgb(46, 138, 10) !important; background-image: none !important;",
+      "value": "1",
+      "data-order-plan": "annual",
+      "data-order-variant": "light-free",
+      "iwe-id-6422--qj-ixx8hp": "true"
+    },
+    "xPathIndex": 6,
+    "xPathSelector": "//button[contains(concat(' ', normalize-space(@class), ' '), \" btn \")]"
+  },
+  {
+    "t": 1758468555378,
+    "tag": "button",
+    "html": "<button name=\"trial\" value=\"1\" class=\"btn btn-lg btn-order font-weight-500 width-100p font-size-sm-16 border-radius-15 order-checkout-button iwe_selected_element\" type=\"submit\" data-order-plan=\"lifetime\" data-order-variant=\"light-free\" iwe-id-6422-jqjud4bpgv=\"true\" style=\"background-color: rgb(46, 138, 10) !important; background-image: none !important;\">\n                        GET LIFETIME <span class=\"hidden-lg-down\" iwe-id-6422-gp2qhlufp0=\"true\">ACCESS</span>\n                    </button>",
+    "text": "\n                        GET LIFETIME ACCESS\n                    ",
+    "type": "update",
+    "iweId": "iwe-id-6422-jqjud4bpgv",
+    "style": {
+      "backgroundColor": "rgb(46, 138, 10)",
+      "backgroundImage": "none"
+    },
+    "params": {},
+    "parent": {
+      "_name": "form",
+      "_text": "\n                    \n                                                            \n                    \n                        GET LIFETIME ACCESS\n                    \n                    \n\n                        \n                    \n                ",
+      "_iweId": "iwe-id-6422-1id2qs28ts",
+      "_blockId": "content",
+      "_tagName": "form",
+      "_attributes": {
+        "class": "mb-25",
+        "action": "https://stockinvest.us/order/checkout/initiate?openerOrigin=https%3A%2F%2Fapp.intempt.com&channel=1MG3mkCEgyoT35tgHRjs8",
+        "method": "GET",
+        "iwe-id-6422-1id2qs28ts": "true"
+      },
+      "_xPathIndex": 0,
+      "_cssSelector": "form[iwe-id-6422-1id2qs28ts=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h1",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "form",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//form[contains(concat(' ', normalize-space(@class), ' '), \" mb-25 \")]"
+    },
+    "blockId": "base",
+    "refNode": {
+      "_name": "Content block",
+      "_text": "\n\n                        \n                    ",
+      "_iweId": "iwe-id-6422-r7zjc66bqb",
+      "_blockId": "content",
+      "_tagName": "div",
+      "_attributes": {
+        "class": "mt-15",
+        "iwe-id-6422-r7zjc66bqb": "true"
+      },
+      "_xPathIndex": 0,
+      "_cssSelector": "div[iwe-id-6422-r7zjc66bqb=\"true\"]",
+      "_pathFromBody": [
+        {
+          "tagName": "body",
+          "children": [
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "meta",
+              "children": []
+            },
+            {
+              "tagName": "iframe",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            },
+            {
+              "tagName": "script",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "h1",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "div",
+          "children": [
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            },
+            {
+              "tagName": "form",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        },
+        {
+          "tagName": "form",
+          "children": [
+            {
+              "tagName": "input",
+              "children": []
+            },
+            {
+              "tagName": "input",
+              "children": []
+            },
+            {
+              "tagName": "button",
+              "children": []
+            },
+            {
+              "tagName": "div",
+              "children": []
+            }
+          ]
+        }
+      ],
+      "_xPathSelector": "//div[contains(concat(' ', normalize-space(@class), ' '), \" mt-15 \")]"
+    },
+    "attributes": {
+      "name": "trial",
+      "type": "submit",
+      "class": "btn btn-lg btn-order font-weight-500 width-100p font-size-sm-16 border-radius-15 order-checkout-button iwe_selected_element",
+      "style": "background-color: rgb(46, 138, 10) !important; background-image: none !important;",
+      "value": "1",
+      "data-order-plan": "lifetime",
+      "data-order-variant": "light-free",
+      "iwe-id-6422-jqjud4bpgv": "true"
+    },
+    "xPathIndex": 8,
+    "xPathSelector": "//button[contains(concat(' ', normalize-space(@class), ' '), \" btn \")]"
+  }
+
+  ]
