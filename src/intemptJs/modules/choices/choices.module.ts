@@ -4,9 +4,6 @@ import { WebEditorModificationHandler } from './models/WebEditorModificationHand
 
 
 
-
-
-
 export class ChoicesModule {
   private readonly _config:ChoicesParams;
   private readonly _service= ChoicesService;

@@ -21,11 +21,6 @@ import { ProductModel } from './models/product.model.ts';
 import { IntemptEventListenerName, IntemptEventName } from './types/constants.types.ts';
 
 
-
-
-
-
-
 export class IntemptJs extends IntemptJsGuard {
   private readonly _api = import.meta.env.VITE_API;
   private readonly _autoTracker!:AutoTrackerModule;
