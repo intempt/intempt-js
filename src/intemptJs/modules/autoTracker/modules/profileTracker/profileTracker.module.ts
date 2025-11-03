@@ -24,6 +24,9 @@ export class ProfileTrackerModule {
     this.handleProfileId();
   }
 
+  refresh(){
+    return this._initProfileId();
+  }
 
    getId(){
 

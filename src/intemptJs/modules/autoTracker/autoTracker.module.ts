@@ -56,6 +56,12 @@ export class AutoTrackerModule {
     this._trackHtml();
   }
 
+  refresh(){
+    this._profileTrackerModule.refresh();
+    this._sessionTrackerModule.refresh();
+    this._pagesTrackerModule.refresh();
+  }
+
   init() {
     this._pagesTrackerModule.init();
     this._htmlTrackerModule.init();
