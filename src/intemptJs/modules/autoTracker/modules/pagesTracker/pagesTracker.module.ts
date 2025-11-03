@@ -22,6 +22,10 @@ export class PageTrackerModule {
   private _safeParse<T>(s: string): T | null { try { return JSON.parse(s) as T; } catch { return null; } }
 
 
+  refresh(){
+    this.setPageSession();
+  }
+
   init() {
     const safeStart = () => { try { this.start(); } catch (e) { console.error(e); } };
 
@@ -118,7 +122,7 @@ export class PageTrackerModule {
         pageSessionId = local.id;
       }
       else {
-        // this.setPageSession();
+
         const newCookie = this.setPageSession() as PageSessionCookie;
 
         if (newCookie) {

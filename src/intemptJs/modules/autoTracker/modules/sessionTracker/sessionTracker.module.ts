@@ -45,6 +45,11 @@ export class SessionTrackerModule extends PlatformParser{
     this._sessionActivityHandler();
   }
 
+  refresh(){
+    this.initReferrerCookie();
+    this.setSessionCookie();
+  }
+
 
   get cookieKeys() {
     return this.keys;
@@ -62,17 +67,6 @@ export class SessionTrackerModule extends PlatformParser{
   getLocalId(){
     const localCookie = localIntemptSessionCookie();
     return localCookie?.id ?? '' ;
-  }
-
-  clearCookies(cookieNames:string[]){
-    cookieNames.forEach(
-      (cookieName) => setCookie({
-        name: cookieName,
-        value: '',
-        path: '/',
-        expiration: -1
-      })
-    )
   }
 
   setSessionCookie(id?:string){
@@ -129,10 +123,6 @@ export class SessionTrackerModule extends PlatformParser{
 
         if (!sessionCookie && eventName.toLowerCase() !== 'leave page') {
           return this._onNewSession(eventName);
-        }
-
-        if(domEventName === 'intempt:logOut') {
-          return this.clearCookies(eventName);
         }
 
         const session = sessionCookie?.[this.intemptSession]

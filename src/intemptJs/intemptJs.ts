@@ -25,7 +25,6 @@ export class IntemptJs extends IntemptJsGuard {
   private readonly _api = import.meta.env.VITE_API;
   private readonly _autoTracker!:AutoTrackerModule;
   private readonly _choices!:ChoicesModule;
-
   private readonly _config:IntemptConfig;
 
 
@@ -33,7 +32,7 @@ export class IntemptJs extends IntemptJsGuard {
     super();
     this._config = { ...config};
 
-    if(!this.isValidConfig(config)) return
+    if(!this.isValidConfig(config)) return;
 
     this._autoTracker = new AutoTrackerModule(this._config, this._api);
 
@@ -45,7 +44,7 @@ export class IntemptJs extends IntemptJsGuard {
       sessionId: this._autoTracker.getSessionId(),
     });
 
-    this._choices.init();
+    void this._choices.init();
   }
 
   getProfileId(){
@@ -104,9 +103,9 @@ export class IntemptJs extends IntemptJsGuard {
     dispatchIntemptEvent('intempt:identify', {
       eventName: eventData._name
     });
+
+
     dispatchIntemptEvent('intempt:event', { event: eventData});
-
-
   }
 
   group(params:GroupParams){
@@ -289,6 +288,8 @@ export class IntemptJs extends IntemptJsGuard {
   logOut(){
     if (!this.isUserOptIn()) return;
 
+    this._autoTracker.refresh();
+
     dispatchIntemptEvent('intempt:logOut', {
       eventName: 'Log Out'
     });
@@ -327,6 +328,4 @@ export class IntemptJs extends IntemptJsGuard {
     }
 
   }
-
-
 }

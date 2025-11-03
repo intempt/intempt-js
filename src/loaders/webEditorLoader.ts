@@ -97,7 +97,7 @@ class WebEditor {
       try { (event.source as Window)?.postMessage(payload, event.origin); } catch {}
     };
 
-    //console.log('DATA from opener:', editorPayload);
+
 
     const { experience, variantId, token } = editorPayload
 
@@ -125,6 +125,7 @@ class WebEditor {
     let tries = 0;
     const maxTries = 5;
     this._readyInterval = setInterval(() => {
+
       if ((this._readyAcked || tries++ >= maxTries) && this._readyInterval) {
         clearInterval(this._readyInterval);
         if (!this._readyAcked) {
