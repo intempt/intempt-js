@@ -1,13 +1,18 @@
-import { HTML_ATTRIBUTES } from '../../../types/constants.types.ts';
 import { Modification } from '../../../types/choices.types.ts';
 
 
 
-
-
-
-
 export class WebEditorModificationHandler {
+  style = async (change: Modification) => {
+    const {iweId, attributes } = change;
+    const targetEl = this.elementGetterByIweId(iweId);
+
+    const { style } = attributes;
+    if(!targetEl || !style) return;
+
+    targetEl.setAttribute('style', style);
+  }
+
   update = async (change: Modification)=> {
     const {html,  parent, refNode,  iweId} = change;
     const parentEl = this.elementGetterByIweId(parent?._iweId);
@@ -17,8 +22,6 @@ export class WebEditorModificationHandler {
     if(!parentEl || !targetEl) return;
 
     const { fragment } = this.htmlToFragment(html);
-
-    console.log('update',targetEl);
     parentEl.insertBefore(fragment, refEl);
     targetEl.remove()
   }
