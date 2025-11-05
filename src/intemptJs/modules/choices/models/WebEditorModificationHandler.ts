@@ -1,7 +1,5 @@
 import { Modification } from '../../../types/choices.types.ts';
 
-
-
 export class WebEditorModificationHandler {
   style = async (change: Modification) => {
     const {iweId, attributes } = change;
