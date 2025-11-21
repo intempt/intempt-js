@@ -19,8 +19,10 @@ export class ProfileTrackerModule {
     const secondsPerMinute  = 60;
     const minutesPerHour  = 60;
     const hoursPerDay  = 24;
-    const days  = 30;
-    this.expiration = millisecondsPerSecond * secondsPerMinute * minutesPerHour * hoursPerDay * days;
+    const days  = 365;
+    const years = 3;
+
+    this.expiration = millisecondsPerSecond * secondsPerMinute * minutesPerHour * hoursPerDay * days * years;
     this.handleProfileId();
   }
 
