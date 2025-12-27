@@ -19,10 +19,8 @@ export class ChoicesModule {
         try {
           const changes = await changesPromise;
 
-          if(changes.length === 0) {
-            import.meta.env.VITE_ENV === 'development' && console.log('no changes');
-            return;
-          }
+          if(changes.length === 0)  return;
+          
 
           await this._applyChanges(changes);
 
@@ -43,10 +41,6 @@ export class ChoicesModule {
     const changesHandler = new WebEditorModificationHandler();
 
     if (!changes || changes.length === 0) {
-      if(import.meta.env.VITE_ENV === 'development'){
-        console.log('No changes to apply.');
-      }
-
       return Promise.resolve();
     }
 
@@ -63,7 +57,6 @@ export class ChoicesModule {
             console.warn(`Error applying change of type "${change.type}":`, error);
             console.warn(change);
           }
-
         }
       }
       else {
