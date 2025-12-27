@@ -57,11 +57,21 @@ export class SessionTrackerModule extends PlatformParser{
 
   getId(){
     const cookie = getCookie(this.intemptSession) as {intempt_session : string} | null;
-    const { id } = !!cookie
-      ? { ...JSON.parse(cookie[this.intemptSession]) } as {id: string}
-      : {id: ''};
-
-    return id
+    
+    if (cookie) {
+      try {
+        const parsed = JSON.parse(cookie[this.intemptSession]);
+        if (parsed?.id) {
+          return parsed.id;
+        }
+      } catch (error) {
+        console.error('Error parsing session cookie:', error);
+        // Return empty string on error - cookie is corrupted
+        return '';
+      }
+    }
+    
+    return '';
   }
 
   getLocalId(){
@@ -121,15 +131,29 @@ export class SessionTrackerModule extends PlatformParser{
 
         const sessionCookie = getCookie(this.intemptSession) as SessionCookie;
 
+        // No cookie exists - create new session (unless it's Leave Page)
         if (!sessionCookie && eventName.toLowerCase() !== 'leave page') {
           return this._onNewSession(eventName);
         }
 
-        const session = sessionCookie?.[this.intemptSession]
-          ? { ...JSON.parse(sessionCookie[this.intemptSession]) }
-          : { id:null };
+        // Cookie exists - try to parse it
+        let session = { id: null as string | null };
+        if (sessionCookie?.[this.intemptSession]) {
+          try {
+            session = { ...JSON.parse(sessionCookie[this.intemptSession]) };
+          } catch (error) {
+            console.error('Error parsing session cookie in handler:', error);
+            // Cookie is corrupted - create new session (unless it's Leave Page)
+            if (eventName.toLowerCase() !== 'leave page') {
+              return this._onNewSession(eventName);
+            }
+            // For 'Leave Page' event, just skip (don't create new session)
+            return;
+          }
+        }
 
-        this.setSessionCookie(session.id);
+        // Refresh session cookie with existing ID (or undefined to generate new)
+        this.setSessionCookie(session.id ?? undefined);
       })
     })
   }
