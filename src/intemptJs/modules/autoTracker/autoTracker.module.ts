@@ -13,6 +13,8 @@ import { ShopifyTrackerModule } from './modules/shopifyTracker/shopifyTracker.mo
 import { IntemptEventListenerName, IntemptEventName } from '../../types/constants.types.ts';
 import { IntemptPageEventName, ShopifyEvent } from '../../types/autoTracker.types.ts';
 import { ProductModel } from '../../models/product.model.ts';
+import { RequestBatcher } from '../../../shared/queue/requestBatcher.ts';
+import { QueueStorage } from '../../../shared/storage/queueStorage.ts';
 
 
 export class AutoTrackerModule {
@@ -28,6 +30,8 @@ export class AutoTrackerModule {
   private readonly _api: string;
 
   private readonly _eventPool: any[] = [];
+  private _requestBatcher: RequestBatcher | null = null;
+  private _batcherInitialized: boolean = false;
 
   constructor(intemptConfig: IntemptConfig, api: string) {
 
@@ -38,6 +42,8 @@ export class AutoTrackerModule {
       ? new ShopifyTrackerModule()
       : undefined;
 
+    // Initialize batcher
+    this._initializeBatcher();
 
     this._eventPoolHandler();
 
@@ -94,6 +100,111 @@ export class AutoTrackerModule {
 
   getPageId(){
     return this._pagesTrackerModule.getId();
+  }
+
+  private _initializeBatcher(): void {
+    try {
+      const storageKey = `__intempt_queue_${this._config.sourceId}__`;
+      
+      this._requestBatcher = new RequestBatcher({
+        storageKey,
+        libConfig: {
+          batchSize: 50,
+          batchFlushIntervalMs: 5000,
+          batchRequestTimeoutMs: 90000,
+          batchAutostart: true
+        },
+        sendRequestFunc: this._sendBatchRequest.bind(this),
+        errorReporter: (msg, err) => {
+          if (typeof import.meta.env.VITE_ENV === 'string' && import.meta.env.VITE_ENV !== 'production') {
+            console.error('[AutoTracker]', msg, err);
+          }
+        },
+        usePersistence: true,
+        queueStorage: new QueueStorage()
+      });
+
+      // Start the batcher
+      this._requestBatcher.start();
+      this._batcherInitialized = true;
+
+      // Handle page unload
+      if (typeof window !== 'undefined') {
+        window.addEventListener('beforeunload', () => {
+          if (this._requestBatcher) {
+            this._requestBatcher.flush({ unloading: true });
+          }
+        });
+
+        window.addEventListener('pagehide', (ev: PageTransitionEvent) => {
+          if (ev.persisted && this._requestBatcher) {
+            this._requestBatcher.flush({ unloading: true });
+          }
+        });
+
+        window.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'hidden' && this._requestBatcher) {
+            this._requestBatcher.flush({ unloading: true });
+          }
+        });
+      }
+
+    } catch (error) {
+      if (typeof import.meta.env.VITE_ENV === 'string' && import.meta.env.VITE_ENV !== 'production') {
+        console.error('[AutoTracker] Failed to initialize batcher, falling back to simple queue', error);
+      }
+      this._batcherInitialized = false;
+    }
+  }
+
+  private async _sendBatchRequest(data: any[], options: any): Promise<any> {
+    const {organization, sourceId, project, writeKey} = this._config;
+    const url = `${this._api}/${organization}/projects/${project}/sources/${sourceId}/track`;
+    const [username, password] = writeKey.split('.');
+    const encodedCredentials = btoa(`${username}:${password}`);
+
+    // Handle sendBeacon for page unload
+    if (options.transport === 'sendBeacon') {
+      const blob = new Blob([JSON.stringify({ track: data })], { type: 'application/json' });
+      const sent = navigator.sendBeacon(url, blob);
+      return {
+        httpStatusCode: sent ? 200 : 0,
+        error: sent ? null : 'sendBeacon failed'
+      };
+    }
+
+    // Regular fetch request
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), options.timeout_ms || 90000);
+
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Basic ${encodedCredentials}`,
+        },
+        body: JSON.stringify({ track: data }),
+        keepalive: options.keepalive !== false,
+        signal: controller.signal
+      });
+
+      clearTimeout(timeoutId);
+
+      return {
+        httpStatusCode: response.status,
+        ok: response.ok,
+        retryAfter: response.headers.get('Retry-After') || undefined
+      };
+    } catch (error: any) {
+      if (error.name === 'AbortError') {
+        return { error: 'timeout', httpStatusCode: 0 };
+      }
+      return {
+        error: error.message || 'network error',
+        httpStatusCode: 0
+      };
+    }
   }
 
   private handleShopifyEvent(eventName: IntemptPageEventName) {
@@ -231,6 +342,27 @@ export class AutoTrackerModule {
   }
 
   private _onTrackData(data:any){
+    // Use batcher if available, otherwise fallback to old method
+    if (this._batcherInitialized && this._requestBatcher) {
+      const name = data.name.toLowerCase();
+      
+      // For "Leave Page" events, flush immediately
+      if (name === 'leave page') {
+        this._requestBatcher.enqueue(data).then(() => {
+          this._requestBatcher?.flush({ unloading: true });
+        });
+      } else {
+        // Enqueue normally - batcher will handle batching
+        this._requestBatcher.enqueue(data);
+      }
+    } else {
+      // Fallback to old debounced method
+      this._onTrackDataLegacy(data);
+    }
+  }
+
+  private _onTrackDataLegacy(data:any){
+    // Keep existing implementation as fallback
     let debouncedSendEvents:ReturnType<typeof debounce>;
     const name = data.name.toLowerCase();
      this._eventPool.push(data);

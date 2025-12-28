@@ -220,9 +220,23 @@ export function createCrawlerBotBlockGuard(): GuardCondition {
         userAgent.includes(crawler.toLowerCase())
       );
       
-      // Only block if it has specific bot name AND browser pattern
-      // This handles cases like "Mozilla/5.0 (compatible; Googlebot/2.1)"
-      return hasObviousBot;
+      if (hasObviousBot) {
+        return true; // Block bots with specific names
+      }
+      
+      // Additional check: Look for suspicious patterns even in browser-like UAs
+      // Check for "compatible;" followed by non-browser identifiers
+      if (userAgent.includes('compatible;')) {
+        const compatiblePart = userAgent.split('compatible;')[1] || '';
+        // If compatible part doesn't look like a real browser/OS, might be a bot
+        const looksLikeRealBrowser = /(windows|macintosh|linux|x11|android|iphone|ipad)/i.test(compatiblePart);
+        if (!looksLikeRealBrowser && compatiblePart.trim().length > 0) {
+          // Suspicious - might be a bot
+          return true;
+        }
+      }
+      
+      return false; // Allow legitimate browsers
     }
     
     // Step 2: Not a browser - check for specific bot names

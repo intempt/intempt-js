@@ -4,7 +4,6 @@ import { TrackingGuardManager } from './guard/trackingGuard.manager.ts';
 import { shouldBlockTracking } from './guard/trackingGuard.checker.ts';
 import { 
   createDomainBlockGuard, 
-  createQueryParamBlockGuard,
   createCrawlerBotBlockGuard 
 } from './guard/trackingGuard.conditions.ts';
 
@@ -19,15 +18,6 @@ function setupDefaultGuards() {
     name: 'Block Localhost',
     description: 'Prevent tracking on localhost',
     condition: createDomainBlockGuard(['localhost', '127.0.0.1']),
-    enabled: true
-  });
-
-  // Block if 'notrack' query param exists
-  guardManager.register({
-    id: 'block-query-param',
-    name: 'Block Query Parameter',
-    description: 'Prevent tracking when notrack query param is present',
-    condition: createQueryParamBlockGuard('notrack'),
     enabled: true
   });
 
