@@ -163,20 +163,13 @@ export class AutoTrackerModule {
     const [username, password] = writeKey.split('.');
     const encodedCredentials = btoa(`${username}:${password}`);
 
-    // Handle sendBeacon for page unload
-    if (options.transport === 'sendBeacon') {
-      const blob = new Blob([JSON.stringify({ track: data })], { type: 'application/json' });
-      const sent = navigator.sendBeacon(url, blob);
-      return {
-        httpStatusCode: sent ? 200 : 0,
-        error: sent ? null : 'sendBeacon failed'
-      };
-    }
-
-    // Regular fetch request
+    // Use fetch with keepalive for all requests (including page unload)
+    // This ensures Authorization header is included and requests are reliable during unload
     try {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), options.timeout_ms || 90000);
+      // For unload scenarios, use shorter timeout to avoid blocking navigation
+      const timeout = options.unloading ? 5000 : (options.timeout_ms || 90000);
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       const response = await fetch(url, {
         method: 'POST',

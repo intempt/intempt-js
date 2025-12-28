@@ -39,6 +39,8 @@ export class RequestBatcher {
   private timeoutID: number | null = null;
   private consecutiveRemovalFailures: number = 0;
   private itemIdsSentSuccessfully: Map<string, number> = new Map();
+  private sentEventIds: Set<string> = new Set();
+  private sentEventIdsKey: string;
 
   constructor(options: RequestBatcherOptions) {
     this.libConfig = options.libConfig;
@@ -50,6 +52,10 @@ export class RequestBatcher {
     this.batchSize = this.libConfig.batchSize;
     this.flushInterval = this.libConfig.batchFlushIntervalMs;
     this.stopped = !this.libConfig.batchAutostart;
+
+    // Initialize sent event IDs tracking
+    this.sentEventIdsKey = `${options.storageKey}_sent_event_ids`;
+    this.loadSentEventIds();
 
     this.queue = new RequestQueue(options.storageKey, {
       usePersistence: options.usePersistence,
@@ -103,6 +109,58 @@ export class RequestBatcher {
     this.batchSize = this.libConfig.batchSize;
   }
 
+  /**
+   * Load sent event IDs from localStorage
+   */
+  private loadSentEventIds(): void {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const stored = localStorage.getItem(this.sentEventIdsKey);
+        if (stored) {
+          const ids = JSON.parse(stored);
+          this.sentEventIds = new Set(ids);
+        }
+      }
+    } catch (error) {
+      this.reportError('Error loading sent event IDs', error);
+    }
+  }
+
+  /**
+   * Save sent event IDs to localStorage
+   * Keeps only last 1000 to prevent localStorage bloat
+   */
+  private saveSentEventIds(): void {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        const ids = Array.from(this.sentEventIds);
+        // Keep only last 1000 to prevent localStorage bloat
+        const toSave = ids.slice(-1000);
+        localStorage.setItem(this.sentEventIdsKey, JSON.stringify(toSave));
+      }
+    } catch (error) {
+      this.reportError('Error saving sent event IDs', error);
+    }
+  }
+
+  /**
+   * Extract eventIds from payload
+   * Payload structure: { name: string, payload: [{ eventId: string, ... }] }
+   */
+  private extractEventIds(payload: any): string[] {
+    const eventIds: string[] = [];
+    
+    if (payload && Array.isArray(payload.payload)) {
+      for (const item of payload.payload) {
+        if (item && item.eventId && typeof item.eventId === 'string') {
+          eventIds.push(item.eventId);
+        }
+      }
+    }
+    
+    return eventIds;
+  }
+
   async flush(options: { unloading?: boolean } = {}): Promise<void> {
     if (this.requestInProgress) {
       return;
@@ -118,17 +176,28 @@ export class RequestBatcher {
       const attemptSecondaryFlush = batch.length === currentBatchSize;
       const dataForRequest: any[] = [];
       const transformedItems: Map<string, any> = new Map();
+      const eventIdsInBatch: string[] = []; // Track eventIds in this batch
 
       // Process batch items
       for (const item of batch) {
         let payload = item.payload;
+        
+        // Extract eventIds from payload to check if already sent
+        const eventIds = this.extractEventIds(payload);
+        
+        // Filter out items that have already been sent (by eventId)
+        const alreadySent = eventIds.some(id => this.sentEventIds.has(id));
+        if (alreadySent) {
+          // Skip this item - it was already sent
+          continue;
+        }
         
         if (this.beforeSendHook && !item.orphaned) {
           payload = this.beforeSendHook(payload);
         }
 
         if (payload) {
-          // Deduplication check
+          // Deduplication check (by queue item ID)
           const itemId = item.id;
           const timesSent = this.itemIdsSentSuccessfully.get(itemId) || 0;
           
@@ -142,6 +211,7 @@ export class RequestBatcher {
 
           dataForRequest.push(payload);
           transformedItems.set(itemId, payload);
+          eventIdsInBatch.push(...eventIds); // Collect eventIds for this batch
         }
       }
 
@@ -151,17 +221,22 @@ export class RequestBatcher {
         return;
       }
 
+      // CRITICAL: Mark eventIds as sent BEFORE sending request
+      // This prevents duplicates even if request is canceled during navigation
+      for (const eventId of eventIdsInBatch) {
+        this.sentEventIds.add(eventId);
+      }
+      this.saveSentEventIds(); // Persist immediately
+
       // Send request
+      // Use fetch with keepalive for all requests (including page unload)
+      // This ensures Authorization header is included and requests are reliable during unload
       const requestOptions: any = {
         method: 'POST',
         timeout_ms: timeoutMS,
-        keepalive: true
+        keepalive: true,
+        unloading: options.unloading || false
       };
-
-      if (options.unloading) {
-        // Use sendBeacon for page unload
-        requestOptions.transport = 'sendBeacon';
-      }
 
       const response = await this.sendRequest(dataForRequest, requestOptions);
       
