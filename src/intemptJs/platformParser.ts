@@ -330,7 +330,16 @@ export class PlatformParser {
   }
 
   protected async _getLocation():Promise<LocationApi>{
-    const locationApiUrl = import.meta.env.VITE_LOCATION_API_URL
+    const locationApiUrl = import.meta.env?.VITE_LOCATION_API_URL;
+
+    if (!locationApiUrl) {
+      return {
+        ip: '',
+        region: '',
+        city: '',
+        country: '',
+      };
+    }
 
     try {
       const response = await fetch(locationApiUrl);
