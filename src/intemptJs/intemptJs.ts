@@ -126,7 +126,7 @@ export class IntemptJs extends IntemptJsGuard {
       eventName: eventData._name
     });
     dispatchIntemptEvent('intempt:event', { event: eventData});
-    console.log('group',eventData);
+    
   }
 
 
@@ -145,7 +145,7 @@ export class IntemptJs extends IntemptJsGuard {
       pageId
     })
 
-    console.log('track',eventData);
+
     dispatchIntemptEvent('intempt:track',{
       eventName: eventData._name
     });

@@ -112,27 +112,38 @@ export class PageTrackerModule {
     if (cookie) {
       try {
         pageSessionId = JSON.parse(cookie[this.pageSession]).id;
+        // Success - return the ID
+        if (pageSessionId) {
+          return pageSessionId;
+        }
       } catch (error) {
         console.error('Error parsing cookie:', error);
-      }
-    }
-    else {
-      const local = localIntemptPageSessionCookie();
-      if (local) {
-        pageSessionId = local.id;
-      }
-      else {
-
+        // Error parsing cookie - skip local storage, go directly to Step 3
         const newCookie = this.setPageSession() as PageSessionCookie;
-
         if (newCookie) {
           try {
             pageSessionId = JSON.parse(newCookie[this.pageSession]).id;
-          }
-          catch (error) {
+          } catch (error) {
             console.error('Error parsing newly set cookie:', error);
           }
         }
+        return pageSessionId ?? '';
+      }
+    }
+    
+    // Cookie doesn't exist (not an error) - try local storage first
+    const local = localIntemptPageSessionCookie();
+    if (local?.id) {
+      return local.id;
+    }
+    
+    // No cookie and no local storage - create new session
+    const newCookie = this.setPageSession() as PageSessionCookie;
+    if (newCookie) {
+      try {
+        pageSessionId = JSON.parse(newCookie[this.pageSession]).id;
+      } catch (error) {
+        console.error('Error parsing newly set cookie:', error);
       }
     }
 
