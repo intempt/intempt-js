@@ -66,6 +66,8 @@ jobs:
       - name: NPM Build Production
         run: npm run build
 
+      - name: Check Reserved Words in Bundle
+        run: node scripts/checkReservedWords.js
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@master
@@ -122,6 +124,8 @@ jobs:
       - name: NPM Build Staging
         run: npm run build:staging
 
+      - name: Check Reserved Words in Bundle
+        run: node scripts/checkReservedWords.js
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@master
