@@ -1,13 +1,20 @@
 import { EditorPayload } from '../intemptJs/types/intemptJs.types.ts';
+import { EnvConfig } from '../shared/envConfig.ts';
 
 
 
 class WebEditor {
   private readonly CHANNEL: string;
   private readonly CHANNEL_KEY: string = 'channel';
-  private readonly BASE    :string = import.meta.env.VITE_WEB_EDITOR_BASE_LINK;
-  private readonly CSS_URL :string = `${this.BASE}/app.style.css`;
-  private readonly JS_URL  :string = `${this.BASE}/app.js`;
+  private get BASE(): string {
+    return EnvConfig.getWebEditorBaseLink();
+  }
+  private get CSS_URL(): string {
+    return `${this.BASE}/app.style.css`;
+  }
+  private get JS_URL(): string {
+    return `${this.BASE}/app.js`;
+  }
   private readonly HOST_ID :string = 'intempt-root-host';
   private readonly APP_ID  :string = 'intempt-editor-root';
   private readonly ALLOWED_ORIGIN  :string;
@@ -20,7 +27,7 @@ class WebEditor {
   constructor() {
     const qs = new URLSearchParams(location.search);
     this.CHANNEL = qs.get(`${this.CHANNEL_KEY}`) || '';
-    this.ALLOWED_ORIGIN = new URL(import.meta.env.VITE_OPENER_LINK).origin;
+    this.ALLOWED_ORIGIN = new URL(EnvConfig.getOpenerLink()).origin;
   }
 
 
