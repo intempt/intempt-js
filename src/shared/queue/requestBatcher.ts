@@ -1,4 +1,5 @@
 import { RequestQueue, QueueEntry } from './requestQueue.ts';
+import { EnvConfig } from '../envConfig.ts';
 
 export interface BatcherConfig {
   batchSize: number;
@@ -356,7 +357,7 @@ export class RequestBatcher {
   }
 
   private reportError(msg: string, err?: any): void {
-    if (typeof import.meta.env?.VITE_ENV === 'string' && import.meta.env.VITE_ENV !== 'production') {
+    if (!EnvConfig.isProduction()) {
       console.error(`[RequestBatcher] ${msg}`, err);
     }
     if (this.errorReporter) {

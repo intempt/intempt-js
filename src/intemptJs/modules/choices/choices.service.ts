@@ -10,14 +10,17 @@ import { ChoicesRequestModel } from './models/choicesRequest.model.ts';
 import { AuthRequest } from '../../models/auth.model.ts';
 import { AuthConfig, IntemptVariables } from '../../types/intemptJs.types.ts';
 import { localStorageCache } from '../../../shared/storageHandler.ts';
+import { EnvConfig } from '../../../shared/envConfig.ts';
 
 
 export const ChoicesService = {
-  _api: import.meta.env.VITE_API,
+  get _api() {
+    return EnvConfig.getApi();
+  },
 
   choicesDataGuard: function(data:{choices:any[]}):MergedChoices[] {
     if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-      import.meta.env.VITE_ENV === 'development' && console.log("response or first element of choices array is null, undefined, or not an array with at least one element");
+      EnvConfig.isDevelopment() && console.log("response or first element of choices array is null, undefined, or not an array with at least one element");
 
       return [];
     }
