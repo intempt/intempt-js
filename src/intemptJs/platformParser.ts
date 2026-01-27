@@ -1,5 +1,6 @@
 import { DeviceType, LocationApi } from './types/autoTracker.types.ts';
 import { DeviceTypeName } from './types/constants.types.ts';
+import { EnvConfig } from '../shared/envConfig.ts';
 
 export class PlatformParser {
   defaultPlatform = "Unknown";
@@ -330,7 +331,7 @@ export class PlatformParser {
   }
 
   protected async _getLocation():Promise<LocationApi>{
-    const locationApiUrl = import.meta.env?.VITE_LOCATION_API_URL;
+    const locationApiUrl = EnvConfig.getLocationApiUrl();
 
     if (!locationApiUrl) {
       return {

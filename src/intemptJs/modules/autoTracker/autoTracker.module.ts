@@ -15,6 +15,7 @@ import { IntemptPageEventName, ShopifyEvent } from '../../types/autoTracker.type
 import { ProductModel } from '../../models/product.model.ts';
 import { RequestBatcher } from '../../../shared/queue/requestBatcher.ts';
 import { QueueStorage } from '../../../shared/storage/queueStorage.ts';
+import { EnvConfig } from '../../../shared/envConfig.ts';
 
 
 export class AutoTrackerModule {
@@ -116,7 +117,7 @@ export class AutoTrackerModule {
         },
         sendRequestFunc: this._sendBatchRequest.bind(this),
         errorReporter: (msg, err) => {
-          if (typeof import.meta.env.VITE_ENV === 'string' && import.meta.env.VITE_ENV !== 'production') {
+          if (!EnvConfig.isProduction()) {
             console.error('[AutoTracker]', msg, err);
           }
         },
@@ -150,7 +151,7 @@ export class AutoTrackerModule {
       }
 
     } catch (error) {
-      if (typeof import.meta.env.VITE_ENV === 'string' && import.meta.env.VITE_ENV !== 'production') {
+      if (!EnvConfig.isProduction()) {
         console.error('[AutoTracker] Failed to initialize batcher, falling back to simple queue', error);
       }
       this._batcherInitialized = false;

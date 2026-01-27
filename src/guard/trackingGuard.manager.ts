@@ -1,4 +1,5 @@
 import { GuardConfig, GuardContext, GuardResult, GuardCondition } from './trackingGuard.types.ts';
+import { EnvConfig } from '../shared/envConfig.ts';
 
 export class TrackingGuardManager {
   private _guards: Map<string, GuardConfig> = new Map();
@@ -111,11 +112,11 @@ export class TrackingGuardManager {
       } catch (error) {
         // Log error but continue checking other guards
         try {
-          if (import.meta.env?.VITE_ENV !== 'production') {
+          if (!EnvConfig.isProduction()) {
             console.error(`[TrackingGuard] Error evaluating guard ${guard.id}:`, error);
           }
         } catch {
-          // If import.meta.env is not available (e.g., in tests), just continue
+          // If EnvConfig is not available (e.g., in tests), just continue
           // Error is already caught, we just skip logging
         }
       }

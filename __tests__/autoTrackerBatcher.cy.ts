@@ -16,18 +16,8 @@ describe('AutoTrackerModule - Batcher Integration', () => {
     // Clear localStorage
     localStorage.clear();
     
-    // Mock import.meta.env to avoid location API error
-    const originalImportMeta = (globalThis as any).import?.meta;
-    if (!(globalThis as any).import) {
-      (globalThis as any).import = { meta: { env: { VITE_LOCATION_API_URL: '', VITE_ENV: 'test' } } };
-    } else if (!(globalThis as any).import.meta) {
-      (globalThis as any).import.meta = { env: { VITE_LOCATION_API_URL: '', VITE_ENV: 'test' } };
-    } else if (!(globalThis as any).import.meta.env) {
-      (globalThis as any).import.meta.env = { VITE_LOCATION_API_URL: '', VITE_ENV: 'test' };
-    } else {
-      (globalThis as any).import.meta.env.VITE_LOCATION_API_URL = '';
-      (globalThis as any).import.meta.env.VITE_ENV = 'test';
-    }
+    // EnvConfig is initialized in __tests__/support/index.ts with test values
+    // No need to set globalThis.import.meta.env - EnvConfig handles this
     
     // Mock fetch
     cy.window().then((win) => {
@@ -76,19 +66,8 @@ describe('AutoTrackerModule - Batcher Integration', () => {
 
   describe('Event Tracking with Batcher', () => {
     beforeEach(() => {
-      // Mock import.meta.env to avoid location API error
-      // Must be done before creating AutoTrackerModule
-      const originalImportMeta = (globalThis as any).import?.meta;
-      if (!(globalThis as any).import) {
-        (globalThis as any).import = { meta: { env: { VITE_LOCATION_API_URL: '', VITE_ENV: 'test' } } };
-      } else if (!(globalThis as any).import.meta) {
-        (globalThis as any).import.meta = { env: { VITE_LOCATION_API_URL: '', VITE_ENV: 'test' } };
-      } else if (!(globalThis as any).import.meta.env) {
-        (globalThis as any).import.meta.env = { VITE_LOCATION_API_URL: '', VITE_ENV: 'test' };
-      } else {
-        (globalThis as any).import.meta.env.VITE_LOCATION_API_URL = '';
-        (globalThis as any).import.meta.env.VITE_ENV = 'test';
-      }
+      // EnvConfig is initialized in __tests__/support/index.ts with test values
+      // No need to set globalThis.import.meta.env - EnvConfig handles this
       
       // Ensure fetch is stubbed before creating module
       // RequestBatcher.start() immediately calls flush() which uses fetch
