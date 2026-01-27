@@ -1,3 +1,5 @@
+// Import EnvConfig first to ensure it's initialized before other modules
+import { EnvConfig } from './shared/envConfig.ts';
 import { SDK } from './loaders/sdkLoader.ts';
 import { WEB_EDITOR } from './loaders/webEditorLoader.ts';
 import { TrackingGuardManager } from './guard/trackingGuard.manager.ts';
@@ -41,8 +43,8 @@ setupDefaultGuards();
   const channel      = qs.get('channel') || '';
   const cameFromOpener = Boolean(openerOrigin && channel);
 
-  if(import.meta.env.VITE_ENV !== 'production') {
-    console.log('ENVIRONMENT ',import.meta.env.VITE_ENV);
+  if(!EnvConfig.isProduction()) {
+    console.log('ENVIRONMENT ', EnvConfig.getEnv());
     console.log('version:', 'v6.0');
     console.log('cameFromOpener',cameFromOpener);
   }
@@ -51,7 +53,7 @@ setupDefaultGuards();
   const blocked = await shouldBlockTracking(guardManager);
   
   if (blocked) {
-    if(import.meta.env.VITE_ENV !== 'production') {
+    if(!EnvConfig.isProduction()) {
       console.log('[Intempt] Tracking blocked by guard conditions');
     }
     return; // Exit early, don't initialize SDK

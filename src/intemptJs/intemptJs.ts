@@ -19,10 +19,11 @@ import { ConsentModel } from './models/consent.model.ts';
 import { ChoicesModule } from './modules/choices/choices.module.ts';
 import { ProductModel } from './models/product.model.ts';
 import { IntemptEventListenerName, IntemptEventName } from './types/constants.types.ts';
+import { EnvConfig } from '../shared/envConfig.ts';
 
 
 export class IntemptJs extends IntemptJsGuard {
-  private readonly _api = import.meta.env.VITE_API;
+  private readonly _api = EnvConfig.getApi();
   private readonly _autoTracker!:AutoTrackerModule;
   private readonly _choices!:ChoicesModule;
   private readonly _config:IntemptConfig;

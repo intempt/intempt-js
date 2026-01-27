@@ -1,6 +1,7 @@
 import { ChoicesParams, XPtr } from '../../types/choices.types.ts';
 import { ChoicesService } from './choices.service.ts';
 import { WebEditorModificationHandler } from './models/WebEditorModificationHandler.ts';
+import { EnvConfig } from '../../../shared/envConfig.ts';
 
 
 
@@ -53,14 +54,14 @@ export class ChoicesModule {
 
           (changesHandler as any)[change.type](change as any);
         } catch (error) {
-          if(import.meta.env.VITE_ENV === 'development'){
+          if(EnvConfig.isDevelopment()){
             console.warn(`Error applying change of type "${change.type}":`, error);
             console.warn(change);
           }
         }
       }
       else {
-        if(import.meta.env.VITE_ENV === 'development'){
+        if(EnvConfig.isDevelopment()){
           console.log(change)
           console.log(`Handler for "${change?.type}" change type not found`)
         }
