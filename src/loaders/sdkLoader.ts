@@ -66,6 +66,65 @@ function extractStubPromises(): any[] | null {
 }
 
 /**
+ * Finds and returns the stub script tag element
+ * Returns null if no stub script is found
+ */
+function findStubScriptTag(): HTMLScriptElement | null {
+  const cdnLink = EnvConfig.getCdnLink()
+  const scripts = Array.from(document.scripts)
+  
+  // Find the SDK script tag (the one we need to keep)
+  const sdkScript = scripts.find((s) => s.src.includes(cdnLink))
+  
+  // Find stub script - it's any script that:
+  // 1. Is NOT the SDK script
+  // 2. Either has inline content with stub markers OR src pointing to stub file
+  for (const script of scripts) {
+    // Skip the SDK script
+    if (script === sdkScript) continue
+    
+    // Check if inline script contains stub markers
+    const hasStubMarkers = script.textContent?.includes('_isStub') || 
+                          script.textContent?.includes('_queue') ||
+                          script.textContent?.includes('_pendingPromises')
+    
+    // Check if external script points to stub file
+    const isStubFile = script.src && (
+      script.src.includes('stub') || 
+      script.src.includes('standalone')
+    )
+    
+    if (hasStubMarkers || isStubFile) {
+      return script
+    }
+  }
+  
+  return null
+}
+
+/**
+ * Removes the stub script tag from the DOM
+ * Only removes if stub was detected and processed
+ */
+function removeStubScriptTag(): void {
+  try {
+    const stubScript = findStubScriptTag()
+    if (stubScript && stubScript.parentNode) {
+      stubScript.parentNode.removeChild(stubScript)
+      
+      if (!EnvConfig.isProduction()) {
+        console.log('[Intempt] Removed stub script tag')
+      }
+    }
+  } catch (error) {
+    // Silently fail - removal is optional cleanup
+    if (!EnvConfig.isProduction()) {
+      console.warn('[Intempt] Failed to remove stub script tag:', error)
+    }
+  }
+}
+
+/**
  * Replays queued calls from stub on the real IntemptJs instance
  * Handles both sync and async methods, resolving promises for async calls.
  *
@@ -138,16 +197,24 @@ function initSDK() {
   // Extract from stub BEFORE replacing window.intempt
   const stubQueue = extractStubQueue()
   const stubPromises = extractStubPromises()
+  
+  // Check if stub existed (we'll need this to know if we should remove it)
+  const hadStub = stubQueue !== null
 
   // Create real IntemptJs instance
   const realIntempt = new IntemptJs({ ...getIntemptConfig() })
 
-    // Replace window.intempt with real instance
-    ; (window as any).intempt = realIntempt
+  // Replace window.intempt with real instance
+  ;(window as any).intempt = realIntempt
 
   // Replay queued calls if stub existed
   if (stubQueue && stubQueue.length > 0) {
     replayQueuedCalls(realIntempt, stubQueue, stubPromises)
+  }
+
+  // Remove stub script tag if stub existed
+  if (hadStub) {
+    removeStubScriptTag()
   }
 
   if (!EnvConfig.isProduction()) {
