@@ -16,7 +16,8 @@ export interface EnvConfig {
   readonly VITE_ENV: string;
   readonly VITE_CHOICES_API: string;
   readonly VITE_WEB_EDITOR_BASE_LINK: string;
-  readonly VITE_OPENER_LINK: string;
+  /** JSON array or comma-separated list of opener URLs */
+  readonly VITE_OPENER_LINKS: string;
   readonly VITE_WEB_EDITOR_STORAGE_KEY: string;
   readonly VITE_LOCATION_API_URL: string;
   readonly DEV: boolean;
@@ -30,7 +31,7 @@ class EnvConfigManager {
     VITE_ENV: 'production',
     VITE_CHOICES_API: '',
     VITE_WEB_EDITOR_BASE_LINK: '',
-    VITE_OPENER_LINK: '',
+    VITE_OPENER_LINKS: '',
     VITE_WEB_EDITOR_STORAGE_KEY: '',
     VITE_LOCATION_API_URL: '',
     DEV: false,
@@ -66,7 +67,7 @@ class EnvConfigManager {
       VITE_ENV: viteEnv.VITE_ENV || this.DEFAULT_CONFIG.VITE_ENV,
       VITE_CHOICES_API: viteEnv.VITE_CHOICES_API || this.DEFAULT_CONFIG.VITE_CHOICES_API,
       VITE_WEB_EDITOR_BASE_LINK: viteEnv.VITE_WEB_EDITOR_BASE_LINK || this.DEFAULT_CONFIG.VITE_WEB_EDITOR_BASE_LINK,
-      VITE_OPENER_LINK: viteEnv.VITE_OPENER_LINK || this.DEFAULT_CONFIG.VITE_OPENER_LINK,
+      VITE_OPENER_LINKS: viteEnv.VITE_OPENER_LINKS ?? this.DEFAULT_CONFIG.VITE_OPENER_LINKS,
       VITE_WEB_EDITOR_STORAGE_KEY: viteEnv.VITE_WEB_EDITOR_STORAGE_KEY || this.DEFAULT_CONFIG.VITE_WEB_EDITOR_STORAGE_KEY,
       VITE_LOCATION_API_URL: viteEnv.VITE_LOCATION_API_URL || this.DEFAULT_CONFIG.VITE_LOCATION_API_URL,
       DEV: viteEnv.DEV !== undefined ? viteEnv.DEV : this.DEFAULT_CONFIG.DEV,
@@ -132,8 +133,31 @@ class EnvConfigManager {
     return this.get().VITE_WEB_EDITOR_BASE_LINK;
   }
 
-  static getOpenerLink(): string {
-    return this.get().VITE_OPENER_LINK;
+  /**
+   * Returns allowed opener origins from VITE_OPENER_LINKS.
+   * Each entry is a normalized origin (e.g. "https://app.intempt.com").
+   */
+  static getOpenerOrigins(): string[] {
+    const config = this.get();
+    const raw = (config.VITE_OPENER_LINKS || '').trim();
+    let urls: string[] = [];
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        urls = Array.isArray(parsed) ? parsed.map(String) : raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+      } catch {
+        urls = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+      }
+    }
+    const origins: string[] = [];
+    for (const u of urls) {
+      try {
+        origins.push(new URL(u).origin);
+      } catch {
+        // skip invalid URLs
+      }
+    }
+    return [...new Set(origins)];
   }
 
   static getWebEditorStorageKey(): string {
