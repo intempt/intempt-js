@@ -145,14 +145,16 @@ class WebEditor {
 
 
       try {
-        const targetOrigin = this._allowedOrigin ?? this.ALLOWED_ORIGINS[0];
-        if (targetOrigin) {
+        const targets = this._allowedOrigin
+          ? [this._allowedOrigin]
+          : [...this.ALLOWED_ORIGINS];
+        for (const origin of targets) {
           window.opener?.postMessage(
             { type: 'READY', channel: this.CHANNEL },
-            targetOrigin
+            origin
           );
-          console.log('[intempt] READY sent');
         }
+        if (targets.length > 0) console.log('[intempt] READY sent');
       } catch (e) {
         console.warn('postReady failed', e);
       }
