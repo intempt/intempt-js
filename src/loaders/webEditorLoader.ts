@@ -17,7 +17,9 @@ class WebEditor {
   }
   private readonly HOST_ID :string = 'intempt-root-host';
   private readonly APP_ID  :string = 'intempt-editor-root';
-  private readonly ALLOWED_ORIGIN  :string;
+  private readonly ALLOWED_ORIGINS: readonly string[];
+  /** Set when a message is received from an origin in ALLOWED_ORIGINS; used for postMessage targetOrigin */
+  private _allowedOrigin: string | null = null;
   private __INTEMPT_EDITOR_MOUNTED :boolean = false;
   private _readyAcked  :boolean = false;
   private _readyInterval: ReturnType<typeof setInterval> | null = null;
@@ -27,7 +29,7 @@ class WebEditor {
   constructor() {
     const qs = new URLSearchParams(location.search);
     this.CHANNEL = qs.get(`${this.CHANNEL_KEY}`) || '';
-    this.ALLOWED_ORIGIN = new URL(EnvConfig.getOpenerLink()).origin;
+    this.ALLOWED_ORIGINS = EnvConfig.getOpenerOrigins();
   }
 
 
@@ -69,8 +71,8 @@ class WebEditor {
   }
 
   private handleMessageFromOpener(event: MessageEvent) {
-    // *** Exact origin check (NO trailing slash) ***
-    if (event.origin !== this.ALLOWED_ORIGIN) return;
+    if (!this.ALLOWED_ORIGINS.includes(event.origin)) return;
+    this._allowedOrigin = event.origin;
 
     const msg = event.data || {};
 
@@ -143,11 +145,16 @@ class WebEditor {
 
 
       try {
-        window.opener?.postMessage(
-          { type: 'READY', channel: this.CHANNEL },
-          this.ALLOWED_ORIGIN
-        );
-        console.log('[intempt] READY sent');
+        const targets = this._allowedOrigin
+          ? [this._allowedOrigin]
+          : [...this.ALLOWED_ORIGINS];
+        for (const origin of targets) {
+          window.opener?.postMessage(
+            { type: 'READY', channel: this.CHANNEL },
+            origin
+          );
+        }
+        if (targets.length > 0) console.log('[intempt] READY sent');
       } catch (e) {
         console.warn('postReady failed', e);
       }
@@ -205,3 +212,4 @@ class WebEditor {
 }
 
 export const WEB_EDITOR = new WebEditor();
+

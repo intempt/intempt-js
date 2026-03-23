@@ -29,7 +29,7 @@ declare global {
     readonly env: {
       readonly DEV: boolean;
       readonly VITE_ENV: string;
-      readonly VITE_OPENER_LINK: string;
+      readonly VITE_OPENER_LINKS: string;
       readonly VITE_WEB_EDITOR_BASE_LINK: string;
       readonly VITE_API: string;
       readonly VITE_CHOICES_API: string;
