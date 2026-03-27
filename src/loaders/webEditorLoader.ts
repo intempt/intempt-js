@@ -18,8 +18,6 @@ class WebEditor {
   private readonly HOST_ID :string = 'intempt-root-host';
   private readonly APP_ID  :string = 'intempt-editor-root';
   private readonly ALLOWED_ORIGINS: readonly string[];
-  /** Set when a message is received from an origin in ALLOWED_ORIGINS; used for postMessage targetOrigin */
-  private _allowedOrigin: string | null = null;
   private __INTEMPT_EDITOR_MOUNTED :boolean = false;
   private _readyAcked  :boolean = false;
   private _readyInterval: ReturnType<typeof setInterval> | null = null;
@@ -72,7 +70,6 @@ class WebEditor {
 
   private handleMessageFromOpener(event: MessageEvent) {
     if (!this.ALLOWED_ORIGINS.includes(event.origin)) return;
-    this._allowedOrigin = event.origin;
 
     const msg = event.data || {};
 
@@ -145,16 +142,13 @@ class WebEditor {
 
 
       try {
-        const targets = this._allowedOrigin
-          ? [this._allowedOrigin]
-          : [...this.ALLOWED_ORIGINS];
-        for (const origin of targets) {
+        for (const origin of this.ALLOWED_ORIGINS) {
           window.opener?.postMessage(
             { type: 'READY', channel: this.CHANNEL },
             origin
           );
         }
-        if (targets.length > 0) console.log('[intempt] READY sent');
+        if (this.ALLOWED_ORIGINS.length > 0) console.log('[intempt] READY sent');
       } catch (e) {
         console.warn('postReady failed', e);
       }
