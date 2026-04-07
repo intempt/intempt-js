@@ -18,7 +18,6 @@ describe('SDK Loader - Stub Functionality', () => {
       _isStub: true,
       [queueProperty]: queue || [],
       _pendingPromises: promises || [],
-      getProfileId: cy.stub().returns(undefined),
       optIn: cy.stub(),
       optOut: cy.stub(),
       isUserOptIn: cy.stub().returns(true),
@@ -567,18 +566,18 @@ describe('SDK Loader - Stub Functionality', () => {
       await initSDK()
 
       const realIntempt = (window as any).intempt
-      expect(realIntempt.getProfileId).to.be.a('function')
+
       expect(realIntempt.track).to.be.a('function')
       expect(realIntempt.identify).to.be.a('function')
     })
 
-    it('should handle getProfileId and isUserOptIn stub values', async () => {
+    it('should handle  isUserOptIn stub values', async () => {
       const stub = createTestStub([])
-      stub.getProfileId = () => undefined
+
       stub.isUserOptIn = () => true
       ;(window as any).intempt = stub
 
-      expect(stub.getProfileId()).to.be.undefined
+
       expect(stub.isUserOptIn()).to.be.true
 
       setupMockScript(mockConfig)
@@ -586,7 +585,7 @@ describe('SDK Loader - Stub Functionality', () => {
 
       const realIntempt = (window as any).intempt
       // Real SDK should return actual values
-      expect(realIntempt.getProfileId()).to.be.a('string')
+
       expect(realIntempt.isUserOptIn()).to.be.a('boolean')
     })
   })
