@@ -1,6 +1,6 @@
 # Intempt Browser SDK
 
-Client-side JavaScript SDK for the Intempt analytics platform. Automatic page tracking with custom event support.
+Client-side JavaScript SDK for the [Intempt](https://intempt.com) analytics platform. Automatic page tracking with custom event support.
 
 ## Installation
 
@@ -85,8 +85,8 @@ npm run build    # Production build
 
 ## Documentation
 
-https://docs.intempt.com/docs/javascript-sdk
+Full documentation: [docs.intempt.com](https://docs.intempt.com/docs/javascript-sdk)
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for details.
