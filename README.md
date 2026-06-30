@@ -122,15 +122,6 @@ inputs are masked automatically.
 By default, tracking is blocked on `localhost` / `127.0.0.1` and for bot/crawler user
 agents. Use a real or staging domain to see events flow.
 
-## Development
-
-```bash
-npm install
-npm run dev      # Vite dev server
-npm run build    # Production build
-npm test         # Cypress tests
-```
-
 ## Documentation
 
 Full usage guide: [USAGE.md](USAGE.md) · Platform docs:
