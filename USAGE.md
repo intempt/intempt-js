@@ -49,9 +49,17 @@ There's no constructor — your account settings go in the SDK URL's query param
 <!-- 2. Load the SDK asynchronously -->
 <script
   async
-  src="https://cdn.intempt.com/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password">
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password">
 </script>
 ```
+
+> **The `/v1/` path segment is required.** The SDK reads its configuration from the query
+> string on its own `<script>` tag, and finds that tag by matching this exact URL. Loaded from
+> any other path it reads an empty configuration and refuses to start — the console shows
+> `CAN'T FIND SCRIPT` followed by `IntemptJs initialization failed`. `window.intempt` then
+> stays a queue stub, so your calls keep succeeding and no events are ever sent. If you are
+> upgrading an older snippet, check this first: see the
+> [migration guide](docs/MIGRATION.md#1-add-v1-to-the-script-url).
 
 | Parameter | What it is |
 |-----------|------------|
@@ -69,6 +77,16 @@ There's no constructor — your account settings go in the SDK URL's query param
 Once the SDK loads it takes over **`window.intempt`**, replays any queued calls in
 order, and begins auto-tracking. With the stub in place you can safely call
 `window.intempt.*` anywhere on the page, even before the SDK has finished downloading.
+
+Two things the stub cannot do for you, both of which matter in practice:
+
+- **It returns nothing.** `isUserOptIn()` called through the stub gives back `undefined`, not
+  `false`. Anything that reads a value — painting a consent toggle, most often — has to wait
+  for the real SDK. Test with `window.intempt._isStub !== true`, or read
+  `window.intempt.VERSION`, which only the real SDK has.
+- **It does not validate.** A `try`/`catch` around a stubbed call catches nothing; validation
+  happens later, during replay, and a rejected payload surfaces in the console as
+  `[Intempt] Error replaying queued call …` rather than on your stack.
 
 > **Heads up — tracking is off on localhost.** By default the SDK blocks tracking on
 > `localhost` / `127.0.0.1` and for bot/crawler user agents. So if nothing shows up
@@ -149,7 +167,9 @@ cannot verify a cross-origin response and blocks the script.
 You don't have to wire anything up for the basics. Out of the box the SDK records:
 
 - **Page views** — on first load and on every SPA route change (`pushState`,
-  `replaceState`, back/forward).
+  `replaceState`, back/forward). **Hash-only routers are not covered**: the SDK hooks the
+  History API and does not listen for `hashchange`, so a router that navigates by assigning
+  `location.hash` emits no page view. See [`examples/spa/`](examples/spa/index.html).
 - **Page exits** — including time spent on the page.
 - **Sessions** — a session starts and is kept alive as the visitor interacts.
 - **Clicks, form changes, and form submits** — for any element on the page.
@@ -276,18 +296,37 @@ window.intempt.optIn();           // resume
 window.intempt.isUserOptIn();     // -> true / false
 ```
 
-While opted out, every tracking call (automatic and manual) quietly does nothing.
+While opted out, every tracking call (automatic and manual) quietly does nothing. The flag is
+persisted to `localStorage`, so it survives reloads — but `localStorage` is **origin-scoped**,
+so an opt-out on `www.example.com` does not carry to `shop.example.com`. Across subdomains you
+must call `optOut()` on each origin yourself.
 
 Record an explicit consent decision for GDPR/CCPA flows:
 
 ```javascript
 window.intempt.consent({
-  action: 'accept',                                   // or 'reject'
+  action: 'accept',                                   // or 'reject'  (case-sensitive)
   validUntil: Date.now() + 365 * 24 * 60 * 60 * 1000, // e.g. 1 year
   email: 'user@example.com',
   category: 'analytics'
 });
 ```
+
+> **`consent()` does not stop tracking.** It sends an event recording what the visitor chose.
+> `optOut()` is the switch. A reject flow needs both — and **in this order**, because
+> `consent()` is itself gated on the opt-out flag and would be silently dropped if you opted
+> out first:
+>
+> ```javascript
+> window.intempt.consent({ action: 'reject', validUntil: expiry });  // record it
+> window.intempt.optOut();                                           // then stop collecting
+> ```
+>
+> The mirror applies on re-consent: call `optIn()` *before*
+> `consent({ action: 'accept' })`, or the acceptance is never recorded.
+
+A runnable version of both flows is in
+[`examples/consent-banner/`](examples/consent-banner/index.html).
 
 Call `logOut()` when a user signs out so their session/profile state resets:
 
@@ -299,15 +338,24 @@ window.intempt.logOut();
 
 ## 7. Fetch recommendations
 
-`recommendation` is asynchronous and returns a `Promise` (it resolves to `null` on
-error). Unlike the tracking methods, it works even when the user is opted out:
+`recommendation` is asynchronous and returns a `Promise`. Unlike the tracking methods, it is
+**not** gated on the opt-out flag — it calls the API even when the visitor has opted out, so
+gate it yourself if that matters to your consent posture.
+
+Handle both failure modes: a network-level failure resolves to `null`, but a response whose
+body is not JSON (a proxy error page, an empty `401`) **rejects**.
 
 ```javascript
-const items = await window.intempt.recommendation({
-  id: 123,                                  // feed ID
-  quantity: 10,
-  fields: ['productId', 'name', 'price', 'image']
-});
+let items = null;
+try {
+  items = await window.intempt.recommendation({
+    id: 123,                                  // feed ID
+    quantity: 10,
+    fields: ['productId', 'name', 'price', 'image']
+  });
+} catch {
+  items = null;
+}
 
 if (items) renderRecommendations(items);
 ```
@@ -343,4 +391,19 @@ window.addEventListener('intempt:track', (e) => {
 - **No `getProfileId()`.** Profile, session, and page IDs are managed internally and
   attached to events for you; there's no public getter to read them back.
 - **Local testing.** Remember the localhost guard — use a staging domain to see events
-  flow.
+  flow. [`examples/README.md`](examples/README.md#2-localhost-is-blocked-by-design) has a
+  hosts-file workaround for developing locally.
+- **Don't track SPA route changes yourself.** Page views are already automatic through the
+  History API; adding your own router hook double-counts.
+
+---
+
+## Where to go next
+
+| | |
+|---|---|
+| [**API reference**](docs/API.md) | Every method, every validation rule, the exact error strings, and the full list of limitations |
+| [**examples/**](examples/) | Runnable pages — [basic](examples/basic-html/index.html), [consent](examples/consent-banner/index.html), [SPA routing](examples/spa/index.html), [commerce](examples/ecommerce/index.html), [TypeScript](examples/typescript/) |
+| [**TypeScript quickstart**](docs/TYPESCRIPT.md) | Declarations for `window.intempt`, a typed wrapper, and the traps types can't catch |
+| [**Migration guide**](docs/MIGRATION.md) | Upgrading an older integration, with a checklist |
+| **Frameworks** | [React](docs/integrations/REACT.md) · [Next.js](docs/integrations/NEXTJS.md) · [Vue](docs/integrations/VUE.md) |
