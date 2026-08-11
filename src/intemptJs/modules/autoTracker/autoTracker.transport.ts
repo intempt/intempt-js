@@ -146,22 +146,54 @@ export class AutoTrackerTransport {
     const url = `${this._api}/${organization}/projects/${project}/sources/${sourceId}/track`;
     const [username, password] = writeKey.split('.');
     const encodedCredentials = btoa(`${username}:${password}`);
+    const authHeader = `Basic ${encodedCredentials}`;
+    const body = JSON.stringify({ track: data });
+    // For unload scenarios, use shorter timeout to avoid blocking navigation
+    const timeout = options.unloading ? 5000 : (options.timeout_ms || 90000);
 
-    // Use fetch with keepalive for all requests (including page unload)
-    // This ensures Authorization header is included and requests are reliable during unload
+    // Primary leg: fetch with keepalive. This ensures the Authorization header
+    // is included and requests are reliable during unload.
+    if (typeof fetch === 'function') {
+      const fetchResult = await this._sendViaFetch(url, authHeader, body, options, timeout);
+      if (fetchResult) {
+        return fetchResult;
+      }
+      // fetchResult === null means the transport itself did not deliver
+      // (fetch threw, or was aborted with nothing received) — fall through to
+      // the XHR leg below. An actual HTTP response, of any status, returns
+      // above and never reaches here.
+    }
+
+    // Fallback leg: XHR. Only reached when fetch is unavailable or the
+    // transport failed to deliver at all — never for a real HTTP response,
+    // so a 400/413 the server already rejected is not resent down this path.
+    return this._sendViaXHR(url, authHeader, body, timeout);
+  }
+
+  /**
+   * Returns the `BatchSendResult` for a delivered HTTP response (any status),
+   * or `null` when the transport itself failed to deliver — `fetch` throwing,
+   * or the request being aborted with no response received — signalling that
+   * the XHR fallback should be tried next.
+   */
+  private async _sendViaFetch(
+    url: string,
+    authHeader: string,
+    body: string,
+    options: BatchSendOptions,
+    timeout: number
+  ): Promise<BatchSendResult | null> {
     try {
       const controller = new AbortController();
-      // For unload scenarios, use shorter timeout to avoid blocking navigation
-      const timeout = options.unloading ? 5000 : (options.timeout_ms || 90000);
       const timeoutId = setTimeout(() => controller.abort(), timeout);
 
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${encodedCredentials}`,
+          'Authorization': authHeader,
         },
-        body: JSON.stringify({ track: data }),
+        body,
         keepalive: options.keepalive !== false,
         signal: controller.signal
       });
@@ -173,14 +205,56 @@ export class AutoTrackerTransport {
         ok: response.ok,
         retryAfter: response.headers.get('Retry-After') || undefined
       };
-    } catch (error) {
-      if (error instanceof Error && error.name === 'AbortError') {
-        return { error: 'timeout', httpStatusCode: 0 };
-      }
-      return {
-        error: error instanceof Error ? error.message : 'network error',
-        httpStatusCode: 0
-      };
+    } catch {
+      // Transport-layer failure only (network error, CORS failure, abort) —
+      // no HTTP response exists to report. Signal the fallback to try XHR.
+      return null;
     }
+  }
+
+  /** XHR fallback leg, tried only after `fetch` fails to deliver a response. */
+  private _sendViaXHR(url: string, authHeader: string, body: string, timeout: number): Promise<BatchSendResult> {
+    return new Promise((resolve) => {
+      let xhr: XMLHttpRequest;
+      try {
+        xhr = new XMLHttpRequest();
+      } catch (error) {
+        resolve({
+          error: error instanceof Error ? error.message : 'xhr unavailable',
+          httpStatusCode: 0
+        });
+        return;
+      }
+
+      xhr.open('POST', url, true);
+      xhr.setRequestHeader('Content-Type', 'application/json');
+      xhr.setRequestHeader('Authorization', authHeader);
+      xhr.timeout = timeout;
+
+      xhr.onload = (): void => {
+        resolve({
+          httpStatusCode: xhr.status,
+          ok: xhr.status >= 200 && xhr.status < 300,
+          retryAfter: xhr.getResponseHeader('Retry-After') || undefined
+        });
+      };
+
+      xhr.onerror = (): void => {
+        resolve({ error: 'network error', httpStatusCode: 0 });
+      };
+
+      xhr.ontimeout = (): void => {
+        resolve({ error: 'timeout', httpStatusCode: 0 });
+      };
+
+      try {
+        xhr.send(body);
+      } catch (error) {
+        resolve({
+          error: error instanceof Error ? error.message : 'network error',
+          httpStatusCode: 0
+        });
+      }
+    });
   }
 }
