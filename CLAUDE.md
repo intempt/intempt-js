@@ -16,6 +16,15 @@ Supporting documents:
 - `docs/sdk-hardening/CHECKPOINT.md` — **state + next steps. Read this first.**
 - `docs/sdk-hardening/AUDIT.md` — the full audit and 5-phase plan (reference; long).
 - `docs/sdk-hardening/DECISIONS.md` — settled decisions with rationale.
+- `docs/sdk-hardening/BACKLOG.md` — **everything deliberately parked**, with what
+  unblocks each item and what leaving it parked costs. `CHECKPOINT.md` §0b is what
+  *is* being worked; this is the complement. If an item appears in both, §0b wins.
+- `docs/sdk-hardening/DEFECTS.md` — 26 known, documented, deliberately unfixed
+  defects, with a suggested fix order. Read before "fixing" surprising behaviour:
+  much of it is asserted by a test on purpose.
+- `docs/sdk-hardening/RELEASE-NOTES-DRAFT.md` — customer-facing wording for the one
+  behaviour change in the programme (DNT/GPC honoured by default), held here until
+  packaging provides a `CHANGELOG.md`.
 
 **Update `CHECKPOINT.md` in the same commit as the work it describes.** A
 checkpoint that lags the code is worse than no checkpoint, because the next

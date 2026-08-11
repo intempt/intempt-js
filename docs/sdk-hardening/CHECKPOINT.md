@@ -89,10 +89,10 @@ without asking anyone, unless marked ⏸.
 
 | # | Decision | What it gates |
 |---|---|---|
-| 1 | **Deploy Node version.** `build.yaml` deploys on Node **21**; after the devDep upgrades the toolchain requires **≥22** (jsdom 30 needs an undici API absent in 20; `@asamuzakjp/css-color` wants `^22.13 \|\| >=24`). CI runs 22/24, so **CI-green no longer implies deploy-green.** `build.yaml` may not be touched (invariant §6.2). | The remaining `vite` advisory, the meaning of the CI signal, and any future toolchain bump |
-| 2 | **DNT/GPC honoured by default** shipped in §3h. Legally binding under CCPA/CPRA, matches Mixpanel, and reduces event volume with no customer opt-in. | A customer-comms decision before release |
-| 3 | **Hand `BACKEND.md` to the ingest team.** Not started. Shareable page: https://claude.ai/code/artifact/82bd5a93-23fe-49e5-b371-ae3fae3acd56 | 5 items, and the wire-format defects D-1/D-3/D-15 in `DEFECTS.md` |
-| 4 | **Check live host sites for the `/v1`-less CDN URL** (D-12). The docs shipped a snippet that produces a silently dead integration. | Any customer who copied the old docs |
+| 1 | ~~**Deploy Node version.**~~ ✅ **resolved 2026-08-12 — the user approved the bump.** `build.yaml`'s three `node-version` matrices are now **22.x** (were 21.x). Invariant §6.2 is therefore *amended, not broken*: the deploy path may be edited with the user's explicit approval, and this is the record of it. **Not pushed** — the user wants the SDK tested first. Two follow-ons are NOT done and are still parked: `npm install` → `npm ci` in the same file (it currently resolves a fresh tree per run, which is what caused CI failures #1–2), and the `branches: ['*']` → `['**']` trigger fix (`BACKLOG.md` 4.3). Un-parking the vite advisory (`BACKLOG.md` 4.2) is now possible. | Was: the vite advisory, the meaning of the CI signal, and any future toolchain bump |
+| 2 | ~~**DNT/GPC honoured by default.**~~ ✅ **resolved 2026-08-12 — the user approved a release note.** Wording is drafted in `RELEASE-NOTES-DRAFT.md`; it needs a home (`CHANGELOG.md`) once packaging is un-parked. | Nothing now |
+| 3 | **Hand `BACKEND.md` to the ingest team — ⏸ backlogged by the user 2026-08-12** (`BACKLOG.md` 1.3). Spec is written and ready. Shareable page: https://claude.ai/code/artifact/82bd5a93-23fe-49e5-b371-ae3fae3acd56 | **The tallest blocker in the programme:** all six `BACKEND.md` items, dimension 4's ~62 ceiling, and the wire-format defects D-1/D-3/D-15 |
+| 4 | **Check live host sites for the `/v1`-less CDN URL** (D-12). The docs shipped a snippet that produces a silently dead integration. **User is checking 2026-08-13.** | Any customer who copied the old docs |
 
 ### Code work, in order
 
@@ -133,10 +133,13 @@ without asking anyone, unless marked ⏸.
 8. **`DEFECTS.md`** — ~30 pre-existing defects found by the lanes, with a suggested
    order at the foot of that file. Do not batch them.
 
-### Deliberately parked (user decision, still parked)
+### Deliberately parked
 
-- Cross-browser WDIO/Sauce tier — needs a paid device cloud.
-- `browser-tests.yml`, changesets automation.
+**Moved out of this file — see `BACKLOG.md`**, which now carries every parked item
+with its blocker and the cost of leaving it parked. Summary only: packaging (1.1),
+code-splitting (1.2), the `BACKEND.md` handover (1.3), the six ingest items (§2),
+the cross-browser device-cloud tier and `browser-tests.yml` (§3), changesets
+automation and the two `build.yaml`-blocked CI items (§4).
 
 ## 0c. CI is live and green — first push 2026-08-11
 
