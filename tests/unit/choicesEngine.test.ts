@@ -359,26 +359,30 @@ describe('choices engine', () => {
       expect(document.getElementById('t')).toBeNull();
     });
 
-    it('a change with no xPathSelector aborts the ENTIRE pass — a defect, asserted', () => {
-      // DEFECT (choices.module.ts:40 + 94), and the most likely of the three
-      // marking-pass failures to actually happen. `_applyChanges` calls
-      // `markPointersFromChanges` *before* the per-change try/catch loop, and the
-      // default resolver goes straight to `document.evaluate(p._xPathSelector,
-      // ...)`. With no selector on the change, `document.evaluate(undefined)`
-      // throws — so a single change missing one field takes down the whole
-      // batch and **no experience on the page renders**.
-      //
-      // The per-change try/catch in the loop below gives exactly the isolation
-      // this needs; the marking pass simply runs outside it. Recorded rather than
-      // fixed because the fix is a decision — wrap the pass, or skip pointers
-      // with no selector — and either way it changes what happens to the other
-      // changes in a batch, which wants a parity check against real payloads.
-      setBody('<span id="t">t</span>');
+    it('a change with no xPathSelector degrades to just that change — fixes D-7', () => {
+      // Was (choices.module.ts:40 + 94): `markPointersFromChanges` ran BEFORE
+      // the per-change try/catch loop, and the default resolver goes straight
+      // to `document.evaluate(p._xPathSelector, ...)`. With no selector on the
+      // change, `document.evaluate(undefined)` threw — so a single change
+      // missing one field took down the whole batch and no experience on the
+      // page rendered. Fixed with the same per-item isolation as D-6: the
+      // marking pass now wraps each change in try/catch, so the malformed
+      // change is skipped and a valid change in the same batch still applies.
+      setBody('<span id="a">a</span><span id="t">t</span>');
+      document.getElementById('a')!.setAttribute('aId', 'true');
       const mod = new ChoicesModule(config as any);
 
-      expect(() => applyChanges(mod, [{ type: 'remove', iweId: 'targetId' }])).toThrow();
-      // The element the (valid) change targeted is untouched: nothing ran.
+      expect(() =>
+        applyChanges(mod, [
+          { type: 'remove', iweId: 'targetId' },
+          { type: 'remove', iweId: 'aId', xPathSelector: '//span[1]', xPathIndex: 0 },
+        ]),
+      ).not.toThrow();
+
+      // The malformed change's target is untouched (never marked, never
+      // routed), but the other, valid change in the same batch still ran.
       expect(document.getElementById('t')).not.toBeNull();
+      expect(document.getElementById('a')).toBeNull();
     });
 
     it('skips an unknown change type without throwing', () => {
@@ -574,29 +578,33 @@ describe('choices engine', () => {
       expect(document.getElementById('t')!.getAttribute('targetId')).toBe('true');
     });
 
-    it('throws when an iwe id is not a legal attribute name — a defect, asserted', () => {
-      // DEFECT (choices.module.ts:99). `setAttribute(p._iweId, 'true')` puts a
-      // server-supplied string in attribute-*name* position, so an id containing
-      // a space, a quote or a leading digit makes the DOM call throw
-      // `InvalidCharacterError`. `markPointersFromChanges` runs **outside** the
-      // per-change try/catch in `_applyChanges` (it is called on line 40, before
-      // the loop), so one malformed id from the server aborts the entire pass
-      // and **no experience on the page is applied**.
-      //
-      // That is the worst blast radius in the module, which is why it is recorded
-      // rather than patched in a test commit: the fix is a validation step plus a
-      // decision about whether to drop the pointer or the whole change, and it
-      // should ship with the ids being constrained server-side.
-      setBody('<div id="p"><span id="t">t</span></div>');
+    it('skips (rather than aborts on) an iwe id that is not a legal attribute name — fixes D-7', () => {
+      // Was (choices.module.ts:99): `setAttribute(p._iweId, 'true')` puts a
+      // server-supplied string in attribute-*name* position, so an id
+      // containing a space, a quote or a leading digit made the DOM call
+      // throw `InvalidCharacterError`. Because `markPointersFromChanges` ran
+      // outside the per-change try/catch in `_applyChanges`, one malformed id
+      // from the server aborted the entire pass — no experience on the page
+      // applied at all. Fixed by isolating per change: the malformed change's
+      // pointer is skipped, and a well-formed change in the same batch still
+      // marks its element.
+      setBody('<div id="p"><span id="t">t</span><span id="u">u</span></div>');
       const mod = new ChoicesModule(config as any);
-      const resolver = vi.fn(() => document.getElementById('t'));
+      const resolver = ({ xPathSelector }: any) =>
+        document.getElementById(xPathSelector === '//span[1]' ? 't' : 'u');
 
       expect(() =>
         (mod as any).markPointersFromChanges(
-          [{ xPathSelector: '//span', xPathIndex: 0, iweId: 'not a valid name' }],
+          [
+            { xPathSelector: '//span[1]', xPathIndex: 0, iweId: 'not a valid name' },
+            { xPathSelector: '//span[2]', xPathIndex: 0, iweId: 'validId' },
+          ],
           resolver,
         ),
-      ).toThrow();
+      ).not.toThrow();
+
+      expect(document.getElementById('t')!.hasAttribute('not a valid name')).toBe(false);
+      expect(document.getElementById('u')!.getAttribute('validId')).toBe('true');
     });
 
     it('writes an attribute literally named "undefined" when a change has no iwe id', () => {

@@ -76,27 +76,37 @@ export class ChoicesModule {
     const out: Array<{ el: HTMLElement; iweId: string }> = [];
 
     for (const c of changes) {
-      // Build a flat list of pointers: parent, refNode, self
-      const pointers: XPtr[] = [
-        c.parent as XPtr,
-        c.refNode as XPtr,
-        { _xPathSelector: c.xPathSelector, _xPathIndex: c.xPathIndex, _iweId: c.iweId } as XPtr,
-      ].filter(Boolean);
+      // D-7: this pass used to run entirely outside the per-change try/catch
+      // in `_applyChanges`, so one malformed change (no `xPathSelector`, or an
+      // `iweId` that is not a legal attribute name) threw out of the whole
+      // loop and no experience on the page applied at all. Isolated per
+      // change here — that change's pointers are skipped, everything else
+      // still marks and applies.
+      try {
+        // Build a flat list of pointers: parent, refNode, self
+        const pointers: XPtr[] = [
+          c.parent as XPtr,
+          c.refNode as XPtr,
+          { _xPathSelector: c.xPathSelector, _xPathIndex: c.xPathIndex, _iweId: c.iweId } as XPtr,
+        ].filter(Boolean);
 
-      for (const p of pointers) {
-        const key = `${p._xPathSelector}|${p._xPathIndex}`;
-        if (seen.has(key)) continue;
+        for (const p of pointers) {
+          const key = `${p._xPathSelector}|${p._xPathIndex}`;
+          if (seen.has(key)) continue;
 
-        let el = cache.get(key);
-        if (el === undefined) {
-          el = resolver({ xPathSelector: p._xPathSelector, xPathIndex: p._xPathIndex }) as HTMLElement | null;
-          cache.set(key, el ?? null);
+          let el = cache.get(key);
+          if (el === undefined) {
+            el = resolver({ xPathSelector: p._xPathSelector, xPathIndex: p._xPathIndex }) as HTMLElement | null;
+            cache.set(key, el ?? null);
+          }
+          if (!el) continue;
+
+          el.setAttribute(p._iweId,'true')
+          out.push({ el, iweId: p._iweId });
+          seen.add(key);
         }
-        if (!el) continue;
-
-        el.setAttribute(p._iweId,'true')
-        out.push({ el, iweId: p._iweId });
-        seen.add(key);
+      } catch (error) {
+        log.warn('failed to mark pointers for a change — skipping that change', { change: c, error });
       }
     }
 
