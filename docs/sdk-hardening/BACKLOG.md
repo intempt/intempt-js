@@ -50,11 +50,17 @@ five-lane merge, because the privacy scrubber's pattern tables and the logger ar
 module-level, so every customer pays for them whether the features are switched on
 or not.
 
-**One slice of this should not wait.** `ModificationHandler.ts` (D-23) is **459 LOC
-imported by nothing**, and it carries **18 of the repo's ~89 `any` hits** — so
-deleting it is also the cheapest slice of `FRONTEND.md` #6 code health, which *is*
-being worked. Do it there and note it, rather than leaving 459 dead lines in the
-bundle for want of a section number.
+**One slice of this is already done.** `ModificationHandler.ts` (D-23) was deleted
+2026-08-12 as part of `FRONTEND.md` #6 — 459 LOC imported by nothing, carrying 18 of
+the repo's `any` hits.
+
+**It bought zero bytes, and that corrects this item's premise.** Measured: the bundle
+is **91,248 bytes either way**, because vite never included an unimported module. So
+the "1,644 LOC they never execute" figure below is **not** all payload — the part of
+it that is genuinely unimported was already free. **Before spending 2.5 days here,
+measure what `choices/**` and the web editor actually contribute to those 91.24 kB**;
+the honest saving is whatever is *imported but unused at runtime*, which is a smaller
+and harder number than the LOC count implies.
 
 ### 1.3 Handing `BACKEND.md` to the ingest team · blocker: user, then ingest
 Six items, spec written and ready. Was §0b decision #3.
@@ -111,23 +117,29 @@ The workflow that would run 3.1.
 ### 4.1 Changesets automation · blocker: sequencing (needs 1.1 first)
 Parked 2026-08-11. The manual half is inside 1.1.
 
-### 4.2 Making the dev-dependency audit blocking · blocker: user decision #1
+### 4.2 Making the dev-dependency audit blocking · blocker: **UNBLOCKED 2026-08-12**
 `ci.yml`'s `audit` job has a blocking half (`--omit=dev`, currently **0**
 advisories) and an advisory dev half at `--audit-level=high` (**4**: 1 high, 3
 moderate). The remaining high needs vite ≥ 6.4.3, and **every vite ≥ 6 excludes
-Node 21** (`engines: ^20.19.0 || >=22.12.0`) — the version `build.yaml` deploys on.
+Node 21** (`engines: ^20.19.0 || >=22.12.0`) — the version `build.yaml` used to deploy
+on. **Decision #1 landed and the deploy is now Node 22**, so the vite upgrade is
+possible and this item is ready to work; it is listed here only until it is done.
 **Cost of parking: nil in exposure, real in signal.** All three vite advisories are
 `vite dev` server issues and this repo ships `vite build` output, so nothing is
 reachable by a customer. But the job stays advisory, which means it cannot fail the
 day something genuinely exploitable lands. **Do not work around `build.yaml` to
 close this** — fix the Node version, then make the second half blocking.
 
-### 4.3 Fixing `build.yaml`'s branch trigger · blocker: user decision #1
+### 4.3 Fixing `build.yaml`'s branch trigger · blocker: user
 Its trigger is `branches: ['*']`, and a single `*` does not match a ref containing
 `/`. **Every feature branch with a slash in its name has therefore been completely
 ungated for as long as that file has existed** — this branch included. `ci.yml`
 uses `['**']`, which is why it fires. The fix is one character; it is parked only
-because it means touching the deploy path, same as decision #1.
+because it means touching the deploy path. **Still open after decision #1** — the
+user approved the Node bump specifically and this was deliberately not bundled with
+it. The sibling item, `npm install` → `npm ci` in the same file, is open for the same
+reason: `install` resolves a fresh tree per run, which is what produced CI failures
+#1–2.
 
 ---
 

@@ -13,7 +13,7 @@
 | **Last updated** | 2026-08-11 |
 | **Next action** | **§0b is the ordered TODO list — start there.** Short version: mutation testing to the user-set 85% floor (currently **80.31%**, +112 detections to go — pools listed at the foot of §3f), then `FRONTEND.md` #1 packaging / #6 code health / #9 code-split. **Four items need a human decision before code, listed at the top of §0b.** |
 | **Score** | **~78 / 100** (audit baseline 40, Mixpanel comparator 85). Front-end-only ceiling ~85 — see `FRONTEND.md`. |
-| **Tests** | Unit **839** · Cypress **122** · mutation **80.90%** (floor 80) · coverage 96.03 / 91.49 / 96.88 / 96.86 (gates 93/88/94/94) · bundle **91.24 kB / 26.67 kB gzip** · ESLint 0 errors / 279 warnings (ratchet 279) |
+| **Tests** | Unit **808** · Cypress **122** · mutation **80.90%** (floor 80) · coverage 96.03 / 91.49 / 96.88 / 96.86 (gates 93/88/94/94) · bundle **91,248 B / 26.67 kB gzip** · ESLint 0 errors / **245** warnings (ratchet 245) |
 | **Phase** | 0 ✅ · 1 ⏸ parked (packaging) · 2 ✅ tier-1 + CI gate + guard port + mutation · 3 ✅ except transports ⏸ (BE) and code-split (⬜, now cheap — see D-23) · 4 🟡 privacy ✅ §3h, client-side security ✅ §3g-ii, observability ✅ §3i, credential ⏸ (BE), `any` ⬜ · 5 🟡 CI breadth ✅ §3g, release/changesets ⬜ |
 | **Landed, by section** | §3a jitter · §3b circuit breaker · §3c bounded queue · §3d `ci.yml` · §3e guard-suite port · §3f mutation testing · §3g CI breadth + supply chain · §3h privacy & consent · §3i logger & metrics · §3j docs & DX · §3k public-API / payload-contract / choices tests · §4 three live defects · §5 `psl` dropped · §6a unit tier · §6b IndexedDB · §6c per-event records |
 | **Known defects** | **~30, documented and deliberately unfixed — `DEFECTS.md`.** Severity-1: no event carries a timestamp; a second instance duplicates every event; session events share one `eventId`. |
@@ -120,11 +120,10 @@ without asking anyone, unless marked ⏸.
    `optIn`/`optOut` guard this item once listed — DEFECTS D-24 shows its premise
    was wrong and the branch is unreachable.**
 5. ⏸ **`FRONTEND.md` #9 code-splitting** (+1.2) — **backlogged by the user
-   2026-08-12.** Note what is being deferred with it: **D-23's `ModificationHandler.ts`
-   is 459 LOC of dead code carrying 18 of the repo's ~89 `any` hits**, so deleting it
-   is the cheapest slice of item 4 as well, and it is now waiting on this item. If
-   item 4 is worked before this is un-parked, do the deletion as part of it and say
-   so — do not leave 459 dead lines in the bundle for want of a section number.
+   2026-08-12.** D-23's `ModificationHandler.ts` has been deleted already, under
+   item 4 (§3l). **That deletion also refuted this item's premise: it saved zero
+   bytes**, because vite never bundled an unimported module. Re-measure before
+   planning the rest — see `BACKLOG.md` 1.2.
 6. **`FRONTEND.md` #10 transport chain** (+0.6) — `fetch(keepalive)` → XHR now;
    the `sendBeacon` leg is ⏸ on `BACKEND.md` item 1.
 7. **The repo-wide `prettier --write`.** 98 of 107 files fail `format:check`, which
@@ -1222,6 +1221,54 @@ Open items carried forward:
 - The deferred `package.json` entry fields land with Phase 1 task 5 (D11).
 - Everything else in `BACKEND.md` is blocked on the backend team, by user
   decision.
+
+## 3l. `FRONTEND.md` #6 code health, part 1 — the dead handler is deleted, and the bundle argument for it was false
+
+Landed 2026-08-12. `src/intemptJs/modules/choices/models/ModificationHandler.ts`
+(**459 LOC**, 7 mutation types) is gone, along with the ~517 lines of tests that
+pinned it. D-23 is now `fixed`.
+
+**The deletion was safe and remains right.** Nothing in `src/` imported it; the live
+engine is `WebEditorModificationHandler` (4 types), and the two used incompatible
+element-addressing conventions, so it was never one import away from working. It
+also held **18 of the repo's ~89 `any` hits**, which is why this belongs to code
+health.
+
+### The measurement that matters more than the deletion
+
+**It saved zero bytes.** `dist/intempt.min.js` is **91,248 bytes with the file
+present and 91,248 bytes with it deleted**, and `typography` — a type name unique to
+the dead class — appears **0 times** in either bundle. Vite's IIFE build only
+includes reachable modules, so an unimported file costs nothing at all.
+
+**Three documents asserted otherwise and have been corrected** (D-23 itself, the
+`choicesEngine.test.ts` header, and `BACKLOG.md` 1.2, the last of which was written
+earlier the same day). The claim had propagated as "~459 LOC ship to every customer"
+and as a reason `FRONTEND.md` #9 was "cheaper than it looks". Both were wrong.
+
+**The general lesson, worth more than this item:** *verify a bundle claim against the
+bundle.* "It is in `src/`" does not mean "customers download it", and every claim in
+this programme about payload should be checked with `stat` and `grep` on
+`dist/intempt.min.js` rather than reasoned from the source tree. This one survived an
+audit, a defect register, a test comment and a fresh backlog entry without anyone
+running the two commands that refute it.
+
+**Consequence for `FRONTEND.md` #9 (parked):** its "1,644 LOC they never execute"
+figure is not payload either. The honest saving there is whatever is *imported but
+unused at runtime* — a smaller and harder number. Measure before budgeting 2.5 days.
+
+### Also in this commit
+
+A replacement assertion in the live handler's suite: it exposes exactly
+`insert`/`remove`/`style`/`update` as **own properties**. `_applyChanges` routes with
+`changesHandler.hasOwnProperty(change.type)`, so that set *is* the set of change
+types the SDK can apply — which is what made the 7-type class dead rather than merely
+unused. The old test asserted this by comparing the two classes; now it guards the
+dispatch contract on its own.
+
+Unit **839 → 808** (net −31: ~517 lines of dead-code tests removed, one added).
+ESLint warnings **279 → 245**; the ratchet moves to **245**. Coverage unchanged —
+`choices/**` is outside `coverage.include`. Cypress 122/122 unaffected.
 
 ## 4. Three live defects — ✅ all three fixed
 

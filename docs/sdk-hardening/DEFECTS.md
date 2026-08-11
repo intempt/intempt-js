@@ -133,12 +133,23 @@ A throw inside is swallowed instead of rejecting. Surfaced by ESLint.
 
 ## Severity 3 — dead code, hygiene, test-only
 
-### D-23. `ModificationHandler.ts` is dead code · `asserted`
+### D-23. `ModificationHandler.ts` is dead code · `fixed` — deleted 2026-08-12
 459 LOC implementing 7 mutation types, **imported by nothing**. The live engine is
 `WebEditorModificationHandler` (4 types), and the two use incompatible
-element-addressing conventions, so it cannot simply be re-enabled.
-**This makes `FRONTEND.md` #9 (code-split `choices/**`) much cheaper: delete
-rather than split.**
+element-addressing conventions, so it could not simply be re-enabled.
+
+**Correction, measured at deletion: it was never in the shipped bundle.** This entry
+previously implied it was ("shipped"), and `FRONTEND.md` #9 and a test comment both
+asserted ~459 LOC reaching every customer. **Wrong.** `dist/intempt.min.js` is
+**91,248 bytes with the file present and 91,248 bytes with it deleted**, and
+`typography` — a type name unique to the dead class — appears **0 times** in the
+bundle either way. Vite's IIFE build only includes reachable modules, so an
+unimported file costs zero bytes. Verify a bundle claim against the bundle; "it is
+in `src/`" does not mean "customers download it".
+
+The deletion was still right — 459 unmaintained lines, 18 of the repo's `any` hits,
+and ~517 lines of tests pinning behaviour nothing could invoke — but the reason is
+maintenance and honesty, **not** payload. Do not carry the byte argument forward.
 
 ### D-24. `isValidConfig`'s caller is dead code · `asserted`
 **This corrects an earlier note in `CHECKPOINT.md` §4**, which said `optIn`/
