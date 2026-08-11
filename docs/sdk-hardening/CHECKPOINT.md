@@ -1468,6 +1468,15 @@ Four lanes are running against `e71a356` in **hand-built, HEAD-verified worktree
   backgrounding. **Next time: forbid backgrounding outright, or do not ask a lane to
   run mutation and measure it yourself at merge.**
 
+- **Lane G ✅ verified and committed** — the cleanest lane of the nine. Five commits:
+  **D-6** (a malformed choice is isolated instead of discarding all of them), **D-7**
+  (same isolation in the pointer-marking pass), **D-8** (async handlers are awaited so
+  failures reach the try/catch), **D-22** (the `async` Promise executor no longer
+  swallows throws), then the `any` removal. **Lint 15 → 1 on its files** — it removed
+  14 warnings, so the repo ratchet can drop further. Unit 922/926 files unchanged in
+  count but ~254 lines of tests rewritten, because per-item isolation changes what the
+  existing assertions mean. Bundle +312 B. Branch `lane-g-choices`.
+
 ### A scope gap found while checking H's claim — worth acting on
 
 H offered "mutation unchanged at 86.57%" as evidence its new code is tested. **It is
