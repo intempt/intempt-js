@@ -12,8 +12,8 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Phase** | **Phase 0 complete** (audit). **Phase 1 in progress** — tasks 1–2 done. |
-| **Code changed so far** | `package.json` metadata; version single-sourced (`src/shared/version.ts`, vite `define`, `Intempt.VERSION`); **all three live defects in §4 fixed**, with 12 new regression specs. |
+| **Phase** | Phase 0 ✅. Phase 1 🟡 (tasks 1–2 done, 3–5 paused by the user). §4 defects ✅. `psl` removal ✅ (a Phase 3 item, pulled forward). |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**. 16 specs / 235 tests, all passing. |
 
 ---
 
@@ -92,9 +92,14 @@ Task status (full detail in `AUDIT.md` §2, Phase 1):
 (`index.d.ts`, changelog/changesets, module build) are **deferred, not dropped**;
 tasks 1–2 already landed and the test suite is green with them.
 
-Next: **drop `psl`** (§5 below) — the highest effort-to-impact item in the plan,
-~15 lines in `src/shared/storageHandler.ts`, and it also produces the eTLD+1
-helper that Phase 4's cross-subdomain consent cookie needs.
+`psl` is dropped (§5) — that was the next item and it is done, along with all
+three live defects in §4.
+
+Next: **Phase 2, the test foundation** (vitest unit tier). It is the largest
+single piece left and it gates everything after it — §8 has said so from the
+start, and the last few commits leaned on the Cypress tier for cover that a real
+unit tier should be carrying. `src/shared/publicSuffix.ts` also now supplies the
+eTLD+1 helper that Phase 4's cross-subdomain consent cookie needs.
 
 Open items carried forward:
 
@@ -105,7 +110,7 @@ Open items carried forward:
 
 Real bugs found during the audit, fixed out of phase order because all three were
 customer-visible today. Covered by `__tests__/batcherDedupeLifecycle.cy.ts`
-(12 specs). Full suite after the fix: **15 specs, 225 tests, all passing.**
+(12 specs). Full suite now: **16 specs, 235 tests, all passing.**
 
 | # | Defect | Fix |
 |---|---|---|
@@ -126,17 +131,43 @@ customer-visible today. Covered by `__tests__/batcherDedupeLifecycle.cy.ts`
   misconfigured instance throws. One-line guard; deliberately not bundled into a
   consent-persistence commit.
 
-## 5. Highest effort-to-impact item in the whole plan
+## 5. Highest effort-to-impact item in the whole plan — ✅ done
 
-**Drop `psl`.** Measured: 152 KB raw, 9,353 public-suffix rule literals —
-roughly **60% of the 252 KB bundle** — imported in exactly one place
-(`src/shared/storageHandler.ts:3`) for exactly one function (`handleDomain`,
-lines 48–63, cookie-domain derivation).
+**`psl` is gone.** Replaced by `src/shared/publicSuffix.ts`
+(`extractEtldPlusOne` / `isHostOnlyTarget`), a heuristic with a small explicit
+suffix set and no data table.
 
-Mixpanel derives eTLD+1 heuristically in `src/utils.js` with no data table.
-~15 lines changed saves ~150 KB raw / ~25 KB brotli on **every page load**.
+**Measured, before → after:**
 
-If lazy-loading is preferred over removal, load it only on the cookie-write path.
+| | Before | After |
+|---|---|---|
+| `dist/intempt.min.js` | 225.86 kB | **72.43 kB** |
+| gzip | 64.89 kB | **20.86 kB** |
+| Runtime dependencies | `psl`, `@types/psl` | **none** |
+
+That is a **68% cut on every page load**, and the SDK now has a zero-dependency
+runtime — which also removes the whole `psl` supply-chain surface ahead of
+Phase 4.
+
+**How it was verified — this matters if you touch the heuristic.** A parity
+harness ran the old `psl`-backed `handleDomain` and the new one over 58
+hostnames. It found and forced the fix for a real regression: private suffixes
+(`github.io`, `vercel.app`, `herokuapp.com`, `appspot.com`, `blogspot.com`, and
+**`myshopify.com`** — this SDK ships a Shopify tracker) resolve to a *public*
+suffix under a naive last-two-labels rule, and a browser rejects such a cookie
+outright rather than mis-scoping it. Those hosts now have their own entries.
+
+Remaining intentional divergences from `psl`, both asserted in
+`__tests__/publicSuffix.cy.ts`:
+
+- IP literals and single-label hosts (`localhost`) now produce a **host-only**
+  cookie. The old code emitted `domain=.0.1` / `domain=.localhost`, which
+  browsers reject — so the cookie was silently dropped. **This is a fix.**
+- Deep `.us` hierarchies (`example.pvt.k12.ma.us`) resolve one label too wide.
+  Accepted: long tail, no known customer.
+
+**Do not extend the heuristic by reasoning about it — re-run a parity check
+against a current public-suffix list.**
 
 ## 6. Invariants — do not violate without asking
 
@@ -164,7 +195,7 @@ If lazy-loading is preferred over removal, load it only on the cookie-write path
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
 | 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | ⬜ |
-| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | ⬜ |
+| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 partial — **unload fix and `psl` removal landed early**; IndexedDB, transports, code-split, load shedding remain |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | ⬜ |
 

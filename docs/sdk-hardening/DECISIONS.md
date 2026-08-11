@@ -272,3 +272,47 @@ the end state.
 called from consent-banner click handlers, and in Safari private mode or at full
 quota a throw there could break the host page's banner — turning our compliance
 fix into their outage. The in-memory flag still holds for the current page.
+
+---
+
+## D16 — Replace `psl` with a heuristic, verified by a parity harness
+
+**Decided:** `psl` and `@types/psl` are removed. `src/shared/publicSuffix.ts`
+derives eTLD+1 from a TLD heuristic plus an explicit set of two-label suffixes.
+
+**Why — measured:** `dist/intempt.min.js` went **225.86 kB → 72.43 kB**
+(gzip **64.89 → 20.86 kB**), a 68% cut on every page load, and the SDK now has
+**zero runtime dependencies** — which also deletes the `psl` supply-chain surface
+before Phase 4 has to assess it. The cost was one function at one call site.
+
+**The failure mode is bounded, which is what makes the trade acceptable:** a
+wrong answer scopes a cookie one label too wide or too narrow. It cannot leak a
+cookie to another registrant, because a browser rejects a `domain` that is not a
+suffix of the current host, and our fallback is always *narrower* (the full
+hostname), never wider. Mixpanel makes the same trade in `src/utils.js`.
+
+**How it was verified, and why that step is not optional:** a parity harness ran
+the old `psl`-backed `handleDomain` against the new one over 58 hostnames. It
+caught a regression that reasoning alone had missed — **private suffixes**
+(`github.io`, `vercel.app`, `herokuapp.com`, `appspot.com`, `blogspot.com`, and
+**`myshopify.com`**, which matters because this SDK ships a Shopify tracker)
+collapse to a *public* suffix under a naive last-two-labels rule, and a browser
+rejects that cookie outright instead of mis-scoping it. Those suffixes now have
+explicit entries.
+
+Two divergences were kept deliberately, both asserted in
+`__tests__/publicSuffix.cy.ts`:
+
+- IP literals and single-label hosts now get **host-only** cookies. The old code
+  emitted `domain=.0.1` for `127.0.0.1` and `domain=.localhost`, both of which
+  browsers reject — the cookie was dropped, not scoped. This is a fix.
+- Deep `.us` hierarchies (`example.pvt.k12.ma.us`) resolve one label too wide.
+  Long tail; no known customer.
+
+**Would change our mind:** a customer on a hostname the heuristic gets wrong. The
+fix then is an explicit `cookie_domain` config option (Mixpanel's escape hatch),
+not the return of a 152 KB table.
+
+**Rule for anyone extending this:** re-run a parity check against a current
+public-suffix list. Do not reason about the suffix set — that is exactly what
+missed `myshopify.com` the first time.
