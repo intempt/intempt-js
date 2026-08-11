@@ -3,10 +3,7 @@ import { SessionTrackerModule } from './modules/sessionTracker/sessionTracker.mo
 import { ProfileTrackerModule } from './modules/profileTracker/profileTracker.module.ts';
 import { PageTrackerModule } from './modules/pagesTracker/pagesTracker.module.ts';
 import { SessionEventModel } from './models/session.model.ts';
-import {
-  debounce,
-  dispatchIntemptEvent,
-} from '../../../shared/shared.utils.ts';
+import { dispatchIntemptEvent } from '../../../shared/shared.utils.ts';
 import { PageEventModel } from './models/pageEvent.model.ts';
 import { PageEventDataComponent } from '../../component/pageEventData.component.ts';
 import { HtmlEventModel } from './models/HtmlEvent.model.ts';
@@ -24,12 +21,8 @@ import {
 import { ProductModel } from '../../models/product.model.ts';
 import { AutoTrackerTransport } from './autoTracker.transport.ts';
 import { EnvConfig } from '../../../shared/envConfig.ts';
-import {
-  loadDoNotTrack,
-  persistDoNotTrack,
-} from '../../../shared/consentState.ts';
-import { shouldSuppressForBrowserSignal } from '../../../shared/privacy/doNotTrackSignals.ts';
-import { hasOptedOut } from '../../../shared/privacy/gdpr.ts';
+import { AutoTrackerConsent } from './autoTracker.consent.ts';
+import { AutoTrackerEventPool } from './autoTracker.eventPool.ts';
 import {
   createPiiScrubber,
   PiiScrubber,
@@ -74,32 +67,16 @@ export class AutoTrackerModule {
   private readonly _htmlTrackerModule = new HtmlTrackerModule();
   private readonly _shopifyTrackerModule: ShopifyTrackerModule | undefined;
 
-  private _doNotTrack: boolean = loadDoNotTrack();
-
-  /**
-   * DNT/GPC, read once at construction.
-   *
-   * Kept **separate from `_doNotTrack`** rather than folded into it, for two
-   * reasons that are easy to get wrong:
-   *
-   *  1. A browser signal must never be *persisted*. Writing it into the stored
-   *     consent would make a transient browser setting look like an explicit
-   *     visitor decision, and it would then survive the visitor turning the
-   *     setting back off.
-   *  2. A browser signal outranks a stored opt-in (see `gdpr.ts`), so `optIn()`
-   *     must not be able to clear it. Sharing one field would let it.
-   *
-   * Read once because neither flag changes during a page's life, and
-   * `isUserOptIn()` is on the per-event hot path.
-   */
-  private readonly _browserSignalSuppressed: boolean;
+  /** Consent state and the consent-record POST — see `autoTracker.consent.ts`. */
+  private readonly _consent: AutoTrackerConsent;
 
   /** Identity function unless the customer enabled `piiScrubbing`. */
   private readonly _scrubPii: PiiScrubber;
 
   private readonly _api: string;
 
-  private readonly _eventPool: TrackableEvent[] = [];
+  /** Legacy unbatched delivery, used only when the batcher never initialised. */
+  private readonly _eventPool: AutoTrackerEventPool;
   private readonly _transport: AutoTrackerTransport;
   private _disposed: boolean = false;
 
@@ -218,7 +195,10 @@ export class AutoTrackerModule {
 
     switch (type) {
       case 'consent':
-        this._sendConsentTrackEventData(event);
+        // Not scrubbed and not batched, both deliberately: a consent record's
+        // `email` field IS the record, and an audit record must not queue behind
+        // analytics. See `autoTracker.consent.ts`.
+        void this._consent.sendConsentRecord(event);
         break;
       default:
         this._onTrackData(event);
@@ -230,6 +210,8 @@ export class AutoTrackerModule {
     this._config = { ...intemptConfig };
     this._api = api;
     this._transport = new AutoTrackerTransport(this._config, this._api);
+    this._consent = new AutoTrackerConsent(this._config, this._api);
+    this._eventPool = new AutoTrackerEventPool(this._config, this._api);
 
     // D-2: constructing a new instance retires whichever one is currently
     // live, so two never end up listening on the same document/window at
@@ -238,16 +220,6 @@ export class AutoTrackerModule {
       AutoTrackerModule._activeInstance.dispose();
     }
     AutoTrackerModule._activeInstance = this;
-
-    this._browserSignalSuppressed = shouldSuppressForBrowserSignal(
-      intemptConfig.ignore_dnt,
-    );
-
-    // Called for its side effect: the one-per-page console notice naming *which*
-    // signal stopped the data. That notice is the difference between a support
-    // ticket and a silent outage, and it has to be emitted at init rather than
-    // from the hot path.
-    hasOptedOut({ ignoreDnt: intemptConfig.ignore_dnt });
 
     this._scrubPii = createPiiScrubber(
       typeof intemptConfig.piiScrubbing === 'object'
@@ -338,40 +310,23 @@ export class AutoTrackerModule {
     this._htmlTrackerModule.init();
   }
 
-  /**
-   * Effective do-not-track state: the stored decision OR a browser signal.
-   *
-   * The getter reports the browser signal too, so `IntemptJs.isUserOptIn()` tells
-   * a customer's own code the truth about whether events will be sent. Reporting
-   * only the stored flag would have it answer `true` while the SDK silently
-   * dropped everything.
-   */
-  get doNotTrack() {
-    return this._doNotTrack || this._browserSignalSuppressed;
+  // Consent is delegated in full to `AutoTrackerConsent`; these four members are
+  // the public surface `IntemptJs` calls, kept here so the split is invisible to
+  // callers. The reasoning for each lives with the implementation.
+  get doNotTrack(): boolean {
+    return this._consent.doNotTrack;
   }
 
   set doNotTrack(value: boolean) {
-    // Only the explicit decision is stored and mutated. A browser signal is not
-    // the visitor's stored consent and cannot be cleared by `optIn()` — see the
-    // note on `_browserSignalSuppressed`.
-    this._doNotTrack = value;
-    persistDoNotTrack(value);
+    this._consent.doNotTrack = value;
   }
 
   isUserOptIn(): boolean {
-    return !this.doNotTrack;
+    return this._consent.isUserOptIn();
   }
 
-  /**
-   * Drop the in-memory stored decision without writing one.
-   *
-   * Pairs with `IntemptJs.clearConsent()`, which has already emptied the store.
-   * Uses the setter's *field* rather than the setter itself on purpose: calling
-   * `doNotTrack = false` would persist an explicit opt-in and re-create exactly
-   * the decision that was just cleared.
-   */
   forgetConsentDecision(): void {
-    this._doNotTrack = false;
+    this._consent.forgetConsentDecision();
   }
 
   getSessionId() {
@@ -411,7 +366,8 @@ export class AutoTrackerModule {
     // debounced fallback go through here, so one call covers every event path.
     //
     // Consent records deliberately do NOT pass through here — they are routed to
-    // `_sendConsentTrackEventData` by `_eventPoolHandler` before this point. That
+    // `AutoTrackerConsent.sendConsentRecord` by `_onPooledEvent` before this point.
+    // That
     // matters: a consent record's `email` field *is* the record. Redacting it
     // would destroy the proof of consent, which is the one payload in the SDK
     // where the PII is the point.
@@ -432,95 +388,13 @@ export class AutoTrackerModule {
         batcher.enqueue(data);
       }
     } else {
-      // Fallback to old debounced method
-      this._onTrackDataLegacy(data);
-    }
-  }
-
-  private _onTrackDataLegacy(data: TrackableEvent) {
-    // Keep existing implementation as fallback
-    let debouncedSendEvents: ReturnType<typeof debounce>;
-    const name = data.name.toLowerCase();
-    this._eventPool.push(data);
-
-    if (name.toLowerCase() === 'leave page') {
-      debouncedSendEvents = debounce(() => this._sendTrackEventData(), 0);
-    } else {
-      debouncedSendEvents = debounce(() => this._sendTrackEventData(), 1000);
-    }
-
-    return debouncedSendEvents();
-  }
-
-  private async _sendConsentTrackEventData(data: TrackableEvent) {
-    const { organization, sourceId, project, writeKey } = this._config;
-
-    const url = `${this._api}/${organization}/projects/${project}/consents/data`;
-
-    const [username, password] = writeKey.split('.');
-
-    const encodedCredentials = btoa(`${username}:${password}`);
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${encodedCredentials}`,
-        },
-        body: JSON.stringify({ ...data }),
-        keepalive: true,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-    } catch (error) {
-      log.error('error sending track event data', error);
-    }
-  }
-
-  private async _sendTrackEventData() {
-    if (this._eventPool.length === 0) return;
-    /**
-     * Make deep copy of the eventPool
-     * */
-    const data = JSON.parse(JSON.stringify(this._eventPool));
-
-    this._clearEventPool();
-
-    const { organization, sourceId, project, writeKey } = this._config;
-
-    const url = `${this._api}/${organization}/projects/${project}/sources/${sourceId}/track`;
-
-    const [username, password] = writeKey.split('.');
-
-    const encodedCredentials = btoa(`${username}:${password}`);
-
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${encodedCredentials}`,
-        },
-        body: JSON.stringify({ track: data }),
-        keepalive: true,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-    } catch (error) {
-      log.error('_sendTrackEventData failed', error);
+      // No batcher: fall back to the in-memory pool, which has none of the
+      // batcher's delivery guarantees. See `autoTracker.eventPool.ts`.
+      this._eventPool.push(data);
     }
   }
 
   private _getPageId() {
     return this._pagesTrackerModule.getId();
-  }
-
-  private _clearEventPool() {
-    this._eventPool.length = 0;
   }
 }
