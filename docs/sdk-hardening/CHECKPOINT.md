@@ -141,6 +141,13 @@ Phase deltas assume the earlier phases landed; they are not independent.
 | Mixpanel comparator checkout | `/home/beso/mixpanel-js` (v2.81.0) |
 | Proposed CI/CD files (not applied) | `AUDIT.md` §3b — 7 files, with rollout order |
 | Mixpanel files to port | `AUDIT.md` §3 — file-by-file table with effort estimates |
+| Audit as a shareable web page | https://claude.ai/code/artifact/0976f36f-3570-499b-876f-7bca41f5854a |
+| Originating session | https://claude.ai/code/session_018wfQQGBNVphxBe7QsJVCYV |
+
+The artifact is a rendered copy of `AUDIT.md` for sharing with non-engineers.
+**`AUDIT.md` in this repo is the authority** — if the two diverge, the repo wins.
+To update the artifact, republish `AUDIT.md` passing that URL as `url`; publishing
+without it creates a *second* artifact instead of updating this one.
 
 ## 10. How to resume from cold start
 
@@ -155,3 +162,22 @@ numbers are recorded with the commit they were measured at.
 
 If the phase table in §7 and the actual code disagree, **trust the code** and
 correct this file.
+
+### Known fragility of this recovery path
+
+`CLAUDE.md` and these docs exist **only on branch
+`beso/sdk-enterprise-hardening`** — they are not on `staging` or `main`. So a
+session that starts on a different branch will not auto-load the pointer. Two
+backstops cover that:
+
+1. A project memory (`sdk-hardening-programme`) records the branch name and
+   points here; it is not branch-scoped.
+2. `git branch -a | grep hardening` finds the branch from anywhere in the repo.
+
+If this programme gets merged to `staging`, move `CLAUDE.md` there too so the
+pointer survives on the mainline.
+
+**Not recoverable, and deliberately not relied upon:** the originating session's
+conversation, and any scratch files under `/tmp/claude-*` (session-scoped). Every
+durable output was copied into this repo before that mattered. If something is
+only in a scratchpad, it does not exist.
