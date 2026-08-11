@@ -5,11 +5,15 @@ describe('Bundle Reserved Words Check', () => {
   before(() => {
     // Build the bundle before running tests
     cy.exec('npm run build', { failOnNonZeroExit: false, timeout: 60000 }).then((result) => {
-      if (result.code !== 0) {
+      // Cypress 14 renamed Exec's `code` to `exitCode`. This mattered at runtime,
+      // not only to tsc: under the old name the property read `undefined`, so
+      // `!== 0` was always true and this hook threw "Build failed with exit code
+      // undefined" on a perfectly good build.
+      if (result.exitCode !== 0) {
         const errorOutput = result.stderr || result.stdout || 'Unknown error';
         cy.log(`Build stdout: ${result.stdout || '(empty)'}`);
         cy.log(`Build stderr: ${result.stderr || '(empty)'}`);
-        throw new Error(`Build failed with exit code ${result.code}:\n${errorOutput}`);
+        throw new Error(`Build failed with exit code ${result.exitCode}:\n${errorOutput}`);
       }
     });
   });
