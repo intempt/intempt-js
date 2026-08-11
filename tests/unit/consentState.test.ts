@@ -241,3 +241,66 @@ describe('storage that throws — the hard rule', () => {
     removeItem.mockRestore();
   });
 });
+
+/**
+ * The domain-scoped half of `consentCookie.ts`. It can only be asserted from this
+ * file: jsdom fixes the document URL per file, and `localhost` — where
+ * `consentCookie.test.ts` runs — cannot carry a domain cookie at all.
+ */
+describe('the attributes written at the eTLD+1', () => {
+  function captureCookieWrites(): { written: string[]; restore: () => void } {
+    const written: string[] = [];
+    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+
+    Object.defineProperty(document, 'cookie', {
+      configurable: true,
+      get: () => '',
+      set: (value: string) => {
+        written.push(value);
+      },
+    });
+
+    return {
+      written,
+      restore: () => {
+        delete (document as unknown as { cookie?: unknown }).cookie;
+        if (descriptor) {
+          Object.defineProperty(Document.prototype, 'cookie', descriptor);
+        }
+      },
+    };
+  }
+
+  it('scopes the cookie to the registrable domain and marks it Secure over https', () => {
+    // The domain attribute is the entire mechanism behind D15: without it,
+    // `shop.example.com` and `www.example.com` hold separate opt-outs.
+    const capture = captureCookieWrites();
+    try {
+      persistDoNotTrack(true);
+    } finally {
+      capture.restore();
+    }
+
+    expect(capture.written[0]).toContain('domain=.example.com');
+    expect(capture.written[0]).toContain('Secure');
+    expect(capture.written[0]).toContain('SameSite=Lax');
+    expect(capture.written[0]).toContain('max-age=31536000');
+  });
+
+  it('expires the cookie at BOTH scopes when clearing', () => {
+    // A visitor who first arrived on localhost and later on app.example.com can
+    // hold either scope. Clearing one leaves the other live, which leaves the
+    // opt-out state ambiguous — the worst outcome for a compliance signal.
+    const capture = captureCookieWrites();
+    try {
+      clearStoredConsent();
+    } finally {
+      capture.restore();
+    }
+
+    const expiries = capture.written.filter(w => w.includes('expires=Thu, 01 Jan 1970'));
+    expect(expiries.length).toBeGreaterThanOrEqual(2);
+    expect(expiries.some(w => !w.includes('domain='))).toBe(true);
+    expect(expiries.some(w => w.includes('domain=.example.com'))).toBe(true);
+  });
+});

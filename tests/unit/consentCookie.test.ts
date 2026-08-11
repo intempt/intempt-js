@@ -116,6 +116,189 @@ describe('cookie primitives', () => {
   });
 });
 
+/**
+ * Capture what was assigned to `document.cookie` without letting jsdom parse it.
+ * jsdom does not expose cookie attributes through the getter, so the only way to
+ * assert on `domain`, `Secure` or `expires` is to intercept the write.
+ */
+function captureCookieWrites(): { written: string[]; restore: () => void } {
+  const written: string[] = [];
+  const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+
+  Object.defineProperty(document, 'cookie', {
+    configurable: true,
+    get: () => '',
+    set: (value: string) => {
+      written.push(value);
+    },
+  });
+
+  return {
+    written,
+    restore: () => {
+      delete (document as unknown as { cookie?: unknown }).cookie;
+      if (descriptor) {
+        Object.defineProperty(Document.prototype, 'cookie', descriptor);
+      }
+    },
+  };
+}
+
+describe('environments where the globals are missing', () => {
+  // Not hypothetical: the snippet gets pulled into SSR bundles and into
+  // sandboxed iframes, and rule 1 of this module is that nothing throws.
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('reads null when there is no document', () => {
+    vi.stubGlobal('document', undefined);
+    expect(readConsentCookie('probe')).toBe(null);
+  });
+
+  it('reports a failed write when there is no document', () => {
+    vi.stubGlobal('document', undefined);
+    expect(writeConsentCookie('probe', 'x')).toBe(false);
+  });
+
+  it('clears without throwing when there is no document', () => {
+    vi.stubGlobal('document', undefined);
+    expect(() => clearConsentCookie('probe')).not.toThrow();
+  });
+
+  it('has no cookie domain when there is no window', () => {
+    vi.stubGlobal('window', undefined);
+    expect(consentCookieDomain()).toBe('');
+  });
+
+  it('has no cookie domain when window carries no location', () => {
+    vi.stubGlobal('window', {} as unknown as Window);
+    expect(consentCookieDomain()).toBe('');
+  });
+
+  it('has no cookie domain when reading the hostname throws', () => {
+    // A cross-origin `window.location` access throws rather than returning
+    // undefined, which is why currentHostname has a try/catch and not a guard.
+    vi.stubGlobal('window', {
+      get location(): Location {
+        throw new Error('SecurityError');
+      },
+    } as unknown as Window);
+
+    expect(consentCookieDomain()).toBe('');
+  });
+});
+
+describe('parsing the cookie jar', () => {
+  let capture: ReturnType<typeof captureCookieWrites> | null = null;
+
+  afterEach(() => {
+    capture?.restore();
+    capture = null;
+  });
+
+  function withJar(jar: string) {
+    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    Object.defineProperty(document, 'cookie', {
+      configurable: true,
+      get: () => jar,
+      set: () => undefined,
+    });
+    capture = {
+      written: [],
+      restore: () => {
+        delete (document as unknown as { cookie?: unknown }).cookie;
+        if (descriptor) {
+          Object.defineProperty(Document.prototype, 'cookie', descriptor);
+        }
+      },
+    };
+  }
+
+  it('reads null from an empty jar', () => {
+    withJar('');
+    expect(readConsentCookie('probe')).toBe(null);
+  });
+
+  it('skips an entry that has no separator', () => {
+    // Some hosts leave a bare flag in the jar; it must not shift the parse of
+    // everything after it.
+    withJar('bare_flag; probe=found');
+    expect(readConsentCookie('probe')).toBe('found');
+  });
+
+  it('tolerates whitespace around the name', () => {
+    withJar('other=1;   probe=found  ');
+    expect(readConsentCookie('probe')).toBe('found');
+  });
+
+  it('keeps everything after the first separator, so a raw = survives', () => {
+    // Split-on-= would truncate this to 'a'.
+    withJar('probe=a=b=c');
+    expect(readConsentCookie('probe')).toBe('a=b=c');
+  });
+
+  it('returns the first match rather than the last', () => {
+    withJar('probe=first;probe=second');
+    expect(readConsentCookie('probe')).toBe('first');
+  });
+
+  it('does not match a name that is a suffix of the entry name', () => {
+    withJar('x_probe=wrong');
+    expect(readConsentCookie('probe')).toBe(null);
+  });
+
+  it('reads an empty value as empty string, not null', () => {
+    // Distinguishable from absent, and consentState relies on it: '' is not '1'.
+    withJar('probe=');
+    expect(readConsentCookie('probe')).toBe('');
+  });
+});
+
+describe('the attributes actually written', () => {
+  it('omits domain on a host-only target and never sets Secure over http', () => {
+    const capture = captureCookieWrites();
+    try {
+      writeConsentCookie('probe', 'x');
+    } finally {
+      capture.restore();
+    }
+
+    expect(capture.written).toHaveLength(1);
+    expect(capture.written[0]).not.toContain('domain=');
+    expect(capture.written[0]).not.toContain('Secure');
+  });
+
+  it('expires the cookie at the host-only scope when clearing', () => {
+    const capture = captureCookieWrites();
+    try {
+      clearConsentCookie('probe');
+    } finally {
+      capture.restore();
+    }
+
+    // One write, because there is no domain scope to clear on localhost. The
+    // eTLD+1 case writes two — asserted in consentState.test.ts, which runs on a
+    // domain-scoped host.
+    expect(capture.written).toHaveLength(1);
+    expect(capture.written[0]).toContain('expires=Thu, 01 Jan 1970 00:00:00 GMT');
+    expect(capture.written[0]).toContain('path=/');
+    expect(capture.written[0]).not.toContain('domain=');
+  });
+
+  it('encodes the value so a delimiter cannot forge a second cookie', () => {
+    const capture = captureCookieWrites();
+    try {
+      writeConsentCookie('probe', 'x; evil=1');
+    } finally {
+      capture.restore();
+    }
+
+    expect(capture.written[0]).toContain('probe=x%3B%20evil%3D1');
+    expect(capture.written[0]).not.toContain('evil=1;');
+  });
+});
+
 describe('cookie access that throws', () => {
   const originalCookie = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
 

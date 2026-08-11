@@ -13,7 +13,7 @@
 | **Last updated** | 2026-08-11 |
 | **Next action** | **§0b is the ordered TODO list — start there.** Short version: mutation testing to the user-set 85% floor (currently **80.31%**, +112 detections to go — pools listed at the foot of §3f), then `FRONTEND.md` #1 packaging / #6 code health / #9 code-split. **Four items need a human decision before code, listed at the top of §0b.** |
 | **Score** | **~78 / 100** (audit baseline 40, Mixpanel comparator 85). Front-end-only ceiling ~85 — see `FRONTEND.md`. |
-| **Tests** | Unit **821** · Cypress **122** · mutation **80.31%** (floor 80) · coverage 95.55 / 90.83 / 96.88 / 96.35 (gates 93/88/94/94) · bundle **91.24 kB / 26.67 kB gzip** · ESLint 0 errors / 279 warnings (ratchet 279) |
+| **Tests** | Unit **839** · Cypress **122** · mutation **80.90%** (floor 80) · coverage 96.03 / 91.49 / 96.88 / 96.86 (gates 93/88/94/94) · bundle **91.24 kB / 26.67 kB gzip** · ESLint 0 errors / 279 warnings (ratchet 279) |
 | **Phase** | 0 ✅ · 1 ⏸ parked (packaging) · 2 ✅ tier-1 + CI gate + guard port + mutation · 3 ✅ except transports ⏸ (BE) and code-split (⬜, now cheap — see D-23) · 4 🟡 privacy ✅ §3h, client-side security ✅ §3g-ii, observability ✅ §3i, credential ⏸ (BE), `any` ⬜ · 5 🟡 CI breadth ✅ §3g, release/changesets ⬜ |
 | **Landed, by section** | §3a jitter · §3b circuit breaker · §3c bounded queue · §3d `ci.yml` · §3e guard-suite port · §3f mutation testing · §3g CI breadth + supply chain · §3h privacy & consent · §3i logger & metrics · §3j docs & DX · §3k public-API / payload-contract / choices tests · §4 three live defects · §5 `psl` dropped · §6a unit tier · §6b IndexedDB · §6c per-event records |
 | **Known defects** | **~30, documented and deliberately unfixed — `DEFECTS.md`.** Severity-1: no event carries a timestamp; a second instance duplicates every event; session events share one `eventId`. |
@@ -109,15 +109,22 @@ without asking anyone, unless marked ⏸.
    loosest — it moves most on an unrelated refactor. History now lives in the
    comment above the `thresholds` block; **re-measure rather than interpolate,
    because vitest 4 counts statements differently from vitest 2.**
-3. **`FRONTEND.md` #1 packaging** (+3.6) — `index.d.ts`, module build, changesets.
+3. ⏸ **`FRONTEND.md` #1 packaging** (+3.6) — **backlogged by the user 2026-08-12**,
+   to move together with the backend work. Was already parked once (§2a) and
+   un-parked into this list; it is parked again. **The consequence is a score
+   ceiling, and it is the largest single item on the list: without packaging,
+   dimension 5 stays at 52 and the front-end-only ceiling drops from ~85 to ~81.**
 4. **`FRONTEND.md` #6 code health** (+1.7) — 61 `any`, split `autoTracker.module.ts`,
    dedupe the id triplet. Then lower `--max-warnings` (**now 279**, was 323) and
    flip `no-explicit-any` / `no-console` to `error`. **Do not add the
    `optIn`/`optOut` guard this item once listed — DEFECTS D-24 shows its premise
    was wrong and the branch is unreachable.**
-5. **`FRONTEND.md` #9 code-splitting** (+1.2) — now cheaper: **D-23 says
-   `ModificationHandler.ts` (459 LOC) is dead code, so delete beats split.** The
-   bundle grew 81.8 → 91.25 kB in the five-lane merge, so this has teeth.
+5. ⏸ **`FRONTEND.md` #9 code-splitting** (+1.2) — **backlogged by the user
+   2026-08-12.** Note what is being deferred with it: **D-23's `ModificationHandler.ts`
+   is 459 LOC of dead code carrying 18 of the repo's ~89 `any` hits**, so deleting it
+   is the cheapest slice of item 4 as well, and it is now waiting on this item. If
+   item 4 is worked before this is un-parked, do the deletion as part of it and say
+   so — do not leave 459 dead lines in the bundle for want of a section number.
 6. **`FRONTEND.md` #10 transport chain** (+0.6) — `fetch(keepalive)` → XHR now;
    the `sendBeacon` leg is ⏸ on `BACKEND.md` item 1.
 7. **The repo-wide `prettier --write`.** 98 of 107 files fail `format:check`, which
@@ -231,6 +238,20 @@ Task status (full detail in `AUDIT.md` §2, Phase 1):
    build, but add a module build exporting a pure `createIntempt(config)` with
    **no import-time side effects** — then add `main`/`module`/`exports`/
    `sideEffects: false` from task 1.
+
+## 2a-i. Scope decisions from the user — 2026-08-12
+
+- **`FRONTEND.md` #1 packaging is backlogged**, to move with the backend work.
+  Largest single item on the list; parking it caps the front-end-only score at ~81
+  rather than ~85. See §0b item 3.
+- **`FRONTEND.md` #9 code-splitting is backlogged.** See §0b item 5 for the
+  D-23 deletion that goes with it.
+- **Everything else in §0b is to be worked.** Explicitly confirmed: mutation to 85
+  (§0b 1), the coverage re-baseline (§0b 2, done), code health (§0b 4), the
+  transport chain (§0b 6), the prettier sweep (§0b 7), and `DEFECTS.md` (§0b 8).
+- **Decisions #3 and #4 of §0b are the user's to carry out** — hand `BACKEND.md`
+  to the ingest team, and check live host sites for the `/v1`-less CDN URL.
+  **#1 (deploy Node version) and #2 (DNT/GPC customer comms) are still open.**
 
 ## 2a. Scope decisions from the user — 2026-08-11
 
@@ -626,6 +647,7 @@ duration). Progress:
 | `requestBatcher.ts` dedupe/scheduling internals | 23 | **75.94%** | 65.57 → **69.67%** |
 | five-lane merge (logger + privacy arrived with tests) | — | 77.54% | — |
 | `storage/**` — see §3f-ii | 27 | **80.31%** | 64.09 → **84.52%** |
+| `consentCookie.ts` — see §3f-iii | 18 | **80.90%** | 61.54 → not re-split (see below) |
 
 `break` is now **80** (was 75). Raise it with each batch; never ahead of the work.
 
@@ -673,6 +695,39 @@ demotes to localStorage and events keep flowing, which the companion test assert
 end-to-end — but the source comment overstates recovery. Do not "fix" the comment
 by making the store re-open at whatever version it finds; that would silently
 adopt a schema this bundle does not know.
+
+### 3f-iii. The consent-cookie batch — 18 tests, +0.59 points. Read this before picking the next file.
+
+**This batch was low-yield and the reason generalises.** 18 tests moved the overall
+score 80.31 → **80.90**, roughly **0.8 detections per test** — worse than the
+1.4/test §3f-i measured on survived-only pools, and a third of the storage batch's
+2.4. `consentCookie.ts` entered at 61.54% with 45 undetected (13 of them no-cov),
+which by the §3f-ii heuristic looked cheap. It was not.
+
+**Why, so the heuristic can be corrected:** the no-cov mutants in this file are
+concentrated in *guards against missing globals* (`typeof document === 'undefined'`,
+the `window.location` catch) and in **string literals inside `onFailure` reports**.
+A test can execute those branches — mine do — without killing many mutants,
+because the observable behaviour of most mutations there is identical (still
+returns `null`, still returns `false`, still does not throw). **Refine the rule to:
+prefer no-cov mutants in code that computes a value, not in code that guards or
+reports.** A file full of defensive early-returns has a low ceiling per test.
+
+The tests are still worth having — they pin rule 1 of that module, *nothing here
+may ever throw*, across SSR and sandboxed-iframe conditions, and that is a real
+compliance property, not a score chase. But do not budget the remaining ~100
+detections against files shaped like this one.
+
+The domain-scoped assertions had to go in `consentState.test.ts`, not
+`consentCookie.test.ts`: jsdom fixes the document URL per file, and the `domain=`
+and `Secure` attribute paths only execute on the `https://shop.example.com` file.
+Both files now share a `captureCookieWrites()` helper shape, because jsdom does not
+expose cookie attributes through the getter — intercepting the setter is the only
+way to assert on them.
+
+**Per-file scores for this run were lost to a truncated log** (the command was
+piped through `tail`). `reports/mutation/index.html` has the full split; it is
+gitignored, so re-run `npm run test:mutation` if you need it.
 
 **Also in this commit: `--max-warnings` 323 → 279.** Measured 279 with 0 warnings
 from the new file, i.e. the ratchet had drifted 44 points loose since §3g pinned
