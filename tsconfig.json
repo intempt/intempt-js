@@ -26,5 +26,5 @@
     "noUnusedParameters": false,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "__tests__/**/*.cy.ts"]
+  "include": ["src", "__tests__/**/*.cy.ts", "tests/**/*.ts", "vitest.config.ts"]
 }

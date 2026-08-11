@@ -316,3 +316,81 @@ not the return of a 152 KB table.
 **Rule for anyone extending this:** re-run a parity check against a current
 public-suffix list. Do not reason about the suffix set — that is exactly what
 missed `myshopify.com` the first time.
+
+---
+
+## D17 — A failed transport is a retry, never a success
+
+**Decided:** in `handleResponse`, any response carrying `error`, and any absent
+response, is retryable. The old condition required
+`httpStatusCode <= 0 && !navigator.onLine`.
+
+**Why:** `navigator.onLine` reports link-layer state only. It is `true` on a
+captive portal, behind a dead VPN, and when our own API is unreachable. So a
+network failure in those conditions matched none of the retryable branches and
+fell through to the success path — the batch was removed from the queue **having
+never been delivered**. Silent, total loss of a batch, in exactly the conditions
+a flaky network produces.
+
+Found by the property tests in `tests/unit/queueInvariants.test.ts` on their
+first run, not by review — this code had been read several times during the audit
+and the fix commits.
+
+**Would change our mind:** nothing. `navigator.onLine` is not evidence of
+delivery and should not gate a dequeue.
+
+---
+
+## D18 — Pre-send marks roll back on definite failure only
+
+**Decided:** `markEventIdsSent` still runs before the request; `unmarkEventIdsSent`
+undoes it when we learn the batch was not accepted. The mark stands only when the
+outcome is genuinely unknown (unloading, no response at all).
+
+**Why:** pre-marking exists so a page dying mid-flight cannot produce duplicates.
+Without rollback it also condemns every *failed* batch: those ids stay marked, so
+the items are filtered as already-sent on each later flush and then evicted by
+D14 — silent loss. Rolling back on a definite failure keeps the duplicate
+protection for the case it was designed for while removing the loss.
+
+The residual ambiguity — request left, page died, no response — still resolves in
+favour of no-duplicates. That is a deliberate at-most-once choice for one narrow
+window, not an oversight.
+
+---
+
+## D19 — `generateId` uses `crypto.getRandomValues`
+
+**Decided:** replace the timestamp-shuffle id generator. Same id shape
+(`<base36-ts>_<ms>_<10 chars>`), real randomness in the suffix.
+
+**Why — measured:** the old generator filled 8 of its 10 "random" characters with
+a *shuffle of the timestamp's own base-36 digits*. Two ids minted in the same
+millisecond therefore differed only by a permutation of identical characters plus
+two random ones — a few thousand possibilities. A 5,000-iteration loop collides
+reliably.
+
+These ids identify **profiles and sessions**. A collision does not lose data, it
+*merges two visitors' data*, which is worse: it is silent, it corrupts analytics
+and any downstream personalisation, and it is unfalsifiable after the fact. At
+the 1M events/sec operating point, same-millisecond id generation across the
+fleet is continuous rather than a rare coincidence.
+
+The shape is preserved so anything parsing or logging these ids is unaffected.
+
+---
+
+## D20 — Coverage gate is scoped, and widens only with its thresholds
+
+**Decided:** the vitest coverage gate covers `src/shared/**` and enforces
+85% lines/statements, 75% branches, 85% functions. `src/guard/**` and
+`src/intemptJs/guards/**` are excluded for now.
+
+**Why:** those guard modules already have 91 Cypress assertions. Duplicating them
+into the unit tier purely to move a percentage would buy no defect-finding, and a
+gate that is padded stops meaning anything. `src/shared/**` is where the
+event-survival logic lives, so that is where the gate is pointed first.
+
+**Rule:** when the guard suites are ported, widen `coverage.include` and raise the
+thresholds **in the same commit**. Widening the scope alone silently lowers the
+bar; raising thresholds alone blocks the port.

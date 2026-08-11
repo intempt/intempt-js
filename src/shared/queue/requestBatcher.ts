@@ -169,6 +169,30 @@ export class RequestBatcher {
   }
 
   /**
+   * Undo a pre-send mark, because we now know the batch never reached ingest.
+   *
+   * `markEventIdsSent` runs BEFORE the request so that a page dying mid-flight
+   * cannot produce duplicates. The cost of that is an over-approximation: the
+   * mark also lands on batches that then fail. Without this rollback those
+   * events are permanently unsendable — filtered as "already sent" on every
+   * later flush, then evicted from the queue — i.e. **silently lost**. Found by
+   * the property tests in `tests/unit/queueInvariants.test.ts`, not by review.
+   *
+   * Only call this on a *definite* failure. If the outcome is unknown (page
+   * unloading, no response) the mark must stand, or we trade a rare duplicate
+   * for a systematic one.
+   */
+  private unmarkEventIdsSent(eventIds: string[]): void {
+    if (!eventIds.length) {
+      return;
+    }
+    for (const eventId of eventIds) {
+      this.sentEventIds.delete(eventId);
+    }
+    this.saveSentEventIds();
+  }
+
+  /**
    * Save sent event IDs to localStorage.
    * The Set is already capped by markEventIdsSent; the slice is a belt-and-braces
    * guard for IDs loaded by an older build.
@@ -248,13 +272,14 @@ export class RequestBatcher {
     const timeoutMS = this.libConfig.batchRequestTimeoutMs;
     const startTime = Date.now();
     const currentBatchSize = this.batchSize;
+    // Declared outside the try so the catch can roll the pre-send mark back.
+    const eventIdsInBatch: string[] = [];
 
     try {
       const batch = await this.queue.fillBatch(currentBatchSize);
       const attemptSecondaryFlush = batch.length === currentBatchSize;
       const dataForRequest: any[] = [];
       const transformedItems: Map<string, any> = new Map();
-      const eventIdsInBatch: string[] = []; // Track eventIds in this batch
       const alreadySentItemIds: string[] = []; // Queue items to evict, not just skip
 
       // Process batch items
@@ -340,11 +365,19 @@ export class RequestBatcher {
         currentBatchSize,
         startTime,
         timeoutMS,
-        options.unloading || false
+        options.unloading || false,
+        eventIdsInBatch
       );
 
     } catch (error) {
       this.reportError('Error flushing request queue', error);
+      // The transport threw rather than returning a response. On a live page we
+      // will retry, so the pre-send mark has to come off or the retry evicts the
+      // events instead of sending them. On unload, the page is probably gone and
+      // the request may well have left, so the mark stands.
+      if (!options.unloading) {
+        this.unmarkEventIdsSent(eventIdsInBatch);
+      }
       this.requestInProgress = false;
       this.resetFlush();
     }
@@ -357,7 +390,8 @@ export class RequestBatcher {
     currentBatchSize: number,
     startTime: number,
     timeoutMS: number,
-    unloading: boolean
+    unloading: boolean,
+    eventIdsInBatch: string[] = []
   ): Promise<void> {
     this.requestInProgress = false;
 
@@ -378,6 +412,13 @@ export class RequestBatcher {
         if (this.isDefiniteSuccess(response)) {
           const succeeded = await this.removeItemsFromQueue(itemIds);
           this.recordDeliveryAttempts(itemIds, succeeded);
+        } else if (response) {
+          // We got an answer and it was not a success, so the batch was not
+          // ingested. Roll the pre-send mark back, otherwise the next page load
+          // finds these items queued but marked and evicts them — silent loss on
+          // every failed unload flush, which is the common case on a flaky
+          // network. Only a *missing* response (page died first) keeps the mark.
+          this.unmarkEventIdsSent(eventIdsInBatch);
         }
         this.resetFlush();
         return;
@@ -386,16 +427,30 @@ export class RequestBatcher {
       // Check for timeout
       if (response?.error === 'timeout' && Date.now() - startTime >= timeoutMS) {
         this.reportError('Network timeout; retrying');
+        this.unmarkEventIdsSent(eventIdsInBatch);
         await this.flush();
         return;
       }
 
-      // Check for retryable errors
+      // Check for retryable errors.
+      //
+      // `response.error` is set by the transport when the request never
+      // completed (network failure, abort, timeout). Such a batch was NOT
+      // ingested, so it must be retried.
+      //
+      // This used to require `!navigator.onLine` alongside a <=0 status, which
+      // meant a network error while the browser still believed it was online
+      // fell through every branch below and was treated as a SUCCESS — the
+      // events were dequeued having never been delivered. navigator.onLine only
+      // reports link-layer state: it is true on a captive portal, a dead VPN, or
+      // when the API itself is unreachable. Found by the property tests in
+      // tests/unit/queueInvariants.test.ts.
+      const transportFailed = !response || !!response.error;
       if (
+        transportFailed ||
         response?.httpStatusCode >= 500 ||
         response?.httpStatusCode === 429 ||
-        (response?.httpStatusCode <= 0 && !navigator.onLine) ||
-        response?.error === 'timeout'
+        response?.httpStatusCode <= 0
       ) {
         // Retry with exponential backoff
         let retryMS = this.flushInterval * 2;
@@ -404,6 +459,9 @@ export class RequestBatcher {
         }
         retryMS = Math.min(MAX_RETRY_INTERVAL_MS, retryMS);
         this.reportError(`Error; retry in ${retryMS} ms`);
+        // Definitely not ingested — release the pre-send mark so the retry can
+        // actually send these rather than evicting them as duplicates.
+        this.unmarkEventIdsSent(eventIdsInBatch);
         this.scheduleFlush(retryMS);
         return;
       }
@@ -414,6 +472,8 @@ export class RequestBatcher {
           const halvedBatchSize = Math.max(1, Math.floor(currentBatchSize / 2));
           this.batchSize = Math.min(this.batchSize, halvedBatchSize, itemIds.length - 1);
           this.reportError(`413 response; reducing batch size to ${this.batchSize}`);
+          // These items stay queued to be re-sent in smaller batches.
+          this.unmarkEventIdsSent(eventIdsInBatch);
           this.resetFlush();
           return;
         } else {

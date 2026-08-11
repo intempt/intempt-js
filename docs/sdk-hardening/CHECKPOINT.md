@@ -12,8 +12,8 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Phase** | Phase 0 ✅. Phase 1 🟡 (tasks 1–2 done, 3–5 paused by the user). §4 defects ✅. `psl` removal ✅ (a Phase 3 item, pulled forward). |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**. 16 specs / 235 tests, all passing. |
+| **Phase** | Phase 0 ✅. Phase 1 🟡 (tasks 1–2 done, 3–5 paused by the user). §4 defects ✅. `psl` removal ✅. **Phase 2 tier-1 ✅** (vitest, 105 unit tests, coverage gate). |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. Unit 105 / Cypress 213, all passing. |
 
 ---
 
@@ -95,11 +95,22 @@ tasks 1–2 already landed and the test suite is green with them.
 `psl` is dropped (§5) — that was the next item and it is done, along with all
 three live defects in §4.
 
-Next: **Phase 2, the test foundation** (vitest unit tier). It is the largest
-single piece left and it gates everything after it — §8 has said so from the
-start, and the last few commits leaned on the Cypress tier for cover that a real
-unit tier should be carrying. `src/shared/publicSuffix.ts` also now supplies the
-eTLD+1 helper that Phase 4's cross-subdomain consent cookie needs.
+**Phase 2, tier 1 is done** — see §6a. What remains of Phase 2:
+
+1. **Port the guard suites into the unit tier.** `src/guard/**` and
+   `src/intemptJs/guards/**` are covered only by Cypress today, and are
+   deliberately excluded from the coverage gate (`vitest.config.ts` says why).
+   Move them, then widen `coverage.include` and raise the thresholds **in the
+   same commit** — never one without the other.
+2. **Contract tests**: golden-file snapshots of every outbound payload shape, so
+   a refactor cannot silently change the wire format ingest depends on.
+   (`AUDIT.md` §2, Phase 2.)
+3. **Tier 2 — WDIO release gate** across the 6 real-browser targets (D6). Needs a
+   Sauce Labs or BrowserStack account, so it is blocked on an account, not on
+   engineering.
+4. **CI**: none of this runs automatically yet. `ci.yml` is Phase 5 step 2 in the
+   rollout order, but the unit tier is worth far less until something enforces
+   it — consider pulling it forward.
 
 Open items carried forward:
 
@@ -169,6 +180,62 @@ Remaining intentional divergences from `psl`, both asserted in
 **Do not extend the heuristic by reasoning about it — re-run a parity check
 against a current public-suffix list.**
 
+## 6a. Phase 2 — unit test tier ✅
+
+**`vitest` + jsdom, `tests/unit/**`, 105 tests, run with `npm run test:unit`.**
+Config in `vitest.config.ts`; shared jsdom/storage/timer setup in
+`tests/unit/setup.ts` (adapted from Mixpanel's `jsdom-setup.js`, Apache-2.0).
+
+| Script | What it runs |
+|---|---|
+| `npm run test:unit` | tier 1 — vitest, jsdom, fast |
+| `npm run test:coverage` | tier 1 + coverage gate |
+| `npm run test:e2e` | tier 2 — the 14 Cypress specs, real browser |
+| `npm test` | alias of `test:e2e` (unchanged, so nothing that called it breaks) |
+
+**Coverage gate is enforced and passing** on `src/shared/**`:
+lines/statements **91.08%** (≥85), branches **85.55%** (≥75), functions
+**91.25%** (≥85).
+
+Two Cypress specs (`publicSuffix.cy.ts`, `batcherDedupeLifecycle.cy.ts`) were
+**migrated** into the unit tier rather than duplicated — they were pure logic and
+gained fake-timer control by moving. The 14 original Cypress specs are untouched.
+
+### The property tests earned their keep immediately
+
+`tests/unit/queueInvariants.test.ts` runs random enqueue/flush/failure
+interleavings against two invariants — **no event is ever delivered twice** and
+**no accepted event is ever lost** — with a seeded PRNG so failures reproduce.
+
+It failed on the first run, on every seed, and found **three real data-loss
+defects that code review had missed**:
+
+1. **A network error while `navigator.onLine` was true was treated as a
+   *success*.** The retryable check required `httpStatusCode <= 0 && !navigator.onLine`,
+   so any transport failure where the browser still believed it had a link — a
+   captive portal, a dead VPN, an unreachable API — fell through every branch and
+   the batch was dequeued **having never been delivered**. This is the most
+   serious defect found in the programme so far: silent, total loss of a batch,
+   in the exact conditions a flaky network produces.
+2. **Pre-send marks were never rolled back on failure.** Event ids are marked
+   sent *before* the request (so a page dying mid-flight cannot duplicate), but a
+   failed send left the mark, so the events were filtered as "already sent" on
+   every later flush and then evicted — silently lost. Now rolled back on any
+   definite failure; the mark stands only when the outcome is genuinely unknown
+   (page unloading with no response), which is the case it was designed for.
+3. **`generateId` collided within a millisecond.** Eight of its ten random
+   characters were a *shuffle of the timestamp's own base-36 digits*, so ids
+   minted in the same millisecond differed by a permutation of identical
+   characters plus two random ones. A 5,000-iteration loop collides. These ids
+   identify **profiles and sessions**, so a collision merges two visitors' data —
+   and at the 1M events/sec target, same-millisecond generation across the fleet
+   is continuous. Now uses `crypto.getRandomValues` (with a `Math.random`
+   fallback), same id shape.
+
+None of these three are in `AUDIT.md`. They are the argument for Phase 2 in
+concrete form: the audit found what reading could find, and the tests found what
+reading could not.
+
 ## 6. Invariants — do not violate without asking
 
 1. **Never push to `staging` or `main`.** The branch's upstream tracking was
@@ -194,7 +261,7 @@ against a current public-suffix list.**
 |---|---|---|---|---|
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
-| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | ⬜ |
+| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (105 tests, gate enforced); guard-suite port, contract tests and WDIO tier 2 remain |
 | 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 partial — **unload fix and `psl` removal landed early**; IndexedDB, transports, code-split, load shedding remain |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | ⬜ |

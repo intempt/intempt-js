@@ -1,19 +1,47 @@
 
 import { IdType } from '../intemptJs/types/intemptJs.types.ts';
 
-function generateUniqueId() {
-  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const timestamp = new Date().getTime().toString(36).split('');
-  const shuffledTimestamp = timestamp.slice().sort(() => Math.random() - 0.5);
-  const timestampNum = new Date().getTime();
+const ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+
+/**
+ * Random suffix for an id.
+ *
+ * The previous implementation filled 8 of these 10 characters with a *shuffle of
+ * the timestamp's own base-36 digits*, so two ids minted in the same millisecond
+ * differed only by a permutation of identical characters plus two random ones —
+ * a few thousand possibilities. A tight loop collides, and these ids identify
+ * profiles and sessions: a collision merges two visitors' data. At the 1M
+ * events/sec operating point, same-millisecond id generation across the fleet is
+ * continuous, not rare.
+ *
+ * `crypto.getRandomValues` where available, `Math.random` only as a fallback for
+ * environments without it. The id *shape* is unchanged
+ * (`<base36-ts>_<ms>_<10 chars>`), so anything parsing it keeps working.
+ */
+function randomSuffix(length: number): string {
+  const cryptoObj = typeof globalThis !== 'undefined' ? (globalThis as any).crypto : undefined;
   let id = '';
 
-  for (let i = 0; i < 10; i++) {
-    const char = i < shuffledTimestamp.length ? shuffledTimestamp[i] : alphabet.charAt(Math.floor(Math.random() * alphabet.length));
-    id += char;
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    const bytes = new Uint8Array(length);
+    cryptoObj.getRandomValues(bytes);
+    for (let i = 0; i < length; i++) {
+      id += ID_ALPHABET.charAt(bytes[i] % ID_ALPHABET.length);
+    }
+    return id;
   }
 
-  return `${timestamp.join('')}_${timestampNum}_${id}`;
+  for (let i = 0; i < length; i++) {
+    id += ID_ALPHABET.charAt(Math.floor(Math.random() * ID_ALPHABET.length));
+  }
+  return id;
+}
+
+function generateUniqueId() {
+  const timestampNum = new Date().getTime();
+  const timestamp = timestampNum.toString(36);
+
+  return `${timestamp}_${timestampNum}_${randomSuffix(10)}`;
 }
 
 export function generateId(type?: IdType) {
