@@ -13,7 +13,7 @@
 | **Last updated** | 2026-08-11 |
 | **Next action** | **§0b is the ordered TODO list — start there.** Short version: mutation testing to the user-set 85% floor (currently **80.31%**, +112 detections to go — pools listed at the foot of §3f), then `FRONTEND.md` #1 packaging / #6 code health / #9 code-split. **Four items need a human decision before code, listed at the top of §0b.** |
 | **Score** | **~78 / 100** (audit baseline 40, Mixpanel comparator 85). Front-end-only ceiling ~85 — see `FRONTEND.md`. |
-| **Tests** | Unit **808** · Cypress **122** · mutation **80.90%** (floor 80) · coverage 96.03 / 91.49 / 96.88 / 96.86 (gates 93/88/94/94) · bundle **91,248 B / 26.67 kB gzip** · ESLint 0 errors / **245** warnings (ratchet 245) |
+| **Tests** | Unit **808** · Cypress **122** · mutation **80.90%** (floor 80) · coverage **all src** 72.5 / 66.05 / 74.4 / 73.77 (global gate 70/64/72/71; `src/shared/**` 93/88/94/94; `src/guard/**` 96/91/98/96) · bundle **91,248 B / 26.67 kB gzip** · ESLint 0 errors / **245** warnings (ratchet 245) |
 | **Phase** | 0 ✅ · 1 ⏸ parked (packaging) · 2 ✅ tier-1 + CI gate + guard port + mutation · 3 ✅ except transports ⏸ (BE) and code-split (⬜, now cheap — see D-23) · 4 🟡 privacy ✅ §3h, client-side security ✅ §3g-ii, observability ✅ §3i, credential ⏸ (BE), `any` ⬜ · 5 🟡 CI breadth ✅ §3g, release/changesets ⬜ |
 | **Landed, by section** | §3a jitter · §3b circuit breaker · §3c bounded queue · §3d `ci.yml` · §3e guard-suite port · §3f mutation testing · §3g CI breadth + supply chain · §3h privacy & consent · §3i logger & metrics · §3j docs & DX · §3k public-API / payload-contract / choices tests · §4 three live defects · §5 `psl` dropped · §6a unit tier · §6b IndexedDB · §6c per-event records |
 | **Known defects** | **~30, documented and deliberately unfixed — `DEFECTS.md`.** Severity-1: no event carries a timestamp; a second instance duplicates every event; session events share one `eventId`. |
@@ -1269,6 +1269,46 @@ dispatch contract on its own.
 Unit **839 → 808** (net −31: ~517 lines of dead-code tests removed, one added).
 ESLint warnings **279 → 245**; the ratchet moves to **245**. Coverage unchanged —
 `choices/**` is outside `coverage.include`. Cypress 122/122 unaffected.
+
+## 3m. Coverage scope widened to all of `src/` — and what it exposed
+
+Landed 2026-08-12. `coverage.include` was the three areas Phase 2 targeted; it is now
+`src/**/*.ts`. **The reported number therefore described the best-tested third of the
+SDK and said nothing about the rest.** Measured across everything:
+
+| Area | Statements |
+|---|---|
+| `src/guard/**` | 98.49% |
+| `src/shared/**` | ~96% |
+| `autoTracker/**` | 58.52% |
+| `choices/**` | 50.37% |
+| `HtmlEventData.component.ts` | **0%** |
+| `shopifyTracker` | **2.56%** |
+| `src/main.ts` | **0%** |
+| `src/loaders` | **4.54%** (`sdkLoader.ts` 9.67%) |
+| **All of `src/`** | **72.5 / 66.05 / 74.4 / 73.77** |
+
+**`sdkLoader.ts` is the finding.** It builds the entire `IntemptConfig` from the
+script URL's query string — it *is* the public configuration surface of the supported
+embed — and it is at **9.67%**. §3h already hit the consequence: three new privacy
+options existed on the type and were unreachable by any customer because the loader
+had never been taught to read them. That is exactly what 9% hides, and it is a higher
+priority than any remaining mutation-score work.
+
+**Per-glob thresholds are what make the widening safe.** D20's trap is that widening
+`include` without moving thresholds silently lowers the bar — but a single global
+number must be set low enough for the *worst* area, which dilutes the good ones. So
+the gate is now three-tiered: a whole-repo floor of 70/64/72/71, `src/shared/**` at
+93/88/94/94, and `src/guard/**` at 96/91/98/96. Well-covered code keeps its own high
+floor and cannot regress behind the global average.
+
+**Verified in both directions**, per the §3g-ii rule that a gate tested only against
+passing input is indistinguishable from no gate: with `src/shared/**` lines raised to
+99 the run fails with `ERROR: Coverage for lines (96.48%) does not meet
+"src/shared/**/*.ts" threshold (99%)`. The per-glob gate fires and names the glob.
+
+**Do not read the drop from 96% to 72.5% as a regression.** Nothing got worse; the
+measurement got honest. The old figure is not comparable — different denominator.
 
 ## 4. Three live defects — ✅ all three fixed
 

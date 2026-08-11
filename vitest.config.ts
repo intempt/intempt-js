@@ -44,11 +44,18 @@ export default defineConfig({
       //    `botGuard.cy.ts` were deleted, not duplicated). These decide whether
       //    the SDK initialises at all and whether a public call is accepted, so
       //    a gap here is silent and total.
-      include: [
-        'src/shared/**/*.ts',
-        'src/guard/**/*.ts',
-        'src/intemptJs/guards/**/*.ts',
-      ],
+      // Widened to all of src/ on 2026-08-12. It was previously the three areas
+      // Phase 2 targeted, which meant the reported number described the
+      // best-tested third of the SDK and said nothing about the rest. Measuring
+      // everything put real numbers on that: `src/loaders` **4.54%**
+      // (`sdkLoader.ts` 9.67%), `src/main.ts` 0%, `shopifyTracker` 2.56%,
+      // `choices/**` 50.37%, `autoTracker/**` 58.52%, against `src/shared/**` ~96%.
+      //
+      // `sdkLoader.ts` is the one to fix first: it builds the whole `IntemptConfig`
+      // from the script URL's query string, and §3h found new options were
+      // unreachable because it had never been taught to read them — precisely the
+      // defect class that 9% coverage hides.
+      include: ['src/**/*.ts'],
       exclude: ['src/**/*.d.ts', 'src/**/types/**'],
       // Raised with the include-list widening above, per D20 — never widen scope
       // without also moving these, or the effective bar silently drops.
@@ -70,11 +77,35 @@ export default defineConfig({
       // recorded before the supply-chain upgrade (§3g-i) are not comparable with
       // these. Branches is deliberately the loosest of the four — it is the metric
       // that moves most on an unrelated refactor.
+      // Per-glob thresholds, not one global number. This is what makes widening
+      // `include` safe: the well-tested areas keep their high bar as their own
+      // floor, so pulling in weakly-covered code cannot dilute them. A single
+      // global threshold would have to be set low enough for the worst area, which
+      // is how a widened scope silently lowers the bar (the D20 trap).
       thresholds: {
-        lines: 94,
-        branches: 88,
-        functions: 94,
-        statements: 93,
+        // Whole-repo floor. Measured 2026-08-12 across all of src/: 72.5
+        // statements / 66.05 branches / 74.4 functions / 73.77 lines.
+        lines: 71,
+        branches: 64,
+        functions: 72,
+        statements: 70,
+
+        // The queue/storage/privacy core. Measured 96.03 / 91.49 / 96.88 / 96.86.
+        'src/shared/**/*.ts': {
+          lines: 94,
+          branches: 88,
+          functions: 94,
+          statements: 93,
+        },
+
+        // The guards. Measured 98.49 / 93.67 / 100 / 98.48 — the highest in the
+        // repo, and they decide whether the SDK initialises at all.
+        'src/guard/**/*.ts': {
+          lines: 96,
+          branches: 91,
+          functions: 98,
+          statements: 96,
+        },
       },
     },
   },
