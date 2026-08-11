@@ -12,16 +12,31 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
           fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
-      - uses: SonarSource/sonarqube-scan-action@v4
+      - uses: SonarSource/sonarqube-scan-action@689fb39b34b9aa95ebc5f8f119343ddd51542402 # v4.2.2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
-      # If you wish to fail your job when the Quality Gate is red, uncomment the
-      # following lines. This would typically be used to fail a deployment.
-      # - uses: SonarSource/sonarqube-quality-gate-action@v1
-      #   timeout-minutes: 5
-      #   env:
-      #     SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+      # The quality gate now fails the job, per FRONTEND.md #3 — until this was
+      # un-commented the scan uploaded results that nothing ever acted on, so a
+      # red gate was invisible.
+      #
+      # Two things to know before trusting or blaming it:
+      #
+      #  * This workflow runs on `push` to `main` only, i.e. AFTER the merge.
+      #    So it reports; it does not prevent. It also runs in parallel with
+      #    build.yaml, which is what actually deploys — a red gate here does NOT
+      #    stop that deploy. Making it preventive means adding a pull_request
+      #    trigger, which is a separate change and needs the Sonar project
+      #    configured for PR decoration.
+      #  * The gate's pass/fail comes from the quality-gate definition in the
+      #    SonarQube project, not from this repo, so the first run may be red on
+      #    conditions nobody here chose (typically new-code coverage on a project
+      #    with no baseline). If it is red for that reason, fix the gate
+      #    definition in SonarQube — do not re-comment these lines.
+      - uses: SonarSource/sonarqube-quality-gate-action@7a5fffe8e523c40e0c740b6bc2712ab503e52efa # v1.2.1
+        timeout-minutes: 5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
