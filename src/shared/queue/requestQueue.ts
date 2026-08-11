@@ -288,8 +288,16 @@ export class RequestQueue {
       const importLegacy = async () => {
         for (const entry of legacy) {
           if (!entry || typeof entry !== 'object' || !entry.id) continue;
-          const key = this.makeItemKey(entry.id, entry.flushAfter || Date.now());
-          await this.queueStorage.setItem(key, { ...entry, key });
+          // The fallback deadline has to land in the *record* as well as the key.
+          // It previously went only into the key, so an imported legacy entry
+          // with no `flushAfter` kept `undefined` — and every later comparison
+          // (`now > item.flushAfter`) is false against undefined, so such an
+          // event could never be adopted as an orphan by another tab. It still
+          // sent from the tab that imported it, which is why nothing caught this;
+          // found by a mutation-driven test.
+          const flushAfter = entry.flushAfter || Date.now();
+          const key = this.makeItemKey(entry.id, flushAfter);
+          await this.queueStorage.setItem(key, { ...entry, flushAfter, key });
         }
         await this.queueStorage.removeItem(this.storageKey);
       };

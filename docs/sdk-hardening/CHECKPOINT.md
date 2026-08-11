@@ -14,7 +14,7 @@
 | **Last updated** | 2026-08-11 |
 | **Next action** | **§3 item 1 — golden-file contract tests on the outbound payload shape.** Mutation testing is in place and measured (§3f, §3f-i); the recommendation there is to treat 71.42% as a ratchet floor rather than grind it upward, so contract tests are the top item again. Nothing is blocked. |
 | **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 71.42% (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. Unit **363** / Cypress **122**, all passing. Bundle 81.78 kB / 23.09 kB gzip. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 73.76% and climbing to a user-set 85% floor (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. Unit **387** / Cypress **122**, all passing. Bundle 81.78 kB / 23.09 kB gzip. |
 
 ---
 
@@ -466,6 +466,31 @@ those six tests reached code nothing had executed before. The 397 remaining
 survivors are different in kind: they are in code that **does** run and is simply
 not asserted, so each needs its own targeted assertion. There is no bulk win left
 in this file.
+
+**User decision, 2026-08-11: the floor is to be 85%.** The recommendation below
+was overruled — go to 85, in file order, ratcheting `break` upward as each file
+lands rather than setting 85 up front (setting it now would fail every PR for the
+duration). Progress:
+
+| Step | Tests added | Overall | File |
+|---|---|---|---|
+| baseline | — | 70.66% | — |
+| `requestBatcher.ts` first pass | 6 | 71.42% | 54.92 → 58.74% |
+| `requestQueue.ts` | 30 | **73.76%** | 54.96 → **72.73%** |
+
+Kill rate so far: 36 tests, +89 detections, +3.1 points. The rate *fell* on the
+second pass (2.3 → 1.4 mutants per test) because the remaining survivors are
+deeper paths needing their own setup, not shallow accessors. Extrapolating from
+the second number, 85% needs roughly another **100–130 tests**.
+
+**A second real defect came out of it, in the legacy migration.** The fallback
+deadline (`entry.flushAfter || Date.now()`) went into the record's *key* but not
+into the record, so an imported legacy entry with no `flushAfter` kept
+`undefined` — and every later comparison is `now > item.flushAfter`, which is
+false against `undefined`. Such an event could therefore **never be adopted as an
+orphan by another tab**; it only sent from the tab that imported it. That is two
+genuine defects now found by writing these tests (the other: `maxQueuedEvents`,
+§3f-i), which is the argument for continuing regardless of where the score lands.
 
 **Recommendation, therefore: treat 71.42% as a ratchet floor and stop chasing the
 number.** Mutation score has already paid for itself twice (see the defect below,
