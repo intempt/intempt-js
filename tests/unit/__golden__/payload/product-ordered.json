@@ -25,39 +25,6 @@
           }
         }
       ]
-    },
-    {
-      "name": "Session start",
-      "payload": [
-        {
-          "eventId": "<eventId>",
-          "sessionId": "<sessionId>",
-          "profileId": "<profileId>",
-          "userAttributes": {
-            "deviceType": "Mobile",
-            "referrer": "direct",
-            "fullReferrer": "direct",
-            "landingPage": "http://localhost:3000",
-            "browser": "Unknown/0.0.0.0",
-            "platform": "Linux",
-            "ipAddress": "",
-            "country": "",
-            "region": "",
-            "city": "",
-            "utmCampaign": "",
-            "utmContent": "",
-            "utmMedium": "",
-            "utmSource": "",
-            "utmTerm": ""
-          },
-          "data": {
-            "sessionStartEventName": "",
-            "landingPageQuery": "",
-            "landingPageHash": "",
-            "source": "web"
-          }
-        }
-      ]
     }
   ]
 }

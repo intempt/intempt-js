@@ -80,6 +80,35 @@ function normalise(value: unknown, key?: string): unknown {
  * right is most of the value of a golden test — an unreadable one gets
  * re-recorded instead of investigated.
  */
+/**
+ * The captured body, narrowed to the entries THIS test produced.
+ *
+ * Necessary for determinism, not tidiness. All tests in this file share one SDK
+ * instance (see the note above — a second instance duplicates every event, which
+ * is D-2 in DEFECTS.md), so an event enqueued by an earlier test can still be in
+ * the queue and ride along in this test's batch. Whether it does depends purely on
+ * flush timing: the goldens passed locally and on Node 22, then failed on Node 24
+ * with a *different first event* in the array.
+ *
+ * Filtering by the names the test itself generated keeps every wire-shape
+ * assertion the golden makes — field presence, absence and nesting are all still
+ * exact — while removing a cross-test ordering dependency that has nothing to do
+ * with the contract being asserted.
+ */
+function trackBodyFor(call: Call, ...names: string[]) {
+  // Parses the body here rather than calling `trackBody`, which is a const
+  // declared inside the describe block and so is not in scope at module level.
+  const body = JSON.parse(call.init.body as string);
+  const track = (body.track as any[]).filter((e: any) => names.includes(e.name));
+  if (track.length === 0) {
+    throw new Error(
+      `No entry named ${names.join(' | ')} in the captured batch. ` +
+        `Saw: ${(body.track as any[]).map((e: any) => e.name).join(', ') || '(empty)'}`,
+    );
+  }
+  return { ...body, track };
+}
+
 function expectMatchesGolden(name: string, captured: unknown) {
   const file = join(GOLDEN_DIR, `${name}.json`);
   const actual = `${JSON.stringify(normalise(captured), null, 2)}\n`;
@@ -318,7 +347,7 @@ describe('outbound payload contract', () => {
     it('records the track payload', async () => {
       sdk.track({ eventTitle: 'Signup Clicked', data: { plan: 'pro', seats: 3 } } as any);
       const [call] = await flushAndCapture('/track');
-      expectMatchesGolden('track', trackBody(call!));
+      expectMatchesGolden('track', trackBodyFor(call!, 'Signup Clicked'));
     });
 
     it('records the identify payload, with and without optional fields', async () => {
@@ -329,7 +358,7 @@ describe('outbound payload contract', () => {
         data: { source: 'form' },
       } as any);
       const [call] = await flushAndCapture('/track');
-      expectMatchesGolden('identify-full', trackBody(call!));
+      expectMatchesGolden('identify-full', trackBodyFor(call!, 'Signed Up'));
     });
 
     it('records the minimal identify payload — showing which keys vanish', async () => {
@@ -340,7 +369,7 @@ describe('outbound payload contract', () => {
       // ambiguity that made $lib_version risky to add.
       sdk.identify({ userId: 'user-9' } as any);
       const [call] = await flushAndCapture('/track');
-      expectMatchesGolden('identify-minimal', trackBody(call!));
+      expectMatchesGolden('identify-minimal', trackBodyFor(call!, 'Identify'));
     });
 
     it('records the group payload', async () => {
@@ -350,7 +379,7 @@ describe('outbound payload contract', () => {
         accountAttributes: { tier: 'gold' },
       } as any);
       const [call] = await flushAndCapture('/track');
-      expectMatchesGolden('group', trackBody(call!));
+      expectMatchesGolden('group', trackBodyFor(call!, 'Joined Org'));
     });
 
     it('records the alias payload — the one model with no session or page', async () => {
@@ -369,7 +398,7 @@ describe('outbound payload contract', () => {
         accountAttributes: { tier: 'gold' },
       } as any);
       const [call] = await flushAndCapture('/track');
-      expectMatchesGolden('record', trackBody(call!));
+      expectMatchesGolden('record', trackBodyFor(call!, 'Order Completed'));
     });
 
     it('records the product payloads, including a multi-line order', async () => {
@@ -378,7 +407,7 @@ describe('outbound payload contract', () => {
         { productId: 'p2', price: 20 },
       ] as any);
       const [call] = await flushAndCapture('/track');
-      expectMatchesGolden('product-ordered', trackBody(call!));
+      expectMatchesGolden('product-ordered', trackBodyFor(call!, 'Product ordered'));
     });
 
     it('records a mixed batch — several event types in one request', async () => {
