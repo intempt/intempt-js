@@ -52,7 +52,23 @@ jobs:
         # deploys on 21.x and this file may not touch it (invariant §6.2).
         # Closing that needs a deploy-Node decision, not code. It is the same
         # decision that blocks the remaining `vite` advisory.
-        node-version: [20.x, 22.x]
+        # WAS [20.x, 21.x]. Both legs had to go, and for the same reason:
+        # after the devDependency upgrades the *test toolchain* requires a newer
+        # Node than either offered. 21.x logs EBADENGINE for
+        # @asamuzakjp/css-color (^22.13 || >=24) and friends; 20.x dies at
+        # startup with `webidl.util.markAsUncloneable is not a function`, an
+        # undici API that jsdom 30 needs and that Node 20 does not have.
+        #
+        # This is about the TOOLCHAIN, not the shipped SDK: the bundle is a
+        # browser IIFE and `engines: node >=18` in package.json still describes
+        # what a consumer needs to *install* it. Contributors, though, now need
+        # Node >= 22.
+        #
+        # The gap someone must close: build.yaml still deploys on Node 21, and
+        # this file may not touch it (invariant §6.2). Until that is decided,
+        # CI-green does not imply deploy-green. Same decision blocks the
+        # remaining `vite` advisory.
+        node-version: [22.x, 24.x]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
