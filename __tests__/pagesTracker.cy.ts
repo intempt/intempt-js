@@ -1,6 +1,37 @@
 import { PageTrackerModule } from '../src/intemptJs/modules/autoTracker/modules/pagesTracker/pagesTracker.module.ts';
 import { clearCookies, setCookie, getCookie } from './support/testHelpers.ts';
 
+// Shared by the "Navigation defects" suites below: the browser tab (and its
+// `window`/`history`) persists across every `it` in this spec file, so a
+// tracker created by one test's real (non-stubbed) init() leaves its
+// 'locationchange' listener attached for every test that runs after it.
+// Without removing it, a later test's navigation would also be observed by
+// the earlier test's stale tracker, double-counting events that belong to a
+// URL it never actually visited.
+let previousNavigationHandler: (() => void) | undefined;
+
+function createLiveTracker(): PageTrackerModule {
+  const addEventListenerStub = window.addEventListener as unknown as { restore?: () => void };
+  addEventListenerStub.restore?.();
+
+  if (previousNavigationHandler) {
+    window.removeEventListener('locationchange', previousNavigationHandler);
+  }
+
+  // _patchHistoryForSpa() reassigns history.pushState/replaceState on every
+  // init() regardless of whether addEventListener is stubbed, so patches from
+  // earlier tests (including the stubbed-addEventListener suites above) stack
+  // as own properties on `history`. Delete them to fall back to the native
+  // History.prototype methods before patching fresh.
+  delete (window.history as unknown as Record<string, unknown>).pushState;
+  delete (window.history as unknown as Record<string, unknown>).replaceState;
+
+  const tracker = new PageTrackerModule();
+  tracker.init();
+  previousNavigationHandler = (tracker as unknown as { _handleNavigation: () => void })._handleNavigation;
+  return tracker;
+}
+
 describe('PageTrackerModule', () => {
   let pageTracker: PageTrackerModule;
   
@@ -249,21 +280,6 @@ describe('PageTrackerModule', () => {
   // exercises the fixed single-funnel navigation handling.
   describe('Navigation defects (D-9)', () => {
     beforeEach(() => {
-      // The parent suite's beforeEach (above) also runs before this test and
-      // re-stubs window.addEventListener without callThrough, so init() would
-      // never actually register a listener. Restore it here so this test's
-      // navigation is handled by a real listener.
-      const addEventListenerStub = window.addEventListener as unknown as { restore?: () => void };
-      addEventListenerStub.restore?.();
-
-      // Earlier suites in this spec each call init() with addEventListener
-      // stubbed, but _patchHistoryForSpa() still reassigns
-      // history.pushState/replaceState regardless (that reassignment isn't
-      // gated by addEventListener). Undo it so this test's own init() call
-      // patches cleanly, with a single real layer.
-      delete (window.history as unknown as Record<string, unknown>).pushState;
-      delete (window.history as unknown as Record<string, unknown>).replaceState;
-
       window.history.replaceState({}, '', '/nav-defects-start');
       clearCookies();
     });
@@ -273,10 +289,11 @@ describe('PageTrackerModule', () => {
     });
 
     it('D-9: a back/forward navigation emits exactly one Leave Page and one View Page', () => {
-      // Captured before init() patches history.pushState, so this call can
-      // change the URL the way a browser back/forward navigation does —
-      // silently, without going through the patched history methods — and
-      // the popstate dispatched below is the *only* signal the tracker gets.
+      // Captured before createLiveTracker()'s init() patches
+      // history.pushState, so this call can change the URL the way a browser
+      // back/forward navigation does — silently, without going through the
+      // patched history methods — and the popstate dispatched below is the
+      // *only* signal the tracker gets.
       const nativePushState = window.history.pushState.bind(window.history);
 
       const pageEvents: { eventName: string; fullUrl: string }[] = [];
@@ -284,8 +301,7 @@ describe('PageTrackerModule', () => {
         pageEvents.push((e as CustomEvent).detail);
       });
 
-      const liveTracker = new PageTrackerModule();
-      liveTracker.init();
+      createLiveTracker();
       pageEvents.length = 0; // drop the initial View Page from init()
 
       nativePushState({}, '', '/nav-defects-d9');
@@ -294,6 +310,53 @@ describe('PageTrackerModule', () => {
       const names = pageEvents.map((e) => e.eventName);
       expect(names.filter((n) => n === 'Leave Page')).to.have.length(1);
       expect(names.filter((n) => n === 'View Page')).to.have.length(1);
+    });
+  });
+
+  // Real-browser coverage for docs/sdk-hardening/DEFECTS.md D-10. Same
+  // real-listener setup as the D-9 suite above, and the same reason each
+  // assertion gets its own `it` with a fresh tracker: a shared tracker across
+  // `it`s in this describe would leave stacked 'locationchange' listeners
+  // (jsdom/the browser tab persists across tests in one spec file) —
+  // createLiveTracker() tears down the previous test's listener for exactly
+  // this reason.
+  describe('Navigation defects (D-10)', () => {
+    beforeEach(() => {
+      window.history.replaceState({}, '', '/nav-defects-d10-start');
+      clearCookies();
+    });
+
+    afterEach(() => {
+      clearCookies();
+    });
+
+    it('D-10: replaceState to the current URL emits no orphan Leave Page', () => {
+      const pageEvents: { eventName: string; fullUrl: string }[] = [];
+      document.addEventListener('intempt:page', (e: Event) => {
+        pageEvents.push((e as CustomEvent).detail);
+      });
+
+      createLiveTracker();
+      const unchangedUrl = window.location.href;
+      pageEvents.length = 0; // drop the initial View Page from init()
+
+      window.history.replaceState({}, '', unchangedUrl);
+
+      expect(pageEvents).to.have.length(0);
+    });
+
+    it('D-10: replaceState to a different URL still emits a matched Leave/View pair', () => {
+      const pageEvents: { eventName: string; fullUrl: string }[] = [];
+      document.addEventListener('intempt:page', (e: Event) => {
+        pageEvents.push((e as CustomEvent).detail);
+      });
+
+      createLiveTracker();
+      pageEvents.length = 0;
+
+      window.history.replaceState({}, '', '/nav-defects-d10-replaced');
+
+      expect(pageEvents.map((e) => e.eventName)).to.deep.eq(['Leave Page', 'View Page']);
     });
   });
 });

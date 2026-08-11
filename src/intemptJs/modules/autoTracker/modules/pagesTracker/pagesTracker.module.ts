@@ -30,19 +30,32 @@ export class PageTrackerModule {
     this.setPageSession();
   }
 
-  init() {
-    const safeStart = () => { try { this.start(); } catch (e) { log.error('failed to start page tracking', e); } };
+  private readonly safeStart = () => { try { this.start(); } catch (e) { log.error('failed to start page tracking', e); } };
 
+  // 'locationchange' is the single funnel every navigation source (popstate,
+  // pushState, replaceState — see _patchHistoryForSpa) routes through. `end()`
+  // used to fire unconditionally here, unlike start()'s existing dedupe on
+  // `_lastStartUrl` — so a `replaceState` call to the *same* URL (Next.js /
+  // `router.replace`-style query-param syncs) emitted an orphan `Leave Page`
+  // with no matching `View Page` (D-10). Comparing against `_lastStartUrl`
+  // before firing end()/safeStart() makes "no URL change" a no-op here too.
+  private readonly _handleNavigation = () => {
+    if (window.location.href === this._lastStartUrl) return;
+    this.end();
+    this.safeStart();
+  };
+
+  init() {
     if (document.readyState === 'complete') {
       // loaded late -> fire now
-      safeStart();
+      this.safeStart();
     } else {
-      window.addEventListener('load', safeStart, { once: true });
+      window.addEventListener('load', this.safeStart, { once: true });
     }
 
     // bfcache restores
     window.addEventListener('pageshow', (e: PageTransitionEvent) => {
-      if (e.persisted) safeStart();
+      if (e.persisted) this.safeStart();
     });
 
     window.addEventListener('beforeunload', () => this.end());
@@ -55,7 +68,7 @@ export class PageTrackerModule {
     // one `View Page`. `locationchange` is now the single funnel for all
     // navigation sources.
     this._patchHistoryForSpa();
-    window.addEventListener('locationchange', () => { this.end(); safeStart(); });
+    window.addEventListener('locationchange', this._handleNavigation);
   }
 
   private _patchHistoryForSpa() {
