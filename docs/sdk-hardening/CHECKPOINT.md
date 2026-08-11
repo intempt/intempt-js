@@ -18,6 +18,19 @@
 
 ---
 
+## 0. The two roadmaps
+
+Work is split by who can do it, and each half has its own document:
+
+| | Doc | Reaches |
+|---|---|---|
+| Needs nobody else | **`FRONTEND.md`** — 10 tasks, ranked by rubric points per day | 62 → **~85** |
+| Needs the ingest team | **`BACKEND.md`** — 5 items, handover spec | ~85 → **~91** |
+
+**Current score: 62/100** (audit baseline 40, Mixpanel comparator 85). Dimension 4
+(security) cannot exceed ~62 and dimension 2 ~86 without `BACKEND.md` item 1, so
+**91 is not reachable front-end-only** — see `FRONTEND.md`, "The ceiling".
+
 ## 1. What this programme is
 
 Bring the Intempt JS SDK from a measured **40/100** to **90+** on an enterprise
@@ -821,6 +834,8 @@ defect 3. Credential hygiene (Phase 4) is the one item from that list still open
 | What | Where |
 |---|---|
 | Full audit + 5-phase plan + proposed CI/CD harness | `docs/sdk-hardening/AUDIT.md` |
+| **Front-end roadmap to ~85, ranked by points/day** | **`docs/sdk-hardening/FRONTEND.md`** |
+| What the SDK needs from ingest (handover spec) | `docs/sdk-hardening/BACKEND.md` |
 | Settled decisions + rationale | `docs/sdk-hardening/DECISIONS.md` |
 | Mixpanel comparator checkout | `/home/beso/mixpanel-js` (v2.81.0) |
 | Proposed CI/CD files (not applied) | `AUDIT.md` §3b — 7 files, with rollout order |
