@@ -10,10 +10,10 @@
 |---|---|
 | **Branch** | `beso/sdk-enterprise-hardening` — **pushed**, upstream set, `ci.yml` green |
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
-| **Last updated** | 2026-08-11 |
-| **Next action** | **§0b is the ordered TODO list — start there.** Short version: mutation testing to the user-set 85% floor (currently **80.31%**, +112 detections to go — pools listed at the foot of §3f), then `FRONTEND.md` #1 packaging / #6 code health / #9 code-split. **Four items need a human decision before code, listed at the top of §0b.** |
+| **Last updated** | 2026-08-12 (nine-lane merge closed out and pushed) |
+| **Next action** | **§3p is the current state — start there.** All nine lanes are merged, every gate is green on the merged tree, and the branch is **PUSHED** (`3c5823e`). Next code work: kill the remaining ~60 `any` and flip the two rules to `error`; the last two `autoTracker` splits; the repo-wide prettier sweep (must land alone); the ~10 remaining defects; and widen stryker's `mutate` scope. **Four items still need the user** — see §3p. |
 | **Score** | **~78 / 100** (audit baseline 40, Mixpanel comparator 85). Front-end-only ceiling ~85 — see `FRONTEND.md`. |
-| **Tests** | Unit **920** · Cypress **122** · mutation **86.57%** (lane-local; merged-tree re-measure PENDING — floor still 80) · coverage **all src** 75.64 / 70.09 / 76.09 / 76.75 · bundle **92,548 B / 26.97 kB gzip** · ESLint 0 errors / **236** warnings (ratchet still 245 — lower it) |
+| **Tests** | Unit **930** (31 files) · Cypress **126** · mutation **86.57%** (floor **85** — target reached) · coverage all src **76.82 / 70.63 / 77.31 / 77.77** (gates 75/68/75/75) · bundle **93,814 B / 27.31 kB gzip** · ESLint 0 errors / **205** warnings (ratchet 205) · audit **2 moderate, 0 high** |
 | **Phase** | 0 ✅ · 1 ⏸ parked (packaging) · 2 ✅ tier-1 + CI gate + guard port + mutation · 3 ✅ except transports ⏸ (BE) and code-split (⬜, now cheap — see D-23) · 4 🟡 privacy ✅ §3h, client-side security ✅ §3g-ii, observability ✅ §3i, credential ⏸ (BE), `any` ⬜ · 5 🟡 CI breadth ✅ §3g, release/changesets ⬜ |
 | **Landed, by section** | §3a jitter · §3b circuit breaker · §3c bounded queue · §3d `ci.yml` · §3e guard-suite port · §3f mutation testing · §3g CI breadth + supply chain · §3h privacy & consent · §3i logger & metrics · §3j docs & DX · §3k public-API / payload-contract / choices tests · §4 three live defects · §5 `psl` dropped · §6a unit tier · §6b IndexedDB · §6c per-event records |
 | **Known defects** | **~30, documented and deliberately unfixed — `DEFECTS.md`.** Severity-1: no event carries a timestamp; a second instance duplicates every event; session events share one `eventId`. |
@@ -1520,6 +1520,72 @@ best-tested third of the SDK. That drop would be honest.
 The user's own open items: check live host sites for the `/v1`-less URL, approve
 `npm install` → `npm ci` and the `branches: ['*']` fix in `build.yaml`, push and open
 the PR into `staging`, and hand over `BACKEND.md`.
+
+## 3p. STATE AS OF THE 2026-08-12 HANDOFF — read this first
+
+**Everything from nine parallel lanes is merged, verified on the merged tree, and
+PUSHED.** `origin/beso/sdk-enterprise-hardening` is at **`3c5823e`**. This was the
+first push of ~24 commits, so **`ci.yml` is running on all of it for the first time —
+check that run before trusting anything below.** §0c records that four of five past CI
+failures were invisible locally.
+
+| Gate | Session start | Now |
+|---|---|---|
+| Unit | 794 | **930** (31 files) |
+| Cypress | 122 | **126** |
+| Mutation | 77.54% | **86.57%** — the user's 85% floor, reached |
+| Coverage | 3 dirs, ~96% | **all `src/`**, 76.82 / 70.63 / 77.31 / 77.77 |
+| ESLint | 323 warnings | **205**, 0 errors |
+| Advisories | 4 (1 high) | **2 moderate, 0 high** |
+| Bundle | 91,248 B | **93,814 B** |
+| Defects fixed | 0 | **13**, plus D-27 found and fixed |
+
+**Thresholds were all moved to just under measurement** — stryker `break` 85,
+`--max-warnings` 205, coverage 75/68/75/75. `.size-limit.json` was **raised**
+(gzip 27.9, brotli 24.2, raw 95.8 kB) because the merge exceeded all three; that is a
+loosening, and the bytes are real fixes: +697 XHR fallback, +312 choices isolation,
++139 hashchange, +118 loader try/catch.
+
+### Remaining code work — no one else needed
+
+1. **~60 `any`** left, then flip `no-explicit-any` and `no-console` to `error` and drop
+   `--max-warnings` to 0. Do the flip LAST, when the count is actually zero.
+2. **Two more `autoTracker` splits** — consent and event pool. Transport is done (§3n).
+   Pure move-and-delegate; note the wiring, not the extraction, is what costs bytes.
+3. **The repo-wide prettier sweep.** **Must land alone**, no other branch open, then
+   remove `continue-on-error` from ci.yml's prettier step.
+4. **~10 defects**: D-13/14/16/18/19/20/21/24/25/26. **D-24 is a "do not fix the way it
+   was originally described" trap — read it.** D-1/D-3/D-15 stay blocked on ingest.
+5. **Widen `stryker.conf.json`'s `mutate`.** It covers only `src/shared`, `src/guard`
+   and `src/intemptJs/guards`, so **none of what the nine lanes changed is mutated** —
+   86.57% says nothing about transport, choices, pagesTracker or loader code. Measure
+   first, then set `break` just under; expect the headline to fall, honestly, as
+   coverage did in §3m.
+
+**None of items 1–5 moves the rubric score much.** Score is ~81-83 vs Mixpanel's 85 and
+is now capped by **packaging** (parked, +3.6, the single biggest item) and the
+**`BACKEND.md` handover** (parked). A re-score against `AUDIT.md`'s ten dimensions is
+overdue — three figures in these docs disagree (~78, 62, and this estimate).
+
+### Still needs the user
+
+1. **Check live host sites** for the `/v1`-less CDN URL (D-12's original cause).
+2. **`build.yaml`**: `npm install` → `npm ci`, and `branches: ['*']` → `['**']`. Both
+   one-liners on the deploy path, deliberately not bundled with the Node bump.
+3. **Open the PR into `staging`** — `mutation` and `e2e` are `pull_request`-only and
+   have STILL never run in CI.
+4. **Hand over `BACKEND.md`** — the tallest blocker: 6 ingest items, dimension 4's ~62
+   ceiling, and the three wire-format defects.
+5. **Release-note line for D-2's "last instance wins"** — it silently stops a first
+   instance, so a page deliberately running two loses one.
+
+### Lane worktrees
+
+The nine lane branches are merged and their worktrees removed. Branches kept for
+traceability: `lane-a-sdkloader-tests`, `lane-d-autotracker`, `lane-f-pagestracker`,
+`lane-g-choices`, `lane-h-transport`, `lane-i-loader`, and three `worktree-agent-*`.
+Delete them once the PR merges. **Process lessons are in §3n and §3o and in
+`~/.claude/agent-routing/LEDGER.md` — read them before running lanes again.**
 
 ## 4. Three live defects — ✅ all three fixed
 
