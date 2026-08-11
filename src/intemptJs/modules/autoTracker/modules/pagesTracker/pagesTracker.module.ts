@@ -45,11 +45,15 @@ export class PageTrackerModule {
       if (e.persisted) safeStart();
     });
 
-    // existing
-    window.addEventListener('popstate', () => { this.end(); safeStart(); });
     window.addEventListener('beforeunload', () => this.end());
 
-    // SPA navigations
+    // SPA navigations. `_patchHistoryForSpa()` already registers its own
+    // `popstate` listener that fires 'locationchange' (handled below), so a
+    // direct `popstate` listener here that also called end()/safeStart()
+    // would double-fire on every back/forward navigation (D-9): every
+    // popstate would run both handlers, emitting two `Leave Page` events and
+    // one `View Page`. `locationchange` is now the single funnel for all
+    // navigation sources.
     this._patchHistoryForSpa();
     window.addEventListener('locationchange', () => { this.end(); safeStart(); });
   }

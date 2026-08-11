@@ -242,4 +242,58 @@ describe('PageTrackerModule', () => {
       expect(pageTracker.cookieKeys).to.deep.eq(['page_session']);
     });
   });
+
+  // Real-browser coverage for docs/sdk-hardening/DEFECTS.md D-9. Unlike the
+  // suites above, `window.addEventListener` is NOT stubbed here — this test
+  // needs the tracker's listeners actually registered so a real popstate
+  // exercises the fixed single-funnel navigation handling.
+  describe('Navigation defects (D-9)', () => {
+    beforeEach(() => {
+      // The parent suite's beforeEach (above) also runs before this test and
+      // re-stubs window.addEventListener without callThrough, so init() would
+      // never actually register a listener. Restore it here so this test's
+      // navigation is handled by a real listener.
+      const addEventListenerStub = window.addEventListener as unknown as { restore?: () => void };
+      addEventListenerStub.restore?.();
+
+      // Earlier suites in this spec each call init() with addEventListener
+      // stubbed, but _patchHistoryForSpa() still reassigns
+      // history.pushState/replaceState regardless (that reassignment isn't
+      // gated by addEventListener). Undo it so this test's own init() call
+      // patches cleanly, with a single real layer.
+      delete (window.history as unknown as Record<string, unknown>).pushState;
+      delete (window.history as unknown as Record<string, unknown>).replaceState;
+
+      window.history.replaceState({}, '', '/nav-defects-start');
+      clearCookies();
+    });
+
+    afterEach(() => {
+      clearCookies();
+    });
+
+    it('D-9: a back/forward navigation emits exactly one Leave Page and one View Page', () => {
+      // Captured before init() patches history.pushState, so this call can
+      // change the URL the way a browser back/forward navigation does —
+      // silently, without going through the patched history methods — and
+      // the popstate dispatched below is the *only* signal the tracker gets.
+      const nativePushState = window.history.pushState.bind(window.history);
+
+      const pageEvents: { eventName: string; fullUrl: string }[] = [];
+      document.addEventListener('intempt:page', (e: Event) => {
+        pageEvents.push((e as CustomEvent).detail);
+      });
+
+      const liveTracker = new PageTrackerModule();
+      liveTracker.init();
+      pageEvents.length = 0; // drop the initial View Page from init()
+
+      nativePushState({}, '', '/nav-defects-d9');
+      window.dispatchEvent(new PopStateEvent('popstate'));
+
+      const names = pageEvents.map((e) => e.eventName);
+      expect(names.filter((n) => n === 'Leave Page')).to.have.length(1);
+      expect(names.filter((n) => n === 'View Page')).to.have.length(1);
+    });
+  });
 });
