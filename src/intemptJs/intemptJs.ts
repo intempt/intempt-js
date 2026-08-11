@@ -297,13 +297,19 @@ export class IntemptJs extends IntemptJsGuard {
 
     const profileId = this._autoTracker.getProfileId();
     const sourceId = this._config.sourceId;
-    const pageId = this._autoTracker.getPageId();
 
+    // D-16: `getPageId()` used to be read here and passed to `ConsentModel`,
+    // which declares no `pageId` field — so it was silently discarded. The read
+    // was not free: `PageTrackerModule.getId()` MINTS the page-session cookie
+    // when none exists, and `consent()` is deliberately not gated on opt-out
+    // (D-5), so an opted-out visitor rejecting consent was having a tracking
+    // cookie written for them by the very call that refused tracking. Dropping
+    // the read removes dead work and that write. Adding `pageId` to the consent
+    // wire contract instead is an ingest question — see BACKEND.md.
     const eventData = new ConsentModel({
       ...params,
       profileId,
-      sourceId,
-      pageId
+      sourceId
     })
 
     dispatchIntemptEvent('intempt:consent', {

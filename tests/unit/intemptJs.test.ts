@@ -509,11 +509,19 @@ describe('IntemptJs — the public API class', () => {
       expect(lastModel().payload[0].data).toBeUndefined();
     });
 
-    it('all three product helpers announce an EMPTY eventName — the ProductModel._name defect', () => {
-      // Same root cause as the `record` defect above: `ProductModel._name`
-      // returns `''`. Recorded once for all three entry points.
+    it('all three product helpers announce their real eventName — D-13 fixed', () => {
+      // Same root cause as the `record` fix above: `ProductModel._name` returned
+      // `''`. Each helper sets its own title, so assert all three rather than one
+      // — a single case would not catch a helper whose title never reached the
+      // model.
       sdk.productAdd({ productId: 'p1' } as any);
-      expect(dispatched('intempt:product').at(-1)!.detail).toEqual({ eventName: '' });
+      expect(dispatched('intempt:product').at(-1)!.detail).toEqual({ eventName: 'Added to cart' });
+
+      sdk.productView('p-42');
+      expect(dispatched('intempt:product').at(-1)!.detail).toEqual({ eventName: 'Product viewed' });
+
+      sdk.productOrdered([{ productId: 'p1' }] as any);
+      expect(dispatched('intempt:product').at(-1)!.detail).toEqual({ eventName: 'Product ordered' });
     });
   });
 
