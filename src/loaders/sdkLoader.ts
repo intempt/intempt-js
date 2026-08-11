@@ -85,7 +85,12 @@ function getIntemptConfig(): IntemptConfig {
     // redaction rule is worse than none.
     ignore_dnt: readBooleanParam(source.searchParams, 'ignore_dnt'),
     piiScrubbing: readBooleanParam(source.searchParams, 'pii_scrubbing'),
-    apiHost: source.searchParams.get('api_host') ?? undefined,
+    // `?? undefined` alone is not enough: `.get()` returns `''` (not `null`)
+    // for a present-but-empty `?api_host=`, so `?? undefined` never fires and
+    // `resolveIngestBaseUrl` receives an empty string instead of falling
+    // through to the build-time default (D-27). Treat an empty value the same
+    // as an absent one.
+    apiHost: source.searchParams.get('api_host') || undefined,
   }
 }
 

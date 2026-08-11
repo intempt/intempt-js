@@ -290,15 +290,15 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       expect(autoTrackerInstances[0]!.config.apiHost).toBeUndefined();
     });
 
-    it('api_host="" is read as undefined, not as an empty-string host', () => {
-      // `?? undefined` on a `.get()` that returns '' for a present-but-empty
-      // param — `''` is not `null`, so the `?? ''` used for the required
-      // fields would keep it as `''`; api_host instead falls back to
-      // `undefined` because it uses `?? undefined` rather than `?? ''`. This
-      // pins today's behaviour rather than asserting the "right" one.
+    it('api_host="" is read as undefined, not as an empty-string host (D-27, fixed)', () => {
+      // Previously `.get()` returning '' for a present-but-empty param
+      // survived `?? undefined` unchanged (`''` is not `null`), so
+      // resolveIngestBaseUrl received an empty string instead of falling
+      // through to the build-time default. `||` now treats the empty string
+      // the same as absent.
       appendScript(`${REQUIRED_QUERY}&api_host=`);
       SDK.init();
-      expect(autoTrackerInstances[0]!.config.apiHost).toBe('');
+      expect(autoTrackerInstances[0]!.config.apiHost).toBeUndefined();
     });
   });
 
