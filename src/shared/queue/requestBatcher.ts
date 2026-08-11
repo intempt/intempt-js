@@ -6,6 +6,16 @@ export interface BatcherConfig {
   batchFlushIntervalMs: number;
   batchRequestTimeoutMs: number;
   batchAutostart: boolean;
+  /**
+   * Cap on events held in the queue before the oldest are dropped. Optional;
+   * `RequestQueue` applies its own default (10,000) when this is absent.
+   *
+   * This was reachable only by constructing a `RequestQueue` directly until a
+   * mutation-driven test tried to configure it through the batcher and found the
+   * option was never threaded through — so the "overridable" cap documented in
+   * CHECKPOINT.md §3c was not overridable from the SDK's only entry point.
+   */
+  maxQueuedEvents?: number;
 }
 
 export interface RequestBatcherOptions {
@@ -176,6 +186,7 @@ export class RequestBatcher {
       usePersistence: options.usePersistence,
       queueStorage: options.queueStorage,
       sharedLockStorage: options.sharedLockStorage,
+      maxQueuedEvents: options.libConfig.maxQueuedEvents,
       errorReporter: this.reportError.bind(this)
     });
   }

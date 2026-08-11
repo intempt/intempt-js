@@ -552,4 +552,110 @@ describe('RequestBatcher', () => {
       expect(sendCalls.length).toBe(before);
     });
   });
+
+  // --- Assertions added from the mutation-testing baseline ------------------
+  //
+  // Each test here exists because Stryker showed the behaviour could be changed
+  // with the whole 357-test suite still green (CHECKPOINT.md §3f). They are not
+  // extra coverage of already-asserted code — they close specific holes:
+  //
+  //   getDroppedEventCount() emptied to return undefined  → survived
+  //   start(): body emptied / stopped = false → true      → survived
+  //   clear(): made a no-op                                → survived
+  //   breaker guard: `>` → `>=`                            → survived
+  //
+  // The pattern in every case is the same: the *effect* was tested through some
+  // other object (usually RequestQueue directly), so the batcher's own method
+  // could stop working without any assertion noticing.
+
+  describe('public accessors and lifecycle — mutation-driven', () => {
+    it('getDroppedEventCount() reports the queue’s count, not its own idea of it', async () => {
+      // The four existing assertions on the drop counter all call
+      // RequestQueue.getDroppedEventCount() directly, so the batcher's
+      // one-line delegate was asserted by nothing: deleting its body (making it
+      // return undefined) kept the suite green. That matters because this
+      // accessor is the entire deliverable of the bounded queue (§3c) — a
+      // silently-undefined count puts us back to unmeasured loss.
+      const capped = makeBatcher({ libConfig: { batchSize: 10, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false, maxQueuedEvents: 3 } });
+
+      expect(capped.getDroppedEventCount()).toBe(0);
+
+      for (let i = 0; i < 6; i++) {
+        await capped.enqueue(event(`evt-cap-${i}`));
+      }
+
+      const dropped = capped.getDroppedEventCount();
+      expect(dropped, 'three events over a cap of three must be counted').toBe(3);
+      expect(dropped).toBe((capped as any).queue.getDroppedEventCount());
+      expect(typeof dropped, 'must be a number, never undefined').toBe('number');
+    });
+
+    it('start() clears the stopped flag, so scheduled flushes resume', async () => {
+      // `stopped = false` in start() was unasserted: flipping it to `true` left
+      // every test passing, because the tests that call start() then flush
+      // manually rather than relying on the schedule. A customer calling
+      // stop() then start() would have got a batcher that never flushed again.
+      vi.useFakeTimers();
+      batcher.stop();
+      expect((batcher as any).stopped).toBe(true);
+
+      await batcher.start();
+      expect((batcher as any).stopped).toBe(false);
+
+      await batcher.enqueue(event('evt-restart'));
+      const before = sendCalls.length;
+      await vi.advanceTimersByTimeAsync(5_000);
+
+      expect(sendCalls.length, 'the schedule must be live again after start()').toBeGreaterThan(
+        before,
+      );
+    });
+
+    it('start() resets the consecutive-removal-failure count', async () => {
+      (batcher as any).consecutiveRemovalFailures = 4;
+      await batcher.start();
+      expect((batcher as any).consecutiveRemovalFailures).toBe(0);
+    });
+
+    it('clear() actually empties the queue', async () => {
+      // clear() replaced by a no-op survived: nothing asserted that a cleared
+      // batcher has nothing left to send. This is the method a consent-withdrawal
+      // path would call, so a silent no-op means sending events after opt-out.
+      await batcher.enqueue(event('evt-clear-1'));
+      await batcher.enqueue(event('evt-clear-2'));
+
+      await batcher.clear();
+
+      await batcher.flush();
+      expect(sendCalls, 'a cleared queue has nothing to deliver').toHaveLength(0);
+    });
+
+    it('treats a breaker window that has just expired as closed', async () => {
+      // The guard is `breakerOpenUntilMS > Date.now()`, and `>=` survived — the
+      // boundary was untested. Pinning it keeps the breaker's contract exact:
+      // the window is "open until T", so at exactly T the probe is allowed
+      // through rather than waiting another cycle.
+      await batcher.enqueue(event('evt-boundary'));
+      const now = Date.now();
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      (batcher as any).breakerOpenUntilMS = now;
+
+      await batcher.flush();
+
+      expect(sendCalls, 'at exactly the expiry instant the breaker is closed').toHaveLength(1);
+    });
+
+    it('still blocks a send one millisecond before the window expires', async () => {
+      // The other half of the boundary — without this, `>=` would be replaced by
+      // something that never blocks and this suite still would not care.
+      await batcher.enqueue(event('evt-boundary-2'));
+      const now = Date.now();
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      (batcher as any).breakerOpenUntilMS = now + 1;
+
+      await batcher.flush();
+
+      expect(sendCalls, 'the breaker is still open for one more millisecond').toHaveLength(0);
+    });
+  });
 });

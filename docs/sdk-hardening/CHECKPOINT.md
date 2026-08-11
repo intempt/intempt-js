@@ -12,9 +12,9 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Next action** | **§3 item 1 — kill the surviving mutants in `src/shared/queue`.** Mutation testing (§3f) put the queue core at **54.93%** against 92.57% line coverage; that gap is now the highest-value work in Phase 2. Nothing is blocked. |
+| **Next action** | **§3 item 1 — golden-file contract tests on the outbound payload shape.** Mutation testing is in place and measured (§3f, §3f-i); the recommendation there is to treat 71.42% as a ratchet floor rather than grind it upward, so contract tests are the top item again. Nothing is blocked. |
 | **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, baseline 70.66% (§3f)**. Unit **357** / Cypress **122**, all passing. Bundle 81.74 kB / 23.08 kB gzip. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 71.42% (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. Unit **363** / Cypress **122**, all passing. Bundle 81.78 kB / 23.09 kB gzip. |
 
 ---
 
@@ -442,6 +442,50 @@ only colour the report.
 **CI placement:** `pull_request` only, like `e2e`. ~3.5 min is too slow for every
 push and exactly right before a merge.
 
+### 3f-i. First batch of mutant-killing tests, and what it measured — 2026-08-11
+
+Six tests were added to `tests/unit/requestBatcher.test.ts` aimed at the named
+survivors above, explicitly **to measure the kill rate rather than to chase the
+score**. The measurement is the deliverable, and it contradicted the estimate:
+
+| | Before | After |
+|---|---|---|
+| Overall score | 70.66% | **71.42%** |
+| `requestBatcher.ts` | 54.92% | **58.74%** |
+| Survived | 398 | 397 |
+| No coverage | 141 | 128 |
+
+**6 tests killed 14 mutants — about 2.3 each, and +0.76 points overall.** The
+prior estimate in this document was "15–25 tests gets us to the low 80s". That
+was wrong by roughly 4×: at the measured rate, +10 points needs on the order of
+**80–100 tests**. Do not plan on the old number.
+
+**Why the survivor count barely moved (398 → 397) while 14 mutants died.** Almost
+all the kills came out of the *no-coverage* column, not the survived column —
+those six tests reached code nothing had executed before. The 397 remaining
+survivors are different in kind: they are in code that **does** run and is simply
+not asserted, so each needs its own targeted assertion. There is no bulk win left
+in this file.
+
+**Recommendation, therefore: treat 71.42% as a ratchet floor and stop chasing the
+number.** Mutation score has already paid for itself twice (see the defect below,
+and §3f's list); grinding to 85% would cost ~80 tests, many of them asserting
+implementation detail, on code that a property-test suite already covers
+behaviourally (§6a). Spend the next effort on the payload contract tests instead,
+and kill individual survivors opportunistically when touching that code.
+
+**A real defect fell out of writing test #1 — the more valuable result.**
+`maxQueuedEvents` was a `RequestQueue` option that `RequestBatcher` never passed
+through, so the "cap by event count, overridable via `maxQueuedEvents`" recorded
+in §3c **was not overridable from the SDK's only entry point** — every customer
+was pinned to the 10,000 default with no way to lower it, and the option looked
+configurable in the docs. Now on `BatcherConfig` and threaded into the queue.
+This is the pattern to notice: the value was not in the score moving, it was in
+being forced to call the public API the way a customer would.
+
+Bundle after the fix: 81.78 kB / 23.09 kB gzip (from 81.74 / 23.08). Unit tier
+**363 tests**; coverage 93.51% / 89.90% / 90.74%, all above the gate.
+
 **Not done, and this is the real backlog item now:** the 398 survivors and 141
 no-coverage mutants in `src/shared/**` are a *worklist*, not noise. Killing the
 queue-core survivors is higher value than any remaining Phase 2 item, because the
@@ -461,14 +505,13 @@ testing is in place (§3f).
 
 Highest value now, in the author's order:
 
-1. **Kill the surviving mutants in `src/shared/queue`** — 54.93% mutation score
-   against 92.57% line coverage, in the SDK's most critical code. §3f lists
-   concrete survivors to start from, including one in the §3c drop counter. This
-   displaces contract tests as the top item because it is the same class of defect
-   as §6a's three data-loss bugs, found cheaply instead of by luck.
-2. **Golden-file contract tests** on the outbound payload shape. The last named
+1. **Golden-file contract tests** on the outbound payload shape. The last named
    Phase 2 item; after it, tier-1 is done and only the WDIO cross-browser tier 2
    remains (blocked on a Sauce account).
+2. Kill individual mutation survivors **opportunistically, while touching the
+   code** — not as a campaign. §3f-i measured the rate at ~2.3 mutants per test
+   and recommends against grinding the score; the remaining 397 survivors each
+   need their own assertion.
 2. Cross-subdomain consent cookie (D15), structured logger + killing `any`
    (Phase 4). The logger has a concrete consumer now: the drop counter from §3c.
 3. **Credential hygiene (Phase 4)** — but note this is now known to be **mostly
@@ -713,7 +756,7 @@ not behaviour. If they break again, prefer rewriting them to go through
 |---|---|---|---|---|
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
-| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (**357 tests**, gate enforced at 90/87/87/90), **`ci.yml` gates merges ✅**, **guard suites ported ✅**, **mutation testing ✅ (70.66%)**; killing queue-core survivors, contract tests and WDIO tier 2 remain |
+| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (**363 tests**, gate enforced at 90/87/87/90), **`ci.yml` gates merges ✅**, **guard suites ported ✅**, **mutation testing ✅ (71.42%)**; killing queue-core survivors, contract tests and WDIO tier 2 remain |
 | 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ✅ **jitter, circuit breaker, bounded queue** (4th ⏸ BE) |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. `browser-tests.yml` / `release.yml` / changesets remain |
