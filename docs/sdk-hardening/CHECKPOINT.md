@@ -1548,12 +1548,12 @@ loosening, and the bytes are real fixes: +697 XHR fallback, +312 choices isolati
 
 ### Remaining code work — no one else needed
 
-1. **~60 `any`** left, then flip `no-explicit-any` and `no-console` to `error` and drop
-   `--max-warnings` to 0. Do the flip LAST, when the count is actually zero.
-2. **Two more `autoTracker` splits** — consent and event pool. Transport is done (§3n).
-   Pure move-and-delegate; note the wiring, not the extraction, is what costs bytes.
-3. **The repo-wide prettier sweep.** **Must land alone**, no other branch open, then
-   remove `continue-on-error` from ci.yml's prettier step.
+1. ~~**~60 `any`** left, then flip `no-explicit-any` and `no-console` to `error` and drop
+   `--max-warnings` to 0.~~ ✅ **done — §3r.** Was 99, not ~60. Both rules are errors.
+2. ~~**Two more `autoTracker` splits** — consent and event pool.~~ ✅ **done — §3r.**
+   The wiring cost +510 B, as predicted.
+3. ~~**The repo-wide prettier sweep.**~~ ✅ **done — §3r.** 140 files; bundle came out
+   byte-identical; `continue-on-error` removed.
 4. ~~**~10 defects**: D-13/14/16/18/19/20/21/24/25/26.~~ **✅ done as far as code can take
    it — see §3q.** D-13/16/21/24/25/26 are fixed; **D-14/18/19/20 need a user decision**
    (each turns silence into a throw, or changes a value ingest already receives), and
