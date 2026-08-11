@@ -1,5 +1,20 @@
 import { AutoTrackerModule } from '../src/intemptJs/modules/autoTracker/autoTracker.module.ts';
 import { IntemptConfig } from '../src/intemptJs/types/intemptJs.types.ts';
+import { PersistentStore } from '../src/shared/storage/persistentStore.ts';
+
+const QUEUE_KEY = '__intempt_queue_test-source__';
+
+/**
+ * Read the queue through the same storage abstraction the SDK uses, rather than
+ * reaching into localStorage. These assertions used to hardcode localStorage and
+ * broke the moment the IndexedDB tier landed — the behaviour was correct, the
+ * test was asserting an implementation detail.
+ */
+function readQueue(): Promise<any[]> {
+  return new PersistentStore({ dbName: 'intempt_test-source' })
+    .getItem(QUEUE_KEY)
+    .then(value => (Array.isArray(value) ? value : []));
+}
 
 describe('AutoTrackerModule - Batcher Integration', () => {
   let autoTracker: AutoTrackerModule;
@@ -110,18 +125,12 @@ describe('AutoTrackerModule - Batcher Integration', () => {
       document.dispatchEvent(event);
 
       // Wait for async enqueue operation to complete
-      cy.wait(300).then(() => {
-        // Event should be enqueued (check localStorage)
-        const queueData = localStorage.getItem('__intempt_queue_test-source__');
-        expect(queueData).to.not.be.null;
-        
-        if (queueData) {
-          const queue = JSON.parse(queueData);
+      cy.wait(300)
+        .then(() => readQueue())
+        .then(queue => {
           expect(queue).to.be.an('array');
-          // Should have at least one item in queue
           expect(queue.length).to.be.greaterThan(0);
-        }
-      });
+        });
     });
 
     it('should flush on page unload', () => {
@@ -146,20 +155,17 @@ describe('AutoTrackerModule - Batcher Integration', () => {
       }
 
       // Wait for events to be enqueued
-      cy.wait(300).then(() => {
-        // Verify events are in queue
-        const queueData = localStorage.getItem('__intempt_queue_test-source__');
-        expect(queueData).to.not.be.null;
-        
-        // Simulate page unload
-        cy.window().then((win) => {
-          win.dispatchEvent(new Event('beforeunload'));
-          
-          // Wait for flush to complete
-          cy.wait(200);
-          // Test passes if no errors thrown
+      cy.wait(300)
+        .then(() => readQueue())
+        .then(queue => {
+          expect(queue.length).to.be.greaterThan(0);
+
+          // Simulate page unload
+          cy.window().then((win) => {
+            win.dispatchEvent(new Event('beforeunload'));
+            cy.wait(200);
+          });
         });
-      });
     });
   });
 });

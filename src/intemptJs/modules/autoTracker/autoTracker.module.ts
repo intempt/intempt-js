@@ -14,7 +14,7 @@ import { IntemptEventListenerName, IntemptEventName } from '../../types/constant
 import { IntemptPageEventName, ShopifyEvent } from '../../types/autoTracker.types.ts';
 import { ProductModel } from '../../models/product.model.ts';
 import { RequestBatcher } from '../../../shared/queue/requestBatcher.ts';
-import { QueueStorage } from '../../../shared/storage/queueStorage.ts';
+import { PersistentStore } from '../../../shared/storage/persistentStore.ts';
 import { EnvConfig } from '../../../shared/envConfig.ts';
 import { loadDoNotTrack, persistDoNotTrack } from '../../../shared/consentState.ts';
 
@@ -124,7 +124,19 @@ export class AutoTrackerModule {
           }
         },
         usePersistence: true,
-        queueStorage: new QueueStorage()
+        // IndexedDB tier with a localStorage fallback. localStorage is
+        // synchronous, so every queue write blocked the host page's main
+        // thread, and it caps at ~5 MB shared with that page — a cap we cannot
+        // detect until a write throws. PersistentStore keeps the same interface,
+        // so the queue is unaware of which tier it is on.
+        queueStorage: new PersistentStore({
+          dbName: `intempt_${this._config.sourceId}`,
+          errorReporter: (msg, err) => {
+            if (!EnvConfig.isProduction()) {
+              console.error('[AutoTracker]', msg, err);
+            }
+          },
+        })
       });
 
       // Start the batcher

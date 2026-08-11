@@ -12,8 +12,8 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Phase** | Phase 0 ✅. Phase 1 🟡 (tasks 1–2 done, 3–5 paused by the user). §4 defects ✅. `psl` removal ✅. **Phase 2 tier-1 ✅** (vitest, 105 unit tests, coverage gate). |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. Unit 105 / Cypress 213, all passing. |
+| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB persistence tier with localStorage fallback**. Unit 123 / Cypress 213, all passing. Bundle 76.56 kB / 21.76 kB gzip. |
 
 ---
 
@@ -85,6 +85,29 @@ Task status (full detail in `AUDIT.md` §2, Phase 1):
    build, but add a module build exporting a pure `createIntempt(config)` with
    **no import-time side effects** — then add `main`/`module`/`exports`/
    `sideEffects: false` from task 1.
+
+## 2a. Scope decisions from the user — 2026-08-11
+
+Recorded so they are not re-litigated:
+
+- **npm packaging is backlogged.** Phase 1 tasks 3–5 (`index.d.ts`, changesets,
+  module build) are parked. Tasks 1–2 already landed and stay.
+- **Anything requiring backend work is backlogged.** That parks: the transport
+  fallback chain (`sendBeacon` needs the credential off the `Authorization`
+  header — D7), `$lib_version` stamping (D12), ingest idempotency on `eventId`,
+  and the server-controlled load-shedding brake. **`docs/sdk-hardening/BACKEND.md`
+  is the handover spec for all of it** — hand that to the backend team.
+- **Code-splitting: not now.**
+- **IndexedDB: approved**, and done — see §6b.
+
+Remaining work that needs nothing from anyone else:
+
+1. Load shedding, client-side three of four — **jitter on backoff** (highest
+   value, cheapest), circuit breaker, bounded queue with an explicit drop policy.
+2. Rest of Phase 2 — port the guard suites into the unit tier, golden-file
+   contract tests on the payload shape, `ci.yml` so the tiers gate merges.
+3. Cross-subdomain consent cookie (the D15 limitation).
+4. Phase 4 client-side leftovers — structured logger, killing `any`.
 
 ## 3. Next concrete action
 
@@ -236,6 +259,41 @@ None of these three are in `AUDIT.md`. They are the argument for Phase 2 in
 concrete form: the audit found what reading could find, and the tests found what
 reading could not.
 
+## 6b. Phase 3 — IndexedDB persistence tier ✅
+
+`src/shared/storage/indexedDbStore.ts` + `src/shared/storage/persistentStore.ts`,
+derived in shape from Mixpanel's `indexed-db.js` / `wrapper.js` (Apache-2.0).
+18 unit tests, run against **real IndexedDB** via `fake-indexeddb`, not a double.
+
+**Why:** `localStorage` is synchronous, so every queue write blocked the host
+page's main thread, and it caps at ~5 MB shared with that page — a cap we do not
+control and cannot detect until a write throws.
+
+**How it landed without touching the queue:** `PersistentStore` implements the
+same async interface as `QueueStorage` (`init`/`getItem`/`setItem`/`removeItem`),
+so it drops into `RequestQueue` through the existing `queueStorage` option.
+`RequestQueue` is unchanged. `AutoTrackerModule` now constructs it with
+`dbName: intempt_<sourceId>`.
+
+Fallback policy: IndexedDB first; on a failed open, localStorage **permanently
+for that page** (the causes — private mode, sandboxed iframe, corrupt profile —
+are not transient within a page's life, and retrying per-operation would make
+every write pay the failed-open cost); if a write fails *after* a successful
+open, fall back mid-flight rather than dropping the batch; if neither tier comes
+up, reject so `RequestQueue` degrades to its in-memory queue.
+
+**Not done yet — the follow-up that matters:** this still stores the whole queue
+array under one key, so a write is O(queue depth) in CPU even though it is no
+longer synchronous. **Splitting the queue into one record per event is where the
+real throughput win is**, and it is what `IndexedDbStore.removeItems()` (already
+written and tested — a transactional multi-delete) exists for. That change does
+require `RequestQueue` to change.
+
+Two Cypress assertions in `autoTrackerBatcher.cy.ts` were rewritten as part of
+this: they read `localStorage` directly, so they failed the moment the tier
+landed. The behaviour was right and the test was asserting an implementation
+detail — they now read through `PersistentStore`.
+
 ## 6. Invariants — do not violate without asking
 
 1. **Never push to `staging` or `main`.** The branch's upstream tracking was
@@ -262,7 +320,7 @@ reading could not.
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
 | 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (105 tests, gate enforced); guard-suite port, contract tests and WDIO tier 2 remain |
-| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 partial — **unload fix and `psl` removal landed early**; IndexedDB, transports, code-split, load shedding remain |
+| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ⬜ **next** |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | ⬜ |
 

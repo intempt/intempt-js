@@ -1,0 +1,122 @@
+# BACKEND — work the SDK needs from ingest
+
+> Handover document. Every item here is **blocked on backend work** and is
+> therefore backlogged on the SDK side (user decision, 2026-08-11). Nothing in
+> this file can be built client-first.
+>
+> Ordered by what unblocks the most SDK work per unit of backend effort.
+
+---
+
+## 1. Public, ingest-only project token — unblocks `sendBeacon`
+
+**Today:** the write key is `btoa`-encoded into an `Authorization: Basic` header
+in the browser
+(`src/intemptJs/modules/autoTracker/autoTracker.module.ts:164-165`, header set at
+`:179`).
+
+Two consequences, one security and one reliability, with a single root cause:
+
+1. A write credential is visible in devtools on every customer page.
+2. It **forces `fetch`**, because `sendBeacon` cannot set headers — and
+   `sendBeacon` is the only transport the spec guarantees survives page teardown.
+   This is why events are lost on tab close, worst on Safari and mobile Safari.
+
+**What we need:**
+
+- A new credential type: a token scoped to **event ingest only** for one
+  org/project/source. No read access, no admin authority. Public by design, like
+  Mixpanel's project token — so appearing in page source stops being a finding.
+- The token must be accepted **off the header** — in the request body preferred
+  (`{ token, track: [...] }`), or the URL path. Query string is a last resort:
+  it lands in access logs and `Referer`.
+- **Accept `text/plain` bodies and parse them as JSON.** Non-negotiable for
+  beacons: any other content type forces a CORS preflight, and a preflight will
+  not complete during page teardown. CORS must allow the simple request.
+- **Rate limits per token, per IP, and per-project quotas.** The token is public,
+  so server-side abuse control replaces the credential's former secrecy. This is
+  the actual security control in the new model — it is not optional hardening.
+- **Dual-accept `Authorization: Basic` during a deprecation window.** This matters
+  more here than usual: the CDN path is mutable and there is no rollback
+  artifact, so we cannot assume old embedded snippets ever update.
+- **Rotation and revocation**, with multiple concurrently-valid tokens per source
+  so rotation does not require a synchronised client update.
+
+**Unblocks:** the transport fallback chain (`sendBeacon` → `fetch(keepalive)` →
+XHR), which is Phase 3 item 3 and the fix for unload event loss. See D7.
+
+---
+
+## 2. Status codes the retry logic can act on
+
+The SDK's backoff, batch-halving and dequeue decisions all key off the response,
+and we have already fixed one bug where an ambiguous answer caused **silent data
+loss** (D17). Required semantics:
+
+| Status | SDK behaviour |
+|---|---|
+| 2xx | accepted — dequeue |
+| 400 | permanently bad payload — drop, do not retry |
+| 413 | too large — halve the batch and retry; a single-event 413 is dropped |
+| 429 + `Retry-After` | back off for exactly that long |
+| 5xx | retryable — exponential backoff |
+
+Anything that is not a definite answer is treated as "not delivered" and retried.
+
+---
+
+## 3. Idempotency on `eventId` — would let us delete client complexity
+
+Every payload already carries a stable `eventId`. If ingest deduplicates on it,
+the whole at-most-once / at-least-once tension in D13 and D18 disappears: the SDK
+can dequeue optimistically, and the pre-send marking, its rollback, and the
+unload ambiguity handling can all be simplified away.
+
+**This is the highest-value item on the list after the token itself**, because it
+removes client code rather than adding it — and client code is the part we cannot
+patch quickly, given the mutable CDN path.
+
+---
+
+## 4. Confirm `$lib_version` is accepted on the payload
+
+The SDK version is already single-sourced and exposed as `Intempt.VERSION`, but
+it is **not** stamped onto outbound events, because that changes the wire format
+posted to `…/sources/<id>/track`. If ingest validates strictly, an unknown field
+means rejected batches — dropped events for every customer, which is worse than
+the missing forensics it was meant to fix.
+
+**Needed:** confirmation that an unknown top-level field is tolerated, or the name
+ingest would prefer. See D12.
+
+---
+
+## 5. A server-controlled brake for load shedding
+
+Framing: at 1–10M concurrent sessions the SDK is a load-shaping device, and its
+most important property during an incident is that it **must not amplify**.
+
+The SDK can and will do its own share client-side (jitter, circuit breaker,
+bounded queue with an explicit drop policy — none of which need you). But the
+only mechanism that lets you shed load **from the server side** during an
+incident is a directive in the ingest response: a sample rate, a pause duration,
+or a kill switch. Without it, your only lever is refusing connections, which
+clients then retry against.
+
+**Suggested shape:** an optional object on the ingest response, e.g.
+`{ "control": { "sampleRate": 0.1, "pauseMs": 60000 } }`. The SDK ignores it
+until implemented, so it can ship server-first.
+
+---
+
+## Summary
+
+| # | Item | Unblocks | Effort shape |
+|---|---|---|---|
+| 1 | Public ingest-only token, accepted off-header, `text/plain`, rate-limited | `sendBeacon`; fixes unload loss **and** the credential finding | New credential type + ingest auth path |
+| 2 | Retry-actionable status codes | Correct backoff; prevents silent loss | Mostly confirmation |
+| 3 | Idempotency on `eventId` | Lets us **remove** client complexity | Ingest dedupe store |
+| 4 | Accept `$lib_version` | Incident forensics | Confirmation, likely no code |
+| 5 | Load-shedding directive in the response | Server-side control during an incident | Small, ship server-first |
+
+Items 1–2 are the minimum to unblock the SDK's reliability work.
