@@ -30,45 +30,70 @@ export class PageTrackerModule {
     this.setPageSession();
   }
 
-  init() {
-    const safeStart = () => { try { this.start(); } catch (e) { log.error('failed to start page tracking', e); } };
+  private readonly safeStart = () => { try { this.start(); } catch (e) { log.error('failed to start page tracking', e); } };
 
+  // 'locationchange' is the single funnel every navigation source (popstate,
+  // pushState, replaceState — see _patchHistoryForSpa) routes through. `end()`
+  // used to fire unconditionally here, unlike start()'s existing dedupe on
+  // `_lastStartUrl` — so a `replaceState` call to the *same* URL (Next.js /
+  // `router.replace`-style query-param syncs) emitted an orphan `Leave Page`
+  // with no matching `View Page` (D-10). Comparing against `_lastStartUrl`
+  // before firing end()/safeStart() makes "no URL change" a no-op here too.
+  private readonly _handleNavigation = () => {
+    if (window.location.href === this._lastStartUrl) return;
+    this.end();
+    this.safeStart();
+  };
+
+  init() {
     if (document.readyState === 'complete') {
       // loaded late -> fire now
-      safeStart();
+      this.safeStart();
     } else {
-      window.addEventListener('load', safeStart, { once: true });
+      window.addEventListener('load', this.safeStart, { once: true });
     }
 
     // bfcache restores
     window.addEventListener('pageshow', (e: PageTransitionEvent) => {
-      if (e.persisted) safeStart();
+      if (e.persisted) this.safeStart();
     });
 
-    // existing
-    window.addEventListener('popstate', () => { this.end(); safeStart(); });
     window.addEventListener('beforeunload', () => this.end());
 
-    // SPA navigations
+    // SPA navigations. `_patchHistoryForSpa()` already registers its own
+    // `popstate` listener that fires 'locationchange' (handled below), so a
+    // direct `popstate` listener here that also called end()/safeStart()
+    // would double-fire on every back/forward navigation (D-9): every
+    // popstate would run both handlers, emitting two `Leave Page` events and
+    // one `View Page`. `locationchange` is now the single funnel for all
+    // navigation sources.
     this._patchHistoryForSpa();
-    window.addEventListener('locationchange', () => { this.end(); safeStart(); });
+    window.addEventListener('locationchange', this._handleNavigation);
   }
 
   private _patchHistoryForSpa() {
     const fire = () => window.dispatchEvent(new Event('locationchange'));
 
+    // pushState and replaceState share an identical signature, so a single
+    // alias lets both be patched without a union-typed rest parameter.
+    type HistoryMutator = History['pushState'];
+
     (['pushState', 'replaceState'] as const).forEach((fn) => {
       // bind to avoid using `this` inside the wrapper
-      const orig = history[fn].bind(history) as (...args: any[]) => any;
+      const orig = history[fn].bind(history) as HistoryMutator;
 
-      (history as any)[fn] = (...args: any[]) => {
+      history[fn] = ((...args: Parameters<HistoryMutator>) => {
         const ret = orig(...args);
         fire();
         return ret;
-      };
+      }) as HistoryMutator;
     });
 
     window.addEventListener('popstate', fire);
+    // Hash-only routers change the URL without ever touching the History API
+    // and never fire 'popstate', so without this listener a hash-routed SPA
+    // (a large share of real sites) recorded no navigation at all (D-11).
+    window.addEventListener('hashchange', fire);
   }
 
 
@@ -177,7 +202,7 @@ export class PageTrackerModule {
     }
 
     try{
-      const { id, current_page,  previous_page} = JSON.parse(cookie[this.pageSession]) as ParsedPageSessionCookie;
+      const { current_page } = JSON.parse(cookie[this.pageSession]) as ParsedPageSessionCookie;
 
       return setCookie({
         name: this.pageSession,
@@ -190,7 +215,7 @@ export class PageTrackerModule {
         path: '/',
       });
     }
-    catch(e:any){
+    catch(e: unknown){
       log.error('failed to set page session cookie', e)
       return null
     }
