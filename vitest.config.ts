@@ -35,22 +35,35 @@ export default defineConfig({
       reportsDirectory: './coverage',
       // Scoped to the modules Phase 2 targets. Widening this is a deliberate
       // act — raise the include list and the thresholds together, never one
-      // without the other.
-      // Phase 2 scope: the shared/queue/storage core — the code that decides
-      // whether an event survives, which is what this tier is for.
+      // without the other (D20).
       //
-      // NOT yet included, deliberately: `src/guard/**` and
-      // `src/intemptJs/guards/**` already have 91 Cypress assertions, and
-      // duplicating them here to make a number go up would buy nothing. They
-      // move into this tier when they are ported, and the thresholds move with
-      // them — never one without the other.
-      include: ['src/shared/**/*.ts'],
+      // 1. `src/shared/**` — the queue/storage core, the code that decides
+      //    whether an event survives.
+      // 2. `src/guard/**` + `src/intemptJs/guards/**` — added when the Cypress
+      //    guard specs were ported into this tier (`trackingGuard.cy.ts` and
+      //    `botGuard.cy.ts` were deleted, not duplicated). These decide whether
+      //    the SDK initialises at all and whether a public call is accepted, so
+      //    a gap here is silent and total.
+      include: [
+        'src/shared/**/*.ts',
+        'src/guard/**/*.ts',
+        'src/intemptJs/guards/**/*.ts',
+      ],
       exclude: ['src/**/*.d.ts', 'src/**/types/**'],
+      // Raised with the include-list widening above, per D20 — never widen scope
+      // without also moving these, or the effective bar silently drops.
+      //
+      // Measured at the commit that ported the guard suites: statements/lines
+      // 92.57%, branches 89.64%, functions 88.88%. Thresholds sit ~2 points
+      // under, which is tight enough to catch a real regression and loose enough
+      // that a small refactor does not fail CI on noise.
+      //
+      // Previous values, when the scope was `src/shared/**` alone: 85/75/85/85.
       thresholds: {
-        lines: 85,
-        branches: 75,
-        functions: 85,
-        statements: 85,
+        lines: 90,
+        branches: 87,
+        functions: 87,
+        statements: 90,
       },
     },
   },

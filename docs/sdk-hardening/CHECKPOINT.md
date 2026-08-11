@@ -12,9 +12,9 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Next action** | **§3 item 1 — port the guard suites into the unit tier**, then widen `coverage.include` and raise thresholds in the same commit (D20). `ci.yml` is done (§3d); nothing is blocked. |
-| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. Unit 147 / Cypress 213, all passing. Bundle 81.74 kB / 23.08 kB gzip. |
+| **Next action** | **§3 item 1 — golden-file contract tests on the outbound payload shape.** The guard port and threshold raise are done (§3e); nothing is blocked. |
+| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. Unit **357** / Cypress **122**, all passing. Bundle 81.74 kB / 23.08 kB gzip. |
 
 ---
 
@@ -105,9 +105,9 @@ Remaining work that needs nothing from anyone else:
 
 1. **Load shedding, client-side three of four — ✅ complete.** Jitter (§3a),
    circuit breaker (§3b), bounded queue (§3c). The fourth needs the backend.
-2. Rest of Phase 2 — `ci.yml` so the tiers gate merges ✅ (§3d); still open:
-   port the guard suites into the unit tier, golden-file contract tests on the
-   payload shape.
+2. Rest of Phase 2 — `ci.yml` so the tiers gate merges ✅ (§3d), guard suites
+   ported into the unit tier ✅ (§3e); still open: golden-file contract tests on
+   the payload shape.
 3. Cross-subdomain consent cookie (the D15 limitation).
 4. Phase 4 client-side leftovers — structured logger, killing `any`.
 
@@ -275,7 +275,7 @@ Three jobs, each running a script that already exists and already passes:
   `/v1` CDN URL (Invariants §6.2). The new file sits beside it.
 - **`e2e` is `pull_request`-only.** `build.yaml` already runs the Cypress suite
   on every branch push, so running it on push here too would pay for the same
-  213 assertions twice. The PR into `staging`/`main` is the gap, and that is
+  assertions twice (213 at the time; 122 after the §3e migration). The PR into `staging`/`main` is the gap, and that is
   what this job covers.
 - **Node 21.x is in the matrix because `build.yaml` deploys on 21.x.** If CI ran
   only a different major, CI-green would not imply deploy-green. 20.x is the
@@ -304,7 +304,8 @@ workflow file itself so they are not lost:
 
 **Verified before commit**, each command run locally on this branch, not
 inferred: `npm ci` exit 0; `npm run test:coverage` 147/147 with the gate passing
-(statements/lines 90.34%, branches 86.37%, functions 86.71%); `npm run build`
+(statements/lines 90.34%, branches 86.37%, functions 86.71% — the numbers as of
+*that* commit; §3e supersedes them); `npm run build`
 clean at 81.74 kB / 23.08 kB gzip; `checkReservedWords.js` clean;
 `npm run test:e2e` 213 passing / 4 pending. The YAML was parsed to confirm the
 three jobs and both triggers resolve.
@@ -314,24 +315,96 @@ GitHub*. The branch has not been pushed. First push must be
 `git push -u origin beso/sdk-enterprise-hardening` (Invariants §6.1) — and note
 that push will trigger both `build.yaml` and this new file. Watch the first run.
 
+## 3e. Phase 2 — guard suites ported, coverage scope widened ✅
+
+Landed 2026-08-11. `__tests__/trackingGuard.cy.ts` and `__tests__/botGuard.cy.ts`
+were **migrated and deleted**, not duplicated — do not go looking for them. Four
+new unit files, **210 new tests** (unit 147 → **357**, Cypress 213 → **122**).
+
+| New file | Covers |
+|---|---|
+| `tests/unit/guardConditions.test.ts` | all 10 condition factories |
+| `tests/unit/botDetection.test.ts` | `isLegitimateBrowser`, `isLikelyBot`, the crawler guard |
+| `tests/unit/trackingGuardManager.test.ts` | manager lifecycle + `checker.ts` |
+| `tests/unit/intemptJsGuard.test.ts` | `IntemptJsGuard` — **had no test anywhere** |
+
+**Coverage went up, not down**, despite the scope widening — `src/shared/**` plus
+`src/guard/**` plus `src/intemptJs/guards/**`:
+
+| | Before (shared only) | After (all three) |
+|---|---|---|
+| Statements / lines | 90.34% | **92.57%** |
+| Branches | 86.37% | **89.64%** |
+| Functions | 86.71% | **88.88%** |
+
+Thresholds moved in the same commit per **D20**: 85/75/85/85 → **90/87/87/90**,
+about two points under measured. Widening `coverage.include` without raising them
+would have silently *lowered* the effective bar, which is the whole point of D20.
+
+**Two things the port found that the Cypress specs had hidden.**
+
+1. **`src/intemptJs/guards/**` had no test in either tier.** The earlier note in
+   this checkpoint that "the guards already have 91 Cypress assertions" was true
+   only of `src/guard/**` (tracking guards). `IntemptJsGuard` — the validation
+   every public method calls first, for `track`/`identify`/`group`/`alias`/
+   `record`/`consent` — was completely uncovered. It now has 80 tests, and they
+   pin the **exact throw messages**, because those surface in the customer's own
+   call stack and are therefore public contract.
+2. **`botGuard.cy.ts` contradicted itself, and three `it.skip`s were hiding a
+   real gap.** The spec skipped `SuspiciousBot`/`FakeBot` with a comment saying
+   the guard does not catch them, while its `Multiple Bot Patterns` table
+   asserted `false` for the same input. The table was right. Those skips are now
+   assertions in a `known false negatives` block, so the gap is written down where
+   someone will read it and closing it shows up as a failing test.
+
+   **The mechanism is worth knowing before anyone "fixes" it**, because it is
+   counter-intuitive: `isLegitimateBrowser` rejects `compatible; XxxBot` via
+   `/compatible;\s*[a-z]+bot/i`, so the UA is *not* a browser — and the guard
+   therefore never runs its browser branch, which is the only place that blocks an
+   unrecognised identifier after `compatible;`. **The pre-check that correctly
+   identifies these as non-browsers is what routes them around the check that
+   would have blocked them.** A denylist entry will not fix it; the
+   compatible;-inspection has to move out of the browser branch.
+
+**Also newly pinned as asserted behaviour** (found while writing the tests, all
+pre-existing, none fixed here): `createPathBlockGuard` is prefix-based so
+`/admin` blocks `/administrator`; a `/g` regex passed to
+`createUrlPatternBlockGuard` makes the guard alternate true/false on identical
+input; `createTimeBlockGuard(n, n)` blocks nothing rather than everything;
+`isValidConfig` checks `=== ''` so a **missing** field passes entirely; and
+`isGroupValid` accepts `accountId: 0`/`''` while `isIdentifyValid` rejects the
+same shapes for `userId`. Each has a test naming it, so none is load-bearing on
+memory.
+
+**Timer control was the concrete win from moving tier.** `createTimeBlockGuard`'s
+overnight-wrap branch is unreachable in a real browser — you cannot assert a
+22:00–06:00 window at 14:00 — so Cypress never tested it. `vi.setSystemTime` pins
+the hour and every branch is now covered.
+
 ## 3. Next concrete action — pick one, nothing is blocked
 
 Client-side load shedding is **complete** (jitter §3a, breaker §3b, bounded queue
 §3c). The fourth item, a server-controlled brake, is backlogged on the backend.
 The CI gate is **complete** (§3d).
 
+The guard port and the threshold raise are **complete** (§3e).
+
 Highest value now, in the author's order:
 
-1. **Port the guard suites into the unit tier** (`src/guard/**`,
-   `src/intemptJs/guards/**` are Cypress-only and excluded from the coverage
-   gate), then widen `coverage.include` and raise thresholds in the same commit
-   (D20). This is now the largest remaining hole in Phase 2, and §3d means the
-   thresholds actually bind once raised.
-2. **Golden-file contract tests** on the outbound payload shape.
-3. Cross-subdomain consent cookie (D15), structured logger + killing `any`
+1. **Golden-file contract tests** on the outbound payload shape. This is the last
+   named Phase 2 item; after it, tier-1 is done and only the WDIO cross-browser
+   tier 2 remains (blocked on a Sauce account).
+2. Cross-subdomain consent cookie (D15), structured logger + killing `any`
    (Phase 4). The logger has a concrete consumer now: the drop counter from §3c.
-4. **Credential hygiene (Phase 4)** — the remaining finding that fails an
-   enterprise security review outright.
+3. **Credential hygiene (Phase 4)** — but note this is now known to be **mostly
+   blocked on the backend**, not client-side work: five call sites across four
+   endpoints carry the `btoa`'d write key, and the fix is `BACKEND.md` item 1.
+   What is ours alone is small (the unguarded `console.error` at
+   `choices.service.ts:94`, and SRI/CSP guidance in the customer docs).
+4. Close the bot-detection false negative documented in §3e, if it is judged
+   worth the risk — it needs the compatible;-inspection moved out of the browser
+   branch, which changes behaviour for real traffic, so it wants a parity check
+   against live UA logs rather than reasoning.
 
 Open items carried forward:
 
@@ -409,8 +482,9 @@ against a current public-suffix list.**
 
 ## 6a. Phase 2 — unit test tier ✅
 
-**`vitest` + jsdom, `tests/unit/**`, **147 tests**, run with `npm run test:unit`.**
-(105 when this tier first landed; the rest came with the work in §3a–§3c.)
+**`vitest` + jsdom, `tests/unit/**`, **357 tests**, run with `npm run test:unit`.**
+(105 when this tier first landed; §3a–§3c took it to 147, and the guard port in
+§3e added 210.)
 Config in `vitest.config.ts`; shared jsdom/storage/timer setup in
 `tests/unit/setup.ts` (adapted from Mixpanel's `jsdom-setup.js`, Apache-2.0).
 
@@ -418,16 +492,17 @@ Config in `vitest.config.ts`; shared jsdom/storage/timer setup in
 |---|---|
 | `npm run test:unit` | tier 1 — vitest, jsdom, fast |
 | `npm run test:coverage` | tier 1 + coverage gate |
-| `npm run test:e2e` | tier 2 — the 14 Cypress specs, real browser |
+| `npm run test:e2e` | tier 2 — the remaining 12 Cypress specs, real browser |
 | `npm test` | alias of `test:e2e` (unchanged, so nothing that called it breaks) |
 
-**Coverage gate is enforced and passing** on `src/shared/**`:
-lines/statements **91.08%** (≥85), branches **85.55%** (≥75), functions
-**91.25%** (≥85).
+**Coverage gate is enforced and passing** on `src/shared/**` + `src/guard/**` +
+`src/intemptJs/guards/**` (widened in §3e): lines/statements **92.57%** (≥90),
+branches **89.64%** (≥87), functions **88.88%** (≥87).
 
-Two Cypress specs (`publicSuffix.cy.ts`, `batcherDedupeLifecycle.cy.ts`) were
-**migrated** into the unit tier rather than duplicated — they were pure logic and
-gained fake-timer control by moving. The 14 original Cypress specs are untouched.
+Four Cypress specs have now been **migrated** into the unit tier rather than
+duplicated — `publicSuffix.cy.ts` and `batcherDedupeLifecycle.cy.ts` with this
+tier, then `trackingGuard.cy.ts` and `botGuard.cy.ts` in §3e. All four were pure
+logic and gained fake-timer control by moving. **12 Cypress specs remain.**
 
 ### The property tests earned their keep immediately
 
@@ -562,7 +637,7 @@ not behaviour. If they break again, prefer rewriting them to go through
 |---|---|---|---|---|
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
-| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (147 tests, gate enforced), **`ci.yml` gates merges ✅**; guard-suite port, contract tests and WDIO tier 2 remain |
+| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (**357 tests**, gate enforced at 90/87/87/90), **`ci.yml` gates merges ✅**, **guard suites ported ✅**; contract tests and WDIO tier 2 remain |
 | 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ✅ **jitter, circuit breaker, bounded queue** (4th ⏸ BE) |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. `browser-tests.yml` / `release.yml` / changesets remain |
@@ -577,10 +652,9 @@ defect 3. Credential hygiene (Phase 4) is the one item from that list still open
 
 `ci.yml` — item 1 of the previous list — is **done** (§3d). The current three:
 
-1. **Port the guard suites into the unit tier and raise the coverage
-   thresholds** (D20). `src/guard/**` and `src/intemptJs/guards/**` hold 91
-   Cypress assertions and are excluded from the coverage gate, so the gate
-   currently binds on `src/shared/**` only.
+1. **Golden-file contract tests on the outbound payload shape** — the last named
+   Phase 2 item. (The guard port and threshold raise, previously item 1, are done
+   — §3e.)
 2. **Credential hygiene (Phase 4)** — the remaining finding that fails an
    enterprise security review outright.
 3. **Hand `BACKEND.md` to the backend team.** Five items are blocked behind it
