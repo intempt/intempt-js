@@ -14,7 +14,7 @@
 | **Last updated** | 2026-08-11 |
 | **Next action** | **Continue the mutation campaign to the user-set 85% floor — §3f-i has the file-by-file worklist and the remaining estimate (~100–130 tests).** Next file: the rest of `requestBatcher.ts` (flush/enqueue/scheduling, lines 175–560). Nothing is blocked. |
 | **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 75.12%, floor ratcheted to 73, climbing to a user-set 85% (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. Unit **421** / Cypress **122**, all passing. Bundle 81.78 kB / 23.09 kB gzip. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 75.94%, floor ratcheted to 73, climbing to a user-set 85% (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. Unit **444** / Cypress **122**, all passing. Bundle 81.78 kB / 23.09 kB gzip. |
 
 ---
 
@@ -490,11 +490,19 @@ duration). Progress:
 | baseline | — | 70.66% | — |
 | `requestBatcher.ts` first pass | 6 | 71.42% | 54.92 → 58.74% |
 | `requestQueue.ts` | 30 | 73.76% | 54.96 → **72.73%** |
-| `requestBatcher.ts` response classification | 34 | **75.12%** | 58.74 → **65.57%** |
+| `requestBatcher.ts` response classification | 34 | 75.12% | 58.74 → 65.57% |
+| `requestBatcher.ts` dedupe/scheduling internals | 23 | **75.94%** | 65.57 → **69.67%** |
 
 `break` is now **73** (was 65). Raise it with each batch; never ahead of the work.
 
-**Remaining to 85%**: 338 survived + 119 no-coverage = 457 undetected. Detected is
+**Remaining to 85%** (as of 75.94%): 325 survived + 117 no-coverage = 442 undetected.
+Detected 1395 of 1837; 85% needs 1561, i.e. **+166**. Next files in order:
+`requestBatcher.ts` 94 survivors (the enqueue/flush body, lines 409–560),
+`indexedDbStore.ts` 56, `requestQueue.ts` 58 (enqueue/cap internals),
+`persistentStore.ts` 39, `shared.utils.ts` 24, `storageHandler.ts` 23,
+`browserDetection.ts` 19.
+
+Earlier figure, kept for the rate history: 338 survived + 119 no-coverage = 457 undetected. Detected is
 1380 of 1837; 85% needs 1561, i.e. **+181 detections**. At the observed rate
 (1.4–1.9 per test) that is **~100–130 more tests**. Where they are, in order:
 `requestBatcher.ts` 107 survivors + 19 uncovered (flush/enqueue/scheduling paths,

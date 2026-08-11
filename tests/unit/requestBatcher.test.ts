@@ -853,6 +853,213 @@ describe('RequestBatcher', () => {
     });
   });
 
+  // --- Dedupe bookkeeping internals ----------------------------------------
+  //
+  // These are private, and tested directly on purpose: they are the structures
+  // that decide whether an event is considered already-sent, so their invariants
+  // (bounded size, insertion-order eviction, rollback on definite failure) are
+  // the contract. Driving them only through flush() cannot reach the cap paths
+  // without thousands of round-trips.
+
+  describe('sent-event-id bookkeeping', () => {
+    it('trims the oldest ids first when the cap is exceeded', async () => {
+      // Set iteration is insertion order, so the eviction loop must drop from the
+      // front. Dropping the newest instead would let a *just-sent* event be
+      // re-sent, which is the duplicate this structure exists to prevent.
+      (batcher as any).markEventIdsSent(Array.from({ length: 1100 }, (_, i) => `id-${i}`));
+
+      const sent: Set<string> = (batcher as any).sentEventIds;
+      expect(sent.size).toBe(1000);
+      expect(sent.has('id-0'), 'oldest evicted').toBe(false);
+      expect(sent.has('id-99'), 'oldest 100 evicted').toBe(false);
+      expect(sent.has('id-100'), 'the 101st survives').toBe(true);
+      expect(sent.has('id-1099'), 'newest always survives').toBe(true);
+    });
+
+    it('does not trim while at or below the cap', async () => {
+      (batcher as any).markEventIdsSent(Array.from({ length: 1000 }, (_, i) => `id-${i}`));
+      expect(((batcher as any).sentEventIds as Set<string>).size).toBe(1000);
+      expect(((batcher as any).sentEventIds as Set<string>).has('id-0')).toBe(true);
+    });
+
+    it('persists the marks so a reload cannot re-send them', async () => {
+      (batcher as any).markEventIdsSent(['persist-me']);
+      (batcher as any).saveSentEventIds();
+
+      const raw = localStorage.getItem(SENT_IDS_KEY);
+      expect(raw).toBeTruthy();
+      expect(JSON.parse(raw as string)).toContain('persist-me');
+    });
+
+    it('reloads persisted marks into a fresh instance', async () => {
+      localStorage.setItem(SENT_IDS_KEY, JSON.stringify(['from-storage']));
+      const fresh = makeBatcher();
+      expect(((fresh as any).sentEventIds as Set<string>).has('from-storage')).toBe(true);
+    });
+
+    it('trims an over-sized persisted set on load', async () => {
+      // An older build capped storage but not memory. Loading 1500 ids without
+      // trimming would put memory back over the cap immediately.
+      localStorage.setItem(
+        SENT_IDS_KEY,
+        JSON.stringify(Array.from({ length: 1500 }, (_, i) => `old-${i}`)),
+      );
+      const fresh = makeBatcher();
+
+      const sent: Set<string> = (fresh as any).sentEventIds;
+      expect(sent.size).toBe(1000);
+      expect(sent.has('old-1499'), 'the tail is what is kept').toBe(true);
+      expect(sent.has('old-0')).toBe(false);
+    });
+
+    it('ignores a persisted value that is not an array', async () => {
+      // JSON.parse succeeds on '"a string"' and on '5'. Spreading either into a
+      // Set produces garbage ids or throws; the Array.isArray check is what stops
+      // corrupt storage from poisoning dedupe.
+      localStorage.setItem(SENT_IDS_KEY, JSON.stringify({ not: 'an array' }));
+      const fresh = makeBatcher();
+      expect(((fresh as any).sentEventIds as Set<string>).size).toBe(0);
+    });
+
+    it('reports unparseable storage instead of throwing at construction', async () => {
+      localStorage.setItem(SENT_IDS_KEY, '{not json');
+      const reported: string[] = [];
+      const fresh = makeBatcher({ errorReporter: (m: string) => reported.push(m) });
+
+      expect(((fresh as any).sentEventIds as Set<string>).size).toBe(0);
+      expect(reported.join(' ')).toContain('Error loading sent event IDs');
+    });
+
+    it('rolls back a mark on definite failure, and writes that through', async () => {
+      (batcher as any).markEventIdsSent(['roll-me', 'keep-me']);
+      (batcher as any).saveSentEventIds();
+
+      (batcher as any).unmarkEventIdsSent(['roll-me']);
+
+      const sent: Set<string> = (batcher as any).sentEventIds;
+      expect(sent.has('roll-me')).toBe(false);
+      expect(sent.has('keep-me')).toBe(true);
+      // Kills the missing saveSentEventIds() call: without the write, a reload
+      // resurrects the rolled-back mark and the event is filtered as a duplicate.
+      expect(JSON.parse(localStorage.getItem(SENT_IDS_KEY) as string)).toEqual(['keep-me']);
+    });
+
+    it('skips the storage write entirely for an empty rollback', async () => {
+      // Kills `if (!eventIds.length) return;` — every failed empty-batch flush
+      // would otherwise pay a JSON serialise plus a synchronous localStorage
+      // write for nothing.
+      const setSpy = vi.spyOn(Storage.prototype, 'setItem');
+      (batcher as any).unmarkEventIdsSent([]);
+      expect(setSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('per-item delivery counters', () => {
+    it('deletes counters when removal succeeded', async () => {
+      const counters: Map<string, number> = (batcher as any).itemIdsSentSuccessfully;
+      counters.set('a', 2);
+      counters.set('b', 1);
+
+      (batcher as any).recordDeliveryAttempts(['a'], true);
+
+      expect(counters.has('a'), 'a delivered-and-removed item needs no counter').toBe(false);
+      expect(counters.has('b')).toBe(true);
+    });
+
+    it('increments from zero when removal failed', async () => {
+      (batcher as any).recordDeliveryAttempts(['x'], false);
+      (batcher as any).recordDeliveryAttempts(['x'], false);
+      expect(((batcher as any).itemIdsSentSuccessfully as Map<string, number>).get('x')).toBe(2);
+    });
+
+    it('caps the counter map, evicting the oldest entries', async () => {
+      // The backstop against a pathological removal-failure loop across many
+      // distinct items. Without it this Map is the memory leak §4 defect 1 fixed,
+      // reintroduced by a different path.
+      const ids = Array.from({ length: 1100 }, (_, i) => `item-${i}`);
+      (batcher as any).recordDeliveryAttempts(ids, false);
+
+      const counters: Map<string, number> = (batcher as any).itemIdsSentSuccessfully;
+      expect(counters.size).toBe(1000);
+      expect(counters.has('item-0')).toBe(false);
+      expect(counters.has('item-1099')).toBe(true);
+    });
+  });
+
+  describe('extractEventIds', () => {
+    it('pulls string eventIds out of the payload array', () => {
+      expect(
+        (batcher as any).extractEventIds({
+          name: 'e',
+          payload: [{ eventId: 'a' }, { eventId: 'b' }],
+        }),
+      ).toEqual(['a', 'b']);
+    });
+
+    it.each([
+      ['a missing payload', undefined],
+      ['a null payload', null],
+      ['a payload that is not an object', 'string'],
+      ['no payload array', { name: 'e' }],
+      ['a payload array that is not an array', { payload: { eventId: 'a' } }],
+    ])('returns nothing for %s', (_name, payload) => {
+      expect((batcher as any).extractEventIds(payload)).toEqual([]);
+    });
+
+    it('skips entries whose eventId is missing or not a string', () => {
+      // Kills the three-part item guard. A non-string id would be marked as sent
+      // and then never match on the next flush — the event becomes unsendable.
+      expect(
+        (batcher as any).extractEventIds({
+          payload: [null, {}, { eventId: 42 }, { eventId: '' }, { eventId: 'good' }],
+        }),
+      ).toEqual(['good']);
+    });
+  });
+
+  describe('flush scheduling helpers', () => {
+    it('resetFlush clears the backoff ceiling so a later failure starts from base', () => {
+      // Kills `retryCeilingMS = 0`. Leaving it set means an unrelated failure
+      // hours later resumes from the previous incident's ceiling — up to the
+      // 10-minute cap — instead of from the configured interval.
+      (batcher as any).retryCeilingMS = 64_000;
+      vi.spyOn(batcher as any, 'scheduleFlush').mockImplementation(() => {});
+
+      (batcher as any).resetFlush();
+
+      expect((batcher as any).retryCeilingMS).toBe(0);
+    });
+
+    it('resetFlush schedules within ±10% of the configured interval', () => {
+      // The steady-state band from §3a. Asserting the band, not a value: full
+      // jitter here would halve effective throughput and make batches erratic.
+      const sched = vi.spyOn(batcher as any, 'scheduleFlush').mockImplementation(() => {});
+
+      for (let i = 0; i < 40; i++) (batcher as any).resetFlush();
+
+      const delays = sched.mock.calls.map(c => c[0] as number);
+      expect(Math.min(...delays)).toBeGreaterThanOrEqual(900);
+      expect(Math.max(...delays)).toBeLessThanOrEqual(1100);
+      expect(new Set(delays).size, 'and it must actually vary').toBeGreaterThan(1);
+    });
+
+    it('resetBatchSize restores the configured size after a 413 shrank it', () => {
+      (batcher as any).batchSize = 1;
+      (batcher as any).resetBatchSize();
+      expect((batcher as any).batchSize).toBe(10);
+    });
+
+    it('flush() is re-entrant-safe while a request is in flight', () => {
+      // Kills the `requestInProgress` guard. Two concurrent flushes send the same
+      // batch twice — a duplicate at ingest, and the reason full jitter is safe
+      // (see §3a: a low draw cannot start a second flush).
+      (batcher as any).requestInProgress = true;
+      return batcher.flush().then(() => {
+        expect(sendCalls, 'no send while one is already in flight').toHaveLength(0);
+      });
+    });
+  });
+
   describe('reportError', () => {
     it('never lets a throwing errorReporter escape into the SDK', async () => {
       // The customer supplies this hook. If their reporter throws, it must not
