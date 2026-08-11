@@ -15,15 +15,14 @@ type QueuedCall = {
 /**
  * Read a boolean from a script-URL query parameter.
  *
- * Present-and-not-falsy, rather than the `!!searchParams.get(name)` used for
- * `shopify`/`magento` below. That shorthand treats `?shopify=false` as **true**,
- * because any non-empty string is truthy — a live footgun, but a pre-existing one
- * whose behaviour existing customers may depend on, so it is deliberately left
- * alone rather than fixed as a side effect of this change.
- *
- * The privacy switches cannot inherit it. `?ignore_dnt=false` silently meaning
- * "ignore the visitor's Do Not Track signal" is the kind of default that ends up
- * in a regulator's finding.
+ * A real boolean parse, rather than the `!!searchParams.get(name)` idiom this
+ * replaced everywhere it appeared (D-17). That shorthand treated `?shopify=false`
+ * as **true**, because any non-empty string is truthy — including the literal
+ * text "false". Fixed to a single shared helper so every boolean query
+ * parameter — `shopify`, `magento`, and the privacy switches — parses the same
+ * way; the privacy switches were the first to get this treatment, since
+ * `?ignore_dnt=false` silently meaning "ignore the visitor's Do Not Track
+ * signal" is the kind of default that ends up in a regulator's finding.
  */
 export function readBooleanParam(params: URLSearchParams, name: string): boolean | undefined {
   const raw = params.get(name)
@@ -73,8 +72,8 @@ function getIntemptConfig(): IntemptConfig {
     writeKey: source.searchParams.get('key') ?? '',
     sourceId: source.searchParams.get('source') ?? '',
     organization: source.searchParams.get('organization') ?? '',
-    shopify: !!source.searchParams.get('shopify'),
-    magento: !!source.searchParams.get('magento'),
+    shopify: readBooleanParam(source.searchParams, 'shopify') ?? false,
+    magento: readBooleanParam(source.searchParams, 'magento') ?? false,
 
     // Privacy switches. These have to be readable here or they are unreachable:
     // there is no constructor in the supported embed — the snippet configures the
@@ -86,7 +85,12 @@ function getIntemptConfig(): IntemptConfig {
     // redaction rule is worse than none.
     ignore_dnt: readBooleanParam(source.searchParams, 'ignore_dnt'),
     piiScrubbing: readBooleanParam(source.searchParams, 'pii_scrubbing'),
-    apiHost: source.searchParams.get('api_host') ?? undefined,
+    // `?? undefined` alone is not enough: `.get()` returns `''` (not `null`)
+    // for a present-but-empty `?api_host=`, so `?? undefined` never fires and
+    // `resolveIngestBaseUrl` receives an empty string instead of falling
+    // through to the build-time default (D-27). Treat an empty value the same
+    // as an absent one.
+    apiHost: source.searchParams.get('api_host') || undefined,
   }
 }
 
@@ -247,8 +251,23 @@ function initSDK() {
   // Check if stub existed (we'll need this to know if we should remove it)
   const hadStub = stubQueue !== null
 
-  // Create real IntemptJs instance
-  const realIntempt = new IntemptJs({ ...getIntemptConfig() })
+  // Create real IntemptJs instance.
+  //
+  // When the script tag can't be found, getIntemptConfig() falls back to an
+  // all-empty config, and `new IntemptJs(...)` throws inside isValidConfig
+  // (D-12). Nothing downstream catches that — main.ts calls `SDK.init()`
+  // un-try/caught — so an uncaught throw here would propagate into the host
+  // page and could break the customer's own JavaScript, not just our
+  // tracking. An analytics SDK must never break the page that embeds it
+  // (the same principle consentCookie.ts's cookie helpers apply): report it
+  // loudly through the logger and return without throwing.
+  let realIntempt: IntemptJs
+  try {
+    realIntempt = new IntemptJs({ ...getIntemptConfig() })
+  } catch (error) {
+    log.error('IntemptJs failed to initialize; the SDK will not track on this page', error)
+    return
+  }
 
   // Replace window.intempt with real instance
   ;(window as any).intempt = realIntempt

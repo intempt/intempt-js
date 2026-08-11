@@ -103,8 +103,8 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
     });
 
     it(
-      "logs the exact \"CAN'T FIND SCRIPT\" string and throws when no script tag matches the CDN link " +
-        '— this is the documented support signature (D-12/CHECKPOINT §0), so the string must not drift',
+      "logs the exact \"CAN'T FIND SCRIPT\" string, and no longer throws, when no script tag matches " +
+        'the CDN link (D-12) — the support signature stays, the uncaught throw into the host page does not',
       () => {
         // No script appended at all: `document.scripts` has nothing whose src
         // includes the CDN link.
@@ -112,16 +112,15 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
 
         // getIntemptConfig() falls back to an all-empty config (organization:
         // '', sourceId: '', project: '', writeKey: ''), and IntemptJsGuard's
-        // isValidConfig() throws on any of those being ''. Nothing in
-        // sdkLoader.ts or main.ts catches it, so SDK.init() itself throws —
-        // matching main.ts's un-try/caught `SDK.init()` call.
-        expect(() => SDK.init()).toThrow(
-          'IntemptJs initialization failed: All config fields must be provided.',
-        );
+        // isValidConfig() throws on any of those being ''. sdkLoader.ts now
+        // catches that throw around the constructor call: main.ts calls
+        // `SDK.init()` un-try/caught, and an analytics SDK must never break
+        // the page that embeds it.
+        expect(() => SDK.init()).not.toThrow();
 
         expect(errorSpy).toHaveBeenCalledWith("CAN'T FIND SCRIPT");
-        // window.intempt is never assigned, because the throw happens inside
-        // `new IntemptJs(...)`, before the loader's own assignment line runs.
+        // window.intempt is never assigned, because construction failed and
+        // the loader returns before its own assignment line runs.
         expect((window as any).intempt).toBeUndefined();
       },
     );
@@ -142,28 +141,26 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
 
   describe('required config fields', () => {
     it.each(['project', 'key', 'source', 'organization'])(
-      'throws when %s is missing from the query string entirely',
+      'does not throw, and leaves window.intempt unset, when %s is missing from the query string entirely (D-12)',
       (missingParam) => {
         const params = new URLSearchParams(REQUIRED_QUERY);
         params.delete(missingParam);
         appendScript(params.toString());
 
-        expect(() => SDK.init()).toThrow(
-          'IntemptJs initialization failed: All config fields must be provided.',
-        );
+        expect(() => SDK.init()).not.toThrow();
+        expect((window as any).intempt).toBeUndefined();
       },
     );
 
     it.each(['project', 'key', 'source', 'organization'])(
-      'throws when %s is present but empty — a blank value is treated identically to a missing one',
+      'does not throw when %s is present but empty — a blank value is treated identically to a missing one (D-12)',
       (emptyParam) => {
         const params = new URLSearchParams(REQUIRED_QUERY);
         params.set(emptyParam, '');
         appendScript(params.toString());
 
-        expect(() => SDK.init()).toThrow(
-          'IntemptJs initialization failed: All config fields must be provided.',
-        );
+        expect(() => SDK.init()).not.toThrow();
+        expect((window as any).intempt).toBeUndefined();
       },
     );
 
@@ -189,7 +186,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
     });
   });
 
-  describe('shopify / magento — D-17, the !!searchParams.get() footgun', () => {
+  describe('shopify / magento — D-17, formerly the !!searchParams.get() footgun', () => {
     it('defaults both to false when absent from the query string', () => {
       appendScript(REQUIRED_QUERY);
       SDK.init();
@@ -199,47 +196,50 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
     });
 
     it.each(['shopify=false', 'shopify=0'])(
-      'D-17: %s is read as ENABLED, not disabled — !!get() is true for any non-empty string',
+      'D-17 (fixed): %s is now read as DISABLED via readBooleanParam, not enabled',
       (flag) => {
         appendScript(`${REQUIRED_QUERY}&${flag}`);
         SDK.init();
 
-        // This is the known, documented, deliberately-unfixed defect
-        // (DEFECTS.md D-17). An integrator who writes `?shopify=false`
-        // expecting Shopify tracking to be off gets it turned ON, because
-        // `!!searchParams.get('shopify')` is true for any present, non-empty
-        // string — including the literal text "false".
-        expect(autoTrackerInstances[0]!.config.shopify).toBe(true);
+        // Previously this was the known, documented D-17 defect: `!!get()`
+        // treats any present, non-empty string — including the literal text
+        // "false" — as true. shopify/magento now go through the same
+        // readBooleanParam helper as the privacy switches, so a customer who
+        // writes ?shopify=false actually gets Shopify tracking off.
+        expect(autoTrackerInstances[0]!.config.shopify).toBe(false);
       },
     );
 
-    it('shopify=true and shopify=1 are also (correctly, coincidentally) read as enabled', () => {
+    it('shopify=true and shopify=1 are read as enabled', () => {
       appendScript(`${REQUIRED_QUERY}&shopify=true`);
       SDK.init();
       expect(autoTrackerInstances[0]!.config.shopify).toBe(true);
     });
 
-    it('an empty shopify value is the one case that reads as disabled, because get() returns "" and !!"" is false', () => {
+    it('a bare/empty shopify value opts in, matching readBooleanParam\'s HTML-boolean-attribute semantics', () => {
+      // Under the old !!get() idiom this was the one case that read as
+      // disabled (get() returns '' and !!'' is false). readBooleanParam
+      // treats a present-but-empty value as an explicit opt-in instead,
+      // exactly like `?ignore_dnt` with no value — that asymmetry with the
+      // old behaviour is intentional and shared with the privacy switches.
       appendScript(`${REQUIRED_QUERY}&shopify=`);
       SDK.init();
-      expect(autoTrackerInstances[0]!.config.shopify).toBe(false);
+      expect(autoTrackerInstances[0]!.config.shopify).toBe(true);
     });
 
-    it('magento shares the exact same footgun as shopify — D-17 names both', () => {
+    it('magento shares the same fix as shopify — D-17 named both', () => {
       appendScript(`${REQUIRED_QUERY}&magento=false`);
       SDK.init();
-      expect(autoTrackerInstances[0]!.config.magento).toBe(true);
+      expect(autoTrackerInstances[0]!.config.magento).toBe(false);
     });
   });
 
-  describe('privacy switches — deliberately NOT using the D-17 idiom', () => {
-    it('ignore_dnt=false correctly disables the flag, unlike the neighbouring shopify=false', () => {
-      // This is the asymmetry §3h introduced on purpose: `readBooleanParam`
-      // gives ignore_dnt/pii_scrubbing a real boolean parse specifically
+  describe('privacy switches — the readBooleanParam parse shopify/magento now also use', () => {
+    it('ignore_dnt=false correctly disables the flag', () => {
+      // §3h gave ignore_dnt/pii_scrubbing a real boolean parse specifically
       // because a privacy switch defaulting the wrong way is a regulator-grade
-      // problem, not a cosmetics one. If this test and the D-17 test above
-      // ever assert the same outcome for the same-shaped input, the asymmetry
-      // has been lost.
+      // problem, not a cosmetics one. D-17's fix extended the same parse to
+      // shopify/magento, so this and the shopify=false test above now agree.
       appendScript(`${REQUIRED_QUERY}&ignore_dnt=false`);
       SDK.init();
       expect(autoTrackerInstances[0]!.config.ignore_dnt).toBe(false);
@@ -287,15 +287,15 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       expect(autoTrackerInstances[0]!.config.apiHost).toBeUndefined();
     });
 
-    it('api_host="" is read as undefined, not as an empty-string host', () => {
-      // `?? undefined` on a `.get()` that returns '' for a present-but-empty
-      // param — `''` is not `null`, so the `?? ''` used for the required
-      // fields would keep it as `''`; api_host instead falls back to
-      // `undefined` because it uses `?? undefined` rather than `?? ''`. This
-      // pins today's behaviour rather than asserting the "right" one.
+    it('api_host="" is read as undefined, not as an empty-string host (D-27, fixed)', () => {
+      // Previously `.get()` returning '' for a present-but-empty param
+      // survived `?? undefined` unchanged (`''` is not `null`), so
+      // resolveIngestBaseUrl received an empty string instead of falling
+      // through to the build-time default. `||` now treats the empty string
+      // the same as absent.
       appendScript(`${REQUIRED_QUERY}&api_host=`);
       SDK.init();
-      expect(autoTrackerInstances[0]!.config.apiHost).toBe('');
+      expect(autoTrackerInstances[0]!.config.apiHost).toBeUndefined();
     });
   });
 
