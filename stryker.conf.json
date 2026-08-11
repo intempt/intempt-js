@@ -1,0 +1,36 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing (Phase 2). Line coverage says a line RAN; a mutation score says a test would NOTICE if that line were wrong. The unit tier sits at 92.57% lines, and the three data-loss defects the property tests found (CHECKPOINT.md §6a) were all in code that was already 'covered' -- which is exactly the gap this measures. Run with `npm run test:mutation`.",
+  "testRunner": "vitest",
+  "_comment_vitest": "related:false is required, not tuning. Stryker's default asks vitest for the test files 'related' to a mutated source file; that graph comes up empty in this repo (imports carry explicit .ts extensions, a repo convention -- see CLAUDE.md), so the dry run aborts with 'No tests were executed'. Running the whole tier is affordable: it is ~1.3s.",
+  "vitest": {
+    "configFile": "vitest.config.ts",
+    "related": false
+  },
+  "concurrency": 8,
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/shared/**/*.ts",
+    "src/guard/**/*.ts",
+    "src/intemptJs/guards/**/*.ts",
+    "!src/**/*.d.ts",
+    "!src/**/types/**",
+    "!src/shared/version.ts"
+  ],
+  "reporters": ["progress", "clear-text", "html"],
+  "htmlReporter": {
+    "fileName": "reports/mutation/index.html"
+  },
+  "clearTextReporter": {
+    "maxTestsToLog": 0
+  },
+  "timeoutMS": 20000,
+  "_comment_thresholds": "Measured baseline at the commit that added this file: 70.66% overall (2123 mutants; 1285 killed, 13 timeout, 398 survived, 141 with no coverage). `break` sits at 65 -- deliberately BELOW the baseline, so this gate ratchets rather than blocks: it catches a real regression while leaving room for the 13 timeout-classified mutants, which are the one non-deterministic part of the score. Raise `break` as the score climbs; never lower it.",
+  "thresholds": {
+    "high": 85,
+    "low": 65,
+    "break": 65
+  },
+  "tempDirName": "node_modules/.stryker-tmp",
+  "ignoreStatic": true
+}

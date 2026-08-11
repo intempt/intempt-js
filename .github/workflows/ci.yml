@@ -86,6 +86,32 @@ jobs:
           path: dist/
           retention-days: 14
 
+  mutation:
+    name: Mutation score
+    # Pull requests only, same reasoning as e2e below: the run takes ~3.5 min,
+    # and mutation score answers a question that only matters when a change is
+    # about to merge -- "would any test have noticed this?". `break: 65` in
+    # stryker.conf.json fails the job on a regression below that.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 21.x
+          cache: npm
+      - run: npm ci
+      - run: npm run test:mutation
+
+      - name: Upload mutation report
+        if: success() || failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          if-no-files-found: ignore
+          retention-days: 14
+
   e2e:
     name: Cypress e2e
     # Pull requests only, on purpose. build.yaml already runs the Cypress

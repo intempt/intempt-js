@@ -12,9 +12,9 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Next action** | **§3 item 1 — golden-file contract tests on the outbound payload shape.** The guard port and threshold raise are done (§3e); nothing is blocked. |
-| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. Unit **357** / Cypress **122**, all passing. Bundle 81.74 kB / 23.08 kB gzip. |
+| **Next action** | **§3 item 1 — kill the surviving mutants in `src/shared/queue`.** Mutation testing (§3f) put the queue core at **54.93%** against 92.57% line coverage; that gap is now the highest-value work in Phase 2. Nothing is blocked. |
+| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, baseline 70.66% (§3f)**. Unit **357** / Cypress **122**, all passing. Bundle 81.74 kB / 23.08 kB gzip. |
 
 ---
 
@@ -381,19 +381,94 @@ overnight-wrap branch is unreachable in a real browser — you cannot assert a
 22:00–06:00 window at 14:00 — so Cypress never tested it. `vi.setSystemTime` pins
 the hour and every branch is now covered.
 
+## 3f. Phase 2 — mutation testing ✅ (baseline 70.66%)
+
+Landed 2026-08-11: **StrykerJS + the vitest runner**, `stryker.conf.json`,
+`npm run test:mutation`, wired into `ci.yml` as a `pull_request`-only job.
+
+**Why, in one sentence:** line coverage says a line *ran*; mutation score says a
+test would *notice* if that line were wrong — and the three data-loss defects the
+property tests found (§6a) were all in code that was already "covered".
+
+**Baseline, measured twice and identical both times** (2,123 mutants over
+`src/shared/**` + `src/guard/**` + `src/intemptJs/guards/**`, 3m 0s / 3m 14s):
+
+| Area | Mutation score | Line coverage |
+|---|---|---|
+| **All files** | **70.66%** | 92.57% |
+| `src/intemptJs/guards` | 97.51% | — |
+| `src/guard` | 85.48% | — |
+| `src/shared` | 59.71% | — |
+| → `src/shared/queue` | **54.93%** | — |
+| → `src/shared/storage` | 64.09% | — |
+
+1,285 killed · 13 timeout · 398 survived · **141 with no coverage at all**.
+
+**The result is the finding, and it is not flattering to the work this programme
+has been doing.** The queue core — `requestBatcher.ts` 54.92%, `requestQueue.ts`
+54.96% — is the most heavily tested code in the repo, the code §3a–§3c added six
+tests each to, and it scores **worst**. The guards, ported in an afternoon, score
+85–98%. Line coverage of 92.57% was hiding a roughly 30-point gap between "ran"
+and "asserted".
+
+Concrete survivors, all from code this programme wrote or hardened:
+
+- `getDroppedEventCount()` emptied to return nothing — **the §3c drop counter,
+  whose entire deliverable is "the number"**, and no test would notice it
+  returning `undefined`.
+- `start()` emptied entirely, and `this.stopped = false` flipped to `true`.
+- `clear()` emptied to a no-op.
+- `breakerOpenUntilMS > Date.now()` → `>=`, i.e. the breaker's boundary condition
+  is unasserted (§3b).
+- `/compatible;\s*[a-z]+bot/i` → `\s` and `\S*`: the bot pre-check regex from
+  §3e can be weakened without a single test failing.
+
+**Threshold policy: `break: 65`, deliberately below the 70.66% baseline.** This
+gate is a **ratchet, not a bar** — it catches a regression while leaving headroom
+for the 13 timeout-classified mutants, which are the one non-deterministic part
+of the score. Raise it as the score climbs; never lower it. `high: 85` / `low: 65`
+only colour the report.
+
+**Two configuration points that are load-bearing, not tuning:**
+
+- **`vitest.related: false` is required.** Stryker's default asks vitest which
+  test files are "related" to a mutated source file; that graph comes up empty
+  here because this repo imports with explicit `.ts` extensions (a repo
+  convention), so the dry run aborts with `No tests were executed`. Running the
+  whole tier per mutant is affordable — it is ~1.3s.
+- **`ignoreStatic: true`** keeps module-level constant initialisers out of scope.
+  Without it the bot denylist array alone contributes ~100 meaningless mutants.
+
+**CI placement:** `pull_request` only, like `e2e`. ~3.5 min is too slow for every
+push and exactly right before a merge.
+
+**Not done, and this is the real backlog item now:** the 398 survivors and 141
+no-coverage mutants in `src/shared/**` are a *worklist*, not noise. Killing the
+queue-core survivors is higher value than any remaining Phase 2 item, because the
+tests that kill them are the ones that would have caught §6a's three defects
+without needing a property test to stumble into them. Open
+`reports/mutation/index.html` after a run — it is gitignored, and it lists every
+survivor with its diff.
+
 ## 3. Next concrete action — pick one, nothing is blocked
 
 Client-side load shedding is **complete** (jitter §3a, breaker §3b, bounded queue
 §3c). The fourth item, a server-controlled brake, is backlogged on the backend.
 The CI gate is **complete** (§3d).
 
-The guard port and the threshold raise are **complete** (§3e).
+The guard port and the threshold raise are **complete** (§3e), and mutation
+testing is in place (§3f).
 
 Highest value now, in the author's order:
 
-1. **Golden-file contract tests** on the outbound payload shape. This is the last
-   named Phase 2 item; after it, tier-1 is done and only the WDIO cross-browser
-   tier 2 remains (blocked on a Sauce account).
+1. **Kill the surviving mutants in `src/shared/queue`** — 54.93% mutation score
+   against 92.57% line coverage, in the SDK's most critical code. §3f lists
+   concrete survivors to start from, including one in the §3c drop counter. This
+   displaces contract tests as the top item because it is the same class of defect
+   as §6a's three data-loss bugs, found cheaply instead of by luck.
+2. **Golden-file contract tests** on the outbound payload shape. The last named
+   Phase 2 item; after it, tier-1 is done and only the WDIO cross-browser tier 2
+   remains (blocked on a Sauce account).
 2. Cross-subdomain consent cookie (D15), structured logger + killing `any`
    (Phase 4). The logger has a concrete consumer now: the drop counter from §3c.
 3. **Credential hygiene (Phase 4)** — but note this is now known to be **mostly
@@ -492,6 +567,7 @@ Config in `vitest.config.ts`; shared jsdom/storage/timer setup in
 |---|---|
 | `npm run test:unit` | tier 1 — vitest, jsdom, fast |
 | `npm run test:coverage` | tier 1 + coverage gate |
+| `npm run test:mutation` | StrykerJS over the same scope — see §3f |
 | `npm run test:e2e` | tier 2 — the remaining 12 Cypress specs, real browser |
 | `npm test` | alias of `test:e2e` (unchanged, so nothing that called it breaks) |
 
@@ -637,7 +713,7 @@ not behaviour. If they break again, prefer rewriting them to go through
 |---|---|---|---|---|
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
-| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (**357 tests**, gate enforced at 90/87/87/90), **`ci.yml` gates merges ✅**, **guard suites ported ✅**; contract tests and WDIO tier 2 remain |
+| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (**357 tests**, gate enforced at 90/87/87/90), **`ci.yml` gates merges ✅**, **guard suites ported ✅**, **mutation testing ✅ (70.66%)**; killing queue-core survivors, contract tests and WDIO tier 2 remain |
 | 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ✅ **jitter, circuit breaker, bounded queue** (4th ⏸ BE) |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. `browser-tests.yml` / `release.yml` / changesets remain |
