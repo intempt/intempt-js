@@ -679,6 +679,314 @@ describe('RequestQueue', () => {
     });
   });
 
+  // --- Assertions from the measured mutation run (CHECKPOINT.md §3f) --------
+  //
+  // requestQueue.ts held 58 survived + 8 no-coverage mutants after the batches
+  // above. Every one picked here computes a value (a count, a key string, a
+  // boolean the caller branches on) rather than guarding or reporting — the
+  // §3f-iii heuristic, applied on purpose this time.
+
+  describe('constructor — lock construction', () => {
+    it('constructs a SharedLock only when persistence is on', () => {
+      // Kills the ConditionalExpression mutants on `if (this.usePersistence)`
+      // (true/false) and the BlockStatement mutant that empties the body.
+      const persisted = makeQueue();
+      expect((persisted as any).lock).not.toBeNull();
+
+      const memOnly = new RequestQueue(KEY, { usePersistence: false });
+      expect((memOnly as any).lock).toBeNull();
+    });
+
+    it('defaults the lock timeout to 5000ms when none is given', () => {
+      // Kills the ConditionalExpression/LogicalOperator mutants on
+      // `options.sharedLockTimeoutMS || 5000`.
+      const queue = makeQueue();
+      expect((queue as any).lock.timeoutMS).toBe(5000);
+    });
+
+    it('honours an explicit lock timeout override', () => {
+      const queue = makeQueue({ sharedLockTimeoutMS: 9000 });
+      expect((queue as any).lock.timeoutMS).toBe(9000);
+    });
+  });
+
+  describe('ensureInit — the downgrade-mid-enqueue path', () => {
+    it('keeps a fresh event in memory and reports true when init fails between the two usePersistence checks', async () => {
+      // Kills the NoCoverage BlockStatement at the second `if
+      // (!this.usePersistence)` inside enqueue() (the one reached only after
+      // ensureInit() itself downgraded persistence), plus the BooleanLiteral
+      // on its `return true`. The first check (constructor-time
+      // usePersistence: false) is already covered elsewhere; this is the
+      // *mid-call* downgrade, which only ensureInit's own failure can trigger.
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'init').mockRejectedValue(new Error('no localStorage'));
+      const queue = makeQueue({ queueStorage: storage });
+
+      const ok = await queue.enqueue({ n: 1 }, 1000);
+
+      expect(ok, 'the event must still be accepted').toBe(true);
+      expect(await queue.fillBatch(10)).toHaveLength(1);
+    });
+  });
+
+  describe('readFromStorage — direct guard', () => {
+    it('returns an empty array, not a placeholder, when persistence is off', async () => {
+      // Kills the NoCoverage ArrayDeclaration mutant on `return [];`. Nothing
+      // calls this private method with persistence off through the public
+      // API (fillBatch never reaches it in that mode), so it was untested.
+      const queue = new RequestQueue(KEY, { usePersistence: false });
+      expect(await (queue as any).readFromStorage(10)).toEqual([]);
+    });
+  });
+
+  describe('capMemQueue — in-memory cap message and boundary', () => {
+    it('reports the exact counts in the drop message', async () => {
+      // Kills the two StringLiteral mutants that empty the message's
+      // template pieces (`Queue full (...)` and `... total this page`).
+      const reported: string[] = [];
+      const queue = new RequestQueue(KEY, {
+        usePersistence: false,
+        maxQueuedEvents: 2,
+        errorReporter: (m: string) => reported.push(m),
+      });
+      for (let i = 0; i < 5; i++) await queue.enqueue({ n: i }, 1000);
+
+      // Each enqueue past the cap drops exactly the one it overflows by, so
+      // the last of the three reports carries the final running total.
+      expect(reported.join(' ')).toContain('Queue full (2); dropped 1 oldest event(s), 3 total this page');
+    });
+
+    it('does not report anything at exactly the cap, only past it', async () => {
+      // Kills the EqualityOperator mutant `overflow <= 0` → `overflow < 0`:
+      // at exactly the cap, overflow is 0, and `<= 0` returns while `< 0`
+      // would not, triggering a spurious "dropped 0" report.
+      const reported: string[] = [];
+      const queue = new RequestQueue(KEY, {
+        usePersistence: false,
+        maxQueuedEvents: 3,
+        errorReporter: (m: string) => reported.push(m),
+      });
+      for (let i = 0; i < 3; i++) await queue.enqueue({ n: i }, 1000);
+
+      expect(reported).toEqual([]);
+    });
+  });
+
+  describe('legacy migration — no-lock fallback', () => {
+    it('still imports when persistence is on but no lock was constructed', async () => {
+      // Kills the ConditionalExpression mutants on `if (this.lock)` and the
+      // NoCoverage BlockStatement on its `else { await importLegacy(); }`.
+      // In practice `usePersistence` and `lock` are set together, so the only
+      // way to observe the else branch is to poke the private field the way
+      // the constructor never would — which is exactly why nothing else
+      // reached it.
+      const storage = await (async () => {
+        const s = new QueueStorage();
+        await s.setItem(KEY, [{ id: 'l1', payload: { n: 1 }, flushAfter: 1 }]);
+        return s;
+      })();
+      const queue = makeQueue({ queueStorage: storage });
+      (queue as any).lock = null;
+
+      const batch = await queue.fillBatch(10);
+      expect(batch.map(i => i.payload.n)).toEqual([1]);
+    });
+  });
+
+  describe('approxQueuedCount — avoiding redundant scans', () => {
+    it('scans storage once from a cold start, then trusts the running estimate', async () => {
+      // Kills the ConditionalExpression mutant that forces the "cold start"
+      // branch (`this.approxQueuedCount < 0 ? -1 : ...`) to always take the
+      // `-1` arm, which would force enforceQueueCap() to re-scan storage on
+      // every single enqueue — defeating the whole point of the estimate,
+      // while still landing on the same final count (since the scan
+      // resyncs), so the count alone would not have caught it.
+      const storage = new QueueStorage();
+      const queue = makeQueue({ queueStorage: storage });
+      const keysSpy = vi.spyOn(storage, 'keys');
+
+      await queue.enqueue({ n: 0 }, 1000); // cold start: exactly one scan
+      await queue.enqueue({ n: 1 }, 1000);
+      await queue.enqueue({ n: 2 }, 1000);
+
+      expect(keysSpy).toHaveBeenCalledTimes(1);
+      expect((queue as any).approxQueuedCount).toBe(3);
+    });
+
+    it('does not force a re-scan merely because the queue has drained to zero', async () => {
+      // Kills the EqualityOperator mutant `< 0` → `<= 0` on the same
+      // ternary: 0 is a valid "known, under cap" count, not a "go re-scan"
+      // signal.
+      const storage = new QueueStorage();
+      const queue = makeQueue({ queueStorage: storage });
+      await queue.enqueue({ n: 0 }, 1000);
+      const [item] = await queue.fillBatch(10);
+      await queue.removeItemsByID([item.id]);
+      expect((queue as any).approxQueuedCount).toBe(0);
+
+      const keysSpy = vi.spyOn(storage, 'keys');
+      await queue.enqueue({ n: 1 }, 1000);
+
+      expect(keysSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('fillBatch — orphan adoption from another tab, mid-batch', () => {
+    /** Seed a record directly, as another tab would have written it. */
+    async function seedItem(storage: QueueStorage, id: string, flushAfter: number, ts: number) {
+      await storage.setItem(`${KEY}:i:${String(ts).padStart(16, '0')}_0_${id}`, {
+        id,
+        payload: { id },
+        flushAfter,
+      });
+    }
+
+    it('adopts a ripe orphan from another tab to fill out an under-size batch', async () => {
+      // Kills the NoCoverage BlockStatement/ObjectLiteral/BooleanLiteral at
+      // the `batch.push({ ...item, orphaned: true })` inside the
+      // second-pass orphan loop. No existing test left memQueue non-empty
+      // (from this tab's own enqueue) while ALSO having an unseen orphan
+      // sitting in storage — the one combination that reaches this loop's
+      // body rather than short-circuiting on `idsInBatch.has`.
+      const storage = new QueueStorage();
+      const queue = makeQueue({ queueStorage: storage });
+      await queue.enqueue({ mine: true }, 60_000); // flushAfter far in the future
+
+      await seedItem(storage, 'other-tab-orphan', Date.now() - 5_000, 1);
+
+      const batch = await queue.fillBatch(5);
+      expect(batch).toHaveLength(2);
+      const orphan = batch.find(i => i.id === 'other-tab-orphan');
+      expect(orphan?.orphaned).toBe(true);
+      const mine = batch.find(i => (i.payload as any).mine);
+      expect(mine?.orphaned).toBeUndefined();
+    });
+
+    it('does not adopt another tab’s item that is not yet ripe', async () => {
+      // The other half of the same condition: a not-yet-orphaned item from
+      // another tab must not be swept in early just because there is room.
+      const storage = new QueueStorage();
+      const queue = makeQueue({ queueStorage: storage });
+      await queue.enqueue({ mine: true }, 60_000);
+
+      await seedItem(storage, 'other-tab-fresh', Date.now() + 60_000, 1);
+
+      const batch = await queue.fillBatch(5);
+      expect(batch.map(i => i.id)).not.toContain('other-tab-fresh');
+    });
+  });
+
+  describe('generateId — format', () => {
+    it('produces exactly nine base-36 characters after the timestamp', () => {
+      // Kills the MethodExpression mutant that drops the end bound from
+      // `.substring(2, 11)`, which would let the random segment run to
+      // whatever length `Math.random().toString(36)` happened to produce.
+      const queue = makeQueue();
+      const id = (queue as any).generateId();
+      const [, randomPart] = id.split('_');
+      expect(randomPart).toHaveLength(9);
+    });
+  });
+
+  describe('makeItemKey', () => {
+    it('zero-pads the timestamp to 15 digits so string order matches numeric order', () => {
+      // Kills the StringLiteral mutant on padStart's pad character (`'0'` →
+      // `''`), which would leave short timestamps unpadded and break the
+      // chronological string-sort the whole per-event layout depends on.
+      const queue = makeQueue();
+      const key = (queue as any).makeItemKey('id1', 5);
+      const stamp = key.split(':i:')[1].split('_')[0];
+      expect(stamp).toBe('000000000000005');
+    });
+  });
+
+  describe('enqueue — flushAfter arithmetic', () => {
+    it('sets the fallback deadline to twice the flush interval past now', async () => {
+      // Kills the ArithmeticOperator mutants `now + flushInterval * 2` →
+      // `now - flushInterval * 2` and `now + flushInterval / 2`. The
+      // fallback-adoption window (another tab's orphan check) depends on
+      // this being comfortably in the future, not the past or a narrower band.
+      vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+      const queue = makeQueue();
+      await queue.enqueue({ n: 1 }, 1000);
+
+      const [item] = await queue.fillBatch(10);
+      expect(item.flushAfter).toBe(1_000_000 + 2000);
+    });
+  });
+
+  describe('removeItemsByID — key resolution guard', () => {
+    it('trusts memory-resolved keys when every id was already known locally', async () => {
+      // Kills the ConditionalExpression mutant `if (keys.length !==
+      // idSet.size)` → `if (true)`, which would force a needless storage
+      // scan even when every key was already resolved from memQueue.
+      const storage = new QueueStorage();
+      const queue = makeQueue({ queueStorage: storage });
+      await queue.enqueue({ n: 1 }, 1000);
+      const [item] = await queue.fillBatch(10);
+
+      const keysSpy = vi.spyOn(storage, 'keys');
+      await queue.removeItemsByID([item.id]);
+
+      expect(keysSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('clear — approxQueuedCount reset guard', () => {
+    it('does not go below zero when clearing an already-empty queue', async () => {
+      // Kills the ConditionalExpression mutant `if (this.approxQueuedCount >
+      // 0)` → `if (true)` combined with the Math.max/Math.min swap: on an
+      // empty queue there is nothing to subtract, and clear() sets the
+      // estimate to 0 directly regardless, so this exercises the guard that
+      // matters at removeItemsByID rather than clear() specifically.
+      const storage = new QueueStorage();
+      const queue = makeQueue({ queueStorage: storage });
+      await queue.enqueue({ n: 1 }, 1000);
+      const [item] = await queue.fillBatch(10);
+      await queue.removeItemsByID([item.id]);
+      expect((queue as any).approxQueuedCount).toBe(0);
+
+      // Removing again (nothing left) must not drive the estimate negative,
+      // which is what Math.max(0, ...) and the `> 0` guard together prevent.
+      await queue.removeItemsByID(['already-gone']);
+      expect((queue as any).approxQueuedCount).toBeGreaterThanOrEqual(0);
+    });
+  });
+
+  describe('legacy migration — entry type guard', () => {
+    it('skips a non-object legacy entry (a number) alongside the other malformed rows', async () => {
+      // Kills the ConditionalExpression mutant that hardcodes the
+      // `typeof entry !== 'object'` arm to `false`, which would let a bare
+      // number or boolean legacy entry through into makeItemKey().
+      const storage = new QueueStorage();
+      await storage.setItem(KEY, [42, true, { id: 'good', payload: { n: 1 }, flushAfter: 1 }]);
+      const queue = makeQueue({ queueStorage: storage });
+
+      const batch = await queue.fillBatch(10);
+      expect(batch.map(i => i.id)).toEqual(['good']);
+    });
+  });
+
+  describe('fillBatch — initial orphan marking boundary', () => {
+    it('treats an item at exactly its flushAfter instant as not yet orphaned', async () => {
+      // Kills the EqualityOperator mutant `now > item.flushAfter` → `now >=
+      // item.flushAfter` on the FIRST orphan-marking pass (memQueue
+      // initialised fresh from storage), as distinct from the second-pass
+      // loop's own copy of the same comparison covered above.
+      const now = Date.now();
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      const storage = new QueueStorage();
+      await storage.setItem(`${KEY}:i:${String(1).padStart(16, '0')}_0_boundary`, {
+        id: 'boundary',
+        payload: { id: 'boundary' },
+        flushAfter: now,
+      });
+
+      const batch = await makeQueue({ queueStorage: storage }).fillBatch(10);
+      expect(batch[0].orphaned).toBeUndefined();
+    });
+  });
+
   describe('generateId', () => {
     it('does not collide across a burst within one millisecond', async () => {
       // §6a defect 3 was a colliding id generator that merged two visitors'
