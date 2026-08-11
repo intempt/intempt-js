@@ -596,6 +596,7 @@ defect 3. Credential hygiene (Phase 4) is the one item from that list still open
 | Proposed CI/CD files (not applied) | `AUDIT.md` §3b — 7 files, with rollout order |
 | Mixpanel files to port | `AUDIT.md` §3 — file-by-file table with effort estimates |
 | Audit as a shareable web page | https://claude.ai/code/artifact/0976f36f-3570-499b-876f-7bca41f5854a |
+| `BACKEND.md` as a shareable web page (for the backend team) | https://claude.ai/code/artifact/82bd5a93-23fe-49e5-b371-ae3fae3acd56 |
 | Originating session | https://claude.ai/code/session_018wfQQGBNVphxBe7QsJVCYV |
 
 The artifact is a rendered copy of `AUDIT.md` for sharing with non-engineers.

@@ -5,15 +5,18 @@
 > this file can be built client-first.
 >
 > Ordered by what unblocks the most SDK work per unit of backend effort.
+>
+> **Shareable rendering for the backend team:**
+> https://claude.ai/code/artifact/82bd5a93-23fe-49e5-b371-ae3fae3acd56 — republish
+> to that same URL after editing this file, or the two will diverge. **This file
+> is the authority.**
 
 ---
 
 ## 1. Public, ingest-only project token — unblocks `sendBeacon`
 
-**Today:** the write key is `btoa`-encoded into an `Authorization: Basic` header
-in the browser
-(`src/intemptJs/modules/autoTracker/autoTracker.module.ts:164-165`, header set at
-`:179`).
+**Today:** the write key is split on `.` and `btoa`-encoded into an
+`Authorization: Basic` header in the browser.
 
 Two consequences, one security and one reliability, with a single root cause:
 
@@ -21,6 +24,40 @@ Two consequences, one security and one reliability, with a single root cause:
 2. It **forces `fetch`**, because `sendBeacon` cannot set headers — and
    `sendBeacon` is the only transport the spec guarantees survives page teardown.
    This is why events are lost on tab close, worst on Safari and mobile Safari.
+
+### The migration surface is five call sites and four endpoints, not one
+
+Re-audited 2026-08-11. The original version of this document cited only the
+batch-track site, which understated the work on both sides: a token that only
+`/track` accepts would leave four credentialed `fetch` calls behind, and the
+client would then carry *both* auth schemes indefinitely.
+
+| Call site | Endpoint |
+|---|---|
+| `autoTracker.module.ts:178` (header `:193`) | `…/sources/<id>/track` — batch, the hot path |
+| `autoTracker.module.ts:433` (header `:441`) | `…/sources/<id>/track` — second, non-batch path |
+| `autoTracker.module.ts:395` (header `:402`) | `…/projects/<p>/consents/data` |
+| `intemptJs.ts:306` (header, near `:319`) | `…/projects/<p>/feeds/<id>/data` |
+| `choices.service.ts:56` (request at `:194`) | `…/optimization/choose-web` |
+
+**What this asks of you:** the new token needs to be accepted on **all four
+endpoints**, not just ingest — or tell us which of them should keep `Basic` and
+why, and we will scope the client change to match. Note that `feeds/…/data` and
+`choose-web` are **reads**, so "ingest-only scope" is not sufficient for them as
+written; they likely need either a second scope or a deliberate decision that
+they stay on the authenticated path. **This is the one open design question in
+this document that we cannot answer client-side.**
+
+Only the two `/track` sites need `sendBeacon`, so the transport work depends on
+the first two rows alone. The other three are the security finding only.
+
+### What is *not* blocked on you — recorded so the split is clear
+
+Client-side leftovers we will fix regardless of the token decision: an unguarded
+`console.error('credentials not found')` at `choices.service.ts:94` (every other
+diagnostic in the SDK is gated on `EnvConfig`), and the absent SRI/CSP guidance
+for the embed snippet in the customer docs. Neither reduces the finding above —
+the credential is in the request, not only in a log line.
 
 **What we need:**
 
@@ -138,7 +175,7 @@ until implemented, so it can ship server-first.
 
 | # | Item | Unblocks | Effort shape |
 |---|---|---|---|
-| 1 | Public ingest-only token, accepted off-header, `text/plain`, rate-limited | `sendBeacon`; fixes unload loss **and** the credential finding | New credential type + ingest auth path |
+| 1 | Public ingest-only token, accepted off-header, `text/plain`, rate-limited — **on all four credentialed endpoints, see §1** | `sendBeacon`; fixes unload loss **and** the credential finding | New credential type + auth path on 4 endpoints |
 | 2 | Retry-actionable status codes | Correct backoff; prevents silent loss | Mostly confirmation |
 | 3 | Idempotency on `eventId` | Lets us **remove** client complexity | Ingest dedupe store |
 | 4 | Accept `$lib_version` | Incident forensics | Confirmation, likely no code |
