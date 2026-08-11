@@ -15,15 +15,14 @@ type QueuedCall = {
 /**
  * Read a boolean from a script-URL query parameter.
  *
- * Present-and-not-falsy, rather than the `!!searchParams.get(name)` used for
- * `shopify`/`magento` below. That shorthand treats `?shopify=false` as **true**,
- * because any non-empty string is truthy — a live footgun, but a pre-existing one
- * whose behaviour existing customers may depend on, so it is deliberately left
- * alone rather than fixed as a side effect of this change.
- *
- * The privacy switches cannot inherit it. `?ignore_dnt=false` silently meaning
- * "ignore the visitor's Do Not Track signal" is the kind of default that ends up
- * in a regulator's finding.
+ * A real boolean parse, rather than the `!!searchParams.get(name)` idiom this
+ * replaced everywhere it appeared (D-17). That shorthand treated `?shopify=false`
+ * as **true**, because any non-empty string is truthy — including the literal
+ * text "false". Fixed to a single shared helper so every boolean query
+ * parameter — `shopify`, `magento`, and the privacy switches — parses the same
+ * way; the privacy switches were the first to get this treatment, since
+ * `?ignore_dnt=false` silently meaning "ignore the visitor's Do Not Track
+ * signal" is the kind of default that ends up in a regulator's finding.
  */
 export function readBooleanParam(params: URLSearchParams, name: string): boolean | undefined {
   const raw = params.get(name)
@@ -73,8 +72,8 @@ function getIntemptConfig(): IntemptConfig {
     writeKey: source.searchParams.get('key') ?? '',
     sourceId: source.searchParams.get('source') ?? '',
     organization: source.searchParams.get('organization') ?? '',
-    shopify: !!source.searchParams.get('shopify'),
-    magento: !!source.searchParams.get('magento'),
+    shopify: readBooleanParam(source.searchParams, 'shopify') ?? false,
+    magento: readBooleanParam(source.searchParams, 'magento') ?? false,
 
     // Privacy switches. These have to be readable here or they are unreachable:
     // there is no constructor in the supported embed — the snippet configures the

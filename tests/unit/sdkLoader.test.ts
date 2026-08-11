@@ -189,7 +189,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
     });
   });
 
-  describe('shopify / magento — D-17, the !!searchParams.get() footgun', () => {
+  describe('shopify / magento — D-17, formerly the !!searchParams.get() footgun', () => {
     it('defaults both to false when absent from the query string', () => {
       appendScript(REQUIRED_QUERY);
       SDK.init();
@@ -199,47 +199,50 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
     });
 
     it.each(['shopify=false', 'shopify=0'])(
-      'D-17: %s is read as ENABLED, not disabled — !!get() is true for any non-empty string',
+      'D-17 (fixed): %s is now read as DISABLED via readBooleanParam, not enabled',
       (flag) => {
         appendScript(`${REQUIRED_QUERY}&${flag}`);
         SDK.init();
 
-        // This is the known, documented, deliberately-unfixed defect
-        // (DEFECTS.md D-17). An integrator who writes `?shopify=false`
-        // expecting Shopify tracking to be off gets it turned ON, because
-        // `!!searchParams.get('shopify')` is true for any present, non-empty
-        // string — including the literal text "false".
-        expect(autoTrackerInstances[0]!.config.shopify).toBe(true);
+        // Previously this was the known, documented D-17 defect: `!!get()`
+        // treats any present, non-empty string — including the literal text
+        // "false" — as true. shopify/magento now go through the same
+        // readBooleanParam helper as the privacy switches, so a customer who
+        // writes ?shopify=false actually gets Shopify tracking off.
+        expect(autoTrackerInstances[0]!.config.shopify).toBe(false);
       },
     );
 
-    it('shopify=true and shopify=1 are also (correctly, coincidentally) read as enabled', () => {
+    it('shopify=true and shopify=1 are read as enabled', () => {
       appendScript(`${REQUIRED_QUERY}&shopify=true`);
       SDK.init();
       expect(autoTrackerInstances[0]!.config.shopify).toBe(true);
     });
 
-    it('an empty shopify value is the one case that reads as disabled, because get() returns "" and !!"" is false', () => {
+    it('a bare/empty shopify value opts in, matching readBooleanParam\'s HTML-boolean-attribute semantics', () => {
+      // Under the old !!get() idiom this was the one case that read as
+      // disabled (get() returns '' and !!'' is false). readBooleanParam
+      // treats a present-but-empty value as an explicit opt-in instead,
+      // exactly like `?ignore_dnt` with no value — that asymmetry with the
+      // old behaviour is intentional and shared with the privacy switches.
       appendScript(`${REQUIRED_QUERY}&shopify=`);
       SDK.init();
-      expect(autoTrackerInstances[0]!.config.shopify).toBe(false);
+      expect(autoTrackerInstances[0]!.config.shopify).toBe(true);
     });
 
-    it('magento shares the exact same footgun as shopify — D-17 names both', () => {
+    it('magento shares the same fix as shopify — D-17 named both', () => {
       appendScript(`${REQUIRED_QUERY}&magento=false`);
       SDK.init();
-      expect(autoTrackerInstances[0]!.config.magento).toBe(true);
+      expect(autoTrackerInstances[0]!.config.magento).toBe(false);
     });
   });
 
-  describe('privacy switches — deliberately NOT using the D-17 idiom', () => {
-    it('ignore_dnt=false correctly disables the flag, unlike the neighbouring shopify=false', () => {
-      // This is the asymmetry §3h introduced on purpose: `readBooleanParam`
-      // gives ignore_dnt/pii_scrubbing a real boolean parse specifically
+  describe('privacy switches — the readBooleanParam parse shopify/magento now also use', () => {
+    it('ignore_dnt=false correctly disables the flag', () => {
+      // §3h gave ignore_dnt/pii_scrubbing a real boolean parse specifically
       // because a privacy switch defaulting the wrong way is a regulator-grade
-      // problem, not a cosmetics one. If this test and the D-17 test above
-      // ever assert the same outcome for the same-shaped input, the asymmetry
-      // has been lost.
+      // problem, not a cosmetics one. D-17's fix extended the same parse to
+      // shopify/magento, so this and the shopify=false test above now agree.
       appendScript(`${REQUIRED_QUERY}&ignore_dnt=false`);
       SDK.init();
       expect(autoTrackerInstances[0]!.config.ignore_dnt).toBe(false);
