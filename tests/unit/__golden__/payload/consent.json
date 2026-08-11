@@ -1,0 +1,11 @@
+{
+  "type": "consent",
+  "action": "accept",
+  "email": "a@b.c",
+  "message": "Accepted terms",
+  "category": "marketing",
+  "sourceId": "<sourceId>",
+  "profileId": "<profileId>",
+  "source": "web",
+  "validUntil": "<validUntil>"
+}
