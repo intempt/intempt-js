@@ -26,6 +26,10 @@ export default tseslint.config(
       '.stryker-tmp/**',
       'node_modules/**',
       'standalone/**',
+      // Agent worktrees are full checkouts of this repo (including their own
+      // dist/), so without this eslint lints the project several times over and
+      // reports thousands of duplicate problems from generated output.
+      '.claude/**',
     ],
   },
 
