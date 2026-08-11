@@ -221,6 +221,92 @@ window.intempt.consent({
 });
 ```
 
+### Consent now follows the visitor across your subdomains
+
+An opt-out used to be stored per-origin, so someone who opted out on
+`www.example.com` was tracked again on `shop.example.com`. Consent is now also written
+to a cookie at your registrable domain (`.example.com`), so one opt-out covers every
+subdomain. Nothing to configure.
+
+Two details worth knowing:
+
+- On `localhost` and IP addresses a domain cookie is invalid, so the cookie is
+  host-only there. Consent still persists; it just doesn't cross hosts, which on
+  `localhost` it never could.
+- If a visitor blocks cookies, `localStorage` still carries the decision — it just
+  stays per-origin, as before.
+
+### Re-asking after a policy change
+
+`optOut()` records a refusal and `optIn()` records consent. To go back to *"never
+asked"* — so your banner shows again — clear the decision:
+
+```javascript
+window.intempt.clearConsent();            // forget the stored decision entirely
+window.intempt.hasExplicitlyOptedIn();    // -> true only after an explicit optIn()
+```
+
+`hasExplicitlyOptedIn()` is **not** the inverse of `isUserOptIn()`. Tracking is on by
+default, so a visitor who has never been asked reports `isUserOptIn() === true` and
+`hasExplicitlyOptedIn() === false`. That third state is what tells your banner whether
+to appear.
+
+### Browser privacy signals: Do Not Track and Global Privacy Control
+
+The SDK honours **Do Not Track** (`navigator.doNotTrack`) and **Global Privacy
+Control** (`navigator.globalPrivacyControl`). When either is on, no data is sent —
+regardless of what the visitor clicked on your banner, because GPC is a legally
+recognised opt-out signal under CCPA/CPRA.
+
+If you run your own consent management platform and its explicit, logged consent
+should take precedence, add `&ignore_dnt=1` to the SDK script URL:
+
+```html
+<script async src="https://cdn.intempt.com/v1/intempt.min.js?organization=…&ignore_dnt=1"></script>
+```
+
+> This switch disables **GPC as well as DNT**. Setting it moves the obligation to
+> honour GPC onto you.
+
+### Redacting PII before it leaves the browser
+
+Off by default. Add `&pii_scrubbing=1` to the script URL and the SDK redacts, in event
+payloads only:
+
+- values of obviously sensitive field names (`email`, `phone`, `password`, `ssn`,
+  `cardNumber`, `cvv`, `dob`, and similar);
+- email addresses, formatted phone numbers, and card numbers found anywhere in event
+  text. Card detection requires a valid Luhn checksum, so order ids and long
+  timestamps are not mistaken for cards.
+
+```html
+<script async src="https://cdn.intempt.com/v1/intempt.min.js?organization=…&pii_scrubbing=1"></script>
+```
+
+> **This is irreversible and it is not retroactive.** Redaction happens in the browser
+> before transmission, so there is no way to recover a redacted value later — turn it
+> on only once you're sure nothing downstream depends on the fields it covers. Formatted
+> phone numbers are matched, but a bare digit run like `4155552671` is not, because that
+> shape is indistinguishable from an order number.
+>
+> Records created by `consent()` are **never** scrubbed — the email in a consent record
+> is the proof of consent.
+
+This is a different mechanism from `doNotCapture` above: `doNotCapture` hides one
+element's on-screen text, while PII scrubbing filters every outbound payload.
+
+### Choosing where data is sent (data residency)
+
+Point ingest at a specific host with `&api_host=`:
+
+```html
+<script async src="https://cdn.intempt.com/v1/intempt.min.js?organization=…&api_host=https%3A%2F%2Fapi.eu.intempt.com%2Fv1"></script>
+```
+
+Must be an absolute `https` URL including any version path. An invalid or non-https
+value is ignored and the default host is used. Talk to Intempt before setting this —
+the host has to exist and accept your write key.
+
 Call `logOut()` when a user signs out so their session/profile state resets:
 
 ```javascript

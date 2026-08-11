@@ -171,6 +171,38 @@ until implemented, so it can ship server-first.
 
 ---
 
+## 6. Regional ingest endpoints — unblocks a real data-residency switch
+
+The SDK now takes an explicit ingest host override
+(`IntemptConfig.apiHost`, script URL `&api_host=`), validated to https and used for
+event and consent ingest. That is the plumbing for data residency, and it works
+today against any host you stand up.
+
+**What is missing is the hosts.** `.env.production` and `.env.development` both
+point at `api.intempt.com/v1`; there is no EU endpoint. So the SDK deliberately
+does **not** offer a `region: 'us' | 'eu'` config option, because an enum that
+accepts `'eu'` and falls back to a US host tells a customer they are compliant
+while sending their data to the United States — a worse outcome than not having
+the feature (see D26).
+
+**What we need from you, in order:**
+
+1. Whether a regional ingest deployment is planned, and where.
+2. The canonical base URLs, so the SDK can ship a `region` shorthand mapping to
+   them rather than making every customer paste a host.
+3. Whether a write key issued in one region is valid in another, or whether keys
+   are region-scoped. This decides whether a wrong `api_host` fails as a 401 (loud,
+   good) or silently accepts data in the wrong jurisdiction (the failure mode that
+   matters).
+4. Whether the choices/experience API (`choices.service.ts`) would also be
+   regionalised. It is not routed by `apiHost` today, on the assumption that
+   experience delivery and event ingest would move together.
+
+**Effort shape for us: small** — a lookup table plus a config option. The work is
+entirely yours.
+
+---
+
 ## Summary
 
 | # | Item | Unblocks | Effort shape |
@@ -180,5 +212,6 @@ until implemented, so it can ship server-first.
 | 3 | Idempotency on `eventId` | Lets us **remove** client complexity | Ingest dedupe store |
 | 4 | Accept `$lib_version` | Incident forensics | Confirmation, likely no code |
 | 5 | Load-shedding directive in the response | Server-side control during an incident | Small, ship server-first |
+| 6 | Regional ingest endpoints (and whether write keys are region-scoped) | A real data-residency switch, not just a host override | Regional deployment; SDK side is a lookup table |
 
 Items 1–2 are the minimum to unblock the SDK's reliability work.

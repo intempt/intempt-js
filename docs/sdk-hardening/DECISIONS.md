@@ -437,3 +437,160 @@ new events — a broken migration must not become a broken SDK.
 **Retention:** keep this until we can show the legacy key is gone from the field.
 Given the mutable CDN path and no rollback artifact, assume old bundles persist
 far longer than expected.
+
+---
+
+## D23 — Consent lives in a cookie at the eTLD+1, with localStorage kept as a fallback
+
+**Decided:** `consentState.ts` writes the do-not-track flag to **both** a cookie
+scoped to the registrable domain (`.example.com`) and `localStorage`. On read the
+cookie wins; localStorage answers only when no cookie is present. This
+**supersedes the limitation recorded in D15**, not D15 itself — the localStorage
+store stays.
+
+**Why the cookie:** `localStorage` is origin-scoped, so an opt-out on
+`www.example.com` did not carry to `shop.example.com` (D15). A cookie at the
+eTLD+1 is the only client-side store a browser will share across subdomains.
+
+**Why localStorage is kept rather than replaced** — two independent reasons,
+either sufficient on its own:
+
+1. Every visitor who opted out *before* this change has their opt-out in
+   localStorage only. Removing the read would silently re-enrol all of them —
+   reintroducing, as the fix, the exact defect the module exists to prevent.
+2. Tracker-blocking extensions commonly block cookies while permitting
+   localStorage. Two stores means one of them surviving is enough.
+
+**Also decided: a localStorage-only opt-out is upgraded to a cookie on read.**
+That is what closes D15 for the *existing* population rather than only for future
+opt-outs. It is a write inside a read, which is normally worth avoiding; the
+alternative is that pre-existing opt-outs stay origin-scoped forever. The upgrade
+**only ever widens an opt-out** — it never promotes an opt-in — so the direction
+the mechanism can be wrong in is "more private than asked", which is the correct
+one for consent code. There is a test asserting the opt-in is not widened.
+
+**Host-only hosts:** IP literals, `localhost` and single-label intranet names get
+a cookie with **no `domain` attribute**, decided by `isHostOnlyTarget` from
+`publicSuffix.ts`. A browser rejects `domain=.localhost` outright, dropping the
+cookie rather than mis-scoping it, so host-only is the only option that works.
+This is the same divergence-from-`psl` already recorded in D16.
+
+**Would change our mind:** a first-party server endpoint able to set the cookie
+`HttpOnly` at the eTLD+1, which would also survive Safari's 7-day script-written
+cookie cap. That is backend work.
+
+---
+
+## D24 — DNT and GPC are honoured by default; `ignore_dnt` is the escape hatch
+
+**Decided:** `navigator.doNotTrack` and `navigator.globalPrivacyControl` suppress
+all sending. A browser signal **outranks a stored opt-in**. `ignore_dnt: true`
+(script URL `&ignore_dnt=1`) disables **both**.
+
+**Why default-on, knowing it reduces some customers' event volume:** GPC is a
+legally recognised opt-out under CCPA/CPRA and the Colorado Privacy Act, so
+ignoring it is regulatory exposure rather than a product choice, and an SDK that
+requires a config flag to become compliant fails an enterprise privacy review on
+sight. Mixpanel makes the same call (`ignore_dnt` defaults false).
+
+**This is the one customer-visible behaviour change in the privacy lane, and it is
+recorded here so nobody is surprised by it in a dashboard.** Expected magnitude:
+DNT is a Firefox-minority setting and Safari removed it in 2019, GPC ships in
+Brave/DuckDuckGo and Firefox's ETP-strict; single-digit percent of traffic for a
+typical consumer site, higher for privacy-leaning audiences.
+
+**Why one switch covers both**, rather than separate `ignore_dnt` / `ignore_gpc`:
+the customers who need it are those running a consent management platform whose
+explicit logged consent should take precedence, and that argument applies
+identically to both signals. Two switches would invite honouring the weaker signal
+(DNT) while ignoring the legally binding one (GPC), which is the worst of the four
+combinations.
+
+**Not persisted, and cannot be cleared by `optIn()`.** The signal is held in a
+separate field from the stored decision (`_browserSignalSuppressed` in
+`AutoTrackerModule`). Folding them into one field would write a transient browser
+setting into storage as if it were a visitor decision, and would let `optIn()`
+override a legally binding signal.
+
+**Diagnostic notice fires once per page, not once per call** — Mixpanel warns on
+every `hasOptedOut`, which for us is per *event*.
+
+**Would change our mind:** nothing on GPC. If DNT is ever formally withdrawn, the
+DNT half could become opt-in.
+
+---
+
+## D25 — PII scrubbing is opt-in, and the card rule keeps its Luhn check
+
+**Decided:** `piiScrubbing` defaults **off**. Enabled, it redacts sensitive field
+names and email / formatted-phone / Luhn-verified card shapes in event payloads.
+
+**Why opt-in and never a default:** redaction happens in the browser *before*
+transmission, so there is no server-side undo. A customer who upgrades and finds
+their `email` field replaced has lost that data permanently. A silently-enabled
+scrubber would be a data-destroying change delivered by a version bump on a
+mutable CDN path — see the invariant about `/v1` having no rollback artifact.
+
+**The Luhn check is load-bearing, not polish.** 13–19-digit runs are common in
+analytics data (order ids, microsecond timestamps, concatenated identifiers).
+Without the checksum the card rule would destroy legitimate data to catch cards
+that were never there. Do not "simplify" the rule by dropping `verify`.
+
+**Bare digit runs are deliberately NOT treated as phone numbers.** `4155552671` is
+indistinguishable from an order number, so only `+`-prefixed, bracketed or
+separated forms match. A recall/precision trade, chosen toward precision because a
+false positive here is silent, permanent data loss.
+
+**Consent records bypass the scrubber entirely.** `_eventPoolHandler` routes
+`type: 'consent'` to its own sender before the scrub point. The email in a consent
+record *is* the proof of consent — redacting it destroys the artifact.
+
+**Failure posture: on an internal error the payload is sent unmodified** and the
+failure reported. A scrubber that throws on the send path does not leak data, it
+loses every event behind it; "possibly unredacted" beats "certainly dropped" for a
+defence-in-depth layer the customer opted into.
+
+**No lookbehind in any pattern.** `(?<!…)` is a **parse-time** SyntaxError on
+Safari before 16.4, and a regex literal is parsed when the bundle loads — one
+lookbehind would take the *entire SDK* down on those browsers rather than degrading
+the scrubber. Leading boundaries are capture groups instead
+(`PiiPattern.sensitiveGroup`).
+
+**Cost:** ~5.7 kB raw / ~2.3 kB gzip on the bundle even when disabled, because the
+patterns and key lists are module constants. Acceptable now; the natural fix is
+code-splitting, which the user has parked.
+
+---
+
+## D26 — Data residency ships as an explicit `apiHost`, not a `region` enum
+
+**Decided:** `IntemptConfig.apiHost` (script URL `&api_host=`) overrides the
+build-time ingest base URL. There is **no `region: 'us' | 'eu'` shorthand.**
+
+**Why the enum was rejected:** Intempt has one ingest host —
+`api.intempt.com/v1` in `.env.production` and `.env.development`,
+`api.staging.intempt.com/v1` in staging. There is nothing to map `'eu'` to. An
+enum would therefore either reject its only interesting value (a feature that does
+nothing) or accept it and fall back to the US host. **The second is actively
+dangerous:** a customer who sets `region: 'eu'` to satisfy a GDPR commitment and
+has their data sent to the United States is worse off than one told the feature
+does not exist, because they believe they are compliant. A residency switch that
+can silently fail open is not a residency switch.
+
+`apiHost` is the honest version of the same capability: it works the day a regional
+endpoint exists, needs no SDK release to adopt one, and cannot misrepresent the
+destination because the customer names it.
+
+**Validation fails *back*, not hard.** A non-https or unparseable value is ignored
+in favour of the build-time default. That is safe specifically here because the
+fallback introduces **no new destination** — data continues to the host already in
+use. Honouring a typo'd host instead would 404 or mixed-content-block 100% of
+events.
+
+**Scope: ingest only.** The choices/experience API (`choices.service.ts`) still
+uses `EnvConfig.getApi()`. Region-routing it needs the same regional endpoints to
+exist, so it is deferred with them.
+
+**Would change our mind:** regional ingest endpoints existing. Then add the
+`region` table on top of this — the plumbing is already here. Tracked in
+`BACKEND.md`.

@@ -35,7 +35,7 @@ Ranked by points per day. Total **+22.9 points, ~30 working days**.
 | 2 | Structured logging & metrics | 6 | +3.4 | 3d |
 | 3 | CI breadth | 8 | +2.8 | 2.5d |
 | 4 | Security, the client-side half | 4 | +1.7 | 1.5d |
-| 5 | Privacy & consent | 7 | +2.4 | 3d |
+| 5 | Privacy & consent — **✅ done** | 7 | +2.4 | 3d |
 | 6 | Code health | 10 | +1.7 | 3d |
 | 7 | Docs & DX | 9 | +2.5 | 4d |
 | 8 | Test breadth (**in progress**) | 1 | +3.0 | 6d |
@@ -102,18 +102,25 @@ The credential itself is `BACKEND.md` item 1. What is ours:
   `choices.service.ts:94` — every other diagnostic in the SDK is gated.
 - A bundle secret-scan step, so a key can never be baked into `dist/`.
 
-### 5. Privacy & consent — dim 7: 58 → 88 · +2.4 · 3d
+### 5. Privacy & consent — dim 7: 58 → 88 · +2.4 · 3d · **✅ DONE**
 
-Persisted opt-out already landed (§4 defect 3). Remaining:
+Landed 2026-08-11 — full detail in CHECKPOINT §3g, decisions in D23–D26.
 
-- Port `gdpr-utils.js` (301 LOC).
-- Honour DNT and GPC; add an `ignore_dnt` config for customers who have their own
-  consent gate.
-- PII masking / scrubbing on outbound payloads.
-- **Cross-subdomain consent cookie at the eTLD+1** — the D15 limitation. Consent
-  is `localStorage` today, so an opt-out on `www.example.com` does not carry to
-  `shop.example.com`. Use the `psl`-free `extractEtldPlusOne` helper from §5.
-- A data-residency switch.
+- ✅ Port `gdpr-utils.js` (301 LOC) → `src/shared/privacy/gdpr.ts`, attributed in
+  `NOTICE`. `addOptOutCheck*` deliberately not ported; the public methods already
+  funnel through `isUserOptIn()`.
+- ✅ Honour DNT and GPC, with `ignore_dnt` (`&ignore_dnt=1`) for customers who have
+  their own consent gate. **Honoured by default — the one customer-visible data
+  change in this item. See D24.**
+- ✅ PII masking / scrubbing on outbound payloads, **off by default** (`&pii_scrubbing=1`).
+  Card detection is Luhn-verified; consent records bypass it. D25.
+- ✅ **Cross-subdomain consent cookie at the eTLD+1** — D15 closed. Cookie plus
+  localStorage fallback, with legacy localStorage-only opt-outs upgraded on read so
+  nobody was re-enrolled. D23.
+- 🟡 Data-residency switch: shipped as an explicit `apiHost` (`&api_host=`). The
+  `region: 'us' | 'eu'` enum was **not** built — there are no regional ingest hosts
+  to map it to, and an enum that silently falls back to the US host tells a customer
+  they are compliant when they are not. D26; handover in `BACKEND.md` item 6.
 
 ### 6. Code health — dim 10: 56 → 85 · +1.7 · 3d
 
