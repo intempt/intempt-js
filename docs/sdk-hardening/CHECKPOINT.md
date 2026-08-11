@@ -12,9 +12,9 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Next action** | **§3 item 1 — golden-file contract tests on the outbound payload shape.** Mutation testing is in place and measured (§3f, §3f-i); the recommendation there is to treat 71.42% as a ratchet floor rather than grind it upward, so contract tests are the top item again. Nothing is blocked. |
+| **Next action** | **Continue the mutation campaign to the user-set 85% floor — §3f-i has the file-by-file worklist and the remaining estimate (~100–130 tests).** Next file: the rest of `requestBatcher.ts` (flush/enqueue/scheduling, lines 175–560). Nothing is blocked. |
 | **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 73.76% and climbing to a user-set 85% floor (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. Unit **387** / Cypress **122**, all passing. Bundle 81.78 kB / 23.09 kB gzip. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 75.12%, floor ratcheted to 73, climbing to a user-set 85% (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. Unit **421** / Cypress **122**, all passing. Bundle 81.78 kB / 23.09 kB gzip. |
 
 ---
 
@@ -476,7 +476,19 @@ duration). Progress:
 |---|---|---|---|
 | baseline | — | 70.66% | — |
 | `requestBatcher.ts` first pass | 6 | 71.42% | 54.92 → 58.74% |
-| `requestQueue.ts` | 30 | **73.76%** | 54.96 → **72.73%** |
+| `requestQueue.ts` | 30 | 73.76% | 54.96 → **72.73%** |
+| `requestBatcher.ts` response classification | 34 | **75.12%** | 58.74 → **65.57%** |
+
+`break` is now **73** (was 65). Raise it with each batch; never ahead of the work.
+
+**Remaining to 85%**: 338 survived + 119 no-coverage = 457 undetected. Detected is
+1380 of 1837; 85% needs 1561, i.e. **+181 detections**. At the observed rate
+(1.4–1.9 per test) that is **~100–130 more tests**. Where they are, in order:
+`requestBatcher.ts` 107 survivors + 19 uncovered (flush/enqueue/scheduling paths,
+lines 175–560 — the response-classification block at 585–743 is now done),
+`indexedDbStore.ts` 56, `persistentStore.ts` 39, `shared.utils.ts` 24,
+`storageHandler.ts` 23, `browserDetection.ts` 19, `requestQueue.ts` 58 (the
+harder half: enqueue/cap internals, lines 114–236), tail elsewhere.
 
 Kill rate so far: 36 tests, +89 detections, +3.1 points. The rate *fell* on the
 second pass (2.3 → 1.4 mutants per test) because the remaining survivors are

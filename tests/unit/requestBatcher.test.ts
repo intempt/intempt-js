@@ -658,4 +658,215 @@ describe('RequestBatcher', () => {
       expect(sendCalls, 'the breaker is still open for one more millisecond').toHaveLength(0);
     });
   });
+
+  // --- Response classification: the branch set that decides deliver vs retry --
+  //
+  // 132 of the 363 remaining mutants live in handleResponse and
+  // isDefiniteSuccess. Every one of them is a wrong answer to "was this batch
+  // ingested?", and both wrong answers are data bugs: a false success dequeues
+  // undelivered events, a false failure re-sends delivered ones.
+
+  describe('isDefiniteSuccess', () => {
+    // Tested directly: it is the single predicate the unload path trusts, and
+    // driving it through flush() cannot reach every shape a transport returns.
+    function classify(response: any): boolean {
+      return (batcher as any).isDefiniteSuccess(response);
+    }
+
+    it.each([
+      ['a missing response', undefined],
+      ['a null response', null],
+      ['a transport error', { error: 'network' }],
+      ['an error alongside a 200', { error: 'timeout', httpStatusCode: 200 }],
+      ['a zero status', { httpStatusCode: 0 }],
+      ['a 500', { httpStatusCode: 500 }],
+      ['a 429', { httpStatusCode: 429 }],
+      ['a 400', { httpStatusCode: 400 }],
+      ['a 199', { httpStatusCode: 199 }],
+      ['a 300', { httpStatusCode: 300 }],
+      ['a numeric-looking string status', { httpStatusCode: '200' }],
+      ['no status at all', {}],
+    ])('does not call %s a definite success', (_name, response) => {
+      expect(classify(response)).toBe(false);
+    });
+
+    it.each([
+      ['an explicit ok', { ok: true }],
+      ['a 200', { httpStatusCode: 200 }],
+      ['a 204', { httpStatusCode: 204 }],
+      ['a 299', { httpStatusCode: 299 }],
+    ])('accepts %s', (_name, response) => {
+      expect(classify(response)).toBe(true);
+    });
+
+    it('requires ok to be literally true, not merely truthy', () => {
+      // `response.ok === true` — a strict check. A transport returning ok: 'yes'
+      // must not be read as confirmed delivery.
+      expect(classify({ ok: 'yes' })).toBe(false);
+      expect(classify({ ok: 1 })).toBe(false);
+    });
+  });
+
+  describe('retryable outcomes keep the batch', () => {
+    /** Every case here must leave the events queued AND their marks released. */
+    async function attempt(response: any) {
+      const b = makeBatcher();
+      await b.enqueue(event('evt-retry'));
+      responses = [response];
+      const sched = vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+
+      await b.flush();
+
+      return {
+        sentIds: (b as any).sentEventIds as Set<string>,
+        scheduled: sched.mock.calls.map(c => c[0] as number),
+        queued: await (b as any).queue.fillBatch(10),
+      };
+    }
+
+    it.each([
+      ['a 500', { httpStatusCode: 500 }],
+      ['a 503', { httpStatusCode: 503 }],
+      ['a 429', { httpStatusCode: 429 }],
+      ['a zero status', { httpStatusCode: 0 }],
+      ['a negative status', { httpStatusCode: -1 }],
+      ['a transport error while apparently online', { error: 'network', httpStatusCode: 200 }],
+      ['a missing response object', undefined],
+    ])('retries after %s without dropping the batch', async (_name, response) => {
+      const { sentIds, scheduled, queued } = await attempt(response);
+
+      expect(queued, 'the events must still be queued').toHaveLength(1);
+      expect(
+        sentIds.has('evt-retry'),
+        'the pre-send mark must be released or the retry evicts the event as a duplicate',
+      ).toBe(false);
+      expect(scheduled, 'a backoff must be scheduled').toHaveLength(1);
+      expect(scheduled[0]).toBeGreaterThanOrEqual(0);
+    });
+
+    it('honours Retry-After exactly, without jitter', async () => {
+      // `retryMS = ceilingMS` on this path — the one deliberately unjittered
+      // branch in the batcher. See BACKEND.md §2a for why it is still open.
+      const { scheduled } = await attempt({ httpStatusCode: 429, retryAfter: '30' });
+      expect(scheduled[0]).toBe(30_000);
+    });
+
+    it('caps Retry-After at the ten-minute ceiling', async () => {
+      const { scheduled } = await attempt({ httpStatusCode: 429, retryAfter: '86400' });
+      expect(scheduled[0]).toBe(10 * 60 * 1000);
+    });
+
+    it('ignores an unparseable Retry-After and falls back to jittered backoff', async () => {
+      // `if (retryAfterMS)` — parseInt('soon') is NaN, which must not become the
+      // delay. A NaN timeout fires immediately, i.e. it would hammer ingest.
+      const { scheduled } = await attempt({ httpStatusCode: 429, retryAfter: 'soon' });
+      expect(Number.isNaN(scheduled[0])).toBe(false);
+      expect(scheduled[0]).toBeLessThanOrEqual(2_000);
+    });
+
+    it('ignores a zero Retry-After for the same reason', async () => {
+      const { scheduled } = await attempt({ httpStatusCode: 429, retryAfter: '0' });
+      expect(scheduled[0]).toBeGreaterThanOrEqual(0);
+      expect(scheduled[0]).toBeLessThanOrEqual(2_000);
+    });
+
+    it('resets the failure streak once a delivery succeeds', async () => {
+      // closeCircuit() on the success path. Without it the counter carries old
+      // failures forward and the breaker trips on unrelated blips later.
+      const b = makeBatcher();
+      await b.enqueue(event('evt-a'));
+      responses = [{ httpStatusCode: 500 }];
+      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+      await b.flush();
+      expect((b as any).consecutiveSendFailures).toBe(1);
+
+      responses = [{ httpStatusCode: 200, ok: true }];
+      await b.flush();
+      expect((b as any).consecutiveSendFailures).toBe(0);
+      expect((b as any).breakerOpenUntilMS).toBe(0);
+    });
+  });
+
+  describe('413 handling', () => {
+    it('halves the batch size and keeps a multi-event batch queued', async () => {
+      const b = makeBatcher();
+      for (let i = 0; i < 4; i++) await b.enqueue(event(`evt-413-${i}`));
+      const before = (b as any).batchSize;
+      responses = [{ httpStatusCode: 413 }];
+      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+
+      await b.flush();
+
+      expect((b as any).batchSize).toBeLessThan(before);
+      expect((b as any).batchSize).toBeGreaterThanOrEqual(1);
+      expect(await (b as any).queue.fillBatch(10), 'nothing is dropped on a multi-event 413')
+        .toHaveLength(4);
+    });
+
+    it('never reduces the batch size below one', async () => {
+      // Math.max(1, …): a batch size of 0 would stop the batcher sending
+      // anything, permanently, with a full queue.
+      const b = makeBatcher();
+      await b.enqueue(event('evt-a'));
+      await b.enqueue(event('evt-b'));
+      (b as any).batchSize = 2;
+      responses = [{ httpStatusCode: 413 }];
+      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+
+      await b.flush();
+      expect((b as any).batchSize).toBeGreaterThanOrEqual(1);
+    });
+
+    it('drops a single event that is too large, rather than retrying forever', async () => {
+      // The one place the batcher deliberately loses an event: a lone 413 cannot
+      // be made smaller, so retrying it is an infinite loop against ingest.
+      const b = makeBatcher();
+      await b.enqueue(event('evt-huge'));
+      responses = [{ httpStatusCode: 413 }];
+      const reported: string[] = [];
+      (b as any).errorReporter = (m: string) => reported.push(m);
+
+      await b.flush();
+
+      expect(await (b as any).queue.fillBatch(10)).toHaveLength(0);
+      expect(reported.join(' ')).toContain('too large');
+    });
+  });
+
+  describe('repeated queue-removal failure', () => {
+    it('stops the batcher after more than five consecutive removal failures', async () => {
+      // `> 5` then stop(). A queue that cannot delete what it delivered would
+      // otherwise re-send the same batch forever — the amplification the circuit
+      // breaker exists to prevent, arriving by a different route.
+      const b = makeBatcher();
+      (b as any).removeItemsFromQueue = async () => false;
+      const reported: string[] = [];
+      (b as any).errorReporter = (m: string) => reported.push(m);
+
+      for (let i = 0; i < 7; i++) {
+        await b.enqueue(event(`evt-stuck-${i}`));
+        await b.flush();
+      }
+
+      expect((b as any).stopped, 'the batcher must give up rather than loop').toBe(true);
+      expect(reported.join(' ')).toContain('disabling batching system');
+    });
+  });
+
+  describe('reportError', () => {
+    it('never lets a throwing errorReporter escape into the SDK', async () => {
+      // The customer supplies this hook. If their reporter throws, it must not
+      // turn a handled retry into an unhandled rejection inside the host page.
+      const b = makeBatcher({
+        errorReporter: () => {
+          throw new Error('reporter exploded');
+        },
+      });
+      await b.enqueue(event('evt-x'));
+      responses = [{ httpStatusCode: 500 }];
+      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+
+      await expect(b.flush()).resolves.toBeUndefined();
+    });
+  });
 });
