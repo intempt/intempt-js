@@ -359,7 +359,7 @@ describe('choices engine', () => {
       expect(document.getElementById('t')).toBeNull();
     });
 
-    it('a change with no xPathSelector degrades to just that change — fixes D-7', () => {
+    it('a change with no xPathSelector degrades to just that change — fixes D-7', async () => {
       // Was (choices.module.ts:40 + 94): `markPointersFromChanges` ran BEFORE
       // the per-change try/catch loop, and the default resolver goes straight
       // to `document.evaluate(p._xPathSelector, ...)`. With no selector on the
@@ -372,12 +372,10 @@ describe('choices engine', () => {
       document.getElementById('a')!.setAttribute('aId', 'true');
       const mod = new ChoicesModule(config as any);
 
-      expect(() =>
-        applyChanges(mod, [
-          { type: 'remove', iweId: 'targetId' },
-          { type: 'remove', iweId: 'aId', xPathSelector: '//span[1]', xPathIndex: 0 },
-        ]),
-      ).not.toThrow();
+      await applyChanges(mod, [
+        { type: 'remove', iweId: 'targetId' },
+        { type: 'remove', iweId: 'aId', xPathSelector: '//span[1]', xPathIndex: 0 },
+      ]);
 
       // The malformed change's target is untouched (never marked, never
       // routed), but the other, valid change in the same batch still ran.
@@ -399,76 +397,79 @@ describe('choices engine', () => {
       expect(document.getElementById('keep')).not.toBeNull();
     });
 
-    it('a failing change does not stop the changes after it', async () => {
+    it('a failing change does not stop the changes after it, and the diagnostic fires — fixes D-8', async () => {
       // The single most important resilience property of the engine: changes are
       // independent, so one broken experience must not blank out the others.
-      //
-      // It holds — but NOT for the reason the code suggests, see the next test.
-      // The rejection is suppressed here so the assertion is about ordering
-      // rather than about the unhandled rejection, which is asserted separately.
-      const suppress = () => {};
-      process.on('unhandledRejection', suppress);
-      try {
-        setBody('<span id="a">a</span><span id="b">b</span>');
-        document.getElementById('a')!.setAttribute('aId', 'true');
-        document.getElementById('b')!.setAttribute('bId', 'true');
+      // Before the fix this held only by accident (see below); now the
+      // `catch` genuinely observes the failure.
+      const diagnostics: string[] = [];
+      configureLogger({ level: 'debug', sink: (r) => diagnostics.push(r.message) });
 
-        const mod = new ChoicesModule(config as any);
-        applyChanges(mod, [
-          // `style` with a null attributes bag throws inside the handler when it
-          // destructures `attributes`.
-          {
-            type: 'style',
-            iweId: 'aId',
-            attributes: null,
-            xPathSelector: '//span[1]',
-            xPathIndex: 0,
-          },
-          { type: 'remove', iweId: 'bId', xPathSelector: '//span[2]', xPathIndex: 0 },
-        ]);
+      setBody('<span id="a">a</span><span id="b">b</span>');
+      document.getElementById('a')!.setAttribute('aId', 'true');
+      document.getElementById('b')!.setAttribute('bId', 'true');
 
-        expect(document.getElementById('b')).toBeNull();
-        await new Promise((r) => setTimeout(r, 0));
-      } finally {
-        process.off('unhandledRejection', suppress);
-      }
+      const mod = new ChoicesModule(config as any);
+      await applyChanges(mod, [
+        // `style` with a null attributes bag throws inside the handler when it
+        // destructures `attributes`.
+        {
+          type: 'style',
+          iweId: 'aId',
+          attributes: null,
+          xPathSelector: '//span[1]',
+          xPathIndex: 0,
+        },
+        { type: 'remove', iweId: 'bId', xPathSelector: '//span[2]', xPathIndex: 0 },
+      ]);
+
+      expect(document.getElementById('b')).toBeNull();
+      // The one signal that an experience failed now actually fires — before
+      // the fix it never did, for any of style/update/insert.
+      expect(diagnostics.some((m) => m.includes('error applying change of type "style"'))).toBe(
+        true,
+      );
     });
 
-    it('the try/catch around each change cannot catch three of the four handlers — a defect', () => {
-      // DEFECT (choices.module.ts:52-62). `style`, `update` and `insert` on
+    it('awaits async handlers so the try/catch can see their failures — fixes D-8', async () => {
+      // Was (choices.module.ts:52-62): `style`, `update` and `insert` on
       // `WebEditorModificationHandler` are declared `async`; only `remove` is
-      // synchronous. `_applyChanges` calls the handler inside a `try` but never
-      // awaits it, so an async handler's failure arrives as a **rejected
-      // promise** the synchronous `catch` can never see.
+      // synchronous. `_applyChanges` called the handler inside a `try` but
+      // never awaited it, so an async handler's failure arrived as a
+      // **rejected promise** the synchronous `catch` could never see — no
+      // diagnostic, and an unhandled rejection in the customer's page.
       //
-      // Two consequences, and the second is the bad one:
-      //  1. The `console.warn(`Error applying change of type ...`)` diagnostic —
-      //     the only signal that an experience failed — never fires for three of
-      //     the four types. Debugging a broken experience gets no output at all.
-      //  2. The failure surfaces as an **unhandled promise rejection in the
-      //     customer's page**, which their own error monitoring reports as an
-      //     error originating from our script.
-      //
-      // The changes after it still apply, so the resilience property survives —
-      // but by accident, because the rejection is asynchronous, not because it is
-      // handled. Asserted on the handler directly here, which is where the
-      // rejection is observable at all.
-      //
-      // Not fixed here: the fix is to await the handler (making `_applyChanges`
-      // properly async and serialising changes that currently start in parallel)
-      // or to attach a `.catch`. The first changes application order and timing
-      // on live pages; the second is safe but should ship with the logger work
-      // in FRONTEND.md item 2 so the diagnostic goes somewhere useful.
+      // Fixed by awaiting each handler call. Confirmed here directly against
+      // the handler, which is where the rejection was only ever observable
+      // before the fix.
       const handler = new WebEditorModificationHandler();
       const result = handler.style({ iweId: 'x', attributes: null } as any);
       expect(result).toBeInstanceOf(Promise);
-      return expect(result).rejects.toThrow(TypeError);
+      await expect(result).rejects.toThrow(TypeError);
     });
 
-    it('resolves nothing and mutates nothing for an empty change list', () => {
+    it('applies changes to the same element in server-sent order — ordering assertion for the D-8 fix', async () => {
+      // Awaiting each handler serialises application: change N+1 does not
+      // start until change N has fully applied. Pinned here on two changes
+      // that target the same element, where "later wins" is the only outcome
+      // consistent with in-order, one-at-a-time application (a Promise.all-style
+      // fire-and-forget dispatch offers no such guarantee).
+      setBody('<span id="a">a</span>');
+      document.getElementById('a')!.setAttribute('aId', 'true');
+
+      const mod = new ChoicesModule(config as any);
+      await applyChanges(mod, [
+        { type: 'style', iweId: 'aId', attributes: { style: 'color:red' } },
+        { type: 'style', iweId: 'aId', attributes: { style: 'color:blue' } },
+      ]);
+
+      expect(document.getElementById('a')!.getAttribute('style')).toBe('color:blue');
+    });
+
+    it('resolves nothing and mutates nothing for an empty change list', async () => {
       setBody('<div id="keep">keep</div>');
       const mod = new ChoicesModule(config as any);
-      expect(applyChanges(mod, [])).resolves;
+      await expect(applyChanges(mod, [])).resolves.toBeUndefined();
       expect(document.getElementById('keep')).not.toBeNull();
     });
 

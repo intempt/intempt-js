@@ -40,23 +40,29 @@ export class ChoicesModule {
 
   }
 
-  private _applyChanges(changes:any[]){
+  private async _applyChanges(changes:any[]){
     this.markPointersFromChanges(changes);
 
     const changesHandler = new WebEditorModificationHandler();
 
     if (!changes || changes.length === 0) {
-      return Promise.resolve();
+      return;
     }
 
-
+    // D-8: `style`/`update`/`insert` on the handler are `async`; calling them
+    // without `await` meant the `try/catch` below could never observe their
+    // failures — the rejection surfaced as an unhandled rejection in the
+    // customer's page instead of the "error applying change" diagnostic.
+    // Awaited sequentially (not `Promise.all`) so changes are applied in the
+    // order the server sent them — applying them out of order or in parallel
+    // is visible to a visitor as flicker on the live page.
     for (let i = 0; i < changes.length; i++) {
       let change = changes[i];
 
       if (change && changesHandler.hasOwnProperty(change.type)) {
         try {
 
-          (changesHandler as any)[change.type](change as any);
+          await (changesHandler as any)[change.type](change as any);
         } catch (error) {
           log.warn(`error applying change of type "${change.type}"`, { change, error });
         }
