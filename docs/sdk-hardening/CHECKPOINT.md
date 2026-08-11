@@ -13,8 +13,8 @@
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
 | **Next action** | **Continue the mutation campaign to the user-set 85% floor — §3f-i has the file-by-file worklist and the remaining estimate (~100–130 tests).** Next file: the rest of `requestBatcher.ts` (flush/enqueue/scheduling, lines 175–560). Nothing is blocked. |
-| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 75.94%, floor ratcheted to 73, climbing to a user-set 85% (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. Unit **444** / Cypress **122**, all passing. Bundle 81.78 kB / 23.09 kB gzip. |
+| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 4 observability ✅ (§3g)** — structured logger, sink hook, pipeline metrics. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 75.94%, floor ratcheted to 73, climbing to a user-set 85% (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. **Structured logger + sink hook + pipeline metrics, and all 55 `console.*` calls swept (§3g)**. Unit **484** / Cypress **122**, all passing. Bundle 85.25 kB / 24.26 kB gzip. |
 
 ---
 
@@ -552,6 +552,95 @@ without needing a property test to stumble into them. Open
 `reports/mutation/index.html` after a run — it is gitignored, and it lists every
 survivor with its diff.
 
+## 3g. Phase 4 — structured logging & metrics ✅ (`FRONTEND.md` item 2)
+
+Dimension 6 (observability) was the **worst-scoring dimension in the audit**: 25
+at the audit, 40 before this change, against Mixpanel's 85. It was also entirely
+client-side work — nothing here was blocked on the backend.
+
+**What was wrong.** 55 raw `console.*` calls, gated — where they were gated at all
+— on `EnvConfig.isProduction()`. Three consequences, all of them support
+problems:
+
+- **Production printed nothing, and there was no way to change that.** The only
+  build where a diagnostic has any value is the one on a customer's live site,
+  and that build was silent by construction. The remedy in use was to ship a
+  customer a staging bundle.
+- **No severity.** `console.log` for a swallowed exception and `console.log` for
+  "editor mounted" are indistinguishable, so nobody read either.
+- **Nothing could be forwarded.** A customer running Sentry or Datadog could not
+  see SDK failures at all.
+
+**What landed.**
+
+- `src/shared/logger/logger.ts` — four levels (error/warn/info/debug), a
+  `[Scope] message` prefix keeping the existing `[RequestBatcher]`-style
+  convention, and **two independent thresholds**. The console default reproduces
+  the old policy exactly (silent in production, verbose otherwise) so no customer
+  page gets noisier; `debug: true` in the SDK config lifts it **in production**,
+  which is the whole point of the option.
+- **A sink hook** — `onDiagnostic` on `IntemptConfig`, receiving a structured
+  record (`level`, `scope`, `message`, `detail`, `timestamp`), gated at `warn` and
+  above **independently of the console**. Gating a sink on the console threshold
+  would make it useless in the only environment it exists for. It complements
+  rather than replaces `errorReporter`: that hook is a narrower, per-instance
+  queue channel its owner wires and the batcher's tests drive, so
+  `RequestBatcher.reportError` now writes to both. The sink copies
+  `reportError`'s most important property — **a throw from the customer's
+  callback is swallowed**, because an analytics SDK that can break the page it
+  measures is worse than no analytics SDK.
+- `src/shared/logger/metrics.ts` — queue depth, flush latency (last + mean),
+  drop count, breaker state and **transition count**, readable as a snapshot via
+  `intempt.getDiagnostics()` and emitted through the logger on each transition.
+  **This is the consumer §3c's drop counter was waiting for.** Depth and drops are
+  *sampled* through provider callbacks at snapshot time rather than pushed on
+  every enqueue — pushing would put per-event work back on the hot path that §6c
+  exists to keep clear. Latency is a running total, not a sample array, for the
+  same reason the two dedupe structures are capped: unbounded growth on a
+  long-lived tab.
+
+**Queue and batcher changes are wiring only.** `requestQueue.ts` gained one
+read-only accessor (`getQueueDepth()`); `requestBatcher.ts` gained a logger, a
+metrics instance, `getMetrics()`, and calls that *observe* the breaker at the
+three points where its state already changed. No queueing, retry, breaker or
+dedupe logic was touched, and all 100 existing batcher tests plus the 50 queue
+tests pass unmodified.
+
+**Two `console.*` calls survive on purpose**, both documented in place:
+
+- `sdkLoader.ts` — `CAN'T FIND SCRIPT`. This branch means the bundle could not
+  find its own `<script>` tag, so there is no config, no write key, and the
+  logger cannot have been configured (`debug: true` arrives *with* the config
+  that just failed to load). It is also the known signature of the mutable `/v1`
+  CDN path coupling, and support tells customers to look for this exact string.
+- `envConfig.ts` — the logger gates itself on `EnvConfig.isProduction()`, so
+  routing this one would make the logger and its own configuration source
+  mutually dependent, and it fires *during* the initialisation it would consult.
+
+**Bundle: 81.80 kB / 23.09 kB gzip → 85.25 kB / 24.26 kB gzip** (+3.45 kB raw,
++1.17 kB gzip). Measured split: logger 0.80 kB, metrics 1.10 kB, call sites
+~1.55 kB. The call-site share is mostly **message strings that now ship**:
+`vite.config.ts` sets `esbuild.pure: ['console.log']`, which deleted every
+`console.log` call *and its string literals* from the production bundle
+outright — verified directly against esbuild. In other words part of the old
+bundle's smallness **was** the missing production diagnostics, and a switchable
+debug channel necessarily keeps those strings at runtime. `log.debug` is
+deliberately not added to `pure` for exactly that reason. The remaining lever, if
+the size gate from `FRONTEND.md` item 3 ever makes this hurt, is trimming
+individual `debug`/`info` breadcrumbs — not the logger itself.
+
+`recordFlush` deliberately does **not** log: it runs on every send, so it would be
+the SDK's highest-frequency log call, in exchange for information `snapshot()`
+already reports better as a mean.
+
+**Tests:** 40 added (`tests/unit/logger.test.ts` 22, `tests/unit/metrics.test.ts`
+18), taking the unit tier to **484**. They cover level filtering, the `debug`
+switch, the production-silent default, console output shape, the sink including a
+**throwing** sink (asserting no propagation, no recursion, and that the console
+channel survives), each metric, and the batcher wiring end to end — drop count
+reaching the snapshot, and a full closed → open → half-open → closed breaker
+recovery.
+
 ## 3. Next concrete action — pick one, nothing is blocked
 
 Client-side load shedding is **complete** (jitter §3a, breaker §3b, bounded queue
@@ -570,13 +659,16 @@ Highest value now, in the author's order:
    code** — not as a campaign. §3f-i measured the rate at ~2.3 mutants per test
    and recommends against grinding the score; the remaining 397 survivors each
    need their own assertion.
-2. Cross-subdomain consent cookie (D15), structured logger + killing `any`
-   (Phase 4). The logger has a concrete consumer now: the drop counter from §3c.
+2. Cross-subdomain consent cookie (D15) and killing `any` (Phase 4). The
+   **structured logger is done — §3g**, and the drop counter from §3c now has its
+   consumer. What remains of dimension 6 is breadth, not plumbing: route the
+   quota-failure telemetry from `FRONTEND.md` item 10 through the sink.
 3. **Credential hygiene (Phase 4)** — but note this is now known to be **mostly
    blocked on the backend**, not client-side work: five call sites across four
    endpoints carry the `btoa`'d write key, and the fix is `BACKEND.md` item 1.
-   What is ours alone is small (the unguarded `console.error` at
-   `choices.service.ts:94`, and SRI/CSP guidance in the customer docs).
+   What is ours alone is small (SRI/CSP guidance in the customer docs; the
+   unguarded `console.error` at `choices.service.ts:94` was fixed by §3g's
+   sweep).
 4. Close the bot-detection false negative documented in §3e, if it is judged
    worth the risk — it needs the compatible;-inspection moved out of the browser
    branch, which changes behaviour for real traffic, so it wants a parity check
@@ -816,7 +908,7 @@ not behaviour. If they break again, prefer rewriting them to go through
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
 | 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (**363 tests**, gate enforced at 90/87/87/90), **`ci.yml` gates merges ✅**, **guard suites ported ✅**, **mutation testing ✅ (71.42%)**; killing queue-core survivors, contract tests and WDIO tier 2 remain |
 | 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ✅ **jitter, circuit breaker, bounded queue** (4th ⏸ BE) |
-| 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
+| 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | 🟡 **observability ✅ — logger, sink hook, metrics (§3g)**; credential hygiene mostly ⏸ (BE); `gdpr-utils` port, supply chain, `any` remain |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. `browser-tests.yml` / `release.yml` / changesets remain |
 
 Phase deltas assume the earlier phases landed; they are not independent.
