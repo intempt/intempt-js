@@ -22,22 +22,22 @@ export const ChoicesService = {
     return EnvConfig.getApi();
   },
 
-  choicesDataGuard: function(data:{choices:any[]}):MergedChoices[] {
+  choicesDataGuard: function(data:{choices:unknown[]}):MergedChoices[] {
     if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
       log.debug('response or first element of choices array is null, undefined, or not an array with at least one element');
 
       return [];
     }
 
-    const { choices} = data;
+    const choices = data.choices as Array<{changes?: Choice[], mergedChanges?: MergedChoices[]}>;
 
-    return choices.reduce((acc, item:{changes:Choice[], mergedChanges:MergedChoices[]}) => {
+    return choices.reduce((acc, item) => {
       // D-6: one malformed choice (e.g. missing/non-array `changes`) must not
       // discard every other choice in the response — the visitor still gets
       // whatever DID parse. Isolated per item rather than per field.
       try {
         if (item && Array.isArray(item.changes)) {
-          acc.push(...item.changes);
+          acc.push(...(item.changes as unknown as MergedChoices[]));
         } else {
           log.warn('a choice item has no `changes` array — skipping that choice', item);
         }
@@ -56,7 +56,7 @@ export const ChoicesService = {
       }
 
       return acc;
-    }, [])
+    }, [] as MergedChoices[])
   },
 
   getIntemptSessionVariables: function (config:ChoicesParams):IntemptVariables {
@@ -68,7 +68,7 @@ export const ChoicesService = {
     const url = location.href;
     const deviceCondition = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     const device = deviceCondition ? 'MOBILE' : 'DESKTOP';
-    const [username, password] =!!config.writeKey
+    const [username, password] = config.writeKey
       ? config.writeKey.split(".")
       : [null, null];
 
@@ -235,7 +235,11 @@ export const ChoicesService = {
     return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
   },
 
-  insertResultHandler({ content, parentElement, elementToInsert}:any){
+  insertResultHandler({ content, parentElement, elementToInsert}:{
+    content: { isInside?: boolean; isTop?: boolean; nextSibling?: { xPathSelector: string; xPathIndex: number } };
+    parentElement: Element;
+    elementToInsert: Element;
+  }){
     if (content.isInside) {
         if(content.isTop) {
           parentElement.prepend(elementToInsert);

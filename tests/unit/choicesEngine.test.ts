@@ -58,7 +58,7 @@ function setBody(html: string) {
  * CSSStyleSheet with it. Both halves matter: an attached-but-empty style tag is
  * what production has on first paint.
  */
-function installIweStylesheet(initialCss = '') {
+function _installIweStylesheet(initialCss = '') {
   const style = document.createElement('style');
   style.setAttribute(ChoicesConfig.styleDataAttribute, '');
   style.textContent = initialCss;
@@ -840,7 +840,7 @@ describe('choices engine', () => {
         expect(() =>
           ChoicesService.insertResultHandler({
             content: { isInside: false, nextSibling: { xPathSelector: '//nope', xPathIndex: 0 } },
-            parentElement: document.getElementById('p'),
+            parentElement: document.getElementById('p')!,
             elementToInsert: document.createElement('b'),
           }),
         ).toThrow('NEXT SIBLING ELEMENT NOT FOUND');

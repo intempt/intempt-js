@@ -1,7 +1,6 @@
-import { ChoicesParams, XPtr } from '../../types/choices.types.ts';
+import { ChoicesParams, Modification, XPtr } from '../../types/choices.types.ts';
 import { ChoicesService } from './choices.service.ts';
 import { WebEditorModificationHandler } from './models/WebEditorModificationHandler.ts';
-import { EnvConfig } from '../../../shared/envConfig.ts';
 
 
 
@@ -40,7 +39,7 @@ export class ChoicesModule {
 
   }
 
-  private async _applyChanges(changes:any[]){
+  private async _applyChanges(changes: unknown[]): Promise<void> {
     this.markPointersFromChanges(changes);
 
     const changesHandler = new WebEditorModificationHandler();
@@ -50,38 +49,39 @@ export class ChoicesModule {
     }
 
     // D-8: `style`/`update`/`insert` on the handler are `async`; calling them
-    // without `await` meant the `try/catch` below could never observe their
-    // failures — the rejection surfaced as an unhandled rejection in the
+    // without `await` means the `try/catch` below can never observe their
+    // failures — the rejection surfaces as an unhandled rejection in the
     // customer's page instead of the "error applying change" diagnostic.
     // Awaited sequentially (not `Promise.all`) so changes are applied in the
     // order the server sent them — applying them out of order or in parallel
     // is visible to a visitor as flicker on the live page.
     for (let i = 0; i < changes.length; i++) {
-      let change = changes[i];
+      const change = changes[i] as Modification;
 
-      if (change && changesHandler.hasOwnProperty(change.type)) {
+      if (change && Object.prototype.hasOwnProperty.call(changesHandler, change.type)) {
         try {
-
-          await (changesHandler as any)[change.type](change as any);
+          type Handler = (c: Modification) => Promise<void> | void;
+          const handlerFn = (changesHandler as unknown as Record<string, Handler>)[change.type];
+          await handlerFn(change);
         } catch (error) {
           log.warn(`error applying change of type "${change.type}"`, { change, error });
         }
       }
       else {
-        log.warn(`handler for "${change?.type}" change type not found`, change);
+        log.warn(`handler for "${(change as Modification)?.type}" change type not found`, change);
       }
     }
   }
 
   private markPointersFromChanges(
-    changes: any[],
+    changes: unknown[],
     resolver = ChoicesService.elementGetterByXpath
   ): Array<{ el: HTMLElement; iweId: string }> {
     const cache = new Map<string, HTMLElement | null>();
     const seen  = new Set<string>();
     const out: Array<{ el: HTMLElement; iweId: string }> = [];
 
-    for (const c of changes) {
+    for (const change of changes) {
       // D-7: this pass used to run entirely outside the per-change try/catch
       // in `_applyChanges`, so one malformed change (no `xPathSelector`, or an
       // `iweId` that is not a legal attribute name) threw out of the whole
@@ -89,10 +89,11 @@ export class ChoicesModule {
       // change here — that change's pointers are skipped, everything else
       // still marks and applies.
       try {
+        const c = change as Modification;
         // Build a flat list of pointers: parent, refNode, self
         const pointers: XPtr[] = [
-          c.parent as XPtr,
-          c.refNode as XPtr,
+          c.parent as unknown as XPtr,
+          c.refNode as unknown as XPtr,
           { _xPathSelector: c.xPathSelector, _xPathIndex: c.xPathIndex, _iweId: c.iweId } as XPtr,
         ].filter(Boolean);
 
@@ -112,7 +113,7 @@ export class ChoicesModule {
           seen.add(key);
         }
       } catch (error) {
-        log.warn('failed to mark pointers for a change — skipping that change', { change: c, error });
+        log.warn('failed to mark pointers for a change — skipping that change', { change, error });
       }
     }
 
