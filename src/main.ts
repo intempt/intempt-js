@@ -1,5 +1,6 @@
 // Import EnvConfig first to ensure it's initialized before other modules
 import { EnvConfig } from './shared/envConfig.ts';
+import { SDK_VERSION } from './shared/version.ts';
 import { SDK } from './loaders/sdkLoader.ts';
 import { WEB_EDITOR } from './loaders/webEditorLoader.ts';
 import { TrackingGuardManager } from './guard/trackingGuard.manager.ts';
@@ -45,7 +46,7 @@ setupDefaultGuards();
 
   if(!EnvConfig.isProduction()) {
     console.log('ENVIRONMENT ', EnvConfig.getEnv());
-    console.log('version:', 'v6.0');
+    console.log('version:', SDK_VERSION);
     console.log('cameFromOpener',cameFromOpener);
   }
 

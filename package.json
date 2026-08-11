@@ -1,8 +1,43 @@
 {
   "name": "intemptjs",
-  "private": true,
-  "version": "0.0.0",
+  "version": "6.0.0",
+  "description": "Intempt JS SDK — event tracking, identity, and DOM-level experience delivery for the browser.",
+  "keywords": [
+    "intempt",
+    "analytics",
+    "event-tracking",
+    "personalization",
+    "experiences",
+    "browser",
+    "sdk"
+  ],
+  "homepage": "https://github.com/intempt/intempt-js#readme",
+  "bugs": {
+    "url": "https://github.com/intempt/intempt-js/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/intempt/intempt-js.git"
+  },
+  "license": "MIT",
+  "author": "Intempt",
   "type": "module",
+  "browser": "./dist/intempt.min.js",
+  "unpkg": "./dist/intempt.min.js",
+  "jsdelivr": "./dist/intempt.min.js",
+  "files": [
+    "dist",
+    "README.md",
+    "USAGE.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build --mode production --minify",

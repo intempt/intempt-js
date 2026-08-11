@@ -164,3 +164,54 @@ the code is worse than none, because the next session trusts it.
 looking for phantom Phase 0 code changes, or assume the proposed CI/CD files in
 `AUDIT.md` §3b were applied. **They were not** — they are proposals with a
 rollout order.
+
+---
+
+## D10 — Start the published version at `6.0.0`, not `1.0.0`
+
+**Decided:** `package.json` version `0.0.0` → `6.0.0`.
+
+**Why:** the shipped bundle already logged `version: 'v6.0'`, so customers and
+support tickets reference a 6.x SDK. Publishing a `1.0.0` package that is
+*newer* than the `v6.0` in the field would make every future incident report
+ambiguous about which artifact is meant. Semver continuity with what the field
+already believes is worth more than a clean `1.0.0`.
+
+**Would change our mind:** if `v6.0` turns out never to have been surfaced to
+customers (it only logged on non-production builds), a `1.0.0` reset is
+defensible — but the string was in the production source, so assume it leaked.
+
+---
+
+## D11 — Do not declare `main`/`module`/`exports`/`sideEffects` until the module build exists
+
+**Decided:** Phase 1 task 1 ships only metadata that is **true today**. The
+entry-point fields are deferred to task 5.
+
+**Why:** the sole build output is an IIFE (`vite.config.ts`, `format: 'iife'`) and
+`src/main.ts` self-initializes on import. `exports` pointing at an IIFE resolves
+to something that cannot be meaningfully imported, and `sideEffects: false` on a
+self-initializing entry invites a bundler to tree-shake the entire SDK away —
+a silent, total failure in a consumer's build. A field that lies is worse than a
+field that is absent: absence produces an honest resolution error, a lie produces
+a green build with no tracking.
+
+**Would change our mind:** nothing — task 5 makes the fields true, and they go in
+with it.
+
+---
+
+## D12 — `$lib_version` stamping is blocked on ingest confirmation
+
+**Decided:** version is single-sourced and exposed on the SDK object, but **not**
+yet stamped onto outbound event payloads.
+
+**Why:** the stamp belongs in `SessionEventModel`
+(`src/intemptJs/modules/autoTracker/models/session.model.ts`), which is the wire
+format posted to `…/sources/<id>/track`. If ingest validates strictly, an unknown
+field means **rejected batches, i.e. dropped events for every customer** — a
+worse outcome than the missing forensics the stamp was meant to fix. Client-side
+observability is not worth risking the ingest path on an assumption.
+
+**Unblocks when:** the ingest team confirms unknown top-level payload fields are
+tolerated (or names the field they want). Then stamp it.

@@ -12,8 +12,8 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Phase** | **Phase 0 complete** (audit). Phase 1 not started. |
-| **Code changed so far** | **None.** Docs only. |
+| **Phase** | **Phase 0 complete** (audit). **Phase 1 in progress** — tasks 1–2 done. |
+| **Code changed so far** | `package.json` metadata; version single-sourced (`src/shared/version.ts`, vite `define`, `Intempt.VERSION`). |
 
 ---
 
@@ -43,31 +43,56 @@ almost entirely *commercial shippability* (tests, semver/publishing, CI breadth,
 observability, persisted consent, credential hygiene), which is additive work
 rather than a rewrite.
 
-**Phase 1 — Make it a package. ⬜ Not started. This is the next phase.**
+**Phase 1 — Make it a package. 🟡 In progress.**
+
+Task status (full detail in `AUDIT.md` §2, Phase 1):
+
+1. ✅ **`package.json` publishable metadata.** Dropped `"private": true`, version
+   `0.0.0` → **`6.0.0`** (continuing the `'v6.0'` literal the code shipped, so the
+   package version does not contradict what customers already see). Added
+   `description`, `keywords`, `homepage`, `bugs`, `repository`, `license` (MIT, per
+   the existing `LICENSE`), `author`, `files`, `engines` (node ≥18),
+   `publishConfig` (`access: public`, `provenance: true`), and
+   `browser`/`unpkg`/`jsdelivr` → `dist/intempt.min.js`.
+   **Deliberately NOT added yet, because they would be lies:**
+   - `main` / `module` / `exports` — the only build output today is an **IIFE**
+     (`vite.config.ts`, `format: 'iife'`). There is nothing importable to point
+     at. These land with **task 5**, which adds the module build.
+   - `sideEffects: false` — `src/main.ts` self-initializes at import time, so
+     declaring this now would let a bundler tree-shake the whole SDK away. Lands
+     with **task 5**.
+   - `types` — lands with **task 3** (`src/index.d.ts`).
+2. ✅ **Version single-sourced.** New `src/shared/version.ts` exports
+   `SDK_VERSION`, resolved from a `__SDK_VERSION__` global that
+   `vite.config.ts` `define`s by reading `package.json` at build time (with a
+   `'0.0.0-dev'` fallback so tsc-only and direct-import cypress runs don't throw).
+   The `'v6.0'` literal at `src/main.ts:48` is gone. Exposed as both
+   `IntemptJs.VERSION` (static) and `window.intempt.VERSION` (instance).
+   **Verified against the built bundle:** `6.0.0` and `VERSION` both present in
+   `dist/intempt.min.js`, `v6.0` grep count 0.
+   **Deferred deliberately — `$lib_version` on outbound payloads.** The natural
+   place is `SessionEventModel` (`src/intemptJs/modules/autoTracker/models/session.model.ts`),
+   but that changes the **wire payload** sent to
+   `…/sources/<id>/track`. Ingest may reject or silently drop unknown fields.
+   **Next session: confirm with the ingest team that a `$lib_version` field is
+   accepted before stamping it.** Do not ship this blind — a rejected payload is
+   dropped events.
+3. ⬜ Hand-author `src/index.d.ts` as the *public* contract (mirror
+   `/home/beso/mixpanel-js/src/index.d.ts`), so internal refactors don't break
+   consumers.
+4. ⬜ `CHANGELOG.md` + adopt changesets.
+5. ⬜ Split the init contract: keep the self-initializing IIFE for the CDN/snippet
+   build, but add a module build exporting a pure `createIntempt(config)` with
+   **no import-time side effects** — then add `main`/`module`/`exports`/
+   `sideEffects: false` from task 1.
 
 ## 3. Next concrete action
 
-Start Phase 1, task 1: fix `package.json` so the SDK is consumable as a package.
+Phase 1, task 3: hand-author `src/index.d.ts` as the public contract.
 
-Today it has `"private": true` and `"version": "0.0.0"`, which means it cannot be
-published or installed at all. Required: real `version`, `main`, `module`,
-`types`, `exports`, `sideEffects: false`, `files`, `publishConfig`, `engines`,
-plus `repository`/`license`/`homepage`.
-
-Then, in order (full detail in `AUDIT.md` §2, Phase 1):
-
-1. `package.json` publishable metadata. ← **start here**
-2. Single-source the version. Delete the hardcoded `'v6.0'` literal at
-   `src/main.ts:48`; inject via vite `define: { __SDK_VERSION__ }` from
-   `package.json`; expose as `Intempt.VERSION`; stamp `$lib_version` on every
-   outbound payload (needed for incident forensics).
-3. Hand-author `src/index.d.ts` as the *public* contract (mirror
-   `/home/beso/mixpanel-js/src/index.d.ts`), so internal refactors don't break
-   consumers.
-4. `CHANGELOG.md` + adopt changesets.
-5. Split the init contract: keep the self-initializing IIFE for the CDN/snippet
-   build, but the module build must export a pure `createIntempt(config)` with
-   **no import-time side effects** — otherwise `sideEffects: false` is a lie.
+Two open items carried forward, both recorded above: get ingest-team confirmation
+for `$lib_version`, and add the deferred `package.json` entry fields as part of
+task 5.
 
 ## 4. Three live defects — fix regardless of phase order
 
@@ -116,7 +141,7 @@ If lazy-loading is preferred over removal, load it only on the cookie-write path
 | Phase | Scope | Δ | Cumulative | Status |
 |---|---|---|---|---|
 | 0 | Audit & plan | — | 40 | ✅ Complete |
-| 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | ⬜ **Next** |
+| 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
 | 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | ⬜ |
 | 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | ⬜ |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |

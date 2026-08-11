@@ -20,9 +20,15 @@ import { ChoicesModule } from './modules/choices/choices.module.ts';
 import { ProductModel } from './models/product.model.ts';
 import { IntemptEventListenerName, IntemptEventName } from './types/constants.types.ts';
 import { EnvConfig } from '../shared/envConfig.ts';
+import { SDK_VERSION } from '../shared/version.ts';
 
 
 export class IntemptJs extends IntemptJsGuard {
+  /** Build-time SDK version. Part of the public contract — see src/shared/version.ts */
+  static readonly VERSION: string = SDK_VERSION;
+  /** Instance mirror of {@link IntemptJs.VERSION}, for `window.intempt.VERSION`. */
+  readonly VERSION: string = SDK_VERSION;
+
   private readonly _api = EnvConfig.getApi();
   private readonly _autoTracker!:AutoTrackerModule;
   private readonly _choices!:ChoicesModule;
