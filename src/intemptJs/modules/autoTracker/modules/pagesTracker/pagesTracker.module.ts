@@ -86,6 +86,10 @@ export class PageTrackerModule {
     });
 
     window.addEventListener('popstate', fire);
+    // Hash-only routers change the URL without ever touching the History API
+    // and never fire 'popstate', so without this listener a hash-routed SPA
+    // (a large share of real sites) recorded no navigation at all (D-11).
+    window.addEventListener('hashchange', fire);
   }
 
 

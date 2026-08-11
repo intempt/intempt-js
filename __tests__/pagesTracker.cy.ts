@@ -359,4 +359,32 @@ describe('PageTrackerModule', () => {
       expect(pageEvents.map((e) => e.eventName)).to.deep.eq(['Leave Page', 'View Page']);
     });
   });
+
+  // Real-browser coverage for docs/sdk-hardening/DEFECTS.md D-11.
+  describe('Navigation defects (D-11)', () => {
+    beforeEach(() => {
+      window.history.replaceState({}, '', '/nav-defects-d11-start');
+      clearCookies();
+    });
+
+    afterEach(() => {
+      clearCookies();
+    });
+
+    it('D-11: a hash-only navigation emits a matched Leave/View pair', () => {
+      const pageEvents: { eventName: string; fullUrl: string }[] = [];
+      document.addEventListener('intempt:page', (e: Event) => {
+        pageEvents.push((e as CustomEvent).detail);
+      });
+
+      createLiveTracker();
+      pageEvents.length = 0; // drop the initial View Page from init()
+
+      window.location.hash = '#section-2';
+      window.dispatchEvent(new Event('hashchange'));
+
+      expect(pageEvents.map((e) => e.eventName)).to.deep.eq(['Leave Page', 'View Page']);
+      expect(pageEvents[1]?.fullUrl).to.include('#section-2');
+    });
+  });
 });
