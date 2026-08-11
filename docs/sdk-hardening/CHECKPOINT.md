@@ -10,13 +10,13 @@
 |---|---|
 | **Branch** | `beso/sdk-enterprise-hardening` — **pushed**, upstream set, `ci.yml` green |
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
-| **Last updated** | 2026-08-12 (nine-lane merge closed out and pushed) |
-| **Next action** | **§3p is the current state — start there.** All nine lanes are merged, every gate is green on the merged tree, and the branch is **PUSHED** (`3c5823e`). Next code work: kill the remaining ~60 `any` and flip the two rules to `error`; the last two `autoTracker` splits; the repo-wide prettier sweep (must land alone); the ~10 remaining defects; and widen stryker's `mutate` scope. **Four items still need the user** — see §3p. |
+| **Last updated** | 2026-08-12 (six more defects fixed — §3q) |
+| **Next action** | **§3q is the current state — start there.** Nine lanes merged, all gates green, branch **PUSHED**. The user's chosen order for the remaining work is **defects → prettier sweep → `any` → autoTracker splits**; six defects are done (§3q) and **the next step is the repo-wide prettier sweep, which must land alone**. **Four defects are blocked on a user decision — see §3q.** |
 | **Score** | **~78 / 100** (audit baseline 40, Mixpanel comparator 85). Front-end-only ceiling ~85 — see `FRONTEND.md`. |
-| **Tests** | Unit **930** (31 files) · Cypress **126** · mutation **86.57%** (floor **85** — target reached) · coverage all src **76.82 / 70.63 / 77.31 / 77.77** (gates 75/68/75/75) · bundle **93,814 B / 27.31 kB gzip** · ESLint 0 errors / **205** warnings (ratchet 205) · audit **2 moderate, 0 high** |
+| **Tests** | Unit **936** (32 files) · Cypress **126** · mutation **86.57%** (floor **85** — target reached) · coverage all src **76.86 / 70.62 / 77.36 / 77.79** (gates 75/68/75/75) · bundle **93,890 B / 27.35 kB gzip** · ESLint 0 errors / **205** warnings (ratchet 205) · audit **2 moderate, 0 high** |
 | **Phase** | 0 ✅ · 1 ⏸ parked (packaging) · 2 ✅ tier-1 + CI gate + guard port + mutation · 3 ✅ except transports ⏸ (BE) and code-split (⬜, now cheap — see D-23) · 4 🟡 privacy ✅ §3h, client-side security ✅ §3g-ii, observability ✅ §3i, credential ⏸ (BE), `any` ⬜ · 5 🟡 CI breadth ✅ §3g, release/changesets ⬜ |
 | **Landed, by section** | §3a jitter · §3b circuit breaker · §3c bounded queue · §3d `ci.yml` · §3e guard-suite port · §3f mutation testing · §3g CI breadth + supply chain · §3h privacy & consent · §3i logger & metrics · §3j docs & DX · §3k public-API / payload-contract / choices tests · §4 three live defects · §5 `psl` dropped · §6a unit tier · §6b IndexedDB · §6c per-event records |
-| **Known defects** | **~30, documented and deliberately unfixed — `DEFECTS.md`.** Severity-1: no event carries a timestamp; a second instance duplicates every event; session events share one `eventId`. |
+| **Known defects** | **7 remain open of 27 — `DEFECTS.md`.** 20 fixed. **None is now unblocked code work:** D-1/D-3/D-15 need ingest, D-14/D-18/D-19/D-20 need one user decision (§3q). Severity-1 remaining: no event carries a timestamp; session events share one `eventId`. |
 
 ---
 
@@ -1554,8 +1554,10 @@ loosening, and the bytes are real fixes: +697 XHR fallback, +312 choices isolati
    Pure move-and-delegate; note the wiring, not the extraction, is what costs bytes.
 3. **The repo-wide prettier sweep.** **Must land alone**, no other branch open, then
    remove `continue-on-error` from ci.yml's prettier step.
-4. **~10 defects**: D-13/14/16/18/19/20/21/24/25/26. **D-24 is a "do not fix the way it
-   was originally described" trap — read it.** D-1/D-3/D-15 stay blocked on ingest.
+4. ~~**~10 defects**: D-13/14/16/18/19/20/21/24/25/26.~~ **✅ done as far as code can take
+   it — see §3q.** D-13/16/21/24/25/26 are fixed; **D-14/18/19/20 need a user decision**
+   (each turns silence into a throw, or changes a value ingest already receives), and
+   D-1/D-3/D-15 stay blocked on ingest.
 5. **Widen `stryker.conf.json`'s `mutate`.** It covers only `src/shared`, `src/guard`
    and `src/intemptJs/guards`, so **none of what the nine lanes changed is mutated** —
    86.57% says nothing about transport, choices, pagesTracker or loader code. Measure
@@ -1586,6 +1588,69 @@ traceability: `lane-a-sdkloader-tests`, `lane-d-autotracker`, `lane-f-pagestrack
 `lane-g-choices`, `lane-h-transport`, `lane-i-loader`, and three `worktree-agent-*`.
 Delete them once the PR merges. **Process lessons are in §3n and §3o and in
 `~/.claude/agent-routing/LEDGER.md` — read them before running lanes again.**
+
+## 3q. Six more defects fixed — 2026-08-12
+
+Worked in the order the user set: **defects → prettier sweep → `any` → autoTracker
+splits.** This is the defects step, and it is done as far as it can go without a
+decision. One commit each, per `DEFECTS.md`'s no-batching rule.
+
+| Defect | Fix | Customer-visible? |
+|---|---|---|
+| **D-13** | `RecordModel._name`/`ProductModel._name` returned `''`; now `this.name` | Yes — CustomEvent detail only, **never the wire** |
+| **D-16** | `consent()` no longer reads a `pageId` the model discards | Yes, as an improvement — see below |
+| **D-21** | `__intemptGuardManager` documented as internal, not a config hook | No |
+| **D-24** | the unreachable `if (!isValidConfig(config)) return;` deleted | No — behaviour identical |
+| **D-25** | a **missing** required config field now fails like an empty one | Yes, for direct constructors only |
+| **D-26** | shared cookie teardown now expires domain-scoped cookies | Test-only |
+
+**The one non-obvious finding, in D-16.** The discarded `getPageId()` read was not
+merely dead work: `PageTrackerModule.getId()` **mints the page-session cookie** when
+none exists, and `consent()` is deliberately ungated by opt-out (D-5). So an
+opted-out visitor calling `consent({action:'reject'})` had a tracking cookie written
+for them **by the very call that refused tracking**. Deleting a dead read fixed a
+small privacy defect nobody had noticed.
+
+**D-25 was the only fix that broke asserted tests** — exactly two, which is the
+register working as designed. Note it deliberately does **not** validate
+`shopify`/`magento`: they are booleans with meaningful defaults and requiring them
+would break every existing caller.
+
+**Two things deliberately left, with the reasoning, so they are not re-derived:**
+
+- **The dead `if (!this.isXValid(params)) return;` shape survives at the five public
+  method call sites.** Every guard throws or returns literal `true`, so all five are
+  as unreachable as D-24's was. Removing them wants the guards' return type changed
+  to `void` — otherwise a future author reintroduces the assumption — and that
+  rewrite belongs with the `any` sweep, which touches those signatures anyway.
+- **D-21's real fix is still open.** Documenting the global as internal is the
+  cheaper of the two options D-21 offered; making it a genuine hook means the
+  bootstrap awaits something, which delays every page's first event. Product call.
+
+**Verified on the working tree, not inferred:** build clean (`tsc` + vite,
+93,890 B / 27.35 kB gzip), unit **936/32 files**, coverage 76.86 / 70.62 / 77.36 /
+77.79 against 75/68/75/75, ESLint **0 errors / 205 warnings** (unchanged, still at
+the ratchet), size-limit under all three budgets, `checkReservedWords` clean,
+Cypress **126/126**. The D-26 guard was additionally verified to **fail** against the
+old teardown before being kept — an order-dependent test that passes vacuously is
+worse than none.
+
+### The four remaining defects all need one decision, not code
+
+Each converts silence into a throw, or changes a value ingest already receives. All
+four are one-liners once the call is made; none should be shipped on my judgement.
+
+| Defect | The decision |
+|---|---|
+| **D-14** | An untitled `group()` is named `'Identify'` at ingest, indistinguishable from an identify. Fixing it **changes a value already in customer reports** (e.g. to `'Group'`), so it needs ingest sign-off and a release note — not just a code change. |
+| **D-18** | `productAdd`/`productView`/`productOrdered` call no guard at all: `productAdd(undefined)` builds an event with `data: undefined`. Adding a guard means the SDK **throws inside a customer's page** where it used to send junk. Breaking, and worth a deprecation window. |
+| **D-19** | `identify` rejects a falsy `userId`; `group` accepts `accountId: 0` and `''`. Same shape as D-18 — tightening `group` throws for callers that work today. |
+| **D-20** | `consent.validUntil` is typed required and never validated. Same again: validating it throws in a consent banner's click handler, which is the one place a throw is most damaging. |
+
+**My recommendation if asked:** do D-20 and D-19 as *warn-and-proceed* through the
+logger rather than throws (no breakage, the problem becomes visible), hold D-18
+behind a deprecation note, and hold D-14 until the ingest conversation
+(`BACKEND.md`) is happening anyway, since it is a wire-value change.
 
 ## 4. Three live defects — ✅ all three fixed
 

@@ -5,9 +5,10 @@
 > holds the customer-facing wording until there is somewhere real to put it, so the
 > one behaviour change in this release is not communicated from memory.
 >
-> **The only entry here that changes existing behaviour is the first one.**
-> Everything else in the hardening programme is additive or internal. Approved for
-> release-note inclusion by the user, 2026-08-12.
+> **The privacy-signals entry below is the one the user approved on 2026-08-12.**
+> The three shorter behaviour-change entries after it were drafted later, as the
+> defect register was worked through, and are **not yet approved** — they are
+> smaller in blast radius but they are still changes a customer can observe.
 
 ---
 
@@ -60,6 +61,32 @@ justification.
 
 ---
 
+## Smaller behaviour changes — check these if they touch your integration
+
+*(Drafted 2026-08-12, not yet approved.)*
+
+**`intempt:record` and `intempt:product` now carry the real event name.** If you
+listen for these browser events, `event.detail.eventName` used to be an empty
+string; it is now the event's actual name (`"Added to cart"`, your `eventTitle`,
+and so on). **Only the notification changed** — the data we received was always
+correct, so no reporting is affected. If your listener special-cases the empty
+string, or reads the name from somewhere else as a workaround, remove that.
+
+**Two copies of the snippet on one page: the second now wins.** Previously both
+copies ran and every event arrived twice. The newer instance now shuts the older
+one down, so events arrive once. If you deliberately run two instances — two
+projects on one page, say — **only the last one initialised will send.** Check for
+a duplicate install, including a SPA that re-initialises on route change.
+
+**A missing credential now fails at startup instead of silently later.** If you
+construct the SDK directly (not via the script tag) and omit `organization`,
+`sourceId`, `project` or `writeKey`, initialisation throws immediately with
+"All config fields must be provided." Before, it started and every request was
+rejected with a 401 you would only find in the network tab. The script-tag install
+is unaffected.
+
+---
+
 ## Also in this release — no action needed
 
 These are additive; none changes what you receive today.
@@ -89,7 +116,13 @@ undocumented is worse than finding them listed. Full register: `DEFECTS.md`.
 - **Events are timestamped on arrival, not on occurrence** (D-1). An event that was
   queued through a retry or a page reload is attributed to when it reached us.
   Fixing this changes the wire format and is in progress with the ingest team.
-- **Two copies of the snippet on one page send every event twice** (D-2). Check for
-  a duplicate install — including a SPA that re-initialises on route change.
-- **`?shopify=false` enables Shopify tracking** (D-17). Omit the parameter to
-  disable it; do not set it to `false` or `0`.
+- **Auto-tracked events carry no `type` field, and session events share one id**
+  (D-3, D-15). Both are wire-format changes and are with the ingest team.
+- **An untitled `group()` call is reported as "Identify"** (D-14). Pass an
+  `eventTitle` to `group()` if you need to tell the two apart in your reports.
+- **The commerce helpers validate nothing** (D-18). `productAdd`, `productView` and
+  `productOrdered` send whatever they are given, including `undefined`, rather than
+  telling you at the call site.
+
+`?shopify=false` no longer enables Shopify tracking (D-17) — it now does what it
+says, so drop any workaround that omitted the parameter instead of setting it.

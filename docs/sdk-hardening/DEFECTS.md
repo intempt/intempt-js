@@ -99,10 +99,12 @@ queue stub, and **nothing is ever sent**. Anyone who copied the docs verbatim go
 a silently dead integration.
 **Docs are fixed. Still to do: check real host sites for the `/v1`-less URL.**
 
-### D-13. `_name` returns `''` for record and product · `asserted`
-`record.model.ts:29`, `product.model.ts:26`. `intempt:record` and
-`intempt:product` announce an **empty** `eventName` to customer listeners. Wire
-payload is unaffected.
+### D-13. `_name` returns `''` for record and product · `fixed` 2026-08-12
+`record.model.ts`, `product.model.ts`. `intempt:record` and `intempt:product`
+announced an **empty** `eventName` to customer listeners. Both getters now return
+`this.name`, which was always correct. `_name` is read only for the CustomEvent
+detail, never for the outbound payload, so the wire is unchanged — but a listener
+that worked around the empty string now sees a real name. **Release-note it.**
 
 ### D-14. `GroupModel` defaults its name to `'Identify'` · `asserted`
 `group.model.ts:12`. An untitled `group()` is indistinguishable from an identify
@@ -111,8 +113,13 @@ at ingest.
 ### D-15. Auto-tracked events carry no `type` field · `asserted`
 All 7 manual models set one. Ingest cannot classify on `type`.
 
-### D-16. `consent()` computes a `pageId` and throws it away · `asserted`
-`intemptJs.ts:213` passes it to a model with no such field.
+### D-16. `consent()` computes a `pageId` and throws it away · `fixed` 2026-08-12
+`intemptJs.ts` passed it to a model with no such field. The read is now gone. It
+was not free: `PageTrackerModule.getId()` **mints the page-session cookie** when
+none exists, and `consent()` is deliberately ungated by opt-out (D-5), so an
+opted-out visitor rejecting consent had a tracking cookie written by the very call
+that refused tracking. Adding `pageId` to the consent wire contract instead is an
+ingest question — `BACKEND.md`.
 
 ### D-17. `?shopify=false` and `?shopify=0` both **enable** Shopify tracking · `fixed` 2026-08-12 — `shopify`/`magento` use the real boolean parser, so `?shopify=false` disables.
 Read via `!!searchParams.get()`, so any present value is true. Pre-existing; the
@@ -127,10 +134,14 @@ guard and send whatever they are given.
 
 ### D-20. `consent.validUntil` is typed required, never validated · `open`
 
-### D-21. `window.__intemptGuardManager` is effectively unusable · `open`
+### D-21. `window.__intemptGuardManager` is effectively unusable · `fixed` 2026-08-12 — documented as internal
 Assigned during module evaluation, but the guard decision resolves in microtasks
-immediately after, so no later `<script>` can affect it. Either document it as
-internal or make the bootstrap await a hook.
+immediately after, so no later `<script>` can affect it. **Documented as internal**
+(the first of the two options): `main.ts` no longer claims it "allows users to
+configure guards before SDK loads", explains why it cannot, and the assignment moved
+above the bootstrap so it exists for the whole of startup. **Making it a real hook
+is still open and is a product decision** — the bootstrap would have to await
+something, which delays every page's first event.
 
 ### D-22. `choices.service.ts:164` — `async` function as a Promise executor · `fixed` 2026-08-12 — the `async` Promise executor no longer swallows throws.
 A throw inside is swallowed instead of rejecting. Surfaced by ESLint.
@@ -166,22 +177,36 @@ The deletion was still right — 459 unmaintained lines, 18 of the repo's `any` 
 and ~517 lines of tests pinning behaviour nothing could invoke — but the reason is
 maintenance and honesty, **not** payload. Do not carry the byte argument forward.
 
-### D-24. `isValidConfig`'s caller is dead code · `asserted`
+### D-24. `isValidConfig`'s caller is dead code · `fixed` 2026-08-12
 **This corrects an earlier note in `CHECKPOINT.md` §4**, which said `optIn`/
 `optOut` throw on a misconfigured instance and wanted a one-line guard. Wrong on
 its premise: `isValidConfig` (`intemptJs.guard.ts:24`) only ever throws or returns
 literal `true`, so `if(!this.isValidConfig(config)) return;` at `intemptJs.ts:42`
 is unreachable — a misconfigured `new IntemptJs()` **throws** rather than yielding
 an instance with `_autoTracker` undefined. **Do not ship that guard.** The real
-issue is the unreachable branch. Three tests record this.
+issue was the unreachable branch, and it is now a bare `this.isValidConfig(config)`
+statement: validation is a throwing precondition, not a test. Observable behaviour
+is unchanged, which is the point. **The same dead `if (!this.isXValid(...)) return;`
+shape remains at the five public-method call sites** — removing it there wants the
+guards' return type changed to `void`, so a future author cannot reintroduce the
+assumption, and that goes with the `any` sweep that rewrites those signatures.
 
-### D-25. `isValidConfig` checks `=== ''`, so a *missing* field passes · `asserted`
-Unreachable from the URL path (`?? ''` supplies empty strings), reachable by
-direct construction.
+### D-25. `isValidConfig` checks `=== ''`, so a *missing* field passes · `fixed` 2026-08-12
+Unreachable from the URL path (`?? ''` supplies empty strings), reachable by direct
+construction — where the instance built itself and failed later as a 401 the
+customer sees only in the network tab. Now each of the four required fields must be
+a non-empty **string**, so missing, `undefined`, `null` and non-string values all
+fail at init with the existing message. Nine tests.
 
-### D-26. `tests/unit/setup.ts` cookie teardown misses domain-scoped cookies · `open`
-The privacy suites clear their own state rather than changing shared setup. A
-future cookie test that forgets to will leak into the next file.
+### D-26. `tests/unit/setup.ts` cookie teardown misses domain-scoped cookies · `fixed` 2026-08-12
+A cookie written with a `domain=` attribute — as the consent cookie is, deliberately
+(§3g/D-23) — is a *different* cookie from the host-only one of the same name, and a
+deletion omitting `domain` does not match it. Teardown now expires each name against
+every registrable suffix of the document host as well as host-only.
+`tests/unit/setupCookieTeardown.test.ts` guards it with a deliberately
+**order-dependent** pair (write, then assert cleared) — a single test cannot observe
+its own teardown. Verified the guard fails against the old teardown before keeping
+it. The privacy suites' own cleanup was left in place.
 
 ---
 
