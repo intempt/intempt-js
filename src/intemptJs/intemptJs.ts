@@ -410,7 +410,10 @@ export class IntemptJs extends IntemptJsGuard {
       });
       return response?.json();
     }
-    catch(error){
+    catch{
+      // Swallowed deliberately: a failed consent POST must not throw into the
+      // customer's own click handler. The binding is omitted rather than named
+      // and ignored, so the lint ratchet stays at zero warnings for this file.
       return null
     }
 

@@ -13,7 +13,7 @@
 | **Last updated** | 2026-08-11 |
 | **Next action** | **§0b is the ordered TODO list — start there.** Short version: mutation testing to the user-set 85% floor (currently **80.31%**, +112 detections to go — pools listed at the foot of §3f), then `FRONTEND.md` #1 packaging / #6 code health / #9 code-split. **Four items need a human decision before code, listed at the top of §0b.** |
 | **Score** | **~78 / 100** (audit baseline 40, Mixpanel comparator 85). Front-end-only ceiling ~85 — see `FRONTEND.md`. |
-| **Tests** | Unit **808** · Cypress **122** · mutation **80.90%** (floor 80) · coverage **all src** 72.5 / 66.05 / 74.4 / 73.77 (global gate 70/64/72/71; `src/shared/**` 93/88/94/94; `src/guard/**` 96/91/98/96) · bundle **91,248 B / 26.67 kB gzip** · ESLint 0 errors / **245** warnings (ratchet 245) |
+| **Tests** | Unit **920** · Cypress **122** · mutation **86.57%** (lane-local; merged-tree re-measure PENDING — floor still 80) · coverage **all src** 75.64 / 70.09 / 76.09 / 76.75 · bundle **92,548 B / 26.97 kB gzip** · ESLint 0 errors / **236** warnings (ratchet still 245 — lower it) |
 | **Phase** | 0 ✅ · 1 ⏸ parked (packaging) · 2 ✅ tier-1 + CI gate + guard port + mutation · 3 ✅ except transports ⏸ (BE) and code-split (⬜, now cheap — see D-23) · 4 🟡 privacy ✅ §3h, client-side security ✅ §3g-ii, observability ✅ §3i, credential ⏸ (BE), `any` ⬜ · 5 🟡 CI breadth ✅ §3g, release/changesets ⬜ |
 | **Landed, by section** | §3a jitter · §3b circuit breaker · §3c bounded queue · §3d `ci.yml` · §3e guard-suite port · §3f mutation testing · §3g CI breadth + supply chain · §3h privacy & consent · §3i logger & metrics · §3j docs & DX · §3k public-API / payload-contract / choices tests · §4 three live defects · §5 `psl` dropped · §6a unit tier · §6b IndexedDB · §6c per-event records |
 | **Known defects** | **~30, documented and deliberately unfixed — `DEFECTS.md`.** Severity-1: no event carries a timestamp; a second instance duplicates every event; session events share one `eventId`. |
@@ -1309,6 +1309,104 @@ passing input is indistinguishable from no gate: with `src/shared/**` lines rais
 
 **Do not read the drop from 96% to 72.5% as a regression.** Nothing got worse; the
 measurement got honest. The old figure is not comparable — different denominator.
+
+## 3n. The five-lane parallel run — 2026-08-12. READ THIS BEFORE RESUMING.
+
+Five lanes ran concurrently in separate worktrees and **all five are merged into
+this branch with ZERO conflicts** (commit `bdd294e` is the last merge). File
+territories were assigned as prohibitions per lane, which is why nothing collided.
+
+| Lane | Delivered | Verified by the orchestrator |
+|---|---|---|
+| **A** | `sdkLoader.ts` **9.67% → ~71%**, 33 tests, new `tests/unit/sdkLoader.test.ts` | base sha, diff scope, 841 unit, 0 lint warnings |
+| **B** | mutation **80.90% → 86.57%**, 78 tests over 4 files | score read from its own report, 886 unit, 0 warnings, bundle unchanged |
+| **C** | **vite 5.4.21 → 6.4.3**, audit 4 (1 high, 3 mod) → **2 moderate** | `npm ci`, build, 808 unit, Cypress 0 failing, mutation 80.90 unchanged |
+| **D** | `autoTracker.transport.ts` extracted, **D-2 fixed**, 8 `any` removed | 809 unit, lint 26→18 on its paths, bundle +1,504 B attributed by commit |
+| **E** | **D-4 and D-5 fixed**, `_ids()` dedupe | 808 unit, bundle −240 B, and **one lint warning it wrongly reported as zero** |
+
+**Merged-tree numbers, measured here and not reported by any lane:** unit
+**920/920** (26 files), build+tsc clean, coverage **75.64 / 70.09 / 76.09 / 76.75**,
+ESLint **0 errors / 236 warnings**, bundle **92,548 B**. The bundle is exactly
+additive: 91,248 + 1,504 (D) − 240 (E) + 36 (C).
+
+**STILL PENDING and it is the first thing to do on resume: mutation and Cypress on
+the MERGED tree.** Both were green per-lane; neither has been run on the
+combination. The `npm run test:mutation` run was in flight when this was written.
+
+### The mutation floor of 85 is reached — 86.57%
+
+That is the user-set target from §3f, hit for the first time. B's targets were
+`requestBatcher.ts` 71.13 → **88.19**, `requestQueue.ts` 72.84 → **87.65**,
+`shared.utils.ts` 47.83 → **95.65**, `storageHandler.ts` 70.83 → **95.83**.
+**The §3f-iii heuristic held**: value-computing code yielded **1.9 detections per
+test** against 0.8 for the guards-and-reporters of `consentCookie.ts` — the
+difference between ~40 and ~140 tests for the same gain.
+
+### Three defects closed
+
+- **D-2** — `AutoTrackerModule` now has `dispose()` plus a static `_activeInstance`:
+  constructing a second instance **disposes the first** ("last instance wins").
+  Right for the documented triggers (two snippet copies, SPA re-init), but **it
+  silently stops a first instance**, so anyone deliberately running two instances on
+  one page loses the first. Needs a release-note line. `payloadContract.test.ts` no
+  longer documents the bug as a workaround; it asserts the fix — one consent POST
+  from a second instance, not fourteen.
+- **D-4** — `recommendation()` is gated on opt-out; it was the only public method
+  letting an identifier leave the page after `optOut()`.
+- **D-5** — `consent()` is no longer gated on the opt-out flag. The reasoning is in
+  the code: recording a decision is an **audit record a regulator can demand**, not
+  tracking, so it must survive `optOut()`. Only `isConsentValid` can stop it.
+
+### Two process failures worth more than the code
+
+1. **`isolation: "worktree"` does not branch from current HEAD.** Three of five
+   worktrees came up on `40bdb24`, an old staging merge that is not an ancestor of
+   this branch. It recurred on relaunch, so it is systematic. **Every lane prompt
+   opened with a baseline assertion of exact VALUES** — HEAD sha, `wc -l` of the
+   target file, test count, bundle bytes — and all three bad lanes stopped without
+   writing a file. Without that, Lane E would have "fixed" defects in a 452-line
+   `autoTracker.module.ts` that is 546 lines here, and the merge would have silently
+   reverted real work. **Fix: build the worktree by hand, verify HEAD yourself, hand
+   a non-isolated agent an absolute path.** Full writeup in
+   `~/.claude/agent-routing/LEDGER.md`.
+2. **A delegated lane must never be told to wait for anything.** Lane B twice
+   returned mid-task to await a notification about its own background mutation run —
+   which a subagent cannot receive, since returning ends its turn. It burned **251k
+   tokens** and never committed; the orchestrator committed its (sound) work.
+
+**And the reason the orchestrator re-runs every gate:** Lane E reported "zero lint
+warnings" on the strength of `eslint`'s exit code. **`eslint` exits 0 on warnings**,
+so it had in fact added one, which would have failed the `--max-warnings` ratchet in
+CI. Fixed here (`intemptJs.ts:413`, a named-but-unused `catch` binding became a bare
+`catch`). Lane-local green means nothing; the merged tree is the only truth.
+
+### New defect found by Lane A, not yet in `DEFECTS.md`
+
+`src/loaders/sdkLoader.ts:72-89` — `apiHost` uses `?? undefined` while the four
+required fields use `?? ''`. So `?api_host=` with an empty value arrives as `''`,
+and `resolveIngestBaseUrl` receives an empty string instead of falling through to
+the build-time default. A data-residency option that misbehaves when set empty.
+Asserted as current behaviour in A's tests. **Add it to the register as D-27.**
+
+Lane A also reconfirmed **D-12** is worse than documented: when the script tag
+cannot be found, the all-empty config fallback makes `isValidConfig` throw inside
+`new IntemptJs(...)`, and **nothing in `sdkLoader.ts` or `main.ts` catches it** —
+`SDK.init()` throws into the customer's page.
+
+### Threshold moves owed, once the merged-tree mutation number is in
+
+None are done yet, deliberately — measure the merged tree first.
+
+1. `stryker.conf.json` `break` **80 → 85** (measured 86.57 lane-local).
+2. `package.json` `--max-warnings` **245 → 236** (measured 236 after the fix above).
+3. `vitest.config.ts` per-glob coverage floors up ~2 points under the new measures.
+4. **`.size-limit.json` must be RAISED**: the bundle is 92,548 B against a 93 kB
+   budget — ~450 bytes of headroom, too tight to survive any addition. This is a
+   loosening, so it needs the user's eye: the growth is real code, mostly D's
+   refactor. **The extraction commit alone was byte-identical**; all +1,504 came
+   from wiring it up plus D-2.
+5. `BACKLOG.md` **4.2 can close** — with the high advisory gone, `ci.yml`'s dev-dep
+   audit half can become blocking instead of advisory.
 
 ## 4. Three live defects — ✅ all three fixed
 
