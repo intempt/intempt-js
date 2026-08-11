@@ -1477,6 +1477,32 @@ Four lanes are running against `e71a356` in **hand-built, HEAD-verified worktree
   count but ~254 lines of tests rewritten, because per-item isolation changes what the
   existing assertions mean. Bundle +312 B. Branch `lane-g-choices`.
 
+- **Lane F ✅ verified and committed** — **D-9** (popstate no longer fires the exit
+  twice), **D-10** (no orphan exit for a no-op `replaceState`), **D-11** (a
+  `hashchange` listener, so hash-routed SPAs are tracked at all), each its own commit,
+  plus an `any`/lint cleanup. **0 lint warnings** on its files. Four new test files,
+  one per defect — the split looks odd but is almost certainly right: jsdom fixes the
+  document URL per file, the same constraint that separates `consentCookie.test.ts`
+  from `consentState.test.ts` (§3h). 924 unit tests across 30 files, Cypress 126.
+  Bundle +139 B. Branch `lane-f-pagestracker`.
+
+### ALL FOUR WAVE-2 LANES ARE VERIFIED AND COMMITTED — NONE ARE MERGED
+
+`git merge` each of `lane-f-pagestracker`, `lane-g-choices`, `lane-h-transport`,
+`lane-i-loader` from the primary checkout. Territories are disjoint (pagesTracker /
+choices / transport / loaders), so expect zero conflicts as in wave 1 — but **the
+merged bundle will be roughly 92,548 + 139 + 312 + 697 + 118 ≈ 93,814 B, which is
+~814 B OVER the 93 kB raw limit.** `.size-limit.json` must be raised in the same
+commit as the merge or the build gate fails. That is a loosening: **it needs the
+user's approval, and the reason is real code** — the XHR fallback leg (+697) is the
+bulk of it.
+
+**Thirteen defects were fixed today**: D-2, D-4, D-5, D-6, D-7, D-8, D-9, D-10, D-11,
+D-12, D-17, D-22, D-23, plus the newly-registered D-27. `DEFECTS.md` still lists them
+as open — **update it as part of the merge.** What remains open there is mostly the
+wire-format group (D-1, D-3, D-15) which is blocked on ingest, plus D-13/14/16/18/
+19/20/21/24/25/26.
+
 ### A scope gap found while checking H's claim — worth acting on
 
 H offered "mutation unchanged at 86.57%" as evidence its new code is tested. **It is
