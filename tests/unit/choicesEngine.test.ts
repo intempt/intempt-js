@@ -10,6 +10,7 @@ import { WebEditorModificationHandler } from '../../src/intemptJs/modules/choice
 import { ChoicesModule } from '../../src/intemptJs/modules/choices/choices.module.ts';
 import { ChoicesService } from '../../src/intemptJs/modules/choices/choices.service.ts';
 import { ChoicesConfig } from '../../src/intemptJs/modules/choices/choices.config.ts';
+import { localStorageCache } from '../../src/shared/storageHandler.ts';
 
 /**
  * The choices (experiences) engine — `src/intemptJs/modules/choices/**`.
@@ -668,6 +669,48 @@ describe('choices engine', () => {
         expect(
           ChoicesService.choicesDataGuard({ choices: [{ changes: [{ id: 1 }] }, {}] } as any),
         ).toEqual([{ id: 1 }]);
+      });
+    });
+
+    describe('setChangesData', () => {
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it('rejects instead of hanging forever when the executor body throws — fixes D-22', async () => {
+        // Was (choices.service.ts:164): `new Promise<void>(async (resolve) =>
+        // {...})` — an `async` function passed as a Promise executor. If the
+        // body throws, the executor's own (rejected) return value is discarded
+        // by the Promise constructor, which only reacts to explicit
+        // resolve/reject calls. `resolve()` is never reached, so
+        // `changesPromise` never settles at all — not even as a rejection —
+        // and the outer `catch` that is supposed to recover with an empty
+        // change list never runs. Fixed with an async IIFE, which returns a
+        // real promise that rejects like any other.
+        vi.spyOn(ChoicesService, 'fetchChoices').mockResolvedValue({ choices: [] });
+        const setSpy = vi
+          .spyOn(localStorageCache, 'set')
+          .mockImplementationOnce(() => {
+            throw new Error('storage write failed');
+          })
+          .mockImplementation(() => {});
+
+        const racedAgainstAHang = Promise.race([
+          ChoicesService.setChangesData({
+            key: 'choices-key',
+            url: 'optimization/choose-web',
+            body: {} as any,
+            auth_config: { auth: { username: 'u', password: 'p' } } as any,
+          }),
+          new Promise((_resolve, reject) =>
+            setTimeout(() => reject(new Error('timed out — the throw was swallowed')), 200),
+          ),
+        ]);
+
+        await expect(racedAgainstAHang).resolves.toBeUndefined();
+        // The catch recovered by writing an empty change list.
+        expect(setSpy).toHaveBeenCalledTimes(2);
+        expect(setSpy).toHaveBeenLastCalledWith('choices-key', { changes: [] });
       });
     });
 

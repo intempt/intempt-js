@@ -176,14 +176,17 @@ export const ChoicesService = {
   setChangesData: async function({ key, url, body, auth_config }:SetChoicesData){
     const responseMaxTime = 320;
     try{
-      const changesPromise = new Promise<void>(async ( resolve ) => {
+      // D-22: an `async` function passed as a Promise executor never calls
+      // `reject` on throw — the executor's own returned (rejected) promise is
+      // discarded, so the throw was swallowed and `changesPromise` hung
+      // forever instead of surfacing to this `catch`. An async IIFE returns a
+      // real promise that rejects like any other.
+      const changesPromise = (async (): Promise<void> => {
         const data = await this.fetchChoices(url, body, auth_config.auth)
 
         const changes = this.choicesDataGuard(data);
         localStorageCache.set(key, {changes});
-        resolve();
-
-      })
+      })();
       const timeoutPromise = new Promise(resolve => setTimeout(resolve, responseMaxTime));
 
       await Promise.race([
@@ -191,7 +194,7 @@ export const ChoicesService = {
         await changesPromise
       ])
     }
-    catch(error:any){
+    catch(error){
       log.error('setChangesData failed', error);
       localStorageCache.set(key, {changes:[]});
     }
