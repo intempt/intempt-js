@@ -195,7 +195,6 @@ describe('IntemptJs — the public API class', () => {
       ['group', () => sdk.group({ accountId: 'a1' } as any)],
       ['record', () => sdk.record({ eventTitle: 'Rec', userId: 'u1' } as any)],
       ['alias', () => sdk.alias({ userId: 'u1', anotherUserId: 'u2' } as any)],
-      ['consent', () => sdk.consent({ action: 'accept', validUntil: 1 } as any)],
       ['productAdd', () => sdk.productAdd({ productId: 'p1' } as any)],
       ['productOrdered', () => sdk.productOrdered([{ productId: 'p1' } as any])],
       ['productView', () => sdk.productView('p1')],
@@ -559,21 +558,17 @@ describe('IntemptJs — the public API class', () => {
       ).resolves.toBeNull();
     });
 
-    it('is NOT gated on consent — a defect, asserted not fixed', () => {
-      // DEFECT (intemptJs.ts:302): `recommendation()` has no `isUserOptIn()`
-      // check, so an opted-out visitor still has their `profileId` posted to the
-      // feed endpoint. Every other method returns early. This is the one place
-      // where opt-out does not stop an outbound request carrying an identifier.
-      //
-      // Asserted rather than fixed because the correct behaviour is a product
-      // decision: returning `null` for opted-out users changes what renders on
-      // the customer's page, and a personalisation call arguably should still
-      // serve *un*personalised results rather than nothing.
+    it('is gated on opt-out, fixed (D-4): no identifier leaves the page', async () => {
+      // FIX (D-4): `recommendation()` used to be the one public method with no
+      // `isUserOptIn()` check, so an opted-out visitor still had their
+      // `profileId` posted to the feed endpoint. It now returns `null` and
+      // never calls `fetch`, matching every other entry point.
       const fetchSpy = vi.fn(async () => okResponse({}));
       vi.stubGlobal('fetch', fetchSpy);
       sdk.optOut();
-      void sdk.recommendation({ id: 'feed-7', quantity: 1, fields: [] } as any);
-      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      const result = await sdk.recommendation({ id: 'feed-7', quantity: 1, fields: [] } as any);
+      expect(fetchSpy).not.toHaveBeenCalled();
+      expect(result).toBeNull();
     });
   });
 

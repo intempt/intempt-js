@@ -374,6 +374,8 @@ export class IntemptJs extends IntemptJsGuard {
   }
 
   async recommendation (params:RecommendationParams){
+    if (!this.isUserOptIn()) return null;
+
     const {organization, sourceId, project, writeKey} = this._config;
     const {id, quantity, fields} = params
     const url = `${this._api}/${organization}/projects/${project}/feeds/${id}/data`;
