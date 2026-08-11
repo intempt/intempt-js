@@ -66,7 +66,18 @@ export class IntemptJs extends IntemptJsGuard {
       log.warn(message);
     });
 
-    if(!this.isValidConfig(config)) return;
+    // D-24: this was `if (!this.isValidConfig(config)) return;`, an unreachable
+    // branch — `isValidConfig` only ever throws or returns literal `true`, so the
+    // `return` could not run and a misconfigured `new IntemptJs()` has always
+    // thrown rather than yielding a half-built instance. Calling it as a
+    // statement says that: validation is a throwing precondition, not a test.
+    // (Do NOT "fix" the old branch by guarding `optIn`/`optOut` against an
+    // undefined `_autoTracker` — DEFECTS D-24 records why that premise was wrong.)
+    // The same dead `if (!this.isXValid(...)) return;` shape remains at the five
+    // public-method call sites; removing it there wants the guards' return type
+    // changed to `void` so a future author cannot reintroduce the assumption, and
+    // that belongs with the `any` sweep which rewrites these signatures anyway.
+    this.isValidConfig(config);
 
     this._autoTracker = new AutoTrackerModule(this._config, this._api);
 

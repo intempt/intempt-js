@@ -596,8 +596,8 @@ describe('IntemptJs — the public API class', () => {
     });
   });
 
-  describe('the constructor’s invalid-config bail is unreachable — CHECKPOINT §4 correction', () => {
-    it('isValidConfig can only return true or throw, so the `return` branch is dead code', () => {
+  describe('config validation is a throwing precondition — D-24 fixed', () => {
+    it('isValidConfig can only return true or throw, so there is no bail branch', () => {
       // CHECKPOINT §4 records this as "newly observed, not fixed": that
       // `optIn()`/`optOut()` dereference `this._autoTracker`, which is "left
       // `undefined` when the constructor bails on an invalid config
@@ -605,18 +605,18 @@ describe('IntemptJs — the public API class', () => {
       //
       // The premise is wrong, and this test records the correction so nobody
       // ships a one-line guard for a path that cannot be reached.
-      // `IntemptJsGuard.isValidConfig` (guard line 24) either **throws** or
-      // returns a literal `true` — it never returns false. So
-      // `if (!this.isValidConfig(config)) return;` never executes its `return`,
-      // and a misconfigured `new IntemptJs(...)` throws rather than yielding a
-      // half-built instance. There is no reachable state in which a customer
-      // holds an `IntemptJs` whose `_autoTracker` is undefined.
+      // `IntemptJsGuard.isValidConfig` either **throws** or returns a literal
+      // `true` — it never returns false. So `if (!this.isValidConfig(config))
+      // return;` could never execute its `return`, and a misconfigured
+      // `new IntemptJs(...)` throws rather than yielding a half-built instance.
+      // There is no reachable state in which a customer holds an `IntemptJs`
+      // whose `_autoTracker` is undefined.
       //
-      // The real defect is therefore the opposite of the one recorded: an
-      // *unreachable* guard branch that reads as if it handles a failure it
-      // cannot handle. Fixing it means making `isValidConfig` return false
-      // (changing the public throw contract that 80 guard tests pin) or deleting
-      // the dead branch. Neither belongs in this commit.
+      // The real defect was therefore the opposite of the one recorded: an
+      // *unreachable* branch that read as if it handled a failure it cannot
+      // handle. FIXED (D-24) by calling the guard as a statement, keeping the
+      // throw contract that 80 guard tests pin. The observable behaviour asserted
+      // below is unchanged — that is the point of the fix.
       for (const field of ['organization', 'sourceId', 'project', 'writeKey']) {
         expect(() => new IntemptJs({ ...CONFIG, [field]: '' })).toThrow(
           'IntemptJs initialization failed: All config fields must be provided.',
