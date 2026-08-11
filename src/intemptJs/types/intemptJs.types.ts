@@ -1,3 +1,4 @@
+import { PiiScrubberOptions } from '../../shared/privacy/piiScrubber.ts';
 
 export type LocalStorageCache = {
   get: (key: string) => any;
@@ -24,6 +25,41 @@ export type IntemptConfig = {
   writeKey: string;
   shopify: boolean;
   magento: boolean;
+
+  /**
+   * Ignore the browser's Do Not Track **and Global Privacy Control** signals.
+   *
+   * Default `false` — the SDK honours both. Set this only if you operate your own
+   * consent gate whose explicit, logged consent should outrank a browser default;
+   * doing so moves the CCPA/CPRA obligation for GPC onto you.
+   *
+   * Snake_case to match the name Mixpanel and Segment use for the same option, so
+   * a customer migrating does not have to look it up.
+   */
+  ignore_dnt?: boolean;
+
+  /**
+   * PII redaction on outbound event payloads. **Off unless set**, because turning
+   * redaction on rewrites data irreversibly before it leaves the browser — there
+   * is no server-side undo, so it can never be a default.
+   *
+   * `true` uses the default rules (email / phone / Luhn-verified card shapes, plus
+   * a list of sensitive field names). Pass an object to tune them.
+   */
+  piiScrubbing?: boolean | PiiScrubberOptions;
+
+  /**
+   * Ingest base URL override, for data residency.
+   *
+   * Overrides the build-time `VITE_API` for **event and consent ingest only**.
+   * Supply the full base URL including any version path, e.g.
+   * `https://api.eu.example.com/v1`. Invalid or non-https values are ignored and
+   * the build-time default is used — silently routing data to an unusable host
+   * would look like a residency guarantee while dropping every event.
+   *
+   * See `resolveIngestBaseUrl` for why there is no `region: 'eu'` shorthand.
+   */
+  apiHost?: string;
 }
 
 export type IntemptVariables = {

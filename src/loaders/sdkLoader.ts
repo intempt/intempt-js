@@ -8,6 +8,32 @@ type QueuedCall = {
   timestamp?: number
 }
 
+/**
+ * Read a boolean from a script-URL query parameter.
+ *
+ * Present-and-not-falsy, rather than the `!!searchParams.get(name)` used for
+ * `shopify`/`magento` below. That shorthand treats `?shopify=false` as **true**,
+ * because any non-empty string is truthy — a live footgun, but a pre-existing one
+ * whose behaviour existing customers may depend on, so it is deliberately left
+ * alone rather than fixed as a side effect of this change.
+ *
+ * The privacy switches cannot inherit it. `?ignore_dnt=false` silently meaning
+ * "ignore the visitor's Do Not Track signal" is the kind of default that ends up
+ * in a regulator's finding.
+ */
+export function readBooleanParam(params: URLSearchParams, name: string): boolean | undefined {
+  const raw = params.get(name)
+  if (raw === null) return undefined
+
+  const normalized = raw.trim().toLowerCase()
+  if (normalized === '' || normalized === 'true' || normalized === '1' || normalized === 'yes') {
+    // A bare `?ignore_dnt` with no value reads as opting in to the flag, which is
+    // how HTML boolean attributes behave and therefore what an author expects.
+    return true
+  }
+  return false
+}
+
 function getIntemptConfig(): IntemptConfig {
   const cdnLink = EnvConfig.getCdnLink()
   const scripts = document.scripts
@@ -33,6 +59,18 @@ function getIntemptConfig(): IntemptConfig {
     organization: source.searchParams.get('organization') ?? '',
     shopify: !!source.searchParams.get('shopify'),
     magento: !!source.searchParams.get('magento'),
+
+    // Privacy switches. These have to be readable here or they are unreachable:
+    // there is no constructor in the supported embed — the snippet configures the
+    // SDK entirely through this script URL, so an option that only exists on
+    // `IntemptConfig` is an option no customer can actually set.
+    //
+    // `piiScrubbing` is boolean-only from the URL. Its object form (custom
+    // patterns, key lists) has no sane query-string encoding, and a half-encoded
+    // redaction rule is worse than none.
+    ignore_dnt: readBooleanParam(source.searchParams, 'ignore_dnt'),
+    piiScrubbing: readBooleanParam(source.searchParams, 'pii_scrubbing'),
+    apiHost: source.searchParams.get('api_host') ?? undefined,
   }
 }
 

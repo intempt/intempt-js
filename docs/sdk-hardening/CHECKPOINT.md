@@ -12,9 +12,9 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Next action** | **Continue the mutation campaign to the user-set 85% floor — §3f-i has the file-by-file worklist and the remaining estimate (~100–130 tests).** Next file: the rest of `requestBatcher.ts` (flush/enqueue/scheduling, lines 175–560). Nothing is blocked. **FRONTEND #3 (CI breadth) and #4 (client-side security) are done — §3g; the one thing they leave open needs a Node-21 decision, not code.** |
-| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. **Phase 5 CI breadth ✅ + Phase 4 client-side security ✅ (§3g)**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 75.94%, floor ratcheted to 73, climbing to a user-set 85% (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. Unit **444** / Cypress **122**, all passing. **FRONTEND #3 CI breadth + #4 client-side security (§3g): ESLint/Prettier + `static` and `audit` jobs, `.size-limit.json`, `release.yml`, all actions SHA-pinned, Sonar gate on, devDep advisories 19 → 4, bundle secret scan, `choices.service.ts:94` guarded, SRI/CSP in `USAGE.md`.** Bundle 81.82 kB / 23.09 kB gzip. |
+| **Next action** | **Continue the mutation campaign to the user-set 85% floor — §3f-i has the worklist (~100–130 tests).** Next file: the rest of `requestBatcher.ts` (flush/enqueue, lines 175–560). **Also due and cheap: re-baseline the `vitest.config.ts` coverage thresholds — five lanes landed at once and vitest 4 counts statements differently, so the old numbers are not comparable (D20).** Nothing is blocked. |
+| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 3** — `psl` ✅, unload ✅, IndexedDB ✅, per-event records ✅, jitter ✅, breaker ✅, bounded queue ✅. **Phase 4 — privacy & consent ✅ (§3h), client-side security ✅ (§3g-ii), observability ✅ (§3i)**. **Phase 5 — CI breadth ✅ (§3g)**. |
+| **Code changed so far** | See §3a–§3i. Five lanes landed together on 2026-08-11: **CI breadth + client-side security (§3g)**, **privacy & consent (§3h)**, **structured logging & metrics (§3i)**, **docs & DX (§3j)**, **public-API / payload-contract / choices tests (§3k)**. Earlier: `package.json` metadata, version single-sourced, three §4 defects, `psl` dropped, unit tier, IndexedDB, per-event records, jitter, breaker, bounded queue, mutation testing. |
 
 ---
 
@@ -121,7 +121,7 @@ Remaining work that needs nothing from anyone else:
 2. Rest of Phase 2 — `ci.yml` so the tiers gate merges ✅ (§3d), guard suites
    ported into the unit tier ✅ (§3e); still open: golden-file contract tests on
    the payload shape.
-3. Cross-subdomain consent cookie (the D15 limitation).
+3. ~~Cross-subdomain consent cookie (the D15 limitation).~~ ✅ done — §3g.
 4. Phase 4 client-side leftovers — structured logger, killing `any`.
 
 ## 3a. Load shedding 1 of 3 — jitter ✅ (retry backoff + flush interval)
@@ -675,6 +675,107 @@ The branch has not been pushed. Every command each job runs was run locally on
 this branch and passes. `release.yml` is entirely unexercised — it needs
 `NPM_TOKEN`, an `npm-publish` environment, and a tag.
 
+## 3h. Phase 4 — privacy & consent ✅ (`FRONTEND.md` item 5)
+
+Landed 2026-08-11 on `lane/b-privacy`. Five deliverables; four complete, one
+deliberately reduced in scope. New code lives in **`src/shared/privacy/`**
+(`consentCookie.ts`, `doNotTrackSignals.ts`, `gdpr.ts`, `piiScrubber.ts`,
+`dataResidency.ts`) with `src/shared/consentState.ts` rewritten. Decisions are
+**D23–D26**; do not re-litigate them from this summary.
+
+**167 unit tests added** (444 → **611**), 6 new test files. Coverage rose to
+94.08 / 91.35 / 92.51 against gates of 90 / 87 / 87 — see the raise noted in the
+header table. Cypress 122/122 unaffected.
+
+### The one thing to read if you read nothing else
+
+**DNT and GPC are now honoured by default, and that reduces event volume for some
+customers.** It is the only customer-visible data change in this lane. Rationale
+and expected magnitude are in **D24**; it was chosen knowingly, because GPC is
+legally binding under CCPA/CPRA and Mixpanel makes the same call. Everything else
+in this section is additive or opt-in.
+
+### What landed
+
+| Deliverable | State |
+|---|---|
+| Cross-subdomain consent cookie at the eTLD+1 | ✅ **D15 closed** — D23 |
+| `gdpr-utils.js` port (301 LOC) with attribution | ✅ `src/shared/privacy/gdpr.ts`, `NOTICE` updated |
+| DNT + GPC, with `ignore_dnt` | ✅ D24 |
+| PII masking/scrubbing, opt-in-safe | ✅ off by default — D25 |
+| Data-residency switch | 🟡 **reduced to `apiHost`; no `region` enum** — D26 |
+
+### Cross-subdomain consent — how the fallback actually behaves
+
+Cookie at `.example.com` **plus** localStorage, both written on every change,
+cookie authoritative on read. The subtle part is the **upgrade path**: a
+localStorage-only opt-out (i.e. every visitor who opted out before this bundle) is
+promoted to a cookie *on read*, which is what closes D15 for the existing
+population rather than only for future opt-outs. An opt-**in** is never promoted —
+the mechanism may only widen an opt-out, so its failure direction is "more private
+than asked". There is a test asserting exactly that asymmetry.
+
+Host-only hosts (`localhost`, IP literals) get a cookie with no `domain`
+attribute, via `isHostOnlyTarget` from `publicSuffix.ts`. **`publicSuffix.ts` was
+not modified** — §5's parity warning respected.
+
+### Three traps found while building this, worth not re-discovering
+
+1. **Lookbehind would have killed the whole bundle on Safari < 16.4.** The card and
+   phone patterns originally used `(?<!…)`. A regex literal is parsed when the
+   bundle *loads*, so an unsupported construct is a SyntaxError that takes the
+   entire SDK down rather than degrading one feature. Leading boundaries are
+   capture groups now (`PiiPattern.sensitiveGroup`). **Any future pattern must
+   obey this.**
+2. **The new config options were unreachable until the loader was taught to read
+   them.** There is no constructor in the supported embed — `sdkLoader.ts` builds
+   `IntemptConfig` entirely from the script URL's query string, so an option that
+   exists only on the type is an option no customer can set. Now
+   `&ignore_dnt=1`, `&pii_scrubbing=1`, `&api_host=…`. Note the deliberate
+   divergence: those use a real boolean parse, not the neighbouring
+   `!!searchParams.get()` idiom under which **`?shopify=false` is true**. That
+   pre-existing footgun was left alone; `?ignore_dnt=false` silently disabling DNT
+   was not acceptable.
+3. **`setup.ts`'s cookie teardown does not clear domain-scoped cookies.** It
+   expires at `path=/` with no domain, which does not match `domain=.example.com`.
+   Consent suites call `clearStoredConsent()` in `beforeEach` themselves rather
+   than changing shared setup. If a future suite writes domain cookies and goes
+   flaky, this is why.
+
+### Test-file geography, because jsdom fixes the URL per file
+
+The document URL cannot change within a file, and both cases matter:
+`tests/unit/consentState.test.ts` runs on `https://shop.example.com` (the
+eTLD+1 case, via a `@vitest-environment-options` docblock) and
+`tests/unit/consentCookie.test.ts` on the default `http://localhost` (the
+host-only case). Do not merge them.
+
+### Deliberately not done
+
+- **`region: 'us' | 'eu'` enum** — there are no regional ingest hosts to map it to,
+  and an enum that accepts `'eu'` and falls back to the US host tells a customer
+  they are compliant while they are not. Full reasoning in **D26**; handover added
+  as **`BACKEND.md` item 6**.
+- **`addOptOutCheckMixpanelLib/People/Group`** from the ported file. Every public
+  method in `intemptJs.ts` already opens with `if (!this.isUserOptIn()) return;`,
+  so the decorator would add indirection with no new behaviour — and two competing
+  consent mechanisms is worse than one.
+- **The `optIn()`/`optOut()` null-guard** noted in §4's caveats. Still open, still a
+  one-liner; it belongs to `FRONTEND.md` item 6 (code health) and was left there
+  rather than smuggled into a privacy commit.
+- **Region-routing the choices/experience API.** `choices.service.ts` still uses
+  `EnvConfig.getApi()`; it needs the same non-existent endpoints.
+
+### Cost
+
+Bundle 81.78 → **87.80 kB** (gzip 23.09 → **25.45 kB**), +6.0 kB / +2.4 kB gzip.
+Most of it is the scrubber's pattern and key-name constants, which are module-level
+and therefore present **even when scrubbing is disabled** — i.e. every customer
+pays for a feature most will not enable. The clean fix is code-splitting
+(`FRONTEND.md` item 9), which the user parked. Flagging it rather than
+micro-optimising: if the size gate from `FRONTEND.md` item 3 lands first, pin it
+*after* this.
+
 ## 3. Next concrete action — pick one, nothing is blocked
 
 Client-side load shedding is **complete** (jitter §3a, breaker §3b, bounded queue
@@ -693,8 +794,10 @@ Highest value now, in the author's order:
    code** — not as a campaign. §3f-i measured the rate at ~2.3 mutants per test
    and recommends against grinding the score; the remaining 397 survivors each
    need their own assertion.
-2. Cross-subdomain consent cookie (D15), structured logger + killing `any`
-   (Phase 4). The logger has a concrete consumer now: the drop counter from §3c.
+2. Structured logger + killing `any` (Phase 4). The logger has a concrete consumer
+   now: the drop counter from §3c, plus the consent notices and scrubber failures
+   from §3g, which currently route through optional callbacks. Cross-subdomain
+   consent (D15) is **done** — §3g.
 3. **Credential hygiene (Phase 4)** — but note this is now known to be **mostly
    blocked on the backend**, not client-side work: five call sites across four
    endpoints carry the `btoa`'d write key, and the fix is `BACKEND.md` item 1.
@@ -732,11 +835,11 @@ tier and deleted**, so do not go looking for it.
 
 ### Carried-forward caveats from these fixes
 
-- **Consent is origin-scoped.** `localStorage`, matching the rest of the SDK's
-  client state, so an opt-out on `www.example.com` does **not** carry to
-  `shop.example.com`. Cross-subdomain consent needs a cookie at the eTLD+1 —
-  that lands with the `gdpr-utils` port (Phase 4), which will also want the
-  `psl`-free eTLD+1 helper from Phase 3.
+- ~~**Consent is origin-scoped.**~~ **✅ FIXED in §3g / D23.** Consent is now
+  written to a cookie at the eTLD+1 as well as `localStorage`, so an opt-out on
+  `www.example.com` does carry to `shop.example.com`. localStorage is retained as
+  a fallback and a legacy localStorage-only opt-out is upgraded to a cookie on
+  read, so no pre-existing opt-out was re-enrolled.
 - **Newly observed, not fixed (out of scope):** `IntemptJs.optIn()`/`optOut()`
   dereference `this._autoTracker`, which is left `undefined` when the constructor
   bails on an invalid config (`intemptJs.ts:36`). Calling either on a
@@ -943,6 +1046,9 @@ not behaviour. If they break again, prefer rewriting them to go through
 | 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ✅ **jitter, circuit breaker, bounded queue** (4th ⏸ BE) |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | 🟡 **client-side security ✅ (§3g-ii)** — secret scan, last diagnostic guarded, SRI/CSP docs; **supply chain ✅ (§3g-i)**, 19 advisories → 4 with `vite` blocked on Node 21. Credential itself ⏸ (BE). `gdpr-utils`, logger, killing `any` remain |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. **CI breadth ✅ (§3g)**: lint/format, size budget, audit gate, SHA pins, Sonar gate, **`release.yml` ✅**. `browser-tests.yml` (needs Sauce) / changesets remain |
+
+| 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | 🟡 **privacy & consent ✅ (§3h)** — `gdpr-utils` ported, cross-subdomain consent (D15 closed), DNT/GPC, opt-in PII scrubbing, `apiHost`; credential hygiene ⏸ (mostly BE), logger ⬜, supply chain ⬜, kill `any` ⬜ |
+| 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. `browser-tests.yml` / `release.yml` / changesets remain |
 
 Phase deltas assume the earlier phases landed; they are not independent.
 
