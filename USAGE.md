@@ -466,6 +466,76 @@ window.addEventListener('intempt:track', (e) => {
 
 ---
 
+## 9. Diagnostics: see what the SDK is doing
+
+By default the SDK is **silent in production** — it prints nothing to the console
+on your live site. Three options let you look inside when you need to.
+
+### `debug: true` — verbose console output
+
+Turn this on to see the SDK's internal diagnostics, including on a production
+build. This is what to enable when you're working through a support case:
+
+```javascript
+new IntemptJs({ /* …your config… */, debug: true });
+```
+
+Output is prefixed by subsystem, e.g.
+`[RequestBatcher] circuit breaker closed -> open`.
+
+Set `logLevel` for finer control: `'error'`, `'warn'`, `'info'`, `'debug'`, or
+`'silent'`. It overrides `debug`, so `logLevel: 'silent'` quiets a development
+build too.
+
+### `onDiagnostic` — forward diagnostics to your own telemetry
+
+Receive SDK diagnostics as structured records and send them wherever your other
+telemetry goes (Sentry, Datadog, your own endpoint):
+
+```javascript
+new IntemptJs({
+  /* …your config… */
+  onDiagnostic: ({ level, scope, message, detail, timestamp }) => {
+    if (level === 'error') {
+      Sentry.captureMessage(`[${scope}] ${message}`, { extra: { detail } });
+    }
+  },
+});
+```
+
+Notes:
+
+- It receives **`warn` and above by default, in production too** — independently
+  of `logLevel`, because catching problems on live sites is the point. Add
+  `debug: true` to receive everything.
+- It's called synchronously. Keep it fast.
+- If your callback throws, the SDK swallows the error rather than letting it
+  surface on your page.
+
+### `getDiagnostics()` — read the delivery pipeline's state
+
+```javascript
+window.intempt.getDiagnostics();
+// {
+//   queueDepth: 3,             // events waiting to be sent
+//   droppedEvents: 0,          // events discarded because the queue filled up
+//   flushCount: 12,            // send attempts this page
+//   flushFailureCount: 1,      // …of which failed to reach us
+//   lastFlushLatencyMs: 84,
+//   avgFlushLatencyMs: 91,
+//   breakerState: 'closed',    // 'open' means the SDK has paused sending
+//   breakerTransitions: 0      // non-zero means it hit a real outage
+// }
+```
+
+Useful answers it gives directly: **`droppedEvents > 0`** means events were lost
+(a very long outage, or a runaway tracking loop firing far more events than a real
+session would). **`breakerState: 'open'`** means the SDK has deliberately stopped
+sending for a short window because deliveries kept failing — events keep queueing
+meanwhile, and sending resumes on its own.
+
+---
+
 ## Tips & gotchas
 
 - **All event methods take a single object** — e.g. `track({ eventTitle, data })`. The

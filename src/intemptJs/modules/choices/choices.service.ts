@@ -13,6 +13,10 @@ import { localStorageCache } from '../../../shared/storageHandler.ts';
 import { EnvConfig } from '../../../shared/envConfig.ts';
 
 
+import { createLogger } from '../../../shared/logger/logger.ts';
+
+const log = createLogger('ChoicesService');
+
 export const ChoicesService = {
   get _api() {
     return EnvConfig.getApi();
@@ -20,7 +24,7 @@ export const ChoicesService = {
 
   choicesDataGuard: function(data:{choices:any[]}):MergedChoices[] {
     if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
-      EnvConfig.isDevelopment() && console.log("response or first element of choices array is null, undefined, or not an array with at least one element");
+      log.debug('response or first element of choices array is null, undefined, or not an array with at least one element');
 
       return [];
     }
@@ -91,14 +95,7 @@ export const ChoicesService = {
        * Return an empty array if the credentials not found
        * */
       if(!username || !password) {
-        // Guarded like every other diagnostic in the SDK. Unguarded, this line
-        // printed on the customer's production console on every choices fetch
-        // made before init completed — noise in their logs, and it advertises
-        // that this SDK carries credentials at all, which is information a
-        // production console should not volunteer.
-        if (!EnvConfig.isProduction()) {
-          console.error('credentials not found')
-        }
+        log.error('credentials not found')
         return []
       }
 
@@ -135,7 +132,7 @@ export const ChoicesService = {
         project
       })}
     catch(error){
-      console.log('[getChoices] ERROR', error);
+      log.error('getChoices failed', error);
       return []
     }
 
@@ -184,7 +181,7 @@ export const ChoicesService = {
       ])
     }
     catch(error:any){
-      console.log('[setChangesData] ERROR', error);
+      log.error('setChangesData failed', error);
       localStorageCache.set(key, {changes:[]});
     }
   },
@@ -214,7 +211,7 @@ export const ChoicesService = {
       return response.json()
     }
     catch(error){
-      console.log('[fetchChoices] ERROR', error);
+      log.error('fetchChoices failed', error);
       return []
     }
   },

@@ -25,11 +25,11 @@
     "maxTestsToLog": 0
   },
   "timeoutMS": 20000,
-  "_comment_thresholds": "Measured baseline at the commit that added this file: 70.66% overall (2123 mutants; 1285 killed, 13 timeout, 398 survived, 141 with no coverage). `break` ratchets: it is raised to just under the measured score each time a batch of tests lands, never set ahead of the work (setting the 85% target up front would fail every PR for the duration). History: 65 (baseline 70.66) -> 73 (measured 75.12). Target floor is 85 per the user. The gap below the measured score leaves room for the 13 timeout-classified mutants, the one non-deterministic part of the score. Never lower it.",
+  "_comment_thresholds": "Measured baseline at the commit that added this file: 70.66% overall (2123 mutants; 1285 killed, 13 timeout, 398 survived, 141 with no coverage). `break` ratchets: it is raised to just under the measured score each time a batch of tests lands, never set ahead of the work (setting the 85% target up front would fail every PR for the duration). History: 65 (baseline 70.66) -> 73 (measured 75.12) -> 75 (measured 77.58, after the five-lane merge added the logger and privacy modules, both of which arrived with their own tests). Target floor is 85 per the user. The gap below the measured score leaves room for the 13 timeout-classified mutants, the one non-deterministic part of the score. Never lower it.",
   "thresholds": {
     "high": 85,
-    "low": 73,
-    "break": 73
+    "low": 75,
+    "break": 75
   },
   "tempDirName": "node_modules/.stryker-tmp",
   "ignoreStatic": true

@@ -1,6 +1,10 @@
 import { GuardConfig, GuardContext, GuardResult, GuardCondition } from './trackingGuard.types.ts';
 import { EnvConfig } from '../shared/envConfig.ts';
 
+import { createLogger } from '../shared/logger/logger.ts';
+
+const log = createLogger('TrackingGuard');
+
 export class TrackingGuardManager {
   private _guards: Map<string, GuardConfig> = new Map();
   private _enabled: boolean = true;
@@ -112,9 +116,7 @@ export class TrackingGuardManager {
       } catch (error) {
         // Log error but continue checking other guards
         try {
-          if (!EnvConfig.isProduction()) {
-            console.error(`[TrackingGuard] Error evaluating guard ${guard.id}:`, error);
-          }
+          log.error(`error evaluating guard ${guard.id}`, error);
         } catch {
           // If EnvConfig is not available (e.g., in tests), just continue
           // Error is already caught, we just skip logging

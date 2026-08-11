@@ -5,6 +5,10 @@ import { EnvConfig } from '../../../shared/envConfig.ts';
 
 
 
+import { createLogger } from '../../../shared/logger/logger.ts';
+
+const log = createLogger('Choices');
+
 export class ChoicesModule {
   private readonly _config:ChoicesParams;
   private readonly _service= ChoicesService;
@@ -31,7 +35,7 @@ export class ChoicesModule {
       })
     }
     catch (error) {
-      console.log("An error occurred:", error);
+      log.error('failed to apply choices', error);
     }
 
   }
@@ -54,17 +58,11 @@ export class ChoicesModule {
 
           (changesHandler as any)[change.type](change as any);
         } catch (error) {
-          if(EnvConfig.isDevelopment()){
-            console.warn(`Error applying change of type "${change.type}":`, error);
-            console.warn(change);
-          }
+          log.warn(`error applying change of type "${change.type}"`, { change, error });
         }
       }
       else {
-        if(EnvConfig.isDevelopment()){
-          console.log(change)
-          console.log(`Handler for "${change?.type}" change type not found`)
-        }
+        log.warn(`handler for "${change?.type}" change type not found`, change);
       }
     }
   }

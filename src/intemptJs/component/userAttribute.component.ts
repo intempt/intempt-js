@@ -3,6 +3,10 @@ import { getCookie, setCookie } from '../../shared/storageHandler.ts';
 import { BaseURLParser } from '../_baseUrlParser.ts';
 
 
+import { createLogger } from '../../shared/logger/logger.ts';
+
+const log = createLogger('UserAttribute');
+
 export class UserAttributeComponent{
   deviceType:DeviceType;
   referrer:string;
@@ -66,7 +70,7 @@ export class UserAttributeComponent{
       return url.origin;
     }
     catch (error:any){
-      console.log('[_getLandingPageUrl] ERROR',error);
+      log.warn('_getLandingPageUrl failed', error);
       return ''
     }
   }
@@ -93,7 +97,7 @@ export class UserAttributeComponent{
       fullReferrer = url.href;
     }
     catch (error:any){
-      console.log('[_getReferrerValues] ERROR',error);
+      log.warn('_getReferrerValues failed', error);
     }
 
 

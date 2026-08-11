@@ -1,4 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { configureLogger, resetLogger } from '../../src/shared/logger/logger.ts';
+
+// The logger is module-level state, so a suite that reconfigures it must put it
+// back — otherwise a later file inherits this file's sink and threshold.
+afterEach(() => {
+  resetLogger();
+});
 import { WebEditorModificationHandler } from '../../src/intemptJs/modules/choices/models/WebEditorModificationHandler.ts';
 import { ModificationHandler } from '../../src/intemptJs/modules/choices/models/ModificationHandler.ts';
 import { ChoicesModule } from '../../src/intemptJs/modules/choices/choices.module.ts';
@@ -695,17 +702,21 @@ describe('choices engine', () => {
       });
 
       it('returns no changes and logs when credentials are missing', async () => {
-        // Also pins the unguarded `console.error` at choices.service.ts:94 that
-        // `FRONTEND.md` item 4 calls out: every other diagnostic in the SDK is
-        // gated on `EnvConfig`, this one is not, so it prints in production.
-        const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        // Originally asserted on a raw `console.error`. That call is now routed
+        // through the structured logger, which is also what fixed the complaint
+        // this test was written to pin (it printed unguarded in production).
+        // Asserting via the diagnostic sink keeps the *behaviour* — "a missing
+        // credential is reported" — and stops the assertion tracking the
+        // transport, which is what made it break in the first place.
+        const diagnostics: string[] = [];
+        configureLogger({ level: 'debug', sink: (r) => diagnostics.push(r.message) });
         const out = await ChoicesService.getChoices({
           organization: 'acme',
           project: 'proj',
           sourceId: 'src',
         } as any);
         expect(out).toEqual([]);
-        expect(spy).toHaveBeenCalledWith('credentials not found');
+        expect(diagnostics.join(' ')).toContain('credentials not found');
       });
     });
 
@@ -1267,7 +1278,8 @@ describe('choices engine', () => {
 
       it('warns and aborts on malformed clone HTML rather than inserting nothing silently', () => {
         installIweStylesheet();
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warnings: string[] = [];
+        configureLogger({ level: 'debug', sink: (r) => warnings.push(r.message) });
         setBody('<div><p iwe_id="src" id="t">t</p></div>');
 
         handler.clone({
@@ -1279,13 +1291,14 @@ describe('choices engine', () => {
           },
         });
 
-        expect(warn).toHaveBeenCalled();
+        expect(warnings.length).toBeGreaterThan(0);
         expect(document.getElementById('t')!.parentElement!.children).toHaveLength(1);
       });
 
       it('warns when a cloned child has no CSS mapping', () => {
         installIweStylesheet();
-        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const warnings: string[] = [];
+        configureLogger({ level: 'debug', sink: (r) => warnings.push(r.message) });
         setBody('<div><p iwe_id="src" id="t">t</p></div>');
 
         handler.clone({
@@ -1297,7 +1310,10 @@ describe('choices engine', () => {
           },
         });
 
-        expect(warn).toHaveBeenCalledWith('No CSS mapping found for iwe_id:', 'c1');
+        // Case-insensitive on purpose: the message moved from a console.warn to
+        // the logger and lost its capital and colon in the process. The assertion
+        // is about the diagnostic being emitted, not its exact prose.
+        expect(warnings.join(' ').toLowerCase()).toContain('css mapping found for iwe_id');
       });
     });
   });

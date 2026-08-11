@@ -119,6 +119,12 @@ const CONFIG = {
   sourceId: 'src-1',
   project: 'proj-1',
   writeKey: 'wk-user.wk-pass',
+  // shopify/magento are REQUIRED on IntemptConfig, not optional. Added because
+  // `tsc` rejects the literal without them while vitest happily transpiles it —
+  // the unit tier does not typecheck, so a test can pass locally and still break
+  // `npm run build`. The commerce trackers are off in these tests either way.
+  shopify: false,
+  magento: false,
 };
 
 /**

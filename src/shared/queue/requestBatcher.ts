@@ -1,5 +1,6 @@
 import { RequestQueue, QueueEntry } from './requestQueue.ts';
-import { EnvConfig } from '../envConfig.ts';
+import { createLogger } from '../logger/logger.ts';
+import { MetricsSnapshot, SdkMetrics } from '../logger/metrics.ts';
 
 export interface BatcherConfig {
   batchSize: number;
@@ -125,6 +126,13 @@ export class RequestBatcher {
   private beforeSendHook?: (payload: any) => any;
   private errorReporter: (msg: string, err?: any) => void;
   private flushOnlyOnInterval: boolean;
+  private readonly log = createLogger('RequestBatcher');
+  /**
+   * Pipeline metrics. Per-instance rather than a module singleton: the batcher is
+   * effectively a singleton in a real page but is constructed many times in the
+   * test tier, and shared counters would leak state between suites.
+   */
+  private readonly metrics: SdkMetrics;
 
   private batchSize: number;
   private flushInterval: number;
@@ -182,6 +190,13 @@ export class RequestBatcher {
     this.sentEventIdsKey = `${options.storageKey}_sent_event_ids`;
     this.loadSentEventIds();
 
+    // The providers are lazy, so referencing `this.queue` before it is assigned
+    // below is fine — they are only called from `snapshot()`.
+    this.metrics = new SdkMetrics('RequestBatcher', {
+      queueDepth: () => this.queue.getQueueDepth(),
+      droppedEvents: () => this.queue.getDroppedEventCount(),
+    });
+
     this.queue = new RequestQueue(options.storageKey, {
       usePersistence: options.usePersistence,
       queueStorage: options.queueStorage,
@@ -217,12 +232,22 @@ export class RequestBatcher {
    * Events dropped by the queue cap since this page loaded.
    *
    * Non-zero means real, bounded data loss — an outage long enough to overflow
-   * the queue, or a runaway tracking loop. Surfaced here so the Phase 4
-   * structured logger has something to read; the drops are also reported through
-   * `errorReporter` as they happen.
+   * the queue, or a runaway tracking loop. Also reported through `errorReporter`
+   * as the drops happen, and included in `getMetrics()`.
    */
   getDroppedEventCount(): number {
     return this.queue.getDroppedEventCount();
+  }
+
+  /**
+   * Readable snapshot of the delivery pipeline: depth, latency, drops, breaker.
+   *
+   * This is the consumer the drop counter was waiting for. Reached from the
+   * public API as `intempt.getDiagnostics()`, so a support case can be answered
+   * with numbers from the customer's own page instead of a guess.
+   */
+  getMetrics(): MetricsSnapshot {
+    return this.metrics.snapshot();
   }
 
   private scheduleFlush(flushMS: number): void {
@@ -250,6 +275,9 @@ export class RequestBatcher {
   private closeCircuit(): void {
     this.consecutiveSendFailures = 0;
     this.breakerOpenUntilMS = 0;
+    // Observation only. `setBreakerState` ignores a no-change call, so the
+    // common case (every successful delivery) neither logs nor counts.
+    this.metrics.setBreakerState('closed');
   }
 
   private resetFlush(): void {
@@ -424,6 +452,14 @@ export class RequestBatcher {
       return;
     }
 
+    // Getting here with an open-until timestamp still set means the window has
+    // just expired and this flush IS the half-open probe. Recorded rather than
+    // inferred, so the transition count reflects what happened. Unload flushes
+    // bypass the breaker entirely and so are not probes.
+    if (!options.unloading && this.breakerOpenUntilMS > 0) {
+      this.metrics.setBreakerState('half-open');
+    }
+
     this.requestInProgress = true;
     const timeoutMS = this.libConfig.batchRequestTimeoutMs;
     const startTime = Date.now();
@@ -508,7 +544,8 @@ export class RequestBatcher {
       };
 
       const response = await this.sendRequest(dataForRequest, requestOptions);
-      
+      this.metrics.recordFlush(Date.now() - startTime);
+
       // Handle response
       // The already-sent items were just evicted above, so they must not be
       // counted in this batch's outcome (a 413 halving decision, for instance,
@@ -526,6 +563,7 @@ export class RequestBatcher {
       );
 
     } catch (error) {
+      this.metrics.recordFlush(Date.now() - startTime, true);
       this.reportError('Error flushing request queue', error);
       // The transport threw rather than returning a response. On a live page we
       // will retry, so the pre-send mark has to come off or the retry evicts the
@@ -609,6 +647,7 @@ export class RequestBatcher {
         response?.httpStatusCode === 429 ||
         response?.httpStatusCode <= 0
       ) {
+        this.metrics.markFlushFailed();
         // Retry with exponential backoff, spread across the fleet with full
         // jitter. The ceiling doubles deterministically; the sleep is a random
         // point below it. See `fullJitter` for why.
@@ -647,6 +686,7 @@ export class RequestBatcher {
         if (++this.consecutiveSendFailures >= CIRCUIT_BREAKER_THRESHOLD) {
           const openMS = jitterAroundBase(CIRCUIT_BREAKER_OPEN_MS);
           this.breakerOpenUntilMS = Date.now() + openMS;
+          this.metrics.setBreakerState('open');
           this.reportError(
             `${this.consecutiveSendFailures} consecutive failures; ` +
               `circuit breaker open for ${openMS} ms`
@@ -736,10 +776,17 @@ export class RequestBatcher {
     return this.queue.removeItemsByID(itemIds);
   }
 
+  /**
+   * Both channels, deliberately.
+   *
+   * The logger replaces the `!EnvConfig.isProduction()` console gate — it applies
+   * exactly the same policy by default (silent in production, verbose otherwise)
+   * and adds the `debug: true` override plus the customer sink. The
+   * `errorReporter` callback stays because it is a different contract: a
+   * per-instance hook the batcher's owner wired, which the tests drive directly.
+   */
   private reportError(msg: string, err?: any): void {
-    if (!EnvConfig.isProduction()) {
-      console.error(`[RequestBatcher] ${msg}`, err);
-    }
+    this.log.error(msg, err);
     if (this.errorReporter) {
       try {
         this.errorReporter(msg, err);

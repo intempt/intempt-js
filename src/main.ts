@@ -10,6 +10,10 @@ import {
   createCrawlerBotBlockGuard 
 } from './guard/trackingGuard.conditions.ts';
 
+import { createLogger } from './shared/logger/logger.ts';
+
+const log = createLogger('Intempt');
+
 // Create global guard manager instance
 const guardManager = new TrackingGuardManager();
 
@@ -44,19 +48,13 @@ setupDefaultGuards();
   const channel      = qs.get('channel') || '';
   const cameFromOpener = Boolean(openerOrigin && channel);
 
-  if(!EnvConfig.isProduction()) {
-    console.log('ENVIRONMENT ', EnvConfig.getEnv());
-    console.log('version:', SDK_VERSION);
-    console.log('cameFromOpener',cameFromOpener);
-  }
+  log.debug(`environment ${EnvConfig.getEnv()}, version ${SDK_VERSION}`, { cameFromOpener });
 
   // Check guard conditions before initializing
   const blocked = await shouldBlockTracking(guardManager);
   
   if (blocked) {
-    if(!EnvConfig.isProduction()) {
-      console.log('[Intempt] Tracking blocked by guard conditions');
-    }
+    log.info('tracking blocked by guard conditions');
     return; // Exit early, don't initialize SDK
   }
 

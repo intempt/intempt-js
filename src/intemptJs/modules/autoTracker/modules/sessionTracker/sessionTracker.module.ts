@@ -6,6 +6,10 @@ import { UserAttributeComponent } from '../../../../component/userAttribute.comp
 import { BaseURLParser } from '../../../../_baseUrlParser.ts';
 import { PlatformParser } from '../../../../platformParser.ts';
 
+import { createLogger } from '../../../../../shared/logger/logger.ts';
+
+const log = createLogger('SessionTracker');
+
 export class SessionTrackerModule extends PlatformParser{
   private readonly idType = 'ses';
   private readonly _eventName = 'Session start';
@@ -65,7 +69,7 @@ export class SessionTrackerModule extends PlatformParser{
           return parsed.id;
         }
       } catch (error) {
-        console.error('Error parsing session cookie:', error);
+        log.error('error parsing session cookie', error);
         // Return empty string on error - cookie is corrupted
         return '';
       }
@@ -109,7 +113,7 @@ export class SessionTrackerModule extends PlatformParser{
         };
       }
       catch (error:any){
-        console.log('[_getReferrerValues] ERROR',error);
+        log.warn('_getReferrerValues failed', error);
       }
     }
 
@@ -142,7 +146,7 @@ export class SessionTrackerModule extends PlatformParser{
           try {
             session = { ...JSON.parse(sessionCookie[this.intemptSession]) };
           } catch (error) {
-            console.error('Error parsing session cookie in handler:', error);
+            log.error('error parsing session cookie in handler', error);
             // Cookie is corrupted - create new session (unless it's Leave Page)
             if (eventName.toLowerCase() !== 'leave page') {
               return this._onNewSession(eventName);

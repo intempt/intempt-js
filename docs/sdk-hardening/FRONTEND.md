@@ -32,10 +32,10 @@ Ranked by points per day. Total **+22.9 points, ~30 working days**.
 | # | Task | Dim | Δ | Est |
 |---|---|---|---|---|
 | 1 | Packaging | 5 | +3.6 | 3d |
-| 2 | Structured logging & metrics | 6 | +3.4 | 3d |
-| 3 | CI breadth — ✅ **done** | 8 | +2.8 | 2.5d |
-| 4 | Security, the client-side half — ✅ **done** | 4 | +1.7 | 1.5d |
-| 5 | Privacy & consent — ✅ **done** | 7 | +2.4 | 3d |
+| 2 | Structured logging & metrics **✅ done** | 6 | +3.4 | 3d |
+| 3 | CI breadth | 8 | +2.8 | 2.5d |
+| 4 | Security, the client-side half | 4 | +1.7 | 1.5d |
+| 5 | Privacy & consent | 7 | +2.4 | 3d |
 | 6 | Code health | 10 | +1.7 | 3d |
 | 7 | Docs & DX | 9 | +2.5 | 4d |
 | 8 | Test breadth (**in progress**) | 1 | +3.0 | 6d |
@@ -71,15 +71,27 @@ because they are front-end work; if they stay parked, the ceiling drops to ~81.
   because there is nothing importable to point at (see CHECKPOINT §2, task 1).
 - `CHANGELOG.md` + changesets; a written deprecation policy.
 
-### 2. Structured logging & metrics — dim 6: 40 → 82 · +3.4 · 3d
+### 2. Structured logging & metrics — dim 6: 40 → 82 · +3.4 · 3d · **✅ done**
 
-The worst-scoring dimension, and entirely ours.
+The worst-scoring dimension, and entirely ours. **Landed — see CHECKPOINT §3g for
+the full record, including the bundle accounting.**
 
-- Replace 54 raw `console.*` calls with a levelled logger gated on config, not
-  only on `EnvConfig.isProduction()`. Add `debug: true`.
-- Internal metrics: queue depth, flush latency, **drop count** (§3c already
-  computes it and has nowhere to send it), breaker state transitions.
-- A sink hook so customers can forward SDK diagnostics to their own telemetry.
+- ✅ 53 of the 55 raw `console.*` calls replaced with a levelled logger
+  (`src/shared/logger/logger.ts`) gated on config rather than only on
+  `EnvConfig.isProduction()`, with `debug: true` to lift production silence for a
+  support case. Two calls survive deliberately and are documented in place:
+  `CAN'T FIND SCRIPT` in `sdkLoader.ts` (fires before any config exists, and is
+  the string support tells customers to look for) and the one in `envConfig.ts`
+  (the logger's own gate lives there — routing it would be circular).
+- ✅ Internal metrics in `src/shared/logger/metrics.ts`: queue depth, flush
+  latency, **drop count** — §3c's counter finally has a consumer — and breaker
+  state transitions. Readable as `intempt.getDiagnostics()`; transitions are also
+  logged.
+- ✅ A sink hook, `onDiagnostic` on `IntemptConfig`, gated independently of the
+  console so it still fires in production. A throwing sink is swallowed.
+
+Still open on this dimension, and it is breadth rather than plumbing: route the
+quota-failure telemetry from item 10 through the sink.
 
 ### 3. CI breadth — dim 8: 62 → 90 · +2.8 · 2.5d · ✅ **DONE**
 

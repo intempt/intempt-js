@@ -23,6 +23,10 @@ import { EnvConfig } from '../shared/envConfig.ts';
 import { SDK_VERSION } from '../shared/version.ts';
 import { resolveIngestBaseUrl } from '../shared/privacy/dataResidency.ts';
 import { clearOptInOut, hasOptedIn } from '../shared/privacy/gdpr.ts';
+import { configureLogger, createLogger } from '../shared/logger/logger.ts';
+import { MetricsSnapshot } from '../shared/logger/metrics.ts';
+
+const log = createLogger('Intempt');
 
 
 export class IntemptJs extends IntemptJsGuard {
@@ -47,10 +51,19 @@ export class IntemptJs extends IntemptJsGuard {
     super();
     this._config = { ...config};
 
+    // Logger first, before validation, on purpose: `isValidConfig` throws on a
+    // bad config, and a customer debugging that throw wants the SDK's own
+    // diagnostics already switched on when it happens.
+    configureLogger({
+      debug: config.debug,
+      level: config.logLevel,
+      sink: config.onDiagnostic,
+    });
+
+    // Routed through the logger rather than a bare console.warn: the logger is
+    // now the single gate for SDK diagnostics, and it is configured above.
     this._api = resolveIngestBaseUrl(config?.apiHost, EnvConfig.getApi(), (message) => {
-      if (!EnvConfig.isProduction()) {
-        console.warn('[Intempt]', message);
-      }
+      log.warn(message);
     });
 
     if(!this.isValidConfig(config)) return;
@@ -68,6 +81,19 @@ export class IntemptJs extends IntemptJsGuard {
     void this._choices.init();
   }
 
+
+  /**
+   * Current state of the delivery pipeline: queue depth, flush latency, events
+   * dropped by the queue cap, and circuit-breaker state.
+   *
+   * Readable from the browser console on a customer's own page, which is the
+   * point — it answers "are my events arriving?" with numbers instead of a guess.
+   * `null` when the batcher failed to initialise (the SDK then falls back to a
+   * simple queue with no metrics of its own).
+   */
+  getDiagnostics(): MetricsSnapshot | null {
+    return this._autoTracker ? this._autoTracker.getDiagnostics() : null;
+  }
 
   /**
    * Allow tracking

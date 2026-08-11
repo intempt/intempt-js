@@ -193,6 +193,19 @@ export class RequestQueue {
   }
 
   /**
+   * Events this instance currently knows are pending.
+   *
+   * Read-only, and deliberately the in-memory view rather than an exact storage
+   * count: an exact count means listing every key, which is the O(N) cost the
+   * per-event layout exists to avoid (see `approxQueuedCount`). A metric is not
+   * worth paying that for. It therefore under-reports events another tab queued
+   * and this tab has not read yet, which is the right trade for a gauge.
+   */
+  getQueueDepth(): number {
+    return this.memQueue.length;
+  }
+
+  /**
    * Cap the in-memory queue, used when persistence is off or unavailable.
    *
    * Same policy as the persistent path — drop oldest — because `memQueue` is

@@ -15,6 +15,9 @@
 | **Next action** | **Continue the mutation campaign to the user-set 85% floor — §3f-i has the worklist (~100–130 tests).** Next file: the rest of `requestBatcher.ts` (flush/enqueue, lines 175–560). **Also due and cheap: re-baseline the `vitest.config.ts` coverage thresholds — five lanes landed at once and vitest 4 counts statements differently, so the old numbers are not comparable (D20).** Nothing is blocked. |
 | **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 3** — `psl` ✅, unload ✅, IndexedDB ✅, per-event records ✅, jitter ✅, breaker ✅, bounded queue ✅. **Phase 4 — privacy & consent ✅ (§3h), client-side security ✅ (§3g-ii), observability ✅ (§3i)**. **Phase 5 — CI breadth ✅ (§3g)**. |
 | **Code changed so far** | See §3a–§3i. Five lanes landed together on 2026-08-11: **CI breadth + client-side security (§3g)**, **privacy & consent (§3h)**, **structured logging & metrics (§3i)**, **docs & DX (§3j)**, **public-API / payload-contract / choices tests (§3k)**. Earlier: `package.json` metadata, version single-sourced, three §4 defects, `psl` dropped, unit tier, IndexedDB, per-event records, jitter, breaker, bounded queue, mutation testing. |
+| **Next action** | **Continue the mutation campaign to the user-set 85% floor — §3f-i has the file-by-file worklist and the remaining estimate (~100–130 tests).** Next file: the rest of `requestBatcher.ts` (flush/enqueue/scheduling, lines 175–560). Nothing is blocked. |
+| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 4 observability ✅ (§3i)** — structured logger, sink hook, pipeline metrics. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 75.94%, floor ratcheted to 73, climbing to a user-set 85% (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. **Structured logger + sink hook + pipeline metrics, and all 55 `console.*` calls swept (§3i)**. Unit **484** / Cypress **122**, all passing. Bundle 85.25 kB / 24.26 kB gzip. |
 
 ---
 
@@ -30,6 +33,53 @@ Work is split by who can do it, and each half has its own document:
 **Current score: 62/100** (audit baseline 40, Mixpanel comparator 85). Dimension 4
 (security) cannot exceed ~62 and dimension 2 ~86 without `BACKEND.md` item 1, so
 **91 is not reachable front-end-only** — see `FRONTEND.md`, "The ceiling".
+
+## 0a. The five-lane parallel merge — 2026-08-11
+
+Five independent lanes were built concurrently in separate worktrees and merged
+here. **Measured on the merged tree, not reported by the lanes:**
+
+| Gate | Result |
+|---|---|
+| Unit | **794 passed** (from 444) |
+| Coverage | 93.12 / 89.92 / 95.33 / 93.90 vs gate 90/87/87/90 ✅ |
+| Mutation | **77.58%** (from 75.94), floor ratcheted 73 → **75** ✅ |
+| Cypress | 122/122 ✅ |
+| Build + tsc | clean; bundle **91.25 kB / 26.64 kB gzip** |
+| ESLint | 0 errors, 323 warnings (at the `--max-warnings` ratchet) ✅ |
+| Secret scan / reserved words | clean ✅ |
+
+Lanes: **A** CI breadth + client-side security (§3g), **B** privacy & consent
+(§3h), **C** structured logging & metrics (§3i), **D** docs & DX, **E** public-API
+/ payload-contract / choices tests.
+
+### Six things the merge itself surfaced — none were visible to any single lane
+
+1. **`tsc` rejected lane E's tests while vitest accepted them.** `shopify` and
+   `magento` are *required* on `IntemptConfig`, and the new config literals omitted
+   them. The unit tier does not typecheck, so a test can pass locally and still
+   break `npm run build`. Fixed in the literals; the general lesson is that
+   `npm run test:unit` is not a sufficient pre-merge check — `npm run build` is.
+2. **Three of lane E's tests asserted on `console.*` that lane C had replaced**
+   with the logger. Rewritten to assert through the logger's diagnostic sink,
+   which is the behaviour; the console was only ever the transport.
+3. **A logger-config leak between test files.** The logger is module-level state,
+   so the suite that reconfigured it had to `resetLogger()` in `afterEach` — one
+   payload-contract test failed only in a full run, never in isolation.
+4. **ESLint reported 4048 problems instead of 323**, because `.claude/worktrees/`
+   holds full checkouts (including their `dist/`). No lane could see this from
+   inside one. `.claude/**` is now ignored.
+5. **The size budget had to be re-baselined**: 83.5 → 93 kB raw, 23.6 → 27.2 kB
+   gzip. Lanes B (+6.0 kB) and C (+3.45 kB) both landed real features. **This is
+   the strongest argument yet for the parked code-splitting item** — the privacy
+   scrubber's pattern tables and the logger are module-level, so every customer
+   pays for them whether or not they are switched on.
+6. **`§3g` was claimed by two lanes at once.** Renumbered A=§3g, B=§3h, C=§3i.
+   Concurrent lanes cannot allocate section numbers; whoever merges has to.
+
+**Not verified and still unverifiable from here:** anything requiring GitHub.
+`release.yml`, the Sonar gate, and every job in `ci.yml` have never run — the
+branch remains unpushed.
 
 ## 1. What this programme is
 
@@ -775,6 +825,94 @@ pays for a feature most will not enable. The clean fix is code-splitting
 (`FRONTEND.md` item 9), which the user parked. Flagging it rather than
 micro-optimising: if the size gate from `FRONTEND.md` item 3 lands first, pin it
 *after* this.
+## 3i. Phase 4 — structured logging & metrics ✅ (`FRONTEND.md` item 2)
+
+Dimension 6 (observability) was the **worst-scoring dimension in the audit**: 25
+at the audit, 40 before this change, against Mixpanel's 85. It was also entirely
+client-side work — nothing here was blocked on the backend.
+
+**What was wrong.** 55 raw `console.*` calls, gated — where they were gated at all
+— on `EnvConfig.isProduction()`. Three consequences, all of them support
+problems:
+
+- **Production printed nothing, and there was no way to change that.** The only
+  build where a diagnostic has any value is the one on a customer's live site,
+  and that build was silent by construction. The remedy in use was to ship a
+  customer a staging bundle.
+- **No severity.** `console.log` for a swallowed exception and `console.log` for
+  "editor mounted" are indistinguishable, so nobody read either.
+- **Nothing could be forwarded.** A customer running Sentry or Datadog could not
+  see SDK failures at all.
+
+**What landed.**
+
+- `src/shared/logger/logger.ts` — four levels (error/warn/info/debug), a
+  `[Scope] message` prefix keeping the existing `[RequestBatcher]`-style
+  convention, and **two independent thresholds**. The console default reproduces
+  the old policy exactly (silent in production, verbose otherwise) so no customer
+  page gets noisier; `debug: true` in the SDK config lifts it **in production**,
+  which is the whole point of the option.
+- **A sink hook** — `onDiagnostic` on `IntemptConfig`, receiving a structured
+  record (`level`, `scope`, `message`, `detail`, `timestamp`), gated at `warn` and
+  above **independently of the console**. Gating a sink on the console threshold
+  would make it useless in the only environment it exists for. It complements
+  rather than replaces `errorReporter`: that hook is a narrower, per-instance
+  queue channel its owner wires and the batcher's tests drive, so
+  `RequestBatcher.reportError` now writes to both. The sink copies
+  `reportError`'s most important property — **a throw from the customer's
+  callback is swallowed**, because an analytics SDK that can break the page it
+  measures is worse than no analytics SDK.
+- `src/shared/logger/metrics.ts` — queue depth, flush latency (last + mean),
+  drop count, breaker state and **transition count**, readable as a snapshot via
+  `intempt.getDiagnostics()` and emitted through the logger on each transition.
+  **This is the consumer §3c's drop counter was waiting for.** Depth and drops are
+  *sampled* through provider callbacks at snapshot time rather than pushed on
+  every enqueue — pushing would put per-event work back on the hot path that §6c
+  exists to keep clear. Latency is a running total, not a sample array, for the
+  same reason the two dedupe structures are capped: unbounded growth on a
+  long-lived tab.
+
+**Queue and batcher changes are wiring only.** `requestQueue.ts` gained one
+read-only accessor (`getQueueDepth()`); `requestBatcher.ts` gained a logger, a
+metrics instance, `getMetrics()`, and calls that *observe* the breaker at the
+three points where its state already changed. No queueing, retry, breaker or
+dedupe logic was touched, and all 100 existing batcher tests plus the 50 queue
+tests pass unmodified.
+
+**Two `console.*` calls survive on purpose**, both documented in place:
+
+- `sdkLoader.ts` — `CAN'T FIND SCRIPT`. This branch means the bundle could not
+  find its own `<script>` tag, so there is no config, no write key, and the
+  logger cannot have been configured (`debug: true` arrives *with* the config
+  that just failed to load). It is also the known signature of the mutable `/v1`
+  CDN path coupling, and support tells customers to look for this exact string.
+- `envConfig.ts` — the logger gates itself on `EnvConfig.isProduction()`, so
+  routing this one would make the logger and its own configuration source
+  mutually dependent, and it fires *during* the initialisation it would consult.
+
+**Bundle: 81.80 kB / 23.09 kB gzip → 85.25 kB / 24.26 kB gzip** (+3.45 kB raw,
++1.17 kB gzip). Measured split: logger 0.80 kB, metrics 1.10 kB, call sites
+~1.55 kB. The call-site share is mostly **message strings that now ship**:
+`vite.config.ts` sets `esbuild.pure: ['console.log']`, which deleted every
+`console.log` call *and its string literals* from the production bundle
+outright — verified directly against esbuild. In other words part of the old
+bundle's smallness **was** the missing production diagnostics, and a switchable
+debug channel necessarily keeps those strings at runtime. `log.debug` is
+deliberately not added to `pure` for exactly that reason. The remaining lever, if
+the size gate from `FRONTEND.md` item 3 ever makes this hurt, is trimming
+individual `debug`/`info` breadcrumbs — not the logger itself.
+
+`recordFlush` deliberately does **not** log: it runs on every send, so it would be
+the SDK's highest-frequency log call, in exchange for information `snapshot()`
+already reports better as a mean.
+
+**Tests:** 40 added (`tests/unit/logger.test.ts` 22, `tests/unit/metrics.test.ts`
+18), taking the unit tier to **484**. They cover level filtering, the `debug`
+switch, the production-silent default, console output shape, the sink including a
+**throwing** sink (asserting no propagation, no recursion, and that the console
+channel survives), each metric, and the batcher wiring end to end — drop count
+reaching the snapshot, and a full closed → open → half-open → closed breaker
+recovery.
 
 ## 3. Next concrete action — pick one, nothing is blocked
 
@@ -805,6 +943,16 @@ Highest value now, in the author's order:
    diagnostic is guarded, SRI/CSP guidance is in `USAGE.md`, and a bundle secret
    scan gates `build` and `release`. Only the credential itself remains, and it
    is the backend's.
+2. Cross-subdomain consent cookie (D15) and killing `any` (Phase 4). The
+   **structured logger is done — §3i**, and the drop counter from §3c now has its
+   consumer. What remains of dimension 6 is breadth, not plumbing: route the
+   quota-failure telemetry from `FRONTEND.md` item 10 through the sink.
+3. **Credential hygiene (Phase 4)** — but note this is now known to be **mostly
+   blocked on the backend**, not client-side work: five call sites across four
+   endpoints carry the `btoa`'d write key, and the fix is `BACKEND.md` item 1.
+   What is ours alone is small (SRI/CSP guidance in the customer docs; the
+   unguarded `console.error` at `choices.service.ts:94` was fixed by §3i's
+   sweep).
 4. Close the bot-detection false negative documented in §3e, if it is judged
    worth the risk — it needs the compatible;-inspection moved out of the browser
    branch, which changes behaviour for real traffic, so it wants a parity check
@@ -1048,6 +1196,7 @@ not behaviour. If they break again, prefer rewriting them to go through
 | 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. **CI breadth ✅ (§3g)**: lint/format, size budget, audit gate, SHA pins, Sonar gate, **`release.yml` ✅**. `browser-tests.yml` (needs Sauce) / changesets remain |
 
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | 🟡 **privacy & consent ✅ (§3h)** — `gdpr-utils` ported, cross-subdomain consent (D15 closed), DNT/GPC, opt-in PII scrubbing, `apiHost`; credential hygiene ⏸ (mostly BE), logger ⬜, supply chain ⬜, kill `any` ⬜ |
+| 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | 🟡 **observability ✅ — logger, sink hook, metrics (§3i)**; credential hygiene mostly ⏸ (BE); `gdpr-utils` port, supply chain, `any` remain |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. `browser-tests.yml` / `release.yml` / changesets remain |
 
 Phase deltas assume the earlier phases landed; they are not independent.

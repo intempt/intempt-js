@@ -6,6 +6,10 @@ import {
 } from '../../../../../shared/storageHandler.ts';
 
 
+import { createLogger } from '../../../../../shared/logger/logger.ts';
+
+const log = createLogger('PagesTracker');
+
 type PageSessionCookie = { page_session: string } | null;
 type ParsedPageSessionCookie = { id: string, current_page: string, previous_page: string };
 
@@ -27,7 +31,7 @@ export class PageTrackerModule {
   }
 
   init() {
-    const safeStart = () => { try { this.start(); } catch (e) { console.error(e); } };
+    const safeStart = () => { try { this.start(); } catch (e) { log.error('failed to start page tracking', e); } };
 
     if (document.readyState === 'complete') {
       // loaded late -> fire now
@@ -117,14 +121,14 @@ export class PageTrackerModule {
           return pageSessionId;
         }
       } catch (error) {
-        console.error('Error parsing cookie:', error);
+        log.error('error parsing cookie', error);
         // Error parsing cookie - skip local storage, go directly to Step 3
         const newCookie = this.setPageSession() as PageSessionCookie;
         if (newCookie) {
           try {
             pageSessionId = JSON.parse(newCookie[this.pageSession]).id;
           } catch (error) {
-            console.error('Error parsing newly set cookie:', error);
+            log.error('error parsing newly set cookie', error);
           }
         }
         return pageSessionId ?? '';
@@ -143,7 +147,7 @@ export class PageTrackerModule {
       try {
         pageSessionId = JSON.parse(newCookie[this.pageSession]).id;
       } catch (error) {
-        console.error('Error parsing newly set cookie:', error);
+        log.error('error parsing newly set cookie', error);
       }
     }
 
@@ -187,7 +191,7 @@ export class PageTrackerModule {
       });
     }
     catch(e:any){
-      console.log(e)
+      log.error('failed to set page session cookie', e)
       return null
     }
 
