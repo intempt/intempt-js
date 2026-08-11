@@ -17,6 +17,9 @@ import { RequestBatcher } from '../../../shared/queue/requestBatcher.ts';
 import { PersistentStore } from '../../../shared/storage/persistentStore.ts';
 import { EnvConfig } from '../../../shared/envConfig.ts';
 import { loadDoNotTrack, persistDoNotTrack } from '../../../shared/consentState.ts';
+import { shouldSuppressForBrowserSignal } from '../../../shared/privacy/doNotTrackSignals.ts';
+import { hasOptedOut } from '../../../shared/privacy/gdpr.ts';
+import { createPiiScrubber, PiiScrubber } from '../../../shared/privacy/piiScrubber.ts';
 
 
 export class AutoTrackerModule {
@@ -29,6 +32,27 @@ export class AutoTrackerModule {
 
   private _doNotTrack: boolean = loadDoNotTrack();
 
+  /**
+   * DNT/GPC, read once at construction.
+   *
+   * Kept **separate from `_doNotTrack`** rather than folded into it, for two
+   * reasons that are easy to get wrong:
+   *
+   *  1. A browser signal must never be *persisted*. Writing it into the stored
+   *     consent would make a transient browser setting look like an explicit
+   *     visitor decision, and it would then survive the visitor turning the
+   *     setting back off.
+   *  2. A browser signal outranks a stored opt-in (see `gdpr.ts`), so `optIn()`
+   *     must not be able to clear it. Sharing one field would let it.
+   *
+   * Read once because neither flag changes during a page's life, and
+   * `isUserOptIn()` is on the per-event hot path.
+   */
+  private readonly _browserSignalSuppressed: boolean;
+
+  /** Identity function unless the customer enabled `piiScrubbing`. */
+  private readonly _scrubPii: PiiScrubber;
+
   private readonly _api: string;
 
   private readonly _eventPool: any[] = [];
@@ -39,6 +63,20 @@ export class AutoTrackerModule {
 
     this._config = { ...intemptConfig };
     this._api = api;
+
+    this._browserSignalSuppressed = shouldSuppressForBrowserSignal(intemptConfig.ignore_dnt);
+
+    // Called for its side effect: the one-per-page console notice naming *which*
+    // signal stopped the data. That notice is the difference between a support
+    // ticket and a silent outage, and it has to be emitted at init rather than
+    // from the hot path.
+    hasOptedOut({ ignoreDnt: intemptConfig.ignore_dnt });
+
+    this._scrubPii = createPiiScrubber(
+      typeof intemptConfig.piiScrubbing === 'object'
+        ? { ...intemptConfig.piiScrubbing, enabled: intemptConfig.piiScrubbing.enabled !== false }
+        : { enabled: intemptConfig.piiScrubbing === true },
+    );
 
     this._shopifyTrackerModule = intemptConfig.shopify
       ? new ShopifyTrackerModule()
@@ -75,17 +113,40 @@ export class AutoTrackerModule {
     this._htmlTrackerModule.init();
   }
 
+  /**
+   * Effective do-not-track state: the stored decision OR a browser signal.
+   *
+   * The getter reports the browser signal too, so `IntemptJs.isUserOptIn()` tells
+   * a customer's own code the truth about whether events will be sent. Reporting
+   * only the stored flag would have it answer `true` while the SDK silently
+   * dropped everything.
+   */
   get doNotTrack(){
-    return this._doNotTrack;
+    return this._doNotTrack || this._browserSignalSuppressed;
   }
 
   set doNotTrack(value: boolean){
+    // Only the explicit decision is stored and mutated. A browser signal is not
+    // the visitor's stored consent and cannot be cleared by `optIn()` — see the
+    // note on `_browserSignalSuppressed`.
     this._doNotTrack = value
     persistDoNotTrack(value)
   }
 
   isUserOptIn(): boolean{
-    return !this._doNotTrack
+    return !this.doNotTrack
+  }
+
+  /**
+   * Drop the in-memory stored decision without writing one.
+   *
+   * Pairs with `IntemptJs.clearConsent()`, which has already emptied the store.
+   * Uses the setter's *field* rather than the setter itself on purpose: calling
+   * `doNotTrack = false` would persist an explicit opt-in and re-create exactly
+   * the decision that was just cleared.
+   */
+  forgetConsentDecision(): void{
+    this._doNotTrack = false;
   }
 
   getSessionId() {
@@ -349,7 +410,17 @@ export class AutoTrackerModule {
     });
   }
 
-  private _onTrackData(data:any){
+  private _onTrackData(rawData:any){
+    // The single choke point for scrubbing: both the batcher and the legacy
+    // debounced fallback go through here, so one call covers every event path.
+    //
+    // Consent records deliberately do NOT pass through here — they are routed to
+    // `_sendConsentTrackEventData` by `_eventPoolHandler` before this point. That
+    // matters: a consent record's `email` field *is* the record. Redacting it
+    // would destroy the proof of consent, which is the one payload in the SDK
+    // where the PII is the point.
+    const data = this._scrubPii(rawData);
+
     // Use batcher if available, otherwise fallback to old method
     if (this._batcherInitialized && this._requestBatcher) {
       const name = data.name.toLowerCase();

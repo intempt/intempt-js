@@ -21,6 +21,8 @@ import { ProductModel } from './models/product.model.ts';
 import { IntemptEventListenerName, IntemptEventName } from './types/constants.types.ts';
 import { EnvConfig } from '../shared/envConfig.ts';
 import { SDK_VERSION } from '../shared/version.ts';
+import { resolveIngestBaseUrl } from '../shared/privacy/dataResidency.ts';
+import { clearOptInOut, hasOptedIn } from '../shared/privacy/gdpr.ts';
 
 
 export class IntemptJs extends IntemptJsGuard {
@@ -29,7 +31,13 @@ export class IntemptJs extends IntemptJsGuard {
   /** Instance mirror of {@link IntemptJs.VERSION}, for `window.intempt.VERSION`. */
   readonly VERSION: string = SDK_VERSION;
 
-  private readonly _api = EnvConfig.getApi();
+  /**
+   * Ingest base URL. `config.apiHost` wins over the build-time default so a
+   * data-residency customer can name their own regional endpoint — see
+   * `resolveIngestBaseUrl` for why there is no `region` shorthand. Assigned in the
+   * constructor because it depends on the config.
+   */
+  private readonly _api: string;
   private readonly _autoTracker!:AutoTrackerModule;
   private readonly _choices!:ChoicesModule;
   private readonly _config:IntemptConfig;
@@ -38,6 +46,12 @@ export class IntemptJs extends IntemptJsGuard {
   constructor(config:IntemptConfig) {
     super();
     this._config = { ...config};
+
+    this._api = resolveIngestBaseUrl(config?.apiHost, EnvConfig.getApi(), (message) => {
+      if (!EnvConfig.isProduction()) {
+        console.warn('[Intempt]', message);
+      }
+    });
 
     if(!this.isValidConfig(config)) return;
 
@@ -78,6 +92,40 @@ export class IntemptJs extends IntemptJsGuard {
    * */
   isUserOptIn(): boolean{
     return !this._autoTracker.doNotTrack
+  }
+
+  /**
+   * Has the visitor *explicitly* opted in?
+   *
+   * Not the inverse of {@link isUserOptIn}. A visitor who has never been asked is
+   * neither opted in nor opted out, and `isUserOptIn()` reports `true` for them
+   * because tracking-by-default is the SDK's documented behaviour. A consent
+   * banner needs this third state to decide whether to show itself at all.
+   * @return { boolean }
+   * */
+  hasExplicitlyOptedIn(): boolean{
+    return hasOptedIn();
+  }
+
+  /**
+   * Forget the visitor's stored consent decision, returning them to "never asked".
+   *
+   * For re-asking after a privacy-policy change: with an explicit answer on file,
+   * a banner has nothing to ask about. Distinct from `optOut()`, which records a
+   * refusal — this records nothing.
+   *
+   * The in-memory flag is reset to what a fresh page load would compute from the
+   * now-empty store — which, since this SDK tracks by default, means tracking
+   * resumes. Leaving a stale opt-out in memory instead would make the current tab
+   * disagree with every other tab and with the next reload. Any browser DNT/GPC
+   * signal still applies: clearing a *stored* decision cannot clear that.
+   * @return void
+   * */
+  clearConsent(): void{
+    clearOptInOut();
+    if (this._autoTracker) {
+      this._autoTracker.forgetConsentDecision();
+    }
   }
 
   /**
