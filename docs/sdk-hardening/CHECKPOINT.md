@@ -14,7 +14,7 @@
 | **Last updated** | 2026-08-11 |
 | **Next action** | **§3 — circuit breaker** (load shedding 2 of 3). Jitter ✅ landed. |
 | **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **backoff jitter ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Full jitter on retry backoff (§3a)**. Unit 133 / Cypress 213, all passing. Bundle 79.66 kB / 22.59 kB gzip. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Full jitter on retry backoff (§3a)**. Unit 135 / Cypress 213, all passing. Bundle 79.75 kB / 22.62 kB gzip. |
 
 ---
 
@@ -111,7 +111,7 @@ Remaining work that needs nothing from anyone else:
 3. Cross-subdomain consent cookie (the D15 limitation).
 4. Phase 4 client-side leftovers — structured logger, killing `any`.
 
-## 3a. Load shedding 1 of 3 — full jitter on retry backoff ✅
+## 3a. Load shedding 1 of 3 — jitter ✅ (retry backoff + flush interval)
 
 Landed 2026-08-11 in `src/shared/queue/requestBatcher.ts`. **Decisions the user
 made — do not re-litigate:**
@@ -119,10 +119,16 @@ made — do not re-litigate:**
 - **Full jitter**, not equal jitter: `sleep = random(0, ceiling)`. The usual
   objection (a client may retry almost immediately) does not apply, because
   `flush()` cannot start while `requestInProgress` is true.
-- **Retries only.** The steady-state 5s flush interval is *not* jittered. It
-  remains a real, unfixed exposure — cohorts that load together (CDN purge,
-  deploy wave, email blast) still flush in lockstep forever in normal operation.
-  Deliberately deferred, not overlooked.
+- **Steady-state flush interval jittered too**, in a follow-up commit: `±10%`
+  around the configured value via `jitterAroundBase()` in `resetFlush()`, which
+  is the single choke point for the normal schedule. A *narrow band*, not full
+  jitter — this path is not a failure response, and the configured interval is a
+  batching-latency contract the customer set; full jitter here would halve
+  effective throughput on average and make batch sizes erratic. That band is
+  asserted by a test, so it cannot drift.
+  One consequence: the retry ceiling now bases off `libConfig.batchFlushIntervalMs`
+  rather than `flushInterval`, since the latter carries the steady-state draw and
+  the backoff schedule should not inherit an unrelated random number.
 - **`Retry-After` is honoured exactly, unjittered**, pending a backend answer —
   see the open question below.
 
@@ -136,7 +142,7 @@ back toward hammering, i.e. the change would silently undo itself. So a separate
 interval rather than resuming the last incident's ceiling. There is a test for
 each of those three properties.
 
-**Tests:** 4 added (133 unit total). The fleet-spread test runs 100 independent
+**Tests:** 6 added (135 unit total). The fleet-spread test runs 100 independent
 batchers through one failure each and asserts >50 distinct delays — under
 deterministic backoff that collapses to 1, so the test states the thundering herd
 as an assertion. `schedules a backoff instead of hammering ingest on a 500` had to

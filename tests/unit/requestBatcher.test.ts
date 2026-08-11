@@ -303,6 +303,43 @@ describe('RequestBatcher', () => {
       expect((batcher as any).flushInterval).toBe(10 * 60 * 1000);
     });
 
+    it('jitters the steady-state flush interval so a cohort de-syncs', async () => {
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 200, ok: true };
+
+      // A cohort that loaded together — a CDN purge, a deploy, an email blast.
+      // With a fixed timer these flush in lockstep forever; nothing pulls them
+      // apart, so ingest sees a spike at every interval boundary in entirely
+      // normal operation.
+      const intervals = new Set<number>();
+      for (let i = 0; i < 100; i++) {
+        const client = makeBatcher({ storageKey: `${KEY}_cohort_${i}` });
+        await client.enqueue(event(`evt-cohort-${i}`));
+        await client.flush();
+        intervals.add((client as any).flushInterval);
+      }
+
+      expect(intervals.size).toBeGreaterThan(50);
+    });
+
+    it('keeps the flush interval within 10% of the configured value', async () => {
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 200, ok: true };
+
+      // The configured interval is a batching-latency contract. Spreading a
+      // cohort must not quietly change how long events wait, so the band is
+      // narrow — this is the assertion that stops it drifting into full jitter.
+      for (let i = 0; i < 100; i++) {
+        const client = makeBatcher({ storageKey: `${KEY}_band_${i}` });
+        await client.enqueue(event(`evt-band-${i}`));
+        await client.flush();
+
+        const interval = (client as any).flushInterval;
+        expect(interval).toBeGreaterThanOrEqual(900);
+        expect(interval).toBeLessThanOrEqual(1100);
+      }
+    });
+
     it('halves the batch size on a 413 rather than dropping events', async () => {
       for (let i = 0; i < 8; i++) {
         await batcher.enqueue(event(`evt-big-${i}`));

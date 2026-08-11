@@ -48,6 +48,32 @@ function fullJitter(ceilingMS: number): number {
   return Math.floor(Math.random() * ceilingMS);
 }
 
+/** +/-10% spread applied to the steady-state flush interval. */
+const FLUSH_JITTER_RATIO = 0.1;
+
+/**
+ * Spread the *steady-state* flush interval across a narrow band around its
+ * configured value.
+ *
+ * `fullJitter` above handles the incident path. This handles normal operation,
+ * which has the same synchronisation flaw for a different reason: the flush
+ * timer is fixed, so clients that started together flush together, permanently —
+ * nothing ever pulls them apart. The realistic trigger is a cohort landing at
+ * once (a CDN purge, a deploy, an email blast putting 200k people on the site
+ * inside a minute); that cohort then produces periodic spikes at every interval
+ * boundary with no incident anywhere.
+ *
+ * A narrow band, not full jitter: this path is not a failure response, and the
+ * configured interval is a batching-latency contract the customer set. +/-10%
+ * smears a cohort apart within a few cycles while keeping delivery latency
+ * essentially what was asked for. Full jitter here would halve effective
+ * throughput on average and make batch sizes erratic.
+ */
+function jitterAroundBase(baseMS: number): number {
+  const spread = baseMS * FLUSH_JITTER_RATIO;
+  return Math.round(baseMS - spread + Math.random() * spread * 2);
+}
+
 /**
  * Hard caps on the two client-side dedupe structures.
  *
@@ -158,7 +184,7 @@ export class RequestBatcher {
     // resume from the previous incident's ceiling instead of from the base
     // interval.
     this.retryCeilingMS = 0;
-    this.scheduleFlush(this.libConfig.batchFlushIntervalMs);
+    this.scheduleFlush(jitterAroundBase(this.libConfig.batchFlushIntervalMs));
   }
 
   private resetBatchSize(): void {
@@ -499,9 +525,12 @@ export class RequestBatcher {
         // Retry with exponential backoff, spread across the fleet with full
         // jitter. The ceiling doubles deterministically; the sleep is a random
         // point below it. See `fullJitter` for why.
+        // Base off the *configured* interval, not `flushInterval` — the latter
+        // now carries the steady-state jitter, and the backoff schedule should
+        // not inherit an unrelated random draw.
         let ceilingMS = Math.min(
           MAX_RETRY_INTERVAL_MS,
-          (this.retryCeilingMS || this.flushInterval) * 2
+          (this.retryCeilingMS || this.libConfig.batchFlushIntervalMs) * 2
         );
         let retryMS = fullJitter(ceilingMS);
 
