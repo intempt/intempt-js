@@ -258,6 +258,12 @@ describe('RequestBatcher', () => {
       vi.spyOn(Math, 'random').mockReturnValue(0.5);
 
       for (let i = 0; i < 20; i++) {
+        // Hold the circuit breaker closed. It would otherwise trip at 5 failures
+        // and stop sending long before the ceiling reaches its cap — correct
+        // behaviour, but it is the *ceiling* under test here, so the two are
+        // isolated. The breaker has its own tests below.
+        (batcher as any).consecutiveSendFailures = 0;
+        (batcher as any).breakerOpenUntilMS = 0;
         await batcher.enqueue(event(`evt-cap-${i}`));
         await batcher.flush();
       }
@@ -281,6 +287,112 @@ describe('RequestBatcher', () => {
       await batcher.flush();
 
       expect((batcher as any).retryCeilingMS).toBe(0);
+    });
+
+    // --- Circuit breaker ----------------------------------------------------
+
+    /** Drive `n` failing flushes, one event each. */
+    async function failTimes(n: number, tag: string) {
+      for (let i = 0; i < n; i++) {
+        await batcher.enqueue(event(`evt-${tag}-${i}`));
+        await batcher.flush();
+      }
+    }
+
+    it('stops sending entirely after five consecutive failures', async () => {
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 500, ok: false };
+
+      await failTimes(5, 'trip');
+      expect(sendCalls).toHaveLength(5);
+
+      // Jitter spreads retries but does not reduce how many a client makes.
+      // Against a service that is actually down, continuing to knock is pure
+      // waste — and worst at the moment of recovery, when every client's backlog
+      // arrives at once.
+      await batcher.enqueue(event('evt-trip-after'));
+      await batcher.flush();
+      expect(sendCalls).toHaveLength(5);
+    });
+
+    it('keeps accepting events while the breaker is open', async () => {
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 500, ok: false };
+      await failTimes(5, 'open');
+
+      // Open means "stop sending", never "stop collecting". Dropping events here
+      // would turn an ingest outage into permanent client-side data loss.
+      await batcher.enqueue(event('evt-open-queued'));
+      const queued = await (batcher as any).queue.fillBatch(100);
+      expect(queued.length).toBeGreaterThan(0);
+    });
+
+    it('probes once when the window expires and closes on success', async () => {
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 500, ok: false };
+      await failTimes(5, 'probe');
+      expect(sendCalls).toHaveLength(5);
+
+      // Move past the open window without firing the scheduled timer, so this
+      // asserts the guard in flush() rather than the scheduler.
+      vi.setSystemTime(Date.now() + 70_000);
+      defaultResponse = { httpStatusCode: 200, ok: true };
+
+      await batcher.enqueue(event('evt-probe-recovery'));
+      await batcher.flush();
+
+      expect(sendCalls.length).toBeGreaterThan(5);
+      expect((batcher as any).breakerOpenUntilMS).toBe(0);
+      expect((batcher as any).consecutiveSendFailures).toBe(0);
+    });
+
+    it('reopens when the half-open probe also fails', async () => {
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 500, ok: false };
+      await failTimes(5, 'reprobe');
+
+      vi.setSystemTime(Date.now() + 70_000);
+      await batcher.enqueue(event('evt-reprobe-still-down'));
+      await batcher.flush();
+      const afterProbe = sendCalls.length;
+
+      // One probe failing means the service is still down — it must not resume
+      // normal traffic just because the window elapsed.
+      await batcher.enqueue(event('evt-reprobe-blocked'));
+      await batcher.flush();
+      expect(sendCalls).toHaveLength(afterProbe);
+      expect((batcher as any).breakerOpenUntilMS).toBeGreaterThan(Date.now());
+    });
+
+    it('lets an unload flush through even with the breaker open', async () => {
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 500, ok: false };
+      await failTimes(5, 'unload');
+      const beforeUnload = sendCalls.length;
+
+      // Last chance these events ever get. One keepalive request from a dying
+      // page is not the load the breaker exists to shed.
+      await batcher.enqueue(event('evt-unload-final'));
+      await batcher.flush({ unloading: true });
+
+      expect(sendCalls.length).toBeGreaterThan(beforeUnload);
+    });
+
+    it('counts only consecutive failures, so blips do not accumulate', async () => {
+      vi.useFakeTimers();
+
+      // Four separate two-failure blips, each cleared by a success, must never
+      // trip a breaker that is meant to detect a sustained outage.
+      for (let round = 0; round < 4; round++) {
+        defaultResponse = { httpStatusCode: 500, ok: false };
+        await failTimes(2, `blip-${round}`);
+        defaultResponse = { httpStatusCode: 200, ok: true };
+        await batcher.enqueue(event(`evt-blip-ok-${round}`));
+        await batcher.flush();
+      }
+
+      expect((batcher as any).consecutiveSendFailures).toBe(0);
+      expect((batcher as any).breakerOpenUntilMS).toBe(0);
     });
 
     it('honours Retry-After over its own backoff', async () => {

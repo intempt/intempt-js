@@ -12,9 +12,9 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Next action** | **§3 — circuit breaker** (load shedding 2 of 3). Jitter ✅ landed. |
-| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **backoff jitter ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Full jitter on retry backoff (§3a)**. Unit 135 / Cypress 213, all passing. Bundle 79.75 kB / 22.62 kB gzip. |
+| **Next action** | **§3 — bounded queue + drop policy** (load shedding 3 of 3). Has open design questions; ask before building. |
+| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. Unit 141 / Cypress 213, all passing. Bundle 80.25 kB / 22.75 kB gzip. |
 
 ---
 
@@ -103,9 +103,9 @@ Recorded so they are not re-litigated:
 
 Remaining work that needs nothing from anyone else:
 
-1. **Load shedding, client-side three of four — in progress.** Jitter ✅ (§3a).
-   Next a circuit breaker, then a bounded queue with an explicit drop policy
-   (today the queue grows until quota fails, and quota failure is silent).
+1. **Load shedding, client-side three of four — in progress.** Jitter ✅ (§3a),
+   circuit breaker ✅ (§3b). Remaining: a bounded queue with an explicit drop
+   policy (today the queue grows until quota fails, and quota failure is silent).
 2. Rest of Phase 2 — port the guard suites into the unit tier, golden-file
    contract tests on the payload shape, `ci.yml` so the tiers gate merges.
 3. Cross-subdomain consent cookie (the D15 limitation).
@@ -163,17 +163,64 @@ what this SDK shipped (ours is a port). They jitter their shared-lock poll
 (`shared-lock.js:68`) but never the backoff. So this item is *ahead* of the
 comparator, not catching up to it — do not "correct" it back toward Mixpanel.
 
-## 3. Next concrete action — circuit breaker
+## 3b. Load shedding 2 of 3 — circuit breaker ✅
 
-Load shedding 2 of 3. After N consecutive failures, stop attempting for a long
-window rather than probing every interval. Jitter spreads the herd; it does not
-reduce the total number of attempts a client makes against an ingest tier that is
-genuinely down — that is this item's job.
+Landed 2026-08-11 in `src/shared/queue/requestBatcher.ts`. **Parameters the user
+chose — do not re-litigate:** trip at **5** consecutive delivery failures, open
+window **60s jittered**, **per-tab and in memory**.
 
-Then, 3 of 3: **a bounded queue with an explicit drop policy.** Today the queue
-grows until storage quota fails, and quota failure is **silent**. A cap plus a
-deliberate policy (drop oldest, count the drops, report the count) turns silent
-data loss into a measurable number.
+Jitter spread retries across the fleet but did not reduce how many a client
+makes: against an ingest tier that is genuinely down, every client kept knocking
+forever, and the moment of recovery — when every client's backlog is deepest — is
+exactly when that traffic is most damaging. The breaker adds the missing step:
+conclude the service is down, stop, and test recovery with a **single probe**
+instead of the whole queue.
+
+State is two fields, `consecutiveSendFailures` and `breakerOpenUntilMS`
+(`0` = closed). Open means the guard at the top of `flush()` returns without
+sending; the first flush after the window passes is the half-open probe, which a
+success closes and a failure re-opens.
+
+**Four decisions embedded in the code, each with a test:**
+
+- **Guarded in `flush()`, not only at the scheduler.** `flush()` has several
+  other callers (enqueue-triggered, the post-success continuation, the timeout
+  path) that would otherwise walk straight past an open breaker.
+- **An unload flush bypasses the breaker.** That is the last chance those events
+  ever get, and one keepalive request from a dying page is not the load the
+  breaker exists to shed.
+- **Open stops sending, never collecting.** Events keep queueing, or an ingest
+  outage would become permanent client-side loss. (This is what makes item 3 of 3
+  below load-bearing: the queue now grows during exactly the window the breaker
+  holds open.)
+- **400/413 do not touch the counter in either direction.** Ingest is up and
+  rejecting a specific payload — neither evidence of an outage nor of recovery.
+  Only a confirmed delivery closes the breaker.
+
+**Per-tab was chosen over shared-via-storage** because a shared breaker needs
+persisted state, a staleness policy and cross-tab race handling — real complexity
+immediately after per-event records got `SharedLock` off the hot path (§6c). A
+multi-tab user sends a few extra probes; that is nothing against the fleet-wide
+reduction.
+
+**Test note:** `caps the jittered backoff ceiling at ten minutes` now holds the
+breaker closed by hand. The breaker legitimately trips at 5 failures, long before
+the ceiling reaches its cap, so the two mechanisms are tested in isolation.
+6 breaker tests added (141 unit total).
+
+## 3. Next concrete action — bounded queue with an explicit drop policy
+
+Load shedding 3 of 3, and now the most valuable remaining item, because §3b made
+it sharper: the breaker deliberately holds sending shut for 60s at a time while
+events keep queueing, so the unbounded queue is now guaranteed to grow during
+precisely the situation the breaker exists to manage.
+
+Today the queue grows until storage quota fails, and **quota failure is silent**.
+A cap plus a deliberate policy — drop oldest, count the drops, report the count —
+turns silent data loss into a measurable number. Design questions to settle with
+the user first: cap by event count or bytes, drop oldest or newest, and how the
+drop count is surfaced (it needs somewhere to go, which ties into the Phase 4
+structured logger).
 
 The fourth load-shedding item — a server-controlled brake — is **backlogged**, it
 needs backend work. See `BACKEND.md` §5.
@@ -472,7 +519,7 @@ not behaviour. If they break again, prefer rewriting them to go through
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
 | 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (105 tests, gate enforced); guard-suite port, contract tests and WDIO tier 2 remain |
-| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding 🟡 **jitter ✅, circuit breaker ⬜ next, bounded queue ⬜** |
+| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding 🟡 **jitter ✅, circuit breaker ✅, bounded queue ⬜ next** |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | ⬜ |
 

@@ -52,6 +52,26 @@ function fullJitter(ceilingMS: number): number {
 const FLUSH_JITTER_RATIO = 0.1;
 
 /**
+ * Circuit breaker. Consecutive failed sends before we stop attempting entirely,
+ * and how long we then stay stopped before probing.
+ *
+ * Jitter spreads retries across the fleet but does not reduce how many a client
+ * makes: against an ingest tier that is genuinely down, every client keeps
+ * knocking indefinitely, and the moment ingest recovers is exactly when the
+ * accumulated backlog hits it hardest. The breaker adds the missing behaviour —
+ * conclude the service is down, stop, and test recovery with a single probe
+ * rather than the whole queue.
+ *
+ * 5 failures spans roughly a minute or two under the jittered backoff: long
+ * enough that a transient blip does not trip it, short enough to stop wasting
+ * attempts early in a real outage. The 60s open window is itself jittered, so
+ * probes do not arrive as a synchronised wave — a breaker that reopened every
+ * client at the same instant would recreate the herd it exists to prevent.
+ */
+const CIRCUIT_BREAKER_THRESHOLD = 5;
+const CIRCUIT_BREAKER_OPEN_MS = 60 * 1000;
+
+/**
  * Spread the *steady-state* flush interval across a narrow band around its
  * configured value.
  *
@@ -116,6 +136,23 @@ export class RequestBatcher {
   private requestInProgress: boolean = false;
   private timeoutID: number | null = null;
   private consecutiveRemovalFailures: number = 0;
+  /**
+   * Circuit breaker state. Per-tab and in memory by deliberate choice: a shared
+   * breaker would need persisted state, a staleness policy and cross-tab race
+   * handling, right after per-event queue records got `SharedLock` off the hot
+   * path. A multi-tab user sends a few more probes; that is nothing against the
+   * fleet-wide reduction.
+   *
+   * `consecutiveSendFailures` counts *delivery* failures only — it is unrelated
+   * to `consecutiveRemovalFailures` above, which counts local queue-removal
+   * failures and disables batching outright.
+   *
+   * `breakerOpenUntilMS` of 0 means closed. When it is in the future the breaker
+   * is open and `flush()` sends nothing; the first flush after it passes is the
+   * half-open probe, which either closes the breaker or reopens it.
+   */
+  private consecutiveSendFailures: number = 0;
+  private breakerOpenUntilMS: number = 0;
   private itemIdsSentSuccessfully: Map<string, number> = new Map();
   private sentEventIds: Set<string> = new Set();
   private sentEventIdsKey: string;
@@ -177,6 +214,19 @@ export class RequestBatcher {
         }
       }, this.flushInterval);
     }
+  }
+
+  /**
+   * Return the breaker to closed after a confirmed delivery.
+   *
+   * Only a real delivery clears this. A 400 or 413 deliberately does not touch
+   * the counter in either direction: those mean ingest is up and rejecting a
+   * specific payload, which is neither evidence of an outage nor evidence of
+   * recovery.
+   */
+  private closeCircuit(): void {
+    this.consecutiveSendFailures = 0;
+    this.breakerOpenUntilMS = 0;
   }
 
   private resetFlush(): void {
@@ -338,6 +388,19 @@ export class RequestBatcher {
       return;
     }
 
+    // Breaker open: send nothing, but keep accepting events into the queue so
+    // nothing is lost. Guarded here rather than only at the scheduler because
+    // flush() has several other callers (enqueue-triggered flushes, the
+    // post-success continuation) that would otherwise walk straight past an open
+    // breaker.
+    //
+    // An unload flush bypasses it deliberately. That is the last chance these
+    // events ever get, and one keepalive request from a dying page is not the
+    // load the breaker exists to shed.
+    if (!options.unloading && this.breakerOpenUntilMS > Date.now()) {
+      return;
+    }
+
     this.requestInProgress = true;
     const timeoutMS = this.libConfig.batchRequestTimeoutMs;
     const startTime = Date.now();
@@ -480,6 +543,7 @@ export class RequestBatcher {
         // arrived or is inconclusive, keep the old behaviour and leave them
         // queued for the next load — that is the safe direction.
         if (this.isDefiniteSuccess(response)) {
+          this.closeCircuit();
           const succeeded = await this.removeItemsFromQueue(itemIds);
           this.recordDeliveryAttempts(itemIds, succeeded);
         } else if (response) {
@@ -549,10 +613,28 @@ export class RequestBatcher {
         }
 
         this.retryCeilingMS = ceilingMS;
-        this.reportError(`Error; retry in ${retryMS} ms`);
         // Definitely not ingested — release the pre-send mark so the retry can
         // actually send these rather than evicting them as duplicates.
         this.unmarkEventIdsSent(eventIdsInBatch);
+
+        // Trip the breaker once failures are consistent enough to call it an
+        // outage rather than a blip. A send that fails while half-open lands
+        // here too and re-opens, which is the intended behaviour: one probe
+        // failing means the service is still down.
+        if (++this.consecutiveSendFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+          const openMS = jitterAroundBase(CIRCUIT_BREAKER_OPEN_MS);
+          this.breakerOpenUntilMS = Date.now() + openMS;
+          this.reportError(
+            `${this.consecutiveSendFailures} consecutive failures; ` +
+              `circuit breaker open for ${openMS} ms`
+          );
+          // Schedule the half-open probe for when the window expires. Events
+          // keep queueing meanwhile; only sending stops.
+          this.scheduleFlush(openMS);
+          return;
+        }
+
+        this.reportError(`Error; retry in ${retryMS} ms`);
         this.scheduleFlush(retryMS);
         return;
       }
@@ -577,6 +659,12 @@ export class RequestBatcher {
       }
 
       // Success - remove items from queue
+      //
+      // Ingest answered, so the service is up: close the breaker. If this was
+      // the half-open probe, that is what promotes it back to closed and lets
+      // the queue drain normally.
+      this.closeCircuit();
+
       const succeeded = await this.removeItemsFromQueue(itemIds);
       this.recordDeliveryAttempts(itemIds, succeeded);
 
