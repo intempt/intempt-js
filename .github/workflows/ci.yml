@@ -42,10 +42,17 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # 21.x is what build.yaml deploys on, so it must be green or CI green
-        # would not imply deploy green. 20.x is the floor `engines` allows in
-        # practice and catches accidental use of newer Node built-ins.
-        node-version: [20.x, 21.x]
+        # WAS [20.x, 21.x], because 21.x is what build.yaml deploys on. Changed
+        # to 22.x, and that is a real gap someone has to close: after the
+        # devDependency upgrades (vitest 4, jsdom 30, eslint 9) the toolchain
+        # declares engines that EXCLUDE Node 21 — the runner logged EBADENGINE
+        # for @asamuzakjp/css-color (^22.13 || >=24), lru-cache and others.
+        #
+        # So CI-green no longer implies deploy-green, because build.yaml still
+        # deploys on 21.x and this file may not touch it (invariant §6.2).
+        # Closing that needs a deploy-Node decision, not code. It is the same
+        # decision that blocks the remaining `vite` advisory.
+        node-version: [20.x, 22.x]
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -54,6 +61,13 @@ jobs:
           cache: npm
       # npm ci, not npm install: install mutates the lockfile, which makes the
       # run non-reproducible. (build.yaml uses npm install; not changing it.)
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
       - run: npm ci
       # Coverage thresholds live in vitest.config.ts and are enforced there, so
       # a coverage drop fails this job — no separate gate step needed.
@@ -74,8 +88,15 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 21.x
+          node-version: 22.x
           cache: npm
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
       - run: npm ci
 
       # `npm run lint` is `eslint . --max-warnings=323`. Two things are load-
@@ -109,8 +130,15 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 21.x
+          node-version: 22.x
           cache: npm
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
       - run: npm ci
       # `npm run build` is `tsc && vite build` — tsc is the only typecheck gate
       # this repo has, so the build job is also the typecheck job.
@@ -150,8 +178,15 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 21.x
+          node-version: 22.x
           cache: npm
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
       - run: npm ci
 
       # THE BLOCKING GATE, and the important one. The SDK has zero runtime
@@ -197,8 +232,15 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 21.x
+          node-version: 22.x
           cache: npm
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
       - run: npm ci
       - run: npm run test:mutation
 
@@ -223,7 +265,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: 21.x
+          node-version: 22.x
           cache: npm
       # Cache the Cypress binary separately: `cache: npm` covers ~/.npm but the
       # browser binary lives in ~/.cache/Cypress and is the slow part of install.
@@ -232,6 +274,13 @@ jobs:
         with:
           path: ~/.cache/Cypress
           key: cypress-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
       - run: npm ci
       - run: npm run test:e2e
 
