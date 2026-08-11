@@ -155,6 +155,19 @@ export class IntemptJs extends IntemptJsGuard {
   }
 
   /**
+   * The profileId/sessionId/pageId triplet every event carries. Re-read on
+   * every call rather than cached, so a session rollover or page change is
+   * reflected immediately instead of drifting on a long-lived SPA tab.
+   */
+  private _ids(): { profileId: string; sessionId: string; pageId: string } {
+    return {
+      profileId: this._autoTracker.getProfileId(),
+      sessionId: this._autoTracker.getSessionId(),
+      pageId: this._autoTracker.getPageId(),
+    };
+  }
+
+  /**
    * Use for user identification;
    * Optional params { eventTitle: string, userAttributes: {[key:string]:any}, data: {[key:string]:any} }
    * @param { IdentifyParams } params
@@ -167,9 +180,7 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isIdentifyValid(params)) return;
 
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new IdentifyModel({
       ...params,
@@ -190,9 +201,7 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isGroupValid(params)) return;
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new GroupModel({
       ...params,
@@ -212,9 +221,7 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isTrackValid(params)) return;
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new TrackModel({
       ...params,
@@ -235,9 +242,7 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isRecordValid(params)) return;
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new RecordModel({
       ...params,
@@ -277,9 +282,17 @@ export class IntemptJs extends IntemptJsGuard {
    * @param { ConsentParams } params
    * @required params { action: 'accept' | 'reject', validUntil: number }
    * @return void
+   *
+   * Deliberately NOT gated on `isUserOptIn()` (D-5). Every other public method
+   * skips work while opted out because that work is *tracking* — this one is
+   * *recording a consent decision*, which is an audit record a regulator can
+   * ask for. `optOut()` then `consent({action:'reject'})` must still produce
+   * that record; gating it on the opt-out flag would silently discard the very
+   * evidence of the refusal, and the reverse call order would break
+   * re-consent. The record survives regardless of tracking state; only its
+   * own shape validation (`isConsentValid`) can stop it.
    * */
   consent(params: ConsentParams):void {
-    if (!this.isUserOptIn()) return;
     if (!this.isConsentValid(params)) return;
 
     const profileId = this._autoTracker.getProfileId();
@@ -303,9 +316,7 @@ export class IntemptJs extends IntemptJsGuard {
   productAdd(params: ProductParams){
     if (!this.isUserOptIn()) return;
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new ProductModel({
       eventTitle: IntemptEventName.PRODUCT_ADD,
@@ -324,9 +335,7 @@ export class IntemptJs extends IntemptJsGuard {
   productOrdered(params: ProductParams[]){
     if (!this.isUserOptIn()) return;
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new ProductModel({
       eventTitle: IntemptEventName.PRODUCT_ORDER,
@@ -345,9 +354,7 @@ export class IntemptJs extends IntemptJsGuard {
 
   productView(productId: string){
     if (!this.isUserOptIn()) return;
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new ProductModel({
       eventTitle: IntemptEventName.PRODUCT_VIEW,
@@ -374,6 +381,8 @@ export class IntemptJs extends IntemptJsGuard {
   }
 
   async recommendation (params:RecommendationParams){
+    if (!this.isUserOptIn()) return null;
+
     const {organization, sourceId, project, writeKey} = this._config;
     const {id, quantity, fields} = params
     const url = `${this._api}/${organization}/projects/${project}/feeds/${id}/data`;
