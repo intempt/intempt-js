@@ -12,9 +12,9 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Next action** | **Continue the mutation campaign to the user-set 85% floor — §3f-i has the file-by-file worklist and the remaining estimate (~100–130 tests).** Next file: the rest of `requestBatcher.ts` (flush/enqueue/scheduling, lines 175–560). Nothing is blocked. |
-| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 75.94%, floor ratcheted to 73, climbing to a user-set 85% (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. Unit **444** / Cypress **122**, all passing. Bundle 81.78 kB / 23.09 kB gzip. |
+| **Next action** | **Continue the mutation campaign to the user-set 85% floor — §3f-i has the file-by-file worklist and the remaining estimate (~100–130 tests).** Next file: the rest of `requestBatcher.ts` (flush/enqueue/scheduling, lines 175–560). Nothing is blocked. **FRONTEND #3 (CI breadth) and #4 (client-side security) are done — §3g; the one thing they leave open needs a Node-21 decision, not code.** |
+| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅** + **guard suites ported ✅** + **mutation testing ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. **Phase 5 CI breadth ✅ + Phase 4 client-side security ✅ (§3g)**. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. **Guard suites ported to the unit tier + coverage scope and thresholds raised (§3e)**. **StrykerJS mutation testing, 75.94%, floor ratcheted to 73, climbing to a user-set 85% (§3f)**. **`maxQueuedEvents` threaded through `RequestBatcher` — the §3c cap was not actually overridable (§3f-i)**. Unit **444** / Cypress **122**, all passing. **FRONTEND #3 CI breadth + #4 client-side security (§3g): ESLint/Prettier + `static` and `audit` jobs, `.size-limit.json`, `release.yml`, all actions SHA-pinned, Sonar gate on, devDep advisories 19 → 4, bundle secret scan, `choices.service.ts:94` guarded, SRI/CSP in `USAGE.md`.** Bundle 81.82 kB / 23.09 kB gzip. |
 
 ---
 
@@ -552,6 +552,129 @@ without needing a property test to stumble into them. Open
 `reports/mutation/index.html` after a run — it is gitignored, and it lists every
 survivor with its diff.
 
+## 3g. FRONTEND #3 + #4 — CI breadth and client-side security ✅
+
+Landed 2026-08-11 on `lane/a-ci-tooling`. Delivers **FRONTEND.md item #3 in
+full** and **item #4 except the credential itself** (which is `BACKEND.md` 1).
+
+**New tooling, all green on arrival — that was the binding constraint, not an
+afterthought.** ci.yml's old bottom-of-file note explained that lint/size/audit
+were omitted precisely because a gate that is red on day one gets disabled, so
+each one here was calibrated against a measurement first.
+
+| File | What it pins |
+|---|---|
+| `eslint.config.js` | flat config, **0 errors / 323 warnings** |
+| `.prettierignore` | + generated dirs (coverage, reports, `.stryker-tmp`) |
+| `.size-limit.json` | gzip **23.06 kB**, brotli **20.12 kB**, raw **81.83 kB**, each ~2% headroom |
+| `scripts/scanBundleSecrets.js` | bundle credential scan |
+| `.github/workflows/release.yml` | npm publish + provenance |
+
+New scripts: `lint`, `lint:fix`, `format`, `format:check`, `size`,
+`scan:secrets`. New ci.yml jobs: **`static`** (eslint blocking, prettier
+advisory) and **`audit`**; size + secret scan joined `build` because both need
+the artifact and building twice would double the slowest step. Every action in
+`ci.yml`, `release.yml` and `analyze.yaml` is now **SHA-pinned with a `# vX.Y.Z`
+comment** — `@v4` is mutable, and whoever owns the tag owns what runs with this
+repo's `GITHUB_TOKEN`. The Sonar quality gate is un-commented.
+
+**Decisions worth not re-deriving:**
+
+- **`no-explicit-any` and `no-console` are WARNINGS, and `npm run lint` is
+  `eslint . --max-warnings=323`.** 323 is the exact measured count, so it is a
+  **ratchet**: the 61 `any` and 54 `console.*` cannot grow, but they do not block
+  today. FRONTEND #2/#6 remove them — lower the number as they do and flip both
+  rules to `error` at zero. **Never raise it.**
+- **8 more rules were demoted to `warn` with their counts recorded in the
+  config**, because the recommended presets produced **92 errors**, all in `src/`.
+  Biggest: `no-unused-expressions` 47 (mostly `a?.b()` statements),
+  `no-extra-boolean-cast` 15, `no-useless-escape` 9 (bot-detection and
+  reserved-word regexes — changing a regex is a behaviour change, not a drive-by).
+  Rules that *are* errors each measured zero first.
+- **Prettier is advisory (`continue-on-error`), deliberately.** **98 of 107 files
+  fail `prettier --check`** — `.prettierrc` was committed long ago and never
+  enforced. The fix is one repo-wide `npm run format`, but it touches nearly all
+  of `src/` and `tests/` and would conflict with every in-flight branch, so it
+  must land alone. Delete the `continue-on-error` when it does.
+- **Type-aware ESLint is off.** `tsc` in `npm run build` is already the typecheck
+  gate, and the `.ts`-extension import convention confuses the type-aware rules'
+  program resolution — the same convention that forced `vitest.related: false`
+  in §3f.
+- **`release.yml` never triggers on a branch push** — `v*` tags or
+  `workflow_dispatch` only, and a manual run defaults to `dry-run: true`. npm
+  versions cannot be withdrawn. `id-token: write` is required or the provenance
+  publish *fails* rather than shipping unattested.
+
+**One latent bug found by the linter and left for #6 with a pointer:**
+`choices.service.ts:164` passes an `async` function as a Promise executor, so a
+throw inside it is swallowed instead of rejecting.
+
+### 3g-i. Supply chain: 19 advisories → 4, and why vite is genuinely stuck
+
+**Measured before: 19 (8 high, 4 critical). After: 4 (1 high, 3 moderate).** All
+were devDependencies — the SDK has had zero runtime deps since `psl` went (§5) —
+so none ever reached a customer bundle.
+
+Majors, each verified before the next: **cypress 13→15** (122/122 e2e),
+**vitest 2→4** (444/444 unit, coverage gate holds, **stryker still 75.94 vs
+break 73**), **@vitest/coverage-v8 2→4**, **@rollup/plugin-terser 0.4→1.0**
+(bundle output byte-identical).
+
+**Cypress 15 forced one real fix, not just a type error.** `cy.exec()` renamed
+`code` → `exitCode`, so the old read was `undefined`, `undefined !== 0` was
+always true, and `bundleReservedWords.cy.ts`'s `before()` hook threw *"Build
+failed with exit code undefined"* on a good build. `tsc` caught it.
+
+**`vite` is BLOCKED, and this is the one thing here not to re-litigate.** The
+remaining high needs vite ≥ 6.4.3, and **every vite from 6 onward declares
+`engines: node ^20.19.0 || >=22.12.0` — which excludes Node 21.x, the version
+`build.yaml` deploys on.** Upgrading vite therefore requires moving the deploy
+off Node 21 first, and `build.yaml` is invariant §6.2. All three vite advisories
+are `vite dev` server issues (path traversal, `server.fs.deny` bypass,
+launch-editor NTLM on Windows) and this repo ships `vite build` output, so none
+is reachable in CI or in a customer bundle. The other three moderates (esbuild,
+qs, typed-rest-client) are transitive under vite/cypress/stryker with no fix
+that does not also cross the Node 21 line.
+
+Hence the **`audit` job has two halves**: blocking `npm audit --omit=dev
+--audit-level=low` (**currently 0** — it defends the zero-runtime-dep property
+and fails the day a runtime dep arrives with an advisory), and an advisory
+dev-dep audit at `--audit-level=high`. Make the second blocking once the Node
+bump lands. **Do not work around `build.yaml` to close it.**
+
+### 3g-ii. Client-side security
+
+- **Bundle secret scan** (`scripts/scanBundleSecrets.js`, in `build` and
+  `release`). Matters here more than most repos: `build.yaml` overwrites **one
+  mutable CDN path** every customer loads, with nothing to roll back to.
+  Calibrated for low false positives against the real bundle — the two things in
+  it that look like secrets are the `Authorization` **header name** (5
+  occurrences, ignored; only a scheme + literal *value* is a finding) and the
+  62-char base62 alphabet in the id generator (excluded by an ordering +
+  Shannon-entropy check, not by hardcoding the string, so a real 62-char key
+  there is still caught). **Verified in both directions:** real bundle exits 0; a
+  copy with five planted secrets is caught 5/5 and exits 1. A scanner tested only
+  against clean input is indistinguishable from `exit 0`.
+- **`console.error('credentials not found')` guarded** (`choices.service.ts:94`)
+  — the last unguarded diagnostic; the other 14 sites already gate on
+  `EnvConfig.isProduction()`. Bundle 81.80 → **81.82 kB** (gzip 23.09 unchanged).
+- **SRI + CSP guidance in `USAGE.md`** (§1a, §1b). CSP directives are derived
+  from `.env.production` and the code, and note two real traps: blocking
+  `ipapi.co` is supported (events lose geo fields rather than failing), and the
+  queue stub is an **inline script** a strict CSP silently blocks, losing every
+  pre-load call.
+  **SRI ships as a warning, not a recommendation** — `/v1/intempt.min.js` is
+  *mutable*, so a correct hash stops matching at the next release and the browser
+  then refuses to run the SDK at all. Documenting SRI without that would document
+  a future outage. Customers needing SRI are pointed at support for a versioned
+  URL. **The real fix is an immutable versioned CDN path** — same root cause as
+  invariant §6.2 and the `af1a16b` incident.
+
+**Not verified, and cannot be from here: that any of this is green on GitHub.**
+The branch has not been pushed. Every command each job runs was run locally on
+this branch and passes. `release.yml` is entirely unexercised — it needs
+`NPM_TOKEN`, an `npm-publish` environment, and a tag.
+
 ## 3. Next concrete action — pick one, nothing is blocked
 
 Client-side load shedding is **complete** (jitter §3a, breaker §3b, bounded queue
@@ -575,8 +698,10 @@ Highest value now, in the author's order:
 3. **Credential hygiene (Phase 4)** — but note this is now known to be **mostly
    blocked on the backend**, not client-side work: five call sites across four
    endpoints carry the `btoa`'d write key, and the fix is `BACKEND.md` item 1.
-   What is ours alone is small (the unguarded `console.error` at
-   `choices.service.ts:94`, and SRI/CSP guidance in the customer docs).
+   The part that was ours alone is **done — §3g-ii**: the `choices.service.ts:94`
+   diagnostic is guarded, SRI/CSP guidance is in `USAGE.md`, and a bundle secret
+   scan gates `build` and `release`. Only the credential itself remains, and it
+   is the backend's.
 4. Close the bot-detection false negative documented in §3e, if it is judged
    worth the risk — it needs the compatible;-inspection moved out of the browser
    branch, which changes behaviour for real traffic, so it wants a parity check
@@ -816,8 +941,8 @@ not behaviour. If they break again, prefer rewriting them to go through
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
 | 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (**363 tests**, gate enforced at 90/87/87/90), **`ci.yml` gates merges ✅**, **guard suites ported ✅**, **mutation testing ✅ (71.42%)**; killing queue-core survivors, contract tests and WDIO tier 2 remain |
 | 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ✅ **jitter, circuit breaker, bounded queue** (4th ⏸ BE) |
-| 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
-| 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. `browser-tests.yml` / `release.yml` / changesets remain |
+| 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | 🟡 **client-side security ✅ (§3g-ii)** — secret scan, last diagnostic guarded, SRI/CSP docs; **supply chain ✅ (§3g-i)**, 19 advisories → 4 with `vite` blocked on Node 21. Credential itself ⏸ (BE). `gdpr-utils`, logger, killing `any` remain |
+| 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. **CI breadth ✅ (§3g)**: lint/format, size budget, audit gate, SHA pins, Sonar gate, **`release.yml` ✅**. `browser-tests.yml` (needs Sauce) / changesets remain |
 
 Phase deltas assume the earlier phases landed; they are not independent.
 

@@ -33,8 +33,8 @@ Ranked by points per day. Total **+22.9 points, ~30 working days**.
 |---|---|---|---|---|
 | 1 | Packaging | 5 | +3.6 | 3d |
 | 2 | Structured logging & metrics | 6 | +3.4 | 3d |
-| 3 | CI breadth | 8 | +2.8 | 2.5d |
-| 4 | Security, the client-side half | 4 | +1.7 | 1.5d |
+| 3 | CI breadth — ✅ **done** | 8 | +2.8 | 2.5d |
+| 4 | Security, the client-side half — ✅ **done** | 4 | +1.7 | 1.5d |
 | 5 | Privacy & consent | 7 | +2.4 | 3d |
 | 6 | Code health | 10 | +1.7 | 3d |
 | 7 | Docs & DX | 9 | +2.5 | 4d |
@@ -45,9 +45,10 @@ Ranked by points per day. Total **+22.9 points, ~30 working days**.
 **Two departures from strict ranking, and the reasons:**
 
 - **Do #3 first regardless.** It is the cheapest real points on the board *and* it
-  protects everything else. Related: the branch has never been pushed, so none of
-  the gates built so far have ever actually run. That is a five-minute task and it
-  gates the value of #3, #4 and #8.
+  protects everything else. **Done 2026-08-11, together with #4.**
+  **Still true and now the single highest-leverage five minutes on this list: the
+  branch has never been pushed, so not one of these gates has ever actually run.**
+  Everything in #3 and #4 was verified locally; "green on GitHub" is unproven.
 - **#8 is last on points-per-day but unblocks #1, #6 and #9.** Refactoring the
   module split, killing `any` across the codebase, or code-splitting the bundle
   without tests on the public API is how an incident ships. Its first sub-item
@@ -80,27 +81,41 @@ The worst-scoring dimension, and entirely ours.
   computes it and has nowhere to send it), breaker state transitions.
 - A sink hook so customers can forward SDK diagnostics to their own telemetry.
 
-### 3. CI breadth — dim 8: 62 → 90 · +2.8 · 2.5d
+### 3. CI breadth — dim 8: 62 → 90 · +2.8 · 2.5d · ✅ **DONE**
 
-`ci.yml` exists (§3d) with unit + build + mutation + e2e. Missing:
+Landed 2026-08-11. Full detail, measurements and the decisions behind them:
+**CHECKPOINT §3g**.
 
-- ESLint + Prettier configs **and** gates. There is no lint config in the repo at
-  all today, which is why `ci.yml` deliberately omits a lint job.
-- `.size-limit.json` pinned at the current 81.80 kB / 23.09 kB gzip, ratcheting.
-- `release.yml`: npm publish with provenance (`publishConfig` is already set).
-- Pin every action to a SHA; `npm audit` gate once #4's upgrades land.
-- Un-comment the Sonar quality gate in `analyze.yaml`.
+- ✅ ESLint (`eslint.config.js`) + Prettier, `npm run lint`, and a `static` job.
+  `no-explicit-any`/`no-console` are **warnings** with `--max-warnings=323` as a
+  ratchet, so the gate is green on arrival; #6 below flips them to `error`.
+  Prettier is **advisory** — 98 of 107 files fail it, and the repo-wide reformat
+  must land alone.
+- ✅ `.size-limit.json` pinned at the measured gzip 23.06 kB / brotli 20.12 kB /
+  raw 81.83 kB, ~2% headroom, ratcheting down.
+- ✅ `release.yml`: npm publish with provenance, `v*` tag or `workflow_dispatch`
+  only — never on a branch push.
+- ✅ Every action SHA-pinned across `ci.yml`, `release.yml` and `analyze.yaml`;
+  `audit` job added.
+- ✅ Sonar quality gate un-commented (it reports post-merge; it does not prevent
+  — see CHECKPOINT §3g).
 
-### 4. Security, the client-side half — dim 4: 45 → 62 · +1.7 · 1.5d
+### 4. Security, the client-side half — dim 4: 45 → 62 · +1.7 · 1.5d · ✅ **DONE**
 
-The credential itself is `BACKEND.md` item 1. What is ours:
+The credential itself is `BACKEND.md` item 1 and is unchanged. Everything that
+was ours landed 2026-08-11 — CHECKPOINT §3g-i and §3g-ii.
 
-- SRI and CSP guidance for the embed snippet, in customer-facing docs.
-- Upgrade the devDependencies behind the 19 open advisories (8 high, 4 critical,
-  all devDeps — see the note at the foot of `ci.yml`), then turn the audit gate on.
-- Guard the unguarded `console.error('credentials not found')` at
-  `choices.service.ts:94` — every other diagnostic in the SDK is gated.
-- A bundle secret-scan step, so a key can never be baked into `dist/`.
+- ✅ SRI and CSP guidance in `USAGE.md` §1a/§1b. **SRI is documented as a
+  warning, not a recommendation**: `/v1/intempt.min.js` is mutable, so a pinned
+  hash breaks the SDK at the next release. The real fix is an immutable versioned
+  CDN path.
+- ✅ devDependency advisories **19 → 4** (8 high + 4 critical → 1 high + 3
+  moderate); production audit gate is on and blocking at 0. **`vite` is blocked,
+  not skipped** — the fix needs vite ≥ 6.4.3, which excludes Node 21.x in
+  `engines`, and Node 21 is what `build.yaml` deploys on.
+- ✅ `console.error('credentials not found')` at `choices.service.ts:94` guarded.
+- ✅ Bundle secret scan (`scripts/scanBundleSecrets.js`), verified to catch
+  planted secrets as well as to pass the real bundle.
 
 ### 5. Privacy & consent — dim 7: 58 → 88 · +2.4 · 3d
 
