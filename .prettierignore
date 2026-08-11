@@ -2,3 +2,13 @@ node_modules
 dist/*
 package-lock.json
 package.json
+
+# Generated output — same set .gitignore excludes. Without these, a
+# `prettier --check .` after a coverage or mutation run walks thousands of
+# generated HTML files and takes minutes.
+coverage
+reports
+.stryker-tmp
+cypress/screenshots
+cypress/videos
+standalone
