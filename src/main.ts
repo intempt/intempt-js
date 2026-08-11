@@ -62,7 +62,9 @@ setupDefaultGuards();
  * meaning what it says.
  */
 if (typeof window !== 'undefined') {
-  (window as any).__intemptGuardManager = guardManager;
+  (
+    window as Window & { __intemptGuardManager?: TrackingGuardManager }
+  ).__intemptGuardManager = guardManager;
 }
 
 // Main initialization function

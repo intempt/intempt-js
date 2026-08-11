@@ -10,6 +10,15 @@
  *   - Access: EnvConfig.getApi(), EnvConfig.getEnv(), etc.
  */
 
+/**
+ * `import.meta.env` as this SDK reads it: the same field names as {@link EnvConfig},
+ * but every one optional, because it is replaced at build time and is absent
+ * entirely under plain `tsc` or a direct import. Spelled out rather than left as
+ * `any` so that adding a field to `EnvConfig` without wiring it here is a type
+ * error instead of a silent `undefined` falling back to the default.
+ */
+type ViteEnv = Partial<EnvConfig>;
+
 export interface EnvConfig {
   readonly VITE_API: string;
   readonly VITE_CDN_LINK: string;
@@ -43,7 +52,7 @@ class EnvConfigManager {
   static initFromVite(): void {
     // Check if import.meta.env is available
     // We access it directly in try-catch since 'import' is a reserved keyword
-    let viteEnv: any = null;
+    let viteEnv: ViteEnv | null = null;
     try {
       // @ts-ignore - import.meta is a special syntax that TypeScript/webpack handles
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -62,6 +71,7 @@ class EnvConfigManager {
       // its own configuration source mutually dependent — and this line fires
       // *during* that initialisation, when the environment it would consult is
       // precisely what is missing.
+      // eslint-disable-next-line no-console -- deliberate, see the comment above
       console.warn('[EnvConfig] import.meta.env not available, using defaults');
       this.instance = { ...this.DEFAULT_CONFIG };
       return;

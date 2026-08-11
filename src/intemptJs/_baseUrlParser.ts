@@ -34,14 +34,19 @@ export class BaseURLParser {
     this.domain = urlObject.hostname;
   }
 
-  private getUtmProperties(searchParams: URLSearchParams) {
+  private getUtmProperties(
+    searchParams: URLSearchParams,
+  ): Record<UtmKeys, string> {
     const utmKeys: UtmKeys[] = Object.values(UtmKey);
+    // The seed is cast rather than typed `Partial`: the fold visits every `UtmKey`,
+    // so the result really is total, and a `Partial` return would push a bogus
+    // `| undefined` onto all five call sites.
     return utmKeys.reduce(
-      (acc: any, key: UtmKeys) => ({
+      (acc: Record<UtmKeys, string>, key: UtmKeys) => ({
         ...acc,
         [key]: searchParams.get(key) || '',
       }),
-      {},
+      {} as Record<UtmKeys, string>,
     );
   }
 }

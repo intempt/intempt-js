@@ -20,7 +20,9 @@ const ID_ALPHABET =
  */
 function randomSuffix(length: number): string {
   const cryptoObj =
-    typeof globalThis !== 'undefined' ? (globalThis as any).crypto : undefined;
+    typeof globalThis !== 'undefined'
+      ? (globalThis as { crypto?: Crypto }).crypto
+      : undefined;
   let id = '';
 
   if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
@@ -63,7 +65,7 @@ export function dispatchIntemptEvent(eventName: string, data = {}) {
 export function debounce(func: Function, wait: number) {
   let timeout: ReturnType<typeof setTimeout>;
 
-  return function (...args: any) {
+  return function (...args: unknown[]) {
     if (!!timeout) clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
   };

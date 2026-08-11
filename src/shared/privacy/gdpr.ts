@@ -96,6 +96,7 @@ function notice(message: string, sink?: (message: string) => void): void {
     // Gated on environment, matching every other diagnostic in the SDK. A
     // customer's production console is not ours to write to.
     if (!EnvConfig.isProduction()) {
+      // eslint-disable-next-line no-console -- default sink, gated above
       console.warn(message);
     }
   } catch {

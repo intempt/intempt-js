@@ -307,7 +307,9 @@ export class PlatformParser {
       }
 
       return this.defaultPlatform;
-    } catch (error: any) {
+    } catch {
+      // The parse failed on an exotic UA; the default platform is the answer, and
+      // the error object was never read. `catch {}` says that.
       return this.defaultPlatform;
     }
   }

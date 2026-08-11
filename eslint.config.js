@@ -4,13 +4,23 @@
 // the foot of .github/workflows/ci.yml for the same reasoning applied to the
 // jobs there.
 //
-// Consequence: the two rules that would actually fail today —
-// `@typescript-eslint/no-explicit-any` (61 occurrences) and `no-console` (54) —
-// are configured as WARNINGS. They are real findings and they are already
-// scheduled work: FRONTEND.md #6 (code health) kills the `any`s and #2
-// (structured logging) replaces the `console.*` calls with a levelled logger.
-// When each of those lands, flip the corresponding rule to 'error' here — that
-// flip is the ratchet that stops them coming back.
+// The two rules that could not be errors on arrival — `no-explicit-any` (61
+// occurrences then, 99 after the parallel lanes) and `no-console` (54) — were
+// WARNINGS, to be flipped once the work that removes them landed. **Both are now
+// ERRORS, as of 2026-08-12: measured zero of each in `src/`.** Every remaining
+// `console.*` in shipped code is one of five deliberate sites carrying a scoped
+// `eslint-disable-next-line no-console` with its reason (the logger's own console
+// transport, EnvConfig's pre-logger warning, the GDPR default sink, the
+// CAN'T-FIND-SCRIPT error, and one example file). Adding a sixth now fails the
+// build, which is the point of the flip.
+//
+// Still warnings, with counts measured 2026-08-12: no-unused-expressions 38,
+// no-unused-vars 32, no-extra-boolean-cast 10, no-useless-escape 9, prefer-const 3,
+// ban-ts-comment 3, and one each of no-prototype-builtins,
+// no-unsafe-function-type, no-useless-catch — 98 in total, which is what
+// `--max-warnings` is pinned to. `no-useless-escape` is deliberately last in that
+// queue: those nine are in the bot-detection and reserved-word regexes, where
+// changing an escape is a behaviour change and not a lint fix.
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettierConfig from 'eslint-config-prettier';
@@ -49,9 +59,9 @@ export default tseslint.config(
       sourceType: 'module',
     },
     rules: {
-      // ---- Scheduled to become errors; warnings today. See header. ----
-      '@typescript-eslint/no-explicit-any': 'warn',
-      'no-console': 'warn',
+      // ---- Flipped from warn to error 2026-08-12, both at zero. See header. ----
+      '@typescript-eslint/no-explicit-any': 'error',
+      'no-console': 'error',
 
       // ---- Real errors: these are bugs, not style, and the repo is clean. ----
       // Verified green on arrival: `npx eslint .` reports 0 errors for each of

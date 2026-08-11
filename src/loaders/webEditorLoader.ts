@@ -91,7 +91,9 @@ class WebEditor {
 
     if (!chOk) return;
 
-    const reply = (payload: any) => {
+    // `unknown`: this is handed to `postMessage`, which structured-clones whatever
+    // it is given. Nothing here reads it.
+    const reply = (payload: unknown) => {
       try {
         (event.source as Window)?.postMessage(payload, event.origin);
       } catch {}
@@ -168,10 +170,13 @@ class WebEditor {
         const sheet = new CSSStyleSheet();
         sheet.replaceSync(css);
         // append without breaking existing sheets
-        (shadow as any).adoptedStyleSheets = [
-          ...(shadow as any).adoptedStyleSheets,
-          sheet,
-        ];
+        // `adoptedStyleSheets` on a ShadowRoot is guarded by the feature test
+        // above; the cast names the one property being reached for rather than
+        // widening the whole root to `any`.
+        const adoptive = shadow as ShadowRoot & {
+          adoptedStyleSheets: CSSStyleSheet[];
+        };
+        adoptive.adoptedStyleSheets = [...adoptive.adoptedStyleSheets, sheet];
       } else {
         const style = document.createElement('style');
         style.textContent = css;
@@ -197,12 +202,22 @@ class WebEditor {
     appRoot: HTMLElement,
   ) {
     // @vite-ignore keeps Vite from trying to pre-bundle/transform the URL
-    const mod: any = await import(/* @vite-ignore */ this.JS_URL);
+    // A remote module fetched at runtime, so its shape is genuinely unknown until
+    // it is checked — which is what the `mount` test below does.
+    const mod: { mount?: (root: HTMLElement) => unknown } = await import(
+      /* @vite-ignore */ this.JS_URL
+    );
+
+    const globalMount = (
+      window as Window & {
+        __INTEMPT_MOUNT?: (root: HTMLElement, payload: EditorPayload) => void;
+      }
+    ).__INTEMPT_MOUNT;
 
     if (mod?.mount) {
       await mod.mount(appRoot);
-    } else if ((window as any).__INTEMPT_MOUNT) {
-      (window as any).__INTEMPT_MOUNT(appRoot, payload); // fallback: global mount function
+    } else if (globalMount) {
+      globalMount(appRoot, payload); // fallback: global mount function
     } else {
       throw new Error(
         'No mount function exported or on window.__INTEMPT_MOUNT',

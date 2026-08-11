@@ -8,8 +8,40 @@ const log = createLogger('Intempt');
 
 type QueuedCall = {
   method: string;
-  args: any[];
+  /**
+   * Whatever the host page passed to the stub before the real SDK arrived, so
+   * `unknown[]`: it is spread straight back into the real method via `apply`,
+   * which does not require knowing the types, and the method's own guard is what
+   * validates them.
+   */
+  args: unknown[];
   timestamp?: number;
+};
+
+/**
+ * A promise the stub handed the host page and is still holding open, so the real
+ * SDK can settle it once the queued call actually runs. Both handlers are optional
+ * because the stub is written by whoever installed the snippet, not by us — this is
+ * the shape we hope for, checked before use.
+ */
+type PendingStubPromise = {
+  resolve?: (value: unknown) => void;
+  reject?: (reason?: unknown) => void;
+};
+
+/**
+ * The pre-init stub, as it may exist on `window` when this bundle loads. Every
+ * field is optional and every name is a guess at another implementation's
+ * convention — that is why the reads below check four different queue names before
+ * giving up. Typed as a shape rather than `any` so those reads are visibly
+ * defensive instead of accidentally permitted.
+ */
+type IntemptStub = {
+  _queue?: unknown;
+  _stubQueue?: unknown;
+  queue?: unknown;
+  __queue?: unknown;
+  _pendingPromises?: unknown;
 };
 
 /**
@@ -65,6 +97,7 @@ function getIntemptConfig(): IntemptConfig {
     // message is the only diagnostic that exists. It is also the known signature
     // of the mutable `/v1` CDN path coupling, and support has told customers to
     // look for this exact string. Changing it would break that.
+    // eslint-disable-next-line no-console -- deliberate: see the comment above.
     console.error("CAN'T FIND SCRIPT");
     return {
       project: '',
@@ -111,12 +144,12 @@ function getIntemptConfig(): IntemptConfig {
 function extractStubQueue(): QueuedCall[] | null {
   if (!window.intempt) return null;
 
-  const stub = window.intempt as any;
+  const stub = window.intempt as IntemptStub;
 
-  if (Array.isArray(stub._queue)) return stub._queue;
-  if (Array.isArray(stub._stubQueue)) return stub._stubQueue;
-  if (Array.isArray(stub.queue)) return stub.queue;
-  if (Array.isArray(stub.__queue)) return stub.__queue;
+  if (Array.isArray(stub._queue)) return stub._queue as QueuedCall[];
+  if (Array.isArray(stub._stubQueue)) return stub._stubQueue as QueuedCall[];
+  if (Array.isArray(stub.queue)) return stub.queue as QueuedCall[];
+  if (Array.isArray(stub.__queue)) return stub.__queue as QueuedCall[];
 
   return null;
 }
@@ -124,11 +157,13 @@ function extractStubQueue(): QueuedCall[] | null {
 /**
  * Extracts pending promises from stub if it exists
  */
-function extractStubPromises(): any[] | null {
+function extractStubPromises(): PendingStubPromise[] | null {
   if (!window.intempt) return null;
 
-  const stub = window.intempt as any;
-  if (Array.isArray(stub._pendingPromises)) return stub._pendingPromises;
+  const stub = window.intempt as IntemptStub;
+  if (Array.isArray(stub._pendingPromises)) {
+    return stub._pendingPromises as PendingStubPromise[];
+  }
 
   return null;
 }
@@ -198,7 +233,7 @@ function removeStubScriptTag(): void {
 function replayQueuedCalls(
   realIntempt: IntemptJs,
   queue: QueuedCall[],
-  pendingPromises: any[] | null,
+  pendingPromises: PendingStubPromise[] | null,
 ): void {
   if (!queue || queue.length === 0) return;
 
@@ -206,37 +241,46 @@ function replayQueuedCalls(
 
   for (const call of queue) {
     try {
-      const fn = (realIntempt as any)[call.method];
+      // Indexed by a string that came off the page, so the lookup is unavoidably
+      // dynamic; `unknown` then forces the `typeof` check below rather than
+      // trusting it to be callable.
+      const fn = (realIntempt as unknown as Record<string, unknown>)[
+        call.method
+      ];
       if (typeof fn !== 'function') {
         log.warn(`method ${call.method} not found on IntemptJs instance`);
         continue;
       }
 
-      const result = fn.apply(realIntempt, call.args);
+      const result = (fn as (...args: unknown[]) => unknown).apply(
+        realIntempt,
+        call.args,
+      );
 
       // Handle async methods (recommendation returns Promise)
       if (result instanceof Promise) {
-        let promiseInfo: any = null;
+        let promiseInfo: PendingStubPromise | null = null;
 
         // Resolve stub promises for recommendation in the same order calls were queued.
         if (pendingPromises && call.method === 'recommendation') {
           if (pendingPromises.length > 0) {
-            promiseInfo = pendingPromises.shift(); // FIFO
+            promiseInfo = pendingPromises.shift() ?? null; // FIFO
           } else {
             log.warn('no pending promise found for recommendation call');
           }
         }
 
         if (promiseInfo?.resolve) {
+          const settle = promiseInfo;
           result
-            .then((data: any) => promiseInfo.resolve(data))
-            .catch((err: any) => {
-              if (promiseInfo.reject) promiseInfo.reject(err);
+            .then((data: unknown) => settle.resolve?.(data))
+            .catch((err: unknown) => {
+              if (settle.reject) settle.reject(err);
               else log.error(`error in async queued call ${call.method}`, err);
             });
         } else {
           // No promise to resolve, just handle errors
-          result.catch((err: any) => {
+          result.catch((err: unknown) => {
             log.error(`error in async queued call ${call.method}`, err);
           });
         }
@@ -283,7 +327,7 @@ function initSDK() {
   }
 
   // Replace window.intempt with real instance
-  (window as any).intempt = realIntempt;
+  window.intempt = realIntempt;
 
   // Replay queued calls if stub existed
   if (stubQueue && stubQueue.length > 0) {
@@ -295,7 +339,7 @@ function initSDK() {
     removeStubScriptTag();
   }
 
-  log.info('SDK initialized', (window as any).intempt);
+  log.info('SDK initialized', window.intempt);
 }
 
 export const SDK = {

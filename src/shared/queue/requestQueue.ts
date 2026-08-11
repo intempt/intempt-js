@@ -84,7 +84,7 @@ export class RequestQueue {
   private memQueue: QueueEntry[] = [];
   private initialized: boolean = false;
   private migrated: boolean = false;
-  private reportError: (msg: string, err?: any) => void;
+  private reportError: (msg: string, err?: unknown) => void;
   private sequence: number = 0;
   private maxQueuedEvents: number;
   /**
@@ -157,7 +157,7 @@ export class RequestQueue {
     return `${this.itemPrefix}${stamp}_${seq}_${id}`;
   }
 
-  async enqueue(item: any, flushInterval: number): Promise<boolean> {
+  async enqueue(item: unknown, flushInterval: number): Promise<boolean> {
     const now = Date.now();
     const queueEntry: QueueEntry = {
       id: this.generateId(),

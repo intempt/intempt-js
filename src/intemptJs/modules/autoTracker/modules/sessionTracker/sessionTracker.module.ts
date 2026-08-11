@@ -124,7 +124,7 @@ export class SessionTrackerModule extends PlatformParser {
           referrer: url.host,
           fullReferrer: url.href,
         };
-      } catch (error: any) {
+      } catch (error: unknown) {
         log.warn('_getReferrerValues failed', error);
       }
     }

@@ -31,14 +31,14 @@ export class PersistentStore implements QueueStorageLike {
   private readonly fallback: QueueStorage;
   private driver: 'indexeddb' | 'localstorage' | null = null;
   private initPromise: Promise<void> | null = null;
-  private readonly reportError: (msg: string, err?: any) => void;
+  private readonly reportError: (msg: string, err?: unknown) => void;
 
   constructor(
     options: {
       dbName?: string;
       storeName?: string;
       fallbackStorage?: Storage;
-      errorReporter?: (msg: string, err?: any) => void;
+      errorReporter?: (msg: string, err?: unknown) => void;
     } = {},
   ) {
     this.idb = new IndexedDbStore(options.dbName, options.storeName);

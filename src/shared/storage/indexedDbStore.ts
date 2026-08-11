@@ -1,3 +1,5 @@
+import { StoredEntry } from './queueStorage.ts';
+
 /**
  * IndexedDB key-value store.
  *
@@ -132,15 +134,15 @@ export class IndexedDbStore {
     );
   }
 
-  async getItem(key: string): Promise<any> {
-    const value = await this.request<any>(
+  async getItem(key: string): Promise<unknown> {
+    const value = await this.request<unknown>(
       (store) => store.get(key),
       'readonly',
     );
     return value === undefined ? null : value;
   }
 
-  async setItem(key: string, value: any): Promise<void> {
+  async setItem(key: string, value: unknown): Promise<void> {
     await this.request<void>((store) => store.put(value, key), 'readwrite');
   }
 
@@ -187,15 +189,12 @@ export class IndexedDbStore {
    * to read one batch. `\uffff` is the standard upper sentinel for a string
    * prefix range in IndexedDB.
    */
-  async entries(
-    prefix: string,
-    limit?: number,
-  ): Promise<Array<{ key: string; value: any }>> {
+  async entries(prefix: string, limit?: number): Promise<StoredEntry[]> {
     const store = await this.transaction('readonly');
     const range = IDBKeyRange.bound(prefix, `${prefix}\uffff`);
 
     return new Promise((resolve, reject) => {
-      const out: Array<{ key: string; value: any }> = [];
+      const out: StoredEntry[] = [];
       const request = store.openCursor(range);
 
       request.onsuccess = () => {

@@ -30,7 +30,10 @@ export class IntemptJsGuard {
     'writeKey',
   ];
 
-  isValidConfig(params: any) {
+  // `unknown`: this is the SDK's outermost entry point, called with whatever a
+  // snippet or a direct constructor passed, so it must not assume an object at all
+  // — hence the `params?.[field]` read below.
+  isValidConfig(params: unknown) {
     // D-25: this used to compare each field against `''` only, so a field that
     // was *missing* — `undefined`, or absent from the object — passed validation
     // entirely and the instance built itself, sending events that ingest rejects
@@ -39,8 +42,9 @@ export class IntemptJsGuard {
     // anyone constructing `IntemptJs` directly. Now a missing field fails exactly
     // like an empty one, with the same message — an init-time throw naming the
     // problem beats a runtime 401 that does not.
+    const config = (params ?? {}) as Record<string, unknown>;
     const missing = this._requiredConfigFields.some(
-      (field) => typeof params?.[field] !== 'string' || params[field] === '',
+      (field) => typeof config[field] !== 'string' || config[field] === '',
     );
 
     if (missing) {

@@ -53,7 +53,7 @@ export class HtmlTrackerModule {
       const opts: AddEventListenerOptions | boolean =
         domEventName === IntemptDomEventName.SUBMIT ? { capture: true } : false;
 
-      (this.root as any).addEventListener(domEventName, handler, opts);
+      this.root.addEventListener(domEventName, handler, opts);
     });
   }
 

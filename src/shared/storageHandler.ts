@@ -2,7 +2,10 @@ import { SetCookieParams } from '../intemptJs/types/autoTracker.types.ts';
 import { LocalStorageCache } from '../intemptJs/types/intemptJs.types.ts';
 import { extractEtldPlusOne, isHostOnlyTarget } from './publicSuffix.ts';
 
-const appLocalCookie: { [key: string]: any } = {};
+// In-memory mirror of the cookie jar. Cookie values are raw strings — the JSON
+// parsing happens at the two readers below — so `string`, not `any`: it is a
+// stronger statement than `unknown` and the writers below only ever put strings in.
+const appLocalCookie: { [key: string]: string } = {};
 
 export const localIntemptSessionCookie = () =>
   !!appLocalCookie['intempt_session']
@@ -78,11 +81,11 @@ export function handleDomain(domain: string) {
 }
 
 export const localStorageCache: LocalStorageCache = {
-  get: (key: string): any => {
+  get: (key: string): unknown => {
     const data = localStorage.getItem(key);
     return data ? JSON.parse(data) : null;
   },
-  set: (key: string, value: any): void =>
+  set: (key: string, value: unknown): void =>
     localStorage.setItem(key, JSON.stringify(value)),
   remove: (key: string): void => localStorage.removeItem(key),
   getAllKeys: (): string[] => Object.keys(localStorage),

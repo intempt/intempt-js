@@ -44,6 +44,7 @@ function safely(label: string, fn: () => void): void {
   try {
     fn();
   } catch (err) {
+    // eslint-disable-next-line no-console -- example code, printing is the point.
     if (DEBUG) console.warn(`[analytics] ${label} rejected the payload:`, err);
   }
 }

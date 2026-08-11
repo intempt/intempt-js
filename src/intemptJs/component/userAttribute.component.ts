@@ -69,7 +69,7 @@ export class UserAttributeComponent {
       });
 
       return url.origin;
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.warn('_getLandingPageUrl failed', error);
       return '';
     }
@@ -97,7 +97,7 @@ export class UserAttributeComponent {
       const url = new URL(document.referrer);
       referrer = url.host;
       fullReferrer = url.href;
-    } catch (error: any) {
+    } catch (error: unknown) {
       log.warn('_getReferrerValues failed', error);
     }
 

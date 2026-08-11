@@ -160,6 +160,14 @@ export function isConsoleEnabled(level: LogLevel): boolean {
  * Chrome's default console view, so a support engineer who asked for
  * `debug: true` would still see nothing.
  */
+/*
+ * The one place in the SDK allowed to touch `console` — it is the console
+ * transport, and every other `console.*` call was replaced by a call to this
+ * module. Disabled as a block rather than per line because a `-- reason` suffix on
+ * a `disable-next-line` inside a ternary attaches to the following comment line,
+ * not to the code, and silently does nothing.
+ */
+/* eslint-disable no-console */
 function writeToConsole(record: DiagnosticRecord): void {
   const line = `[${record.scope}] ${record.message}`;
   const method =
@@ -177,6 +185,7 @@ function writeToConsole(record: DiagnosticRecord): void {
     method(line, record.detail);
   }
 }
+/* eslint-enable no-console */
 
 function emit(
   level: LogLevel,
