@@ -22,30 +22,41 @@ export const ChoicesService = {
     return EnvConfig.getApi();
   },
 
-  choicesDataGuard: function(data:{choices:any[]}):MergedChoices[] {
+  choicesDataGuard: function(data:{choices:unknown[]}):MergedChoices[] {
     if (!data || !data.choices || !Array.isArray(data.choices) || data.choices.length === 0) {
       log.debug('response or first element of choices array is null, undefined, or not an array with at least one element');
 
       return [];
     }
 
-    const { choices} = data;
+    const choices = data.choices as Array<{changes?: Choice[], mergedChanges?: MergedChoices[]}>;
 
-    return choices.reduce((acc, item:{changes:Choice[], mergedChanges:MergedChoices[]}) => {
-      acc.push(...item.changes);
-      // if (item && Array.isArray(item.mergedChanges) && item.mergedChanges.length > 0) {
-      //   acc.push(...item.mergedChanges);
-      // }
-      // else if (item && !item.mergedChanges && Array.isArray(item.changes) && item.changes.length > 0) {
-      //   const activeChanges = item.changes.filter((change: Choice) => change.active);
-      //   acc.push(...activeChanges);
-      // }
-      // else {
-      //   console.log("Either 'changes' or 'mergedChanges' in an item of data is null, undefined, or empty.");
-      // }
+    return choices.reduce((acc, item) => {
+      // D-6: one malformed choice (e.g. missing/non-array `changes`) must not
+      // discard every other choice in the response — the visitor still gets
+      // whatever DID parse. Isolated per item rather than per field.
+      try {
+        if (item && Array.isArray(item.changes)) {
+          acc.push(...(item.changes as unknown as MergedChoices[]));
+        } else {
+          log.warn('a choice item has no `changes` array — skipping that choice', item);
+        }
+        // if (item && Array.isArray(item.mergedChanges) && item.mergedChanges.length > 0) {
+        //   acc.push(...item.mergedChanges);
+        // }
+        // else if (item && !item.mergedChanges && Array.isArray(item.changes) && item.changes.length > 0) {
+        //   const activeChanges = item.changes.filter((change: Choice) => change.active);
+        //   acc.push(...activeChanges);
+        // }
+        // else {
+        //   console.log("Either 'changes' or 'mergedChanges' in an item of data is null, undefined, or empty.");
+        // }
+      } catch (error) {
+        log.warn('failed to process a choice item — skipping that choice', { item, error });
+      }
 
       return acc;
-    }, [])
+    }, [] as MergedChoices[])
   },
 
   getIntemptSessionVariables: function (config:ChoicesParams):IntemptVariables {
@@ -57,7 +68,7 @@ export const ChoicesService = {
     const url = location.href;
     const deviceCondition = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     const device = deviceCondition ? 'MOBILE' : 'DESKTOP';
-    const [username, password] =!!config.writeKey
+    const [username, password] = config.writeKey
       ? config.writeKey.split(".")
       : [null, null];
 
@@ -165,14 +176,17 @@ export const ChoicesService = {
   setChangesData: async function({ key, url, body, auth_config }:SetChoicesData){
     const responseMaxTime = 320;
     try{
-      const changesPromise = new Promise<void>(async ( resolve ) => {
+      // D-22: an `async` function passed as a Promise executor never calls
+      // `reject` on throw — the executor's own returned (rejected) promise is
+      // discarded, so the throw was swallowed and `changesPromise` hung
+      // forever instead of surfacing to this `catch`. An async IIFE returns a
+      // real promise that rejects like any other.
+      const changesPromise = (async (): Promise<void> => {
         const data = await this.fetchChoices(url, body, auth_config.auth)
 
         const changes = this.choicesDataGuard(data);
         localStorageCache.set(key, {changes});
-        resolve();
-
-      })
+      })();
       const timeoutPromise = new Promise(resolve => setTimeout(resolve, responseMaxTime));
 
       await Promise.race([
@@ -180,7 +194,7 @@ export const ChoicesService = {
         await changesPromise
       ])
     }
-    catch(error:any){
+    catch(error){
       log.error('setChangesData failed', error);
       localStorageCache.set(key, {changes:[]});
     }
@@ -221,7 +235,11 @@ export const ChoicesService = {
     return (matchingElements.snapshotItem(xPathIndex) as Element) ?? null;
   },
 
-  insertResultHandler({ content, parentElement, elementToInsert}:any){
+  insertResultHandler({ content, parentElement, elementToInsert}:{
+    content: { isInside?: boolean; isTop?: boolean; nextSibling?: { xPathSelector: string; xPathIndex: number } };
+    parentElement: Element;
+    elementToInsert: Element;
+  }){
     if (content.isInside) {
         if(content.isTop) {
           parentElement.prepend(elementToInsert);

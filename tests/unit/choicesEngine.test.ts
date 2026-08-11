@@ -10,6 +10,7 @@ import { WebEditorModificationHandler } from '../../src/intemptJs/modules/choice
 import { ChoicesModule } from '../../src/intemptJs/modules/choices/choices.module.ts';
 import { ChoicesService } from '../../src/intemptJs/modules/choices/choices.service.ts';
 import { ChoicesConfig } from '../../src/intemptJs/modules/choices/choices.config.ts';
+import { localStorageCache } from '../../src/shared/storageHandler.ts';
 
 /**
  * The choices (experiences) engine — `src/intemptJs/modules/choices/**`.
@@ -57,7 +58,7 @@ function setBody(html: string) {
  * CSSStyleSheet with it. Both halves matter: an attached-but-empty style tag is
  * what production has on first paint.
  */
-function installIweStylesheet(initialCss = '') {
+function _installIweStylesheet(initialCss = '') {
   const style = document.createElement('style');
   style.setAttribute(ChoicesConfig.styleDataAttribute, '');
   style.textContent = initialCss;
@@ -359,26 +360,28 @@ describe('choices engine', () => {
       expect(document.getElementById('t')).toBeNull();
     });
 
-    it('a change with no xPathSelector aborts the ENTIRE pass — a defect, asserted', () => {
-      // DEFECT (choices.module.ts:40 + 94), and the most likely of the three
-      // marking-pass failures to actually happen. `_applyChanges` calls
-      // `markPointersFromChanges` *before* the per-change try/catch loop, and the
-      // default resolver goes straight to `document.evaluate(p._xPathSelector,
-      // ...)`. With no selector on the change, `document.evaluate(undefined)`
-      // throws — so a single change missing one field takes down the whole
-      // batch and **no experience on the page renders**.
-      //
-      // The per-change try/catch in the loop below gives exactly the isolation
-      // this needs; the marking pass simply runs outside it. Recorded rather than
-      // fixed because the fix is a decision — wrap the pass, or skip pointers
-      // with no selector — and either way it changes what happens to the other
-      // changes in a batch, which wants a parity check against real payloads.
-      setBody('<span id="t">t</span>');
+    it('a change with no xPathSelector degrades to just that change — fixes D-7', async () => {
+      // Was (choices.module.ts:40 + 94): `markPointersFromChanges` ran BEFORE
+      // the per-change try/catch loop, and the default resolver goes straight
+      // to `document.evaluate(p._xPathSelector, ...)`. With no selector on the
+      // change, `document.evaluate(undefined)` threw — so a single change
+      // missing one field took down the whole batch and no experience on the
+      // page rendered. Fixed with the same per-item isolation as D-6: the
+      // marking pass now wraps each change in try/catch, so the malformed
+      // change is skipped and a valid change in the same batch still applies.
+      setBody('<span id="a">a</span><span id="t">t</span>');
+      document.getElementById('a')!.setAttribute('aId', 'true');
       const mod = new ChoicesModule(config as any);
 
-      expect(() => applyChanges(mod, [{ type: 'remove', iweId: 'targetId' }])).toThrow();
-      // The element the (valid) change targeted is untouched: nothing ran.
+      await applyChanges(mod, [
+        { type: 'remove', iweId: 'targetId' },
+        { type: 'remove', iweId: 'aId', xPathSelector: '//span[1]', xPathIndex: 0 },
+      ]);
+
+      // The malformed change's target is untouched (never marked, never
+      // routed), but the other, valid change in the same batch still ran.
       expect(document.getElementById('t')).not.toBeNull();
+      expect(document.getElementById('a')).toBeNull();
     });
 
     it('skips an unknown change type without throwing', () => {
@@ -395,76 +398,79 @@ describe('choices engine', () => {
       expect(document.getElementById('keep')).not.toBeNull();
     });
 
-    it('a failing change does not stop the changes after it', async () => {
+    it('a failing change does not stop the changes after it, and the diagnostic fires — fixes D-8', async () => {
       // The single most important resilience property of the engine: changes are
       // independent, so one broken experience must not blank out the others.
-      //
-      // It holds — but NOT for the reason the code suggests, see the next test.
-      // The rejection is suppressed here so the assertion is about ordering
-      // rather than about the unhandled rejection, which is asserted separately.
-      const suppress = () => {};
-      process.on('unhandledRejection', suppress);
-      try {
-        setBody('<span id="a">a</span><span id="b">b</span>');
-        document.getElementById('a')!.setAttribute('aId', 'true');
-        document.getElementById('b')!.setAttribute('bId', 'true');
+      // Before the fix this held only by accident (see below); now the
+      // `catch` genuinely observes the failure.
+      const diagnostics: string[] = [];
+      configureLogger({ level: 'debug', sink: (r) => diagnostics.push(r.message) });
 
-        const mod = new ChoicesModule(config as any);
-        applyChanges(mod, [
-          // `style` with a null attributes bag throws inside the handler when it
-          // destructures `attributes`.
-          {
-            type: 'style',
-            iweId: 'aId',
-            attributes: null,
-            xPathSelector: '//span[1]',
-            xPathIndex: 0,
-          },
-          { type: 'remove', iweId: 'bId', xPathSelector: '//span[2]', xPathIndex: 0 },
-        ]);
+      setBody('<span id="a">a</span><span id="b">b</span>');
+      document.getElementById('a')!.setAttribute('aId', 'true');
+      document.getElementById('b')!.setAttribute('bId', 'true');
 
-        expect(document.getElementById('b')).toBeNull();
-        await new Promise((r) => setTimeout(r, 0));
-      } finally {
-        process.off('unhandledRejection', suppress);
-      }
+      const mod = new ChoicesModule(config as any);
+      await applyChanges(mod, [
+        // `style` with a null attributes bag throws inside the handler when it
+        // destructures `attributes`.
+        {
+          type: 'style',
+          iweId: 'aId',
+          attributes: null,
+          xPathSelector: '//span[1]',
+          xPathIndex: 0,
+        },
+        { type: 'remove', iweId: 'bId', xPathSelector: '//span[2]', xPathIndex: 0 },
+      ]);
+
+      expect(document.getElementById('b')).toBeNull();
+      // The one signal that an experience failed now actually fires — before
+      // the fix it never did, for any of style/update/insert.
+      expect(diagnostics.some((m) => m.includes('error applying change of type "style"'))).toBe(
+        true,
+      );
     });
 
-    it('the try/catch around each change cannot catch three of the four handlers — a defect', () => {
-      // DEFECT (choices.module.ts:52-62). `style`, `update` and `insert` on
+    it('awaits async handlers so the try/catch can see their failures — fixes D-8', async () => {
+      // Was (choices.module.ts:52-62): `style`, `update` and `insert` on
       // `WebEditorModificationHandler` are declared `async`; only `remove` is
-      // synchronous. `_applyChanges` calls the handler inside a `try` but never
-      // awaits it, so an async handler's failure arrives as a **rejected
-      // promise** the synchronous `catch` can never see.
+      // synchronous. `_applyChanges` called the handler inside a `try` but
+      // never awaited it, so an async handler's failure arrived as a
+      // **rejected promise** the synchronous `catch` could never see — no
+      // diagnostic, and an unhandled rejection in the customer's page.
       //
-      // Two consequences, and the second is the bad one:
-      //  1. The `console.warn(`Error applying change of type ...`)` diagnostic —
-      //     the only signal that an experience failed — never fires for three of
-      //     the four types. Debugging a broken experience gets no output at all.
-      //  2. The failure surfaces as an **unhandled promise rejection in the
-      //     customer's page**, which their own error monitoring reports as an
-      //     error originating from our script.
-      //
-      // The changes after it still apply, so the resilience property survives —
-      // but by accident, because the rejection is asynchronous, not because it is
-      // handled. Asserted on the handler directly here, which is where the
-      // rejection is observable at all.
-      //
-      // Not fixed here: the fix is to await the handler (making `_applyChanges`
-      // properly async and serialising changes that currently start in parallel)
-      // or to attach a `.catch`. The first changes application order and timing
-      // on live pages; the second is safe but should ship with the logger work
-      // in FRONTEND.md item 2 so the diagnostic goes somewhere useful.
+      // Fixed by awaiting each handler call. Confirmed here directly against
+      // the handler, which is where the rejection was only ever observable
+      // before the fix.
       const handler = new WebEditorModificationHandler();
       const result = handler.style({ iweId: 'x', attributes: null } as any);
       expect(result).toBeInstanceOf(Promise);
-      return expect(result).rejects.toThrow(TypeError);
+      await expect(result).rejects.toThrow(TypeError);
     });
 
-    it('resolves nothing and mutates nothing for an empty change list', () => {
+    it('applies changes to the same element in server-sent order — ordering assertion for the D-8 fix', async () => {
+      // Awaiting each handler serialises application: change N+1 does not
+      // start until change N has fully applied. Pinned here on two changes
+      // that target the same element, where "later wins" is the only outcome
+      // consistent with in-order, one-at-a-time application (a Promise.all-style
+      // fire-and-forget dispatch offers no such guarantee).
+      setBody('<span id="a">a</span>');
+      document.getElementById('a')!.setAttribute('aId', 'true');
+
+      const mod = new ChoicesModule(config as any);
+      await applyChanges(mod, [
+        { type: 'style', iweId: 'aId', attributes: { style: 'color:red' } },
+        { type: 'style', iweId: 'aId', attributes: { style: 'color:blue' } },
+      ]);
+
+      expect(document.getElementById('a')!.getAttribute('style')).toBe('color:blue');
+    });
+
+    it('resolves nothing and mutates nothing for an empty change list', async () => {
       setBody('<div id="keep">keep</div>');
       const mod = new ChoicesModule(config as any);
-      expect(applyChanges(mod, [])).resolves;
+      await expect(applyChanges(mod, [])).resolves.toBeUndefined();
       expect(document.getElementById('keep')).not.toBeNull();
     });
 
@@ -574,29 +580,33 @@ describe('choices engine', () => {
       expect(document.getElementById('t')!.getAttribute('targetId')).toBe('true');
     });
 
-    it('throws when an iwe id is not a legal attribute name — a defect, asserted', () => {
-      // DEFECT (choices.module.ts:99). `setAttribute(p._iweId, 'true')` puts a
-      // server-supplied string in attribute-*name* position, so an id containing
-      // a space, a quote or a leading digit makes the DOM call throw
-      // `InvalidCharacterError`. `markPointersFromChanges` runs **outside** the
-      // per-change try/catch in `_applyChanges` (it is called on line 40, before
-      // the loop), so one malformed id from the server aborts the entire pass
-      // and **no experience on the page is applied**.
-      //
-      // That is the worst blast radius in the module, which is why it is recorded
-      // rather than patched in a test commit: the fix is a validation step plus a
-      // decision about whether to drop the pointer or the whole change, and it
-      // should ship with the ids being constrained server-side.
-      setBody('<div id="p"><span id="t">t</span></div>');
+    it('skips (rather than aborts on) an iwe id that is not a legal attribute name — fixes D-7', () => {
+      // Was (choices.module.ts:99): `setAttribute(p._iweId, 'true')` puts a
+      // server-supplied string in attribute-*name* position, so an id
+      // containing a space, a quote or a leading digit made the DOM call
+      // throw `InvalidCharacterError`. Because `markPointersFromChanges` ran
+      // outside the per-change try/catch in `_applyChanges`, one malformed id
+      // from the server aborted the entire pass — no experience on the page
+      // applied at all. Fixed by isolating per change: the malformed change's
+      // pointer is skipped, and a well-formed change in the same batch still
+      // marks its element.
+      setBody('<div id="p"><span id="t">t</span><span id="u">u</span></div>');
       const mod = new ChoicesModule(config as any);
-      const resolver = vi.fn(() => document.getElementById('t'));
+      const resolver = ({ xPathSelector }: any) =>
+        document.getElementById(xPathSelector === '//span[1]' ? 't' : 'u');
 
       expect(() =>
         (mod as any).markPointersFromChanges(
-          [{ xPathSelector: '//span', xPathIndex: 0, iweId: 'not a valid name' }],
+          [
+            { xPathSelector: '//span[1]', xPathIndex: 0, iweId: 'not a valid name' },
+            { xPathSelector: '//span[2]', xPathIndex: 0, iweId: 'validId' },
+          ],
           resolver,
         ),
-      ).toThrow();
+      ).not.toThrow();
+
+      expect(document.getElementById('t')!.hasAttribute('not a valid name')).toBe(false);
+      expect(document.getElementById('u')!.getAttribute('validId')).toBe('true');
     });
 
     it('writes an attribute literally named "undefined" when a change has no iwe id', () => {
@@ -649,16 +659,58 @@ describe('choices engine', () => {
         expect(out).toEqual([{ id: 1 }]);
       });
 
-      it('throws when a choice has no `changes` array — a defect, asserted', () => {
-        // DEFECT (choices.service.ts:31): the guard validates the outer envelope
-        // but then does `acc.push(...item.changes)` unconditionally, so a choice
-        // object missing `changes` throws out of `choicesDataGuard`. It is called
-        // inside `setChangesData`'s try/catch, which recovers by caching an empty
-        // change list — so the visible effect is that ONE malformed choice
-        // discards **every** choice in the response, silently.
-        expect(() =>
+      it('skips a malformed choice and keeps the others — fixes D-6', () => {
+        // Was (choices.service.ts:31): `acc.push(...item.changes)` unconditional,
+        // so a choice object missing `changes` threw out of `choicesDataGuard`.
+        // It is called inside `setChangesData`'s try/catch, which recovers by
+        // caching an EMPTY change list — so one malformed choice discarded
+        // every choice in the response, silently. Fixed with per-item
+        // isolation: the malformed item is dropped, the valid ones still apply.
+        expect(
           ChoicesService.choicesDataGuard({ choices: [{ changes: [{ id: 1 }] }, {}] } as any),
-        ).toThrow();
+        ).toEqual([{ id: 1 }]);
+      });
+    });
+
+    describe('setChangesData', () => {
+      afterEach(() => {
+        vi.restoreAllMocks();
+      });
+
+      it('rejects instead of hanging forever when the executor body throws — fixes D-22', async () => {
+        // Was (choices.service.ts:164): `new Promise<void>(async (resolve) =>
+        // {...})` — an `async` function passed as a Promise executor. If the
+        // body throws, the executor's own (rejected) return value is discarded
+        // by the Promise constructor, which only reacts to explicit
+        // resolve/reject calls. `resolve()` is never reached, so
+        // `changesPromise` never settles at all — not even as a rejection —
+        // and the outer `catch` that is supposed to recover with an empty
+        // change list never runs. Fixed with an async IIFE, which returns a
+        // real promise that rejects like any other.
+        vi.spyOn(ChoicesService, 'fetchChoices').mockResolvedValue({ choices: [] });
+        const setSpy = vi
+          .spyOn(localStorageCache, 'set')
+          .mockImplementationOnce(() => {
+            throw new Error('storage write failed');
+          })
+          .mockImplementation(() => {});
+
+        const racedAgainstAHang = Promise.race([
+          ChoicesService.setChangesData({
+            key: 'choices-key',
+            url: 'optimization/choose-web',
+            body: {} as any,
+            auth_config: { auth: { username: 'u', password: 'p' } } as any,
+          }),
+          new Promise((_resolve, reject) =>
+            setTimeout(() => reject(new Error('timed out — the throw was swallowed')), 200),
+          ),
+        ]);
+
+        await expect(racedAgainstAHang).resolves.toBeUndefined();
+        // The catch recovered by writing an empty change list.
+        expect(setSpy).toHaveBeenCalledTimes(2);
+        expect(setSpy).toHaveBeenLastCalledWith('choices-key', { changes: [] });
       });
     });
 
@@ -788,7 +840,7 @@ describe('choices engine', () => {
         expect(() =>
           ChoicesService.insertResultHandler({
             content: { isInside: false, nextSibling: { xPathSelector: '//nope', xPathIndex: 0 } },
-            parentElement: document.getElementById('p'),
+            parentElement: document.getElementById('p')!,
             elementToInsert: document.createElement('b'),
           }),
         ).toThrow('NEXT SIBLING ELEMENT NOT FOUND');
