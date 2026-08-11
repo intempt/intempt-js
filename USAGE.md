@@ -74,6 +74,74 @@ order, and begins auto-tracking. With the stub in place you can safely call
 > `localhost` / `127.0.0.1` and for bot/crawler user agents. So if nothing shows up
 > while developing locally, that's expected — test on a real (or staging) domain.
 
+### 1a. Content Security Policy
+
+If your site sends a `Content-Security-Policy` header, the SDK needs these
+directives. Everything below is what the SDK actually contacts — there are no
+other origins.
+
+```
+script-src  'self' https://cdn.intempt.com;
+connect-src 'self' https://api.intempt.com https://ipapi.co;
+img-src     'self' data: https://cdn.intempt.com;
+style-src   'self' 'unsafe-inline';
+```
+
+| Directive | Why the SDK needs it |
+|---|---|
+| `script-src https://cdn.intempt.com` | Where the SDK bundle is served from. Also the origin of the visual web editor, which the SDK loads on demand. |
+| `connect-src https://api.intempt.com` | Event ingest and the recommendations API. |
+| `connect-src https://ipapi.co` | Geo/IP enrichment. **If you don't want this call, block this origin** — the SDK degrades to sending events without geo fields rather than failing. |
+| `img-src data:` | Inline image data used by rendered experiences. |
+| `style-src 'unsafe-inline'` | **Only if you use experiences/recommendations that restyle the page.** If you use the SDK for event tracking alone, drop it. |
+
+Two practical notes:
+
+- **The queue stub in step 1 is an inline `<script>`.** Under a CSP without
+  `'unsafe-inline'` it will be blocked, which silently loses every call made before
+  the SDK finishes loading. Give it a nonce (`<script nonce="…">`, matching
+  `script-src 'nonce-…'`) or move it to a file you serve yourself. Do **not** add
+  blanket `'unsafe-inline'` to `script-src` just for this.
+- **Test with `Content-Security-Policy-Report-Only` first.** A too-strict policy
+  doesn't produce an error you'll notice — it produces missing analytics data.
+
+### 1b. Subresource Integrity (SRI) — read this before you add one
+
+SRI (`integrity="sha384-…"`) tells the browser to refuse a script whose bytes don't
+match a hash you pinned, which protects you if the CDN is ever compromised. You
+compute it from the exact file you intend to run:
+
+```bash
+curl -s https://cdn.intempt.com/v1/intempt.min.js \
+  | openssl dgst -sha384 -binary \
+  | openssl base64 -A
+```
+
+```html
+<script
+  async
+  crossorigin="anonymous"
+  integrity="sha384-<the hash from above>"
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password">
+</script>
+```
+
+> **⚠️ Today this will break your site at our next release, and you should know that
+> before you deploy it.** `https://cdn.intempt.com/v1/intempt.min.js` is a **mutable**
+> URL: each release overwrites that same path in place. There is no versioned,
+> immutable URL to pin yet. So a hash that is correct now stops matching the moment we
+> publish an update, and the browser's response to a mismatch is to refuse to execute
+> the script at all — the SDK simply stops loading, with no fallback and no warning
+> beyond a console message.
+>
+> **So:** if your security policy requires SRI, contact Intempt support for an
+> immutable versioned URL rather than pinning `/v1`. If you pin `/v1` anyway, treat it
+> as something you must update on every Intempt release, and monitor for the SDK
+> failing to load.
+
+`crossorigin="anonymous"` is required alongside `integrity` — without it the browser
+cannot verify a cross-origin response and blocks the script.
+
 ---
 
 ## 2. What gets tracked automatically
