@@ -129,7 +129,7 @@ BrowserStack would work identically — same WDIO config, swap the service.
 **Decided:** these are one change, not two, and the credential fix comes first.
 
 **Why:** the write key is currently `btoa`-encoded into an
-`Authorization: Basic` header client-side (`src/intemptJs/modules/autoTracker/autoTracker.module.ts:164`).
+`Authorization: Basic` header client-side (`src/intemptJs/modules/autoTracker/autoTracker.module.ts:164-165`, header set at `:179`).
 That puts a write credential in devtools **and** forces `fetch`, because
 `sendBeacon` cannot set custom headers. `sendBeacon` is the only transport that
 reliably survives tab close on Safari. So the security defect and the unload
