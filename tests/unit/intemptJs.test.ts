@@ -624,18 +624,19 @@ describe('IntemptJs — the public API class', () => {
       }
     });
 
-    it('a config with a field missing entirely still constructs fully', () => {
-      // The guard checks `=== ''`, so `undefined` passes. The instance is
-      // complete — `_autoTracker` is set — and the failure surfaces later as a
-      // 401 from ingest. Asserted to show the undefined-tracker state does not
-      // arise here either.
-      const instance = new IntemptJs({
-        organization: 'acme',
-        sourceId: 'src-1',
-        project: 'proj-1',
-      } as any);
-      expect(() => instance.optOut()).not.toThrow();
-      expect(autoTrackerInstances.at(-1)!.doNotTrack).toBe(true);
+    it('a config with a field missing entirely now throws too — D-25 fixed', () => {
+      // The guard checked `=== ''`, so `undefined` passed and the instance built
+      // itself, failing later as a 401 from ingest. It now fails at init with the
+      // same message as an empty field — so both halves of "all config fields
+      // must be provided" are actually enforced.
+      expect(
+        () =>
+          new IntemptJs({
+            organization: 'acme',
+            sourceId: 'src-1',
+            project: 'proj-1',
+          } as any),
+      ).toThrow('IntemptJs initialization failed: All config fields must be provided.');
     });
 
     it('documents what WOULD happen if _autoTracker were ever undefined', () => {

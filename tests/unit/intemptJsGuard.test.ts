@@ -38,14 +38,31 @@ describe('IntemptJsGuard', () => {
       },
     );
 
-    it('accepts a config with a field missing entirely — a known gap', () => {
-      // The check is `=== ''`, so `undefined` and `null` pass. A snippet that
-      // omits `writeKey` altogether therefore constructs successfully and fails
-      // later at request time with a 401 instead of at init with a clear error.
-      // Asserted rather than fixed here: the fix belongs with the credential
-      // work (BACKEND.md §1) that will rewrite how the key is read.
-      expect(guard.isValidConfig({ organization: 'org', sourceId: 'src', project: 'proj' })).toBe(
-        true,
+    it.each(['organization', 'sourceId', 'project', 'writeKey'])(
+      'rejects a config with %s missing entirely — D-25 fixed',
+      (field) => {
+        // The check was `=== ''`, so `undefined` and an absent key both passed. A
+        // snippet omitting `writeKey` therefore constructed successfully and failed
+        // later at request time with a 401 instead of at init with a clear error.
+        const partial: Record<string, string> = { ...valid };
+        delete partial[field];
+        expect(() => guard.isValidConfig(partial)).toThrow(
+          'IntemptJs initialization failed: All config fields must be provided.',
+        );
+        expect(() => guard.isValidConfig({ ...valid, [field]: undefined })).toThrow(
+          'IntemptJs initialization failed: All config fields must be provided.',
+        );
+      },
+    );
+
+    it('rejects a non-string field, and rejects a nullish params object', () => {
+      // `typeof !== 'string'` also closes the shapes a JSON-driven integration can
+      // produce — a numeric sourceId, or a null writeKey from a templating layer.
+      expect(() => guard.isValidConfig({ ...valid, sourceId: 42 })).toThrow();
+      expect(() => guard.isValidConfig({ ...valid, writeKey: null })).toThrow();
+      // And it must not itself throw a TypeError on no config at all.
+      expect(() => guard.isValidConfig(undefined)).toThrow(
+        'IntemptJs initialization failed: All config fields must be provided.',
       );
     });
   });

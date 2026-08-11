@@ -21,13 +21,31 @@ export class IntemptJsGuard {
     'consent',
   ];
 
+  /**
+   * The four credential fields the SDK cannot work without. Named rather than
+   * inlined so the check cannot drift from the message it throws.
+   */
+  private readonly _requiredConfigFields: string[] = [
+    'organization',
+    'sourceId',
+    'project',
+    'writeKey',
+  ];
+
   isValidConfig(params:any){
-    if (
-      params.organization === '' ||
-      params.sourceId === '' ||
-      params.project === '' ||
-      params.writeKey === ''
-    ) {
+    // D-25: this used to compare each field against `''` only, so a field that
+    // was *missing* — `undefined`, or absent from the object — passed validation
+    // entirely and the instance built itself, sending events that ingest rejects
+    // with a 401 the customer sees only in the network tab. Unreachable from the
+    // script-tag path, which supplies `?? ''` for every field, but reachable by
+    // anyone constructing `IntemptJs` directly. Now a missing field fails exactly
+    // like an empty one, with the same message — an init-time throw naming the
+    // problem beats a runtime 401 that does not.
+    const missing = this._requiredConfigFields.some(
+      (field) => typeof params?.[field] !== 'string' || params[field] === ''
+    );
+
+    if (missing) {
       throw new Error('IntemptJs initialization failed: All config fields must be provided.');
     }
 
