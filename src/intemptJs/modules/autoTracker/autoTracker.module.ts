@@ -13,8 +13,7 @@ import { ShopifyTrackerModule } from './modules/shopifyTracker/shopifyTracker.mo
 import { IntemptEventListenerName, IntemptEventName } from '../../types/constants.types.ts';
 import { IntemptPageEventName, ShopifyEvent } from '../../types/autoTracker.types.ts';
 import { ProductModel } from '../../models/product.model.ts';
-import { RequestBatcher } from '../../../shared/queue/requestBatcher.ts';
-import { PersistentStore } from '../../../shared/storage/persistentStore.ts';
+import { AutoTrackerTransport } from './autoTracker.transport.ts';
 import { EnvConfig } from '../../../shared/envConfig.ts';
 import { loadDoNotTrack, persistDoNotTrack } from '../../../shared/consentState.ts';
 import { shouldSuppressForBrowserSignal } from '../../../shared/privacy/doNotTrackSignals.ts';
@@ -27,7 +26,33 @@ import { MetricsSnapshot } from '../../../shared/logger/metrics.ts';
 
 const log = createLogger('AutoTracker');
 
+/**
+ * Shape common to every event model this module hands to the transport or
+ * the consent endpoint (`HtmlEventModel`, `PageEventModel`,
+ * `SessionEventModel`, a raw consent record, ...). Only `name`/`type` are
+ * ever read directly here — the rest travels opaquely through
+ * `JSON.stringify`/the PII scrubber, hence the index signature.
+ */
+type TrackableEvent = {
+  name: string;
+  type?: string;
+  [key: string]: unknown;
+};
+
+/**
+ * The most recently constructed, not-yet-disposed instance.
+ *
+ * D-2 fix: `AutoTrackerModule` subscribes to `document`/`window` with no
+ * teardown, so a second instance used to double-send every event (14
+ * duplicate consent POSTs for one `consent()` call — see
+ * `docs/sdk-hardening/DEFECTS.md` D-2). Real triggers: two copies of the
+ * install snippet on one page, or a SPA re-running init on a route change.
+ * Tracking the active instance here lets the constructor dispose of it
+ * automatically, so a second instantiation is safe rather than merely
+ * "not recommended".
+ */
 export class AutoTrackerModule {
+  private static _activeInstance: AutoTrackerModule | null = null;
   private readonly _config:IntemptConfig;
   private readonly _profileTrackerModule = new ProfileTrackerModule();
   private readonly _sessionTrackerModule = new SessionTrackerModule();
@@ -60,14 +85,136 @@ export class AutoTrackerModule {
 
   private readonly _api: string;
 
-  private readonly _eventPool: any[] = [];
-  private _requestBatcher: RequestBatcher | null = null;
-  private _batcherInitialized: boolean = false;
+  private readonly _eventPool: TrackableEvent[] = [];
+  private readonly _transport: AutoTrackerTransport;
+  private _disposed: boolean = false;
+
+  private readonly _onShopifyEvent = (event: Event): void => {
+    if (!this.isUserOptIn()) return;
+    const { detail } = event as ShopifyEvent;
+    const { eventName, product } = detail;
+
+    const profileId = this.getProfileId();
+    const sessionId = this.getSessionId();
+    const pageId = this.getPageId();
+
+    if(!profileId || !sessionId || !pageId) return;
+
+    const eventData = new ProductModel({
+      eventTitle: eventName,
+      products: [product],
+      profileId,
+      sessionId,
+      pageId,
+    })
+
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
+  };
+
+  private readonly _onHtmlEvent = (event: Event): void => {
+    if (!this.isUserOptIn()) return;
+
+    const { detail } = event as CustomEvent;
+    const { eventName, domEventName, target } = detail;
+
+    const profileId = this.getProfileId();
+    const sessionId = this.getSessionId();
+    const pageId = this.getPageId();
+
+    if(!profileId || !sessionId || !pageId) return;
+
+    const eventData = new HtmlEventModel({
+      name: eventName,
+      sessionId: this.getSessionId(),
+      profileId: this.getProfileId(),
+      pageId: this._getPageId(),
+      data: new HtmlElementDataComponent(target, domEventName)
+    })
+
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
+  };
+
+  private readonly _onPageEvent = (event: Event): void => {
+    if (!this.isUserOptIn()) return;
+    const { detail } = event as CustomEvent;
+    const { eventName, fullUrl, title, windowWidth, pageId, duration, previousPage } = detail;
+
+    this.handleShopifyEvent(eventName);
+
+    const eventData = new PageEventDataComponent({
+      duration,
+      title,
+      fullUrl,
+      windowWidth,
+      previousPage
+    });
+
+    const profileId = this.getProfileId();
+    const sessionId = this.getSessionId();
+
+    if(!profileId || !sessionId || !pageId) return;
+
+    const pageEvent = new PageEventModel({
+      name: eventName,
+      sessionId,
+      profileId,
+      pageId,
+      data: eventData
+    })
+
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: pageEvent});
+  };
+
+  private readonly _onSessionEvent = (event: Event): void => {
+    if (!this.isUserOptIn()) return;
+    const { detail } = event as CustomEvent;
+    const { eventName, userAttributes, eventAttributes } = detail;
+
+    const sessionId = this.getSessionId();
+    const profileId = this.getProfileId();
+
+    if(!profileId || !sessionId) return;
+
+    const sessionEvent = new SessionEventModel({
+      name: eventName,
+      sessionId,
+      profileId,
+      data: eventAttributes,
+      userAttributes
+    })
+
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: sessionEvent});
+  };
+
+  private readonly _onPooledEvent = (customDomEvent: Event): void => {
+    if (!this.isUserOptIn()) return;
+    const { detail } = customDomEvent as CustomEvent;
+    const { event } = detail;
+    const { type } = event;
+
+    switch (type) {
+      case 'consent':
+        this._sendConsentTrackEventData(event);
+        break;
+      default:
+        this._onTrackData(event);
+        break;
+    }
+  };
 
   constructor(intemptConfig: IntemptConfig, api: string) {
 
     this._config = { ...intemptConfig };
     this._api = api;
+    this._transport = new AutoTrackerTransport(this._config, this._api);
+
+    // D-2: constructing a new instance retires whichever one is currently
+    // live, so two never end up listening on the same document/window at
+    // once. See `_activeInstance` above.
+    if (AutoTrackerModule._activeInstance) {
+      AutoTrackerModule._activeInstance.dispose();
+    }
+    AutoTrackerModule._activeInstance = this;
 
     this._browserSignalSuppressed = shouldSuppressForBrowserSignal(intemptConfig.ignore_dnt);
 
@@ -88,13 +235,11 @@ export class AutoTrackerModule {
       : undefined;
 
     // Initialize batcher
-    this._initializeBatcher();
+    this._transport.initialize();
 
-    this._eventPoolHandler();
-
-    this._trackSession();
-
-    this._trackPage();
+    document.addEventListener(IntemptEventListenerName.EVENT, this._onPooledEvent);
+    document.addEventListener(IntemptEventListenerName.SESSION, this._onSessionEvent);
+    document.addEventListener(IntemptEventListenerName.PAGE, this._onPageEvent);
 
     try {
       this._pagesTrackerModule.start();
@@ -102,9 +247,32 @@ export class AutoTrackerModule {
       log.error('page tracker failed to start', e);
     }
 
-    this._trackShopify();
+    document.addEventListener(IntemptEventListenerName.SHOPIFY, this._onShopifyEvent);
+    document.addEventListener(IntemptEventListenerName.HTML, this._onHtmlEvent);
+  }
 
-    this._trackHtml();
+  /**
+   * Unsubscribes every listener this instance attached to `document`/`window`
+   * and stops its transport. D-2 fix: without this, a second instance's
+   * listeners stack on top of the first instance's and every event is sent
+   * once per live instance. Idempotent — safe to call more than once.
+   */
+  dispose(): void {
+    if (this._disposed) return;
+
+    document.removeEventListener(IntemptEventListenerName.EVENT, this._onPooledEvent);
+    document.removeEventListener(IntemptEventListenerName.SESSION, this._onSessionEvent);
+    document.removeEventListener(IntemptEventListenerName.PAGE, this._onPageEvent);
+    document.removeEventListener(IntemptEventListenerName.SHOPIFY, this._onShopifyEvent);
+    document.removeEventListener(IntemptEventListenerName.HTML, this._onHtmlEvent);
+
+    this._transport.dispose();
+
+    this._disposed = true;
+
+    if (AutoTrackerModule._activeInstance === this) {
+      AutoTrackerModule._activeInstance = null;
+    }
   }
 
   refresh(){
@@ -175,114 +343,12 @@ export class AutoTrackerModule {
    * Delivery-pipeline metrics, or `null` when the batcher never initialised.
    * Surfaced on the public API as `intempt.getDiagnostics()`.
    */
+  /**
+   * Delivery-pipeline metrics, or `null` when the batcher never initialised.
+   * Surfaced on the public API as `intempt.getDiagnostics()`.
+   */
   getDiagnostics(): MetricsSnapshot | null {
-    return this._requestBatcher ? this._requestBatcher.getMetrics() : null;
-  }
-
-  private _initializeBatcher(): void {
-    try {
-      const storageKey = `__intempt_queue_${this._config.sourceId}__`;
-      
-      this._requestBatcher = new RequestBatcher({
-        storageKey,
-        libConfig: {
-          batchSize: 50,
-          batchFlushIntervalMs: 5000,
-          batchRequestTimeoutMs: 90000,
-          batchAutostart: true
-        },
-        sendRequestFunc: this._sendBatchRequest.bind(this),
-        // No errorReporter here on purpose: RequestBatcher.reportError now
-        // writes every one of these through the structured logger under its own
-        // `[RequestBatcher]` scope, so wiring a second callback that only did
-        // `console.error` would print each failure twice. The hook itself
-        // remains available for callers that want a *programmatic* consumer.
-        usePersistence: true,
-        // IndexedDB tier with a localStorage fallback. localStorage is
-        // synchronous, so every queue write blocked the host page's main
-        // thread, and it caps at ~5 MB shared with that page — a cap we cannot
-        // detect until a write throws. PersistentStore keeps the same interface,
-        // so the queue is unaware of which tier it is on.
-        queueStorage: new PersistentStore({
-          dbName: `intempt_${this._config.sourceId}`,
-          // PersistentStore has no logger of its own, so this is where its
-          // storage-tier failures (quota, blocked IndexedDB) become visible.
-          errorReporter: (msg, err) => log.error(msg, err),
-        })
-      });
-
-      // Start the batcher
-      this._requestBatcher.start();
-      this._batcherInitialized = true;
-
-      // Handle page unload
-      if (typeof window !== 'undefined') {
-        window.addEventListener('beforeunload', () => {
-          if (this._requestBatcher) {
-            this._requestBatcher.flush({ unloading: true });
-          }
-        });
-
-        window.addEventListener('pagehide', (ev: PageTransitionEvent) => {
-          if (ev.persisted && this._requestBatcher) {
-            this._requestBatcher.flush({ unloading: true });
-          }
-        });
-
-        window.addEventListener('visibilitychange', () => {
-          if (document.visibilityState === 'hidden' && this._requestBatcher) {
-            this._requestBatcher.flush({ unloading: true });
-          }
-        });
-      }
-
-    } catch (error) {
-      log.error('failed to initialize batcher, falling back to simple queue', error);
-      this._batcherInitialized = false;
-    }
-  }
-
-  private async _sendBatchRequest(data: any[], options: any): Promise<any> {
-    const {organization, sourceId, project, writeKey} = this._config;
-    const url = `${this._api}/${organization}/projects/${project}/sources/${sourceId}/track`;
-    const [username, password] = writeKey.split('.');
-    const encodedCredentials = btoa(`${username}:${password}`);
-
-    // Use fetch with keepalive for all requests (including page unload)
-    // This ensures Authorization header is included and requests are reliable during unload
-    try {
-      const controller = new AbortController();
-      // For unload scenarios, use shorter timeout to avoid blocking navigation
-      const timeout = options.unloading ? 5000 : (options.timeout_ms || 90000);
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Basic ${encodedCredentials}`,
-        },
-        body: JSON.stringify({ track: data }),
-        keepalive: options.keepalive !== false,
-        signal: controller.signal
-      });
-
-      clearTimeout(timeoutId);
-
-      return {
-        httpStatusCode: response.status,
-        ok: response.ok,
-        retryAfter: response.headers.get('Retry-After') || undefined
-      };
-    } catch (error: any) {
-      if (error.name === 'AbortError') {
-        return { error: 'timeout', httpStatusCode: 0 };
-      }
-      return {
-        error: error.message || 'network error',
-        httpStatusCode: 0
-      };
-    }
+    return this._transport.getDiagnostics();
   }
 
   private handleShopifyEvent(eventName: IntemptPageEventName) {
@@ -290,136 +356,7 @@ export class AutoTrackerModule {
     this._shopifyTrackerModule?.track()
   }
 
-  private _trackShopify(){
-    if(!this._shopifyTrackerModule) return;
-
-    document.addEventListener(IntemptEventListenerName.SHOPIFY, (event) => {
-      if (!this.isUserOptIn()) return;
-      const { detail } = event as ShopifyEvent;
-      const { eventName, product } = detail;
-
-      const profileId = this.getProfileId();
-      const sessionId = this.getSessionId();
-      const pageId = this.getPageId();
-
-      if(!profileId || !sessionId || !pageId) return;
-
-      const eventData = new ProductModel({
-        eventTitle: eventName,
-        products: [product],
-        profileId,
-        sessionId,
-        pageId,
-      })
-
-      dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
-    })
-  }
-
-  private _trackHtml(){
-    document.addEventListener(IntemptEventListenerName.HTML, (event) => {
-      if (!this.isUserOptIn()) return;
-
-      const { detail } = event as CustomEvent;
-      const { eventName, domEventName, target } = detail;
-
-      const profileId = this.getProfileId();
-      const sessionId = this.getSessionId();
-      const pageId = this.getPageId();
-
-      if(!profileId || !sessionId || !pageId) return;
-
-      const eventData = new HtmlEventModel({
-        name: eventName,
-        sessionId: this.getSessionId(),
-        profileId: this.getProfileId(),
-        pageId: this._getPageId(),
-        data: new HtmlElementDataComponent(target, domEventName)
-      })
-
-
-      dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
-    })
-  }
-
-  private _trackPage(){
-    document.addEventListener(IntemptEventListenerName.PAGE, (event) => {
-      if (!this.isUserOptIn()) return;
-      const { detail } = event as CustomEvent;
-      const { eventName, fullUrl, title, windowWidth, pageId, duration, previousPage } = detail;
-
-      this.handleShopifyEvent(eventName);
-
-      const eventData = new PageEventDataComponent({
-        duration,
-        title,
-        fullUrl,
-        windowWidth,
-        previousPage
-      });
-
-      const profileId = this.getProfileId();
-      const sessionId = this.getSessionId();
-
-
-      if(!profileId || !sessionId || !pageId) return;
-
-      const pageEvent = new PageEventModel({
-        name: eventName,
-        sessionId,
-        profileId,
-        pageId,
-        data: eventData
-      })
-
-
-      dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: pageEvent});
-    })
-  }
-
-  private _trackSession(){
-    document.addEventListener(IntemptEventListenerName.SESSION, async (event) => {
-      if (!this.isUserOptIn()) return;
-      const { detail } = event as CustomEvent;
-      const { eventName, userAttributes, eventAttributes } = detail;
-
-      const sessionId = this.getSessionId();
-      const profileId = this.getProfileId();
-
-      if(!profileId || !sessionId) return;
-
-      const sessionEvent = new SessionEventModel({
-        name: eventName,
-        sessionId,
-        profileId,
-        data: eventAttributes,
-        userAttributes
-      })
-
-      dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: sessionEvent});
-    })
-  }
-
-  private _eventPoolHandler() {
-    document.addEventListener(IntemptEventListenerName.EVENT, (customDomEvent) => {
-      if (!this.isUserOptIn()) return;
-      const { detail } = customDomEvent as CustomEvent;
-      const { event  } = detail;
-      const { type   } = event;
-
-
-
-      switch (type) {
-        case 'consent':
-          return this._sendConsentTrackEventData(event);
-         default:
-           this._onTrackData(event);
-           break;
-      }
-    });
-  }
-
-  private _onTrackData(rawData:any){
+  private _onTrackData(rawData: TrackableEvent){
     // The single choke point for scrubbing: both the batcher and the legacy
     // debounced fallback go through here, so one call covers every event path.
     //
@@ -431,17 +368,18 @@ export class AutoTrackerModule {
     const data = this._scrubPii(rawData);
 
     // Use batcher if available, otherwise fallback to old method
-    if (this._batcherInitialized && this._requestBatcher) {
+    if (this._transport.initialized && this._transport.batcher) {
       const name = data.name.toLowerCase();
-      
+      const batcher = this._transport.batcher;
+
       // For "Leave Page" events, flush immediately
       if (name === 'leave page') {
-        this._requestBatcher.enqueue(data).then(() => {
-          this._requestBatcher?.flush({ unloading: true });
+        batcher.enqueue(data).then(() => {
+          batcher.flush({ unloading: true });
         });
       } else {
         // Enqueue normally - batcher will handle batching
-        this._requestBatcher.enqueue(data);
+        batcher.enqueue(data);
       }
     } else {
       // Fallback to old debounced method
@@ -449,7 +387,7 @@ export class AutoTrackerModule {
     }
   }
 
-  private _onTrackDataLegacy(data:any){
+  private _onTrackDataLegacy(data: TrackableEvent){
     // Keep existing implementation as fallback
     let debouncedSendEvents:ReturnType<typeof debounce>;
     const name = data.name.toLowerCase();
@@ -465,7 +403,7 @@ export class AutoTrackerModule {
     return debouncedSendEvents();
   }
 
-  private async _sendConsentTrackEventData(data:any) {
+  private async _sendConsentTrackEventData(data: TrackableEvent) {
     const {organization, sourceId, project, writeKey} = this._config;
 
     const url = `${this._api}/${organization}/projects/${project}/consents/data`;
