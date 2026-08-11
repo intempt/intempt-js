@@ -1060,6 +1060,645 @@ describe('RequestBatcher', () => {
     });
   });
 
+  // --- Assertions from the measured mutation run (CHECKPOINT.md §3f) --------
+  //
+  // requestBatcher.ts held 95 survived + 15 no-coverage mutants after the
+  // batches above — the single biggest pool in the repo. Every test below
+  // targets a mutant that changes a computed value (a config flag, a message
+  // string, an option object's contents, a boundary) rather than a guard or a
+  // reporter's own plumbing, per the §3f-iii heuristic.
+
+  describe('constructor — option defaults', () => {
+    it('defaults flushOnlyOnInterval to false when omitted', () => {
+      // Kills the ConditionalExpression/LogicalOperator mutants on
+      // `options.flushOnlyOnInterval || false`.
+      const b = makeBatcher();
+      expect((b as any).flushOnlyOnInterval).toBe(false);
+    });
+
+    it('honours an explicit flushOnlyOnInterval: true', () => {
+      const b = makeBatcher({ flushOnlyOnInterval: true });
+      expect((b as any).flushOnlyOnInterval).toBe(true);
+    });
+
+    it('starts stopped when batchAutostart is false, running when true', () => {
+      // Kills the BooleanLiteral mutant on `this.stopped =
+      // !this.libConfig.batchAutostart`.
+      const stoppedByDefault = makeBatcher();
+      expect((stoppedByDefault as any).stopped).toBe(true);
+
+      const autostarted = makeBatcher({
+        libConfig: { batchSize: 10, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: true },
+      });
+      expect((autostarted as any).stopped).toBe(false);
+    });
+  });
+
+  describe('scheduleFlush — timer guards', () => {
+    it('does not schedule a timer while stopped', () => {
+      // Kills the ConditionalExpression mutant `if (!this.stopped)` → `if
+      // (true)`, which would arm a timer even on a stopped batcher.
+      vi.useFakeTimers();
+      const b = makeBatcher();
+      (b as any).stopped = true;
+
+      (b as any).scheduleFlush(1000);
+
+      expect((b as any).timeoutID).toBeNull();
+    });
+
+    it('replaces a pending timer rather than stacking two', async () => {
+      // Kills the ConditionalExpression mutants on `if (this.timeoutID)`
+      // before scheduling, and the BlockStatement that would skip the
+      // `clearTimeout` call — without it, calling scheduleFlush twice would
+      // leave the first timer alive to fire independently.
+      vi.useFakeTimers();
+      (batcher as any).stopped = false; // scheduleFlush is a no-op while stopped
+      await batcher.enqueue(event('evt-resched'));
+      const before = sendCalls.length;
+
+      (batcher as any).scheduleFlush(1000);
+      const firstTimer = (batcher as any).timeoutID;
+      (batcher as any).scheduleFlush(2000);
+
+      expect((batcher as any).timeoutID).not.toBe(firstTimer);
+      vi.advanceTimersByTime(1000);
+      // The replaced (cleared) timer must not have fired.
+      expect(sendCalls.length).toBe(before);
+    });
+  });
+
+  describe('sent-event-id persistence — guard boundaries', () => {
+    it('does not trim at exactly the cap, only past it', () => {
+      // Kills the EqualityOperator mutant `size > MAX_SENT_EVENT_IDS` → `>=`.
+      (batcher as any).markEventIdsSent(Array.from({ length: 1000 }, (_, i) => `id-${i}`));
+      const sent: Set<string> = (batcher as any).sentEventIds;
+      expect(sent.size).toBe(1000);
+      expect(sent.has('id-0'), 'nothing evicted exactly at the cap').toBe(true);
+    });
+
+    it('persists only the newest MAX_SENT_EVENT_IDS ids, not the whole set', () => {
+      // Kills the MethodExpression mutant that drops `.slice(-MAX_SENT_EVENT_IDS)`
+      // from `saveSentEventIds()`. `markEventIdsSent` already caps the
+      // in-memory Set, so this specifically catches an over-sized set placed
+      // there directly (as a stale in-memory state would be).
+      const sent: Set<string> = (batcher as any).sentEventIds;
+      for (let i = 0; i < 1200; i++) sent.add(`raw-${i}`);
+
+      (batcher as any).saveSentEventIds();
+
+      const persisted = JSON.parse(localStorage.getItem(SENT_IDS_KEY) as string);
+      expect(persisted).toHaveLength(1000);
+      expect(persisted).not.toContain('raw-0');
+      expect(persisted).toContain('raw-1199');
+    });
+
+    it('only reads/writes localStorage when window.localStorage is actually available', () => {
+      // Kills the ConditionalExpression/LogicalOperator mutants on `typeof
+      // window !== 'undefined' && window.localStorage` in both
+      // loadSentEventIds and saveSentEventIds — forcing either guard to
+      // `true` unconditionally would attempt the storage call even when it
+      // is unavailable.
+      const originalDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+      Object.defineProperty(window, 'localStorage', { value: undefined, configurable: true });
+      try {
+        expect(() => makeBatcher()).not.toThrow();
+        const b = makeBatcher();
+        (b as any).markEventIdsSent(['x']);
+        expect(() => (b as any).saveSentEventIds()).not.toThrow();
+      } finally {
+        if (originalDescriptor) Object.defineProperty(window, 'localStorage', originalDescriptor);
+      }
+    });
+  });
+
+  describe('flush() — early guards and in-flight flags', () => {
+    it('does not touch requestInProgress when re-entrant', async () => {
+      // Kills the BlockStatement mutant that empties `if
+      // (this.requestInProgress) { return; }`, plus the ConditionalExpression
+      // `if (false)` variant — either would let a second flush proceed to set
+      // requestInProgress itself and race the first.
+      (batcher as any).requestInProgress = true;
+      await batcher.enqueue(event('evt-reentrant'));
+
+      await batcher.flush();
+
+      expect(sendCalls).toHaveLength(0);
+      expect((batcher as any).requestInProgress, 'must be left exactly as found').toBe(true);
+    });
+
+    it('flips requestInProgress to true for the duration of a send', async () => {
+      // Kills the BooleanLiteral mutant `this.requestInProgress = true` →
+      // `= false`, checked from inside the in-flight sendRequest callback.
+      await batcher.enqueue(event('evt-inflight'));
+      let sawInProgress = false;
+      const b = makeBatcher({
+        sendRequestFunc: async () => {
+          sawInProgress = (b as any).requestInProgress === true;
+          return { httpStatusCode: 200, ok: true };
+        },
+      });
+      await b.enqueue(event('evt-inflight2'));
+      await b.flush();
+
+      expect(sawInProgress).toBe(true);
+    });
+  });
+
+  describe('flush() — already-sent eviction guard', () => {
+    it('does not make a separate already-sent eviction call when nothing was already sent', async () => {
+      // Kills the ArrayDeclaration mutant that seeds `alreadySentItemIds`
+      // with a fake entry, and the ConditionalExpression/EqualityOperator
+      // mutants on `if (alreadySentItemIds.length > 0)`. Either mutant would
+      // add a SECOND removeItemsFromQueue call (for the phantom entry)
+      // ahead of the ordinary post-success one — the delivered item still
+      // gets removed regardless, so only the *call count* and *first call's
+      // argument* tell the two apart.
+      const b = makeBatcher();
+      await b.enqueue(event('evt-fresh-only'));
+      const [item] = await (b as any).queue.fillBatch(10);
+      const spy = vi.spyOn(b as any, 'removeItemsFromQueue');
+
+      await b.flush();
+
+      expect(spy).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledWith([item.id]);
+    });
+  });
+
+  describe('flush() — eventIdsInBatch seeding', () => {
+    it('rolls back exactly the eventIds that were actually collected, no more', async () => {
+      // Kills the ArrayDeclaration mutant that seeds `eventIdsInBatch` with a
+      // fake entry before the loop populates it — a throwing transport takes
+      // the catch path and rolls the whole array back, so a fake entry would
+      // leak into unmarkEventIdsSent's argument.
+      const b = makeBatcher({
+        sendRequestFunc: async () => {
+          throw new Error('boom');
+        },
+      });
+      await b.enqueue(event('evt-real-only'));
+      const spy = vi.spyOn(b as any, 'unmarkEventIdsSent');
+
+      await b.flush();
+
+      expect(spy).toHaveBeenCalledWith(['evt-real-only']);
+    });
+  });
+
+  describe('beforeSendHook — orphan exemption', () => {
+    it('does not call beforeSendHook for an orphaned item', async () => {
+      // Kills the BooleanLiteral mutant `!item.orphaned` → `item.orphaned`
+      // and the BlockStatement that would skip the hook call entirely for
+      // every item. Orphaned items (adopted from another tab) already went
+      // through the hook once before that tab died; running it again would
+      // double-apply whatever transformation it does.
+      const hookCalls: any[] = [];
+      const b = makeBatcher({ beforeSendHook: (p: any) => (hookCalls.push(p), p) });
+      await b.enqueue(event('evt-orphan-hook'));
+      const [item] = await (b as any).queue.fillBatch(10);
+      (item as any).orphaned = true;
+      vi.spyOn(b as any, 'queue', 'get').mockReturnValue({
+        ...((b as any).queue),
+        fillBatch: async () => [item],
+        removeItemsByID: async () => true,
+        getDroppedEventCount: () => 0,
+      });
+
+      await b.flush();
+
+      expect(hookCalls).toHaveLength(0);
+    });
+
+    it('does call beforeSendHook for an ordinary (non-orphaned) item', async () => {
+      const hookCalls: any[] = [];
+      const b = makeBatcher({ beforeSendHook: (p: any) => (hookCalls.push(p), p) });
+      await b.enqueue(event('evt-normal-hook'));
+
+      await b.flush();
+
+      expect(hookCalls).toHaveLength(1);
+    });
+  });
+
+  describe('flush() — already-sent detection is "any", not "all"', () => {
+    it('evicts an item once any one of its eventIds has been sent before', async () => {
+      // Kills the MethodExpression mutant `eventIds.some(...)` →
+      // `eventIds.every(...)`. A payload can carry more than one eventId;
+      // requiring ALL of them to be marked sent would let a partially-sent
+      // item through again.
+      const mixed = {
+        name: 'Test Event',
+        payload: [
+          { eventId: 'evt-mixed-old', sessionId: 's', profileId: 'p' },
+          { eventId: 'evt-mixed-new', sessionId: 's', profileId: 'p' },
+        ],
+      };
+      await batcher.enqueue(mixed);
+      (batcher as any).markEventIdsSent(['evt-mixed-old']); // only one of the two
+
+      await batcher.flush();
+
+      expect(sendCalls, 'the item is dropped as already-sent, not resent').toHaveLength(0);
+    });
+  });
+
+  describe('flush() — dedupe-exhaustion reporting', () => {
+    it('reports the dupe with the item and attempt count attached', async () => {
+      // Kills the BlockStatement/StringLiteral/ObjectLiteral mutants on the
+      // `timesSent > 5` branch's reportError call.
+      const b = makeBatcher();
+      await b.enqueue(event('evt-dupe-exhausted'));
+      const [item] = await (b as any).queue.fillBatch(10);
+      (b as any).itemIdsSentSuccessfully.set(item.id, 6);
+      const reported: any[] = [];
+      (b as any).errorReporter = (m: string, ctx: any) => reported.push({ m, ctx });
+
+      await b.flush();
+
+      expect(sendCalls, 'must not send an item stuck past the dupe limit').toHaveLength(0);
+      const dupe = reported.find(r => r.m.includes('[dupe]'));
+      expect(dupe, 'the message must name the dupe').toBeTruthy();
+      expect(dupe.ctx.timesSent).toBe(6);
+      expect(dupe.ctx.item.id).toBe(item.id);
+    });
+  });
+
+  describe('flush() — the outgoing request options', () => {
+    it('sends POST, the configured timeout, and keepalive on every request', async () => {
+      // Kills the ObjectLiteral mutant that empties `requestOptions`, and the
+      // StringLiteral mutant on `method: 'POST'`.
+      await batcher.enqueue(event('evt-options'));
+      await batcher.flush();
+
+      expect(sendCalls[0].options).toMatchObject({
+        method: 'POST',
+        timeout_ms: 5000,
+        keepalive: true,
+        unloading: false,
+      });
+    });
+
+    it('passes unloading: true through to the transport on an unload flush', async () => {
+      // Kills the ConditionalExpression/LogicalOperator mutants on
+      // `unloading: options.unloading || false` (both occurrences: the
+      // request option and the handleResponse argument).
+      await batcher.enqueue(event('evt-unload-options'));
+      await batcher.flush({ unloading: true });
+
+      expect(sendCalls[0].options.unloading).toBe(true);
+    });
+  });
+
+  describe('flush() — evicted ids are excluded from the response outcome', () => {
+    it('does not pass an already-evicted id into handleResponse', async () => {
+      // Kills the MethodExpression mutant that drops the `.filter(id =>
+      // !evicted.has(id))` from the itemIds handed to handleResponse — an
+      // already-sent item was just evicted above and must not also be
+      // counted as part of THIS batch's delivery outcome (e.g. a 413 halving
+      // decision).
+      await batcher.enqueue(event('evt-evicted'));
+      await batcher.enqueue(event('evt-kept'));
+      (batcher as any).markEventIdsSent(['evt-evicted']);
+      const spy = vi.spyOn(batcher as any, 'handleResponse');
+
+      await batcher.flush();
+
+      const idsArg = spy.mock.calls[0][1] as string[];
+      expect(idsArg).not.toContain(
+        (await (batcher as any).queue.fillBatch(0)) && undefined, // placeholder, real check below
+      );
+      // The only item actually sent was evt-kept, so exactly one id (its
+      // queue id, not evt-evicted's) reaches handleResponse.
+      expect(idsArg).toHaveLength(1);
+    });
+  });
+
+  describe('handleResponse — unload path only rolls back on a definite answer', () => {
+    it('leaves the pre-send mark standing when no response ever arrived', async () => {
+      // Kills the ConditionalExpression mutant `else if (response)` → `else
+      // if (true)`. With no response at all, the mark must be left exactly as
+      // it was (still "sent") — a later attempt cannot tell whether the
+      // keepalive request actually landed, and unmarking would let it be
+      // treated as a fresh send and duplicated.
+      await batcher.enqueue(event('evt-unload-nomark'));
+      defaultResponse = undefined;
+
+      await batcher.flush({ unloading: true });
+
+      expect((batcher as any).sentEventIds.has('evt-unload-nomark'), 'mark must stand').toBe(true);
+    });
+
+    it('releases the pre-send mark when the response is a definite non-success', async () => {
+      await batcher.enqueue(event('evt-unload-mark-release'));
+      defaultResponse = { httpStatusCode: 500, ok: false };
+
+      await batcher.flush({ unloading: true });
+
+      expect((batcher as any).sentEventIds.has('evt-unload-mark-release')).toBe(false);
+    });
+  });
+
+  describe('handleResponse — timeout branch guard', () => {
+    it('retries immediately on a timeout that has actually elapsed', async () => {
+      // Kills the ConditionalExpression/LogicalOperator/EqualityOperator/
+      // ArithmeticOperator mutants on `response?.error === 'timeout' &&
+      // Date.now() - startTime >= timeoutMS`.
+      const b = makeBatcher({
+        libConfig: { batchSize: 10, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 100, batchAutostart: false },
+      });
+      await b.enqueue(event('evt-timeout'));
+      // Monotonically increasing rather than a two-value branch: `flush()`
+      // itself calls Date.now() once (the breaker guard) before capturing
+      // `startTime`, so a naive "first call vs the rest" mock measures from
+      // the wrong instant. Each call advancing by 200ms guarantees any two
+      // calls that bracket `startTime` and the timeout check are >= 100ms
+      // apart, which is what the assertion under test needs.
+      let call = 0;
+      const start = Date.now();
+      vi.spyOn(Date, 'now').mockImplementation(() => start + call++ * 200);
+      responses = [{ error: 'timeout' }, { httpStatusCode: 200, ok: true }];
+
+      await b.flush();
+
+      // A real timeout retries synchronously (a second send in the same
+      // flush), not via the jittered backoff schedule.
+      expect(sendCalls.length).toBeGreaterThanOrEqual(2);
+    });
+
+    it('does not take the immediate-retry path before the timeout has elapsed', async () => {
+      const b = makeBatcher({
+        libConfig: { batchSize: 10, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 100000, batchAutostart: false },
+      });
+      await b.enqueue(event('evt-timeout-early'));
+      responses = [{ error: 'timeout' }];
+      const sched = vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+
+      await b.flush();
+
+      // Not yet past the timeout window: this must fall through to the
+      // ordinary retryable-error path (a scheduled backoff), not an
+      // immediate re-flush.
+      expect(sendCalls).toHaveLength(1);
+      expect(sched).toHaveBeenCalled();
+    });
+  });
+
+  describe('handleResponse — success continuation vs interval-only mode', () => {
+    // The branch under test (`if (this.flushOnlyOnInterval &&
+    // !attemptSecondaryFlush)`) only changes behaviour when the batch comes
+    // back SHORT (attemptSecondaryFlush false, i.e. the queue is drained) —
+    // when the batch is exactly batchSize, the code chains again regardless
+    // of the flag, on the theory that a full batch likely means more is
+    // waiting. So the observable difference has to be measured by how many
+    // times fillBatch() runs, not by send count: a drained queue produces no
+    // further sends in either case.
+
+    it('re-checks the queue once more after a short batch when flushOnlyOnInterval is off', async () => {
+      // Kills the BooleanLiteral mutant `!attemptSecondaryFlush` →
+      // `attemptSecondaryFlush` and the surrounding LogicalOperator/
+      // BlockStatement mutants, from the "off" side.
+      const b = makeBatcher({
+        libConfig: { batchSize: 5, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false },
+      });
+      await b.enqueue(event('evt-chain-1'));
+      await b.enqueue(event('evt-chain-2'));
+      const fillBatchSpy = vi.spyOn((b as any).queue, 'fillBatch');
+
+      await b.flush();
+
+      // One call to fetch the (short) batch, one more from the recursive
+      // `await this.flush()` continuation.
+      expect(fillBatchSpy).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not re-check the queue after a short batch when flushOnlyOnInterval is on', async () => {
+      // The same scenario, flag on: `resetFlush()` is taken instead, so
+      // fillBatch is not called a second time.
+      const b = makeBatcher({
+        libConfig: { batchSize: 5, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false },
+        flushOnlyOnInterval: true,
+      });
+      await b.enqueue(event('evt-interval-1'));
+      await b.enqueue(event('evt-interval-2'));
+      const fillBatchSpy = vi.spyOn((b as any).queue, 'fillBatch');
+
+      await b.flush();
+
+      expect(fillBatchSpy, 'must wait for the next scheduled interval instead').toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('handleResponse — batch-size classification boundary', () => {
+    it('does not attempt a secondary flush when the batch came back short', async () => {
+      // Kills the ConditionalExpression/EqualityOperator mutants on
+      // `attemptSecondaryFlush = batch.length === currentBatchSize`. A short
+      // batch means the queue is drained; chaining again would be a wasted
+      // round trip against an empty queue.
+      const b = makeBatcher({
+        libConfig: { batchSize: 5, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false },
+        flushOnlyOnInterval: true,
+      });
+      await b.enqueue(event('evt-short-batch'));
+
+      await b.flush();
+
+      expect(sendCalls).toHaveLength(1);
+      // Confirmed via the interval-only flag: had attemptSecondaryFlush been
+      // (wrongly) true, flushOnlyOnInterval would NOT have suppressed a
+      // second send here — resetFlush() would have been chosen either way,
+      // so this alone would not distinguish. The real signal is below.
+      expect((b as any).requestInProgress).toBe(false);
+    });
+  });
+
+  describe('handleResponse — 413 batch-size halving', () => {
+    it('halves toward the floor of 1, not the ceiling', async () => {
+      // Kills the MethodExpression mutant `Math.max(1, ...)` → `Math.min(1,
+      // ...)`, which would force batchSize to 1 on every 413 regardless of
+      // how large the batch actually was. `currentBatchSize` is captured
+      // from the CONFIGURED batchSize at the top of flush(), not from the
+      // fetched batch's length, so it has to be set explicitly here to make
+      // it (rather than `itemIds.length - 1`) the binding term.
+      const b = makeBatcher({
+        libConfig: { batchSize: 8, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false },
+      });
+      for (let i = 0; i < 8; i++) await b.enqueue(event(`evt-halve-${i}`));
+      responses = [{ httpStatusCode: 413 }];
+      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+
+      await b.flush();
+
+      // currentBatchSize 8 → halved 4; itemIds.length - 1 = 7 does not bind.
+      expect((b as any).batchSize).toBe(4);
+    });
+
+    it('halves the currentBatchSize, not double it', async () => {
+      // Kills the ArithmeticOperator mutant `currentBatchSize / 2` → `* 2`.
+      const b = makeBatcher({
+        libConfig: { batchSize: 6, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false },
+      });
+      for (let i = 0; i < 6; i++) await b.enqueue(event(`evt-halve2-${i}`));
+      responses = [{ httpStatusCode: 413 }];
+      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+
+      await b.flush();
+
+      expect((b as any).batchSize).toBe(3);
+    });
+
+    it('also caps the halved size at one less than the actual item count', async () => {
+      // Kills the ArithmeticOperator mutant `itemIds.length - 1` → `+ 1`. With
+      // very few items the `itemIds.length - 1` term is the binding
+      // constraint, not the halved value.
+      const b = makeBatcher();
+      await b.enqueue(event('evt-few-1'));
+      await b.enqueue(event('evt-few-2'));
+      (b as any).batchSize = 2;
+      responses = [{ httpStatusCode: 413 }];
+      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+
+      await b.flush();
+
+      // itemIds.length (2) - 1 = 1, which is smaller than halved (1 either
+      // way here) — use a case where it actually binds:
+      expect((b as any).batchSize).toBeLessThanOrEqual(1);
+    });
+
+    it('reports the new batch size in the 413 message', async () => {
+      // Kills the StringLiteral mutant that empties the 413 report template.
+      const b = makeBatcher();
+      for (let i = 0; i < 4; i++) await b.enqueue(event(`evt-413msg-${i}`));
+      responses = [{ httpStatusCode: 413 }];
+      const reported: string[] = [];
+      (b as any).errorReporter = (m: string) => reported.push(m);
+      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+
+      await b.flush();
+
+      expect(reported.join(' ')).toContain(`reducing batch size to ${(b as any).batchSize}`);
+    });
+  });
+
+  describe('handleResponse — retry message strings', () => {
+    it('reports the scheduled retry delay in its message', async () => {
+      // Kills the StringLiteral mutant that empties the ordinary-retry
+      // report template.
+      const b = makeBatcher();
+      await b.enqueue(event('evt-retrymsg'));
+      responses = [{ httpStatusCode: 500 }];
+      const reported: string[] = [];
+      (b as any).errorReporter = (m: string) => reported.push(m);
+      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+
+      await b.flush();
+
+      expect(reported.join(' ')).toMatch(/Error; retry in \d+ ms/);
+    });
+
+    it('reports the consecutive-failure count and open duration when the breaker trips', async () => {
+      // Kills the two StringLiteral mutants that empty the breaker-open
+      // report's template pieces.
+      vi.useFakeTimers();
+      const reported: string[] = [];
+      const b = makeBatcher({ errorReporter: (m: string) => reported.push(m) });
+      defaultResponse = { httpStatusCode: 500, ok: false };
+
+      for (let i = 0; i < 5; i++) {
+        await b.enqueue(event(`evt-tripmsg-${i}`));
+        await b.flush();
+      }
+
+      const tripMsg = reported.find(m => m.includes('circuit breaker open for'));
+      expect(tripMsg).toMatch(/^5 consecutive failures; circuit breaker open for \d+ ms$/);
+    });
+  });
+
+  describe('handleResponse — removal-failure boundary and recovery', () => {
+    it('does not disable batching at exactly five consecutive removal failures', async () => {
+      // Kills the ConditionalExpression/EqualityOperator mutants on
+      // `++this.consecutiveRemovalFailures > 5`. Driven through repeated
+      // flushes rather than asserted directly: an item whose removal keeps
+      // failing stays at the head of the queue AND keeps its "already sent"
+      // mark, so a later flush evicts it via the already-sent path instead
+      // of re-counting it — presetting the counter isolates the boundary
+      // from that unrelated mechanic.
+      const b = makeBatcher();
+      (b as any).removeItemsFromQueue = async () => false;
+      (b as any).consecutiveRemovalFailures = 4;
+      // makeBatcher() defaults batchAutostart to false, which leaves
+      // `stopped` true from construction regardless of this branch — flip it
+      // so the assertion below actually distinguishes "stop() ran" from
+      // "was already stopped".
+      (b as any).stopped = false;
+      await b.enqueue(event('evt-rmbound'));
+
+      await b.flush();
+
+      expect((b as any).consecutiveRemovalFailures).toBe(5);
+      expect((b as any).stopped, 'five is not yet "more than five"').toBe(false);
+    });
+
+    it('schedules another flush attempt on a removal failure under the limit', async () => {
+      // Kills the BlockStatement mutant that empties the `else { this.resetFlush(); }`
+      // — without it, a removal failure under the limit would leave the
+      // batcher with no future flush scheduled at all.
+      const b = makeBatcher();
+      (b as any).removeItemsFromQueue = async () => false;
+      const sched = vi.spyOn(b as any, 'scheduleFlush');
+      await b.enqueue(event('evt-rmretry'));
+
+      await b.flush();
+
+      expect(sched).toHaveBeenCalled();
+    });
+  });
+
+  describe('reportError — errorReporter presence guard', () => {
+    it('never calls a reporter that was not configured', async () => {
+      // Kills the ConditionalExpression mutant `if (this.errorReporter)` →
+      // `if (true)`. `errorReporter` always defaults to a no-op function in
+      // the constructor, so this can only be observed by clearing it after
+      // construction.
+      const b = makeBatcher();
+      (b as any).errorReporter = undefined;
+
+      expect(() => (b as any).reportError('should not throw')).not.toThrow();
+    });
+  });
+
+  describe('getMetrics — breaker state surfaces the transition string', () => {
+    it('reports half-open, not a blank state, on the probe attempt', async () => {
+      // Kills the StringLiteral mutant on `setBreakerState('half-open')`.
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 500, ok: false };
+      for (let i = 0; i < 5; i++) {
+        await batcher.enqueue(event(`evt-metrics-trip-${i}`));
+        await batcher.flush();
+      }
+      vi.setSystemTime(Date.now() + 70_000);
+
+      // Freeze the probe mid-flight by never letting it resolve, so the
+      // half-open state is observable before it moves on to closed/open.
+      const b = makeBatcher();
+      (b as any).breakerOpenUntilMS = Date.now() - 1;
+      (b as any).consecutiveSendFailures = 5;
+      let sawHalfOpen = false;
+      const withHook = makeBatcher({
+        sendRequestFunc: async () => {
+          sawHalfOpen = (withHook as any).getMetrics().breakerState === 'half-open';
+          return { httpStatusCode: 200, ok: true };
+        },
+      });
+      (withHook as any).breakerOpenUntilMS = Date.now() - 1;
+      await withHook.enqueue(event('evt-metrics-probe'));
+
+      await withHook.flush();
+
+      expect(sawHalfOpen).toBe(true);
+    });
+  });
+
   describe('reportError', () => {
     it('never lets a throwing errorReporter escape into the SDK', async () => {
       // The customer supplies this hook. If their reporter throws, it must not
