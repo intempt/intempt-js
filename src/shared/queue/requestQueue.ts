@@ -1,20 +1,25 @@
-import { QueueStorage } from '../storage/queueStorage.ts';
+import { QueueStorage, QueueStorageLike } from '../storage/queueStorage.ts';
 import { SharedLock } from '../storage/sharedLock.ts';
 
 export interface QueueEntry {
   id: string;
   flushAfter: number; // Timestamp when item can be considered orphaned
-  payload: any;
+  /**
+   * The event body, opaque to the queue: it stores and returns it without ever
+   * reading a field. `unknown` says that, and forces the batcher — the one place
+   * that does look inside, for eventIds — to narrow first.
+   */
+  payload: unknown;
   orphaned?: boolean;
 }
 
 export interface RequestQueueOptions {
   usePersistence?: boolean;
-  queueStorage?: QueueStorage;
+  queueStorage?: QueueStorageLike;
   sharedLockStorage?: Storage;
   sharedLockTimeoutMS?: number;
   enqueueThrottleMs?: number;
-  errorReporter?: (msg: string, err?: any) => void;
+  errorReporter?: (msg: string, err?: unknown) => void;
   pid?: string;
   maxQueuedEvents?: number;
 }
@@ -74,7 +79,7 @@ export class RequestQueue {
   private storageKey: string;
   private itemPrefix: string;
   private usePersistence: boolean;
-  private queueStorage: QueueStorage;
+  private queueStorage: QueueStorageLike;
   private lock: SharedLock | null = null;
   private memQueue: QueueEntry[] = [];
   private initialized: boolean = false;

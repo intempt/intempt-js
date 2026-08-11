@@ -1,5 +1,5 @@
 import { IndexedDbStore } from './indexedDbStore.ts';
-import { QueueStorage } from './queueStorage.ts';
+import { QueueStorage, QueueStorageLike, StoredEntry } from './queueStorage.ts';
 
 /**
  * Storage with an IndexedDB tier and a localStorage fallback.
@@ -26,7 +26,7 @@ import { QueueStorage } from './queueStorage.ts';
  * record per event, read a bounded batch at a time, removed by key. That is what
  * makes an enqueue O(1) instead of a rewrite of the whole pending queue.
  */
-export class PersistentStore {
+export class PersistentStore implements QueueStorageLike {
   private readonly idb: IndexedDbStore;
   private readonly fallback: QueueStorage;
   private driver: 'indexeddb' | 'localstorage' | null = null;
@@ -84,7 +84,7 @@ export class PersistentStore {
     return this.initPromise;
   }
 
-  async getItem(key: string): Promise<any> {
+  async getItem(key: string): Promise<unknown> {
     await this.init();
     if (this.driver === 'indexeddb') {
       try {
@@ -100,7 +100,7 @@ export class PersistentStore {
     return this.fallback.getItem(key);
   }
 
-  async setItem(key: string, value: any): Promise<void> {
+  async setItem(key: string, value: unknown): Promise<void> {
     await this.init();
     if (this.driver === 'indexeddb') {
       try {
@@ -121,10 +121,7 @@ export class PersistentStore {
   }
 
   /** See `IndexedDbStore.entries` / `QueueStorage.entries`. */
-  async entries(
-    prefix: string,
-    limit?: number,
-  ): Promise<Array<{ key: string; value: any }>> {
+  async entries(prefix: string, limit?: number): Promise<StoredEntry[]> {
     await this.init();
     if (this.driver === 'indexeddb') {
       try {

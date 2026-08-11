@@ -772,6 +772,16 @@ describe('RequestBatcher', () => {
         { error: 'network', httpStatusCode: 200 },
       ],
       ['a missing response object', undefined],
+      // A DELIVERED response carrying no status at all. This case used to be
+      // classified as a success and the batch was dequeued unconfirmed, because
+      // `undefined >= 500`, `undefined === 429` and `undefined <= 0` are all false
+      // under `any` — while `isDefiniteSuccess` called the same response
+      // inconclusive (asserted above, 'no status at all'). Typing the response as
+      // `BatchSendResult | null` surfaced the contradiction; retry is the safe
+      // resolution, and this asserts it so the two classifiers cannot drift apart
+      // again.
+      ['a delivered response with no status', {}],
+      ['a response whose status is not a number', { httpStatusCode: '200' }],
     ])(
       'retries after %s without dropping the batch',
       async (_name, response) => {

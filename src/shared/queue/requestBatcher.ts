@@ -1,4 +1,5 @@
 import { RequestQueue, QueueEntry } from './requestQueue.ts';
+import { QueueStorageLike } from '../storage/queueStorage.ts';
 import { createLogger } from '../logger/logger.ts';
 import { MetricsSnapshot, SdkMetrics } from '../logger/metrics.ts';
 
@@ -19,13 +20,47 @@ export interface BatcherConfig {
   maxQueuedEvents?: number;
 }
 
+/**
+ * What `sendRequestFunc` is called with. Lives here rather than in the transport
+ * that implements it, because this is the batcher's contract — the transport is one
+ * implementation of it, and the tests are another.
+ */
+export interface BatchSendOptions {
+  method?: string;
+  unloading?: boolean;
+  keepalive?: boolean;
+  timeout_ms?: number;
+}
+
+/**
+ * What a send reports back. **Every field is optional and the whole result may be
+ * `null`**, which is the point: `null` means the transport never delivered at all,
+ * and that is a different outcome from any HTTP status. `isDefiniteSuccess` and the
+ * retry classification both depend on being able to tell those apart — under `any`
+ * they were indistinguishable, and a missing `httpStatusCode` read as `undefined`
+ * silently took the "not retryable" branch.
+ */
+export interface BatchSendResult {
+  httpStatusCode?: number;
+  ok?: boolean;
+  retryAfter?: string;
+  error?: string;
+}
+
 export interface RequestBatcherOptions {
   storageKey: string;
   libConfig: BatcherConfig;
-  sendRequestFunc: (data: any[], options: any) => Promise<any>;
-  errorReporter?: (msg: string, err?: any) => void;
-  beforeSendHook?: (payload: any) => any;
-  queueStorage?: any;
+  sendRequestFunc: (
+    data: unknown[],
+    options: BatchSendOptions,
+  ) => Promise<BatchSendResult | null>;
+  errorReporter?: (msg: string, err?: unknown) => void;
+  /**
+   * May return a falsy value to drop the event — the flush loop checks the result
+   * before queuing it for the request.
+   */
+  beforeSendHook?: (payload: unknown) => unknown;
+  queueStorage?: QueueStorageLike;
   sharedLockStorage?: Storage;
   usePersistence?: boolean;
   flushOnlyOnInterval?: boolean;
@@ -122,9 +157,12 @@ const MAX_SENT_EVENT_IDS = 1000;
 export class RequestBatcher {
   private queue: RequestQueue;
   private libConfig: BatcherConfig;
-  private sendRequest: (data: any[], options: any) => Promise<any>;
-  private beforeSendHook?: (payload: any) => any;
-  private errorReporter: (msg: string, err?: any) => void;
+  private sendRequest: (
+    data: unknown[],
+    options: BatchSendOptions,
+  ) => Promise<BatchSendResult | null>;
+  private beforeSendHook?: (payload: unknown) => unknown;
+  private errorReporter: (msg: string, err?: unknown) => void;
   private flushOnlyOnInterval: boolean;
   private readonly log = createLogger('RequestBatcher');
   /**
@@ -206,7 +244,7 @@ export class RequestBatcher {
     });
   }
 
-  async enqueue(item: any): Promise<boolean> {
+  async enqueue(item: unknown): Promise<boolean> {
     return this.queue.enqueue(item, this.flushInterval);
   }
 
@@ -423,14 +461,24 @@ export class RequestBatcher {
    * Extract eventIds from payload
    * Payload structure: { name: string, payload: [{ eventId: string, ... }] }
    */
-  private extractEventIds(payload: any): string[] {
+  private extractEventIds(payload: unknown): string[] {
     const eventIds: string[] = [];
 
-    if (payload && Array.isArray(payload.payload)) {
-      for (const item of payload.payload) {
-        if (item && item.eventId && typeof item.eventId === 'string') {
-          eventIds.push(item.eventId);
-        }
+    // Narrowed step by step rather than cast, because this runs on data that came
+    // back out of storage: an older bundle's records, or another tab's. Anything
+    // that does not match the expected shape yields no ids, which downstream
+    // treats as "no dedupe protection" — the pre-existing behaviour for payloads
+    // without eventIds, and safer than throwing inside a flush.
+    if (!payload || typeof payload !== 'object') return eventIds;
+
+    const entries = (payload as { payload?: unknown }).payload;
+    if (!Array.isArray(entries)) return eventIds;
+
+    for (const item of entries) {
+      if (!item || typeof item !== 'object') continue;
+      const eventId = (item as { eventId?: unknown }).eventId;
+      if (typeof eventId === 'string' && eventId) {
+        eventIds.push(eventId);
       }
     }
 
@@ -473,8 +521,8 @@ export class RequestBatcher {
     try {
       const batch = await this.queue.fillBatch(currentBatchSize);
       const attemptSecondaryFlush = batch.length === currentBatchSize;
-      const dataForRequest: any[] = [];
-      const transformedItems: Map<string, any> = new Map();
+      const dataForRequest: unknown[] = [];
+      const transformedItems: Map<string, unknown> = new Map();
       const alreadySentItemIds: string[] = []; // Queue items to evict, not just skip
 
       // Process batch items
@@ -542,7 +590,7 @@ export class RequestBatcher {
       // Send request
       // Use fetch with keepalive for all requests (including page unload)
       // This ensures Authorization header is included and requests are reliable during unload
-      const requestOptions: any = {
+      const requestOptions: BatchSendOptions = {
         method: 'POST',
         timeout_ms: timeoutMS,
         keepalive: true,
@@ -583,7 +631,7 @@ export class RequestBatcher {
   }
 
   private async handleResponse(
-    response: any,
+    response: BatchSendResult | null,
     itemIds: string[],
     attemptSecondaryFlush: boolean,
     currentBatchSize: number,
@@ -648,13 +696,20 @@ export class RequestBatcher {
       // reports link-layer state: it is true on a captive portal, a dead VPN, or
       // when the API itself is unreachable. Found by the property tests in
       // tests/unit/queueInvariants.test.ts.
+      // A delivered response with NO `httpStatusCode` counts as retryable, and that
+      // is a deliberate decision forced by typing the response. Under `any`,
+      // `undefined >= 500`, `undefined === 429` and `undefined <= 0` are all false,
+      // so such a response fell past every branch and was treated as a SUCCESS —
+      // the batch dequeued having never been confirmed. That directly contradicted
+      // `isDefiniteSuccess`, which requires `ok === true` or a 2xx and therefore
+      // calls the same response inconclusive. Two classifiers disagreeing about the
+      // same input is the bug; retrying is the safe side of it, because the
+      // alternative is silent loss. `?? 0` also keeps the existing `<= 0` intent
+      // ("no usable status" and "status 0" are the same case).
       const transportFailed = !response || !!response.error;
-      if (
-        transportFailed ||
-        response?.httpStatusCode >= 500 ||
-        response?.httpStatusCode === 429 ||
-        response?.httpStatusCode <= 0
-      ) {
+      const rawStatus: unknown = response?.httpStatusCode;
+      const status = typeof rawStatus === 'number' ? rawStatus : 0;
+      if (transportFailed || status >= 500 || status === 429 || status <= 0) {
         this.metrics.markFlushFailed();
         // Retry with exponential backoff, spread across the fleet with full
         // jitter. The ceiling doubles deterministically; the sleep is a random
@@ -777,7 +832,7 @@ export class RequestBatcher {
    * Anything ambiguous — no response object, a network/timeout error, a 0 or 5xx
    * status — is treated as "unknown", and the batch stays queued for next load.
    */
-  private isDefiniteSuccess(response: any): boolean {
+  private isDefiniteSuccess(response: BatchSendResult | null): boolean {
     if (!response || response.error) {
       return false;
     }
@@ -801,7 +856,7 @@ export class RequestBatcher {
    * `errorReporter` callback stays because it is a different contract: a
    * per-instance hook the batcher's owner wired, which the tests drive directly.
    */
-  private reportError(msg: string, err?: any): void {
+  private reportError(msg: string, err?: unknown): void {
     this.log.error(msg, err);
     if (this.errorReporter) {
       try {

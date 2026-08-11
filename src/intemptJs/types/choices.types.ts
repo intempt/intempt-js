@@ -39,12 +39,17 @@ export type MergedChoiceTypes = 'insert' | 'modify' | 'replace' | 'delete';
 export type Choice = {
   active: boolean;
   change_title: string;
-  attributes: Record<string, any>;
+  // `unknown` values, not `any`: everything on `Choice` arrives from the
+  // optimization endpoint, so nothing here should be dereferenced without a
+  // check. Nothing in the SDK reads these three today — they are carried and
+  // re-serialised — and `unknown` keeps it that way by making a future reader
+  // narrow first.
+  attributes: Record<string, unknown>;
   changedAttribute: string;
   classes: string[];
   id: string;
-  newValue: Record<string, any> | string;
-  oldValue: Record<string, any> | string;
+  newValue: Record<string, unknown> | string;
+  oldValue: Record<string, unknown> | string;
   isPublished: boolean;
   oldLocation: ElementLocationType | null;
   newLocation: ElementLocationType | null;
@@ -52,7 +57,7 @@ export type Choice = {
   selector: string;
   tagName: string;
   type: ChoiceTypes;
-  stylesToAdd?: any;
+  stylesToAdd?: unknown;
 };
 
 export type ChoicesRequestData = {
@@ -135,7 +140,7 @@ export type Modification = {
   xPathSelector: string;
   xPathIndex: number;
   text: string | null;
-  params: Record<string, any>;
+  params: Record<string, unknown>;
 };
 export type XPtr = {
   _xPathSelector: string;

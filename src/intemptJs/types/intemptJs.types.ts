@@ -2,9 +2,23 @@ import { PiiScrubberOptions } from '../../shared/privacy/piiScrubber.ts';
 
 import { DiagnosticSink, LogThreshold } from '../../shared/logger/logger.ts';
 
+/**
+ * A bag of customer-supplied attributes — event data, user traits, account traits.
+ *
+ * `unknown` rather than `any` for the values, deliberately: these bags are only
+ * ever passed through to `JSON.stringify` on the way to ingest, never read
+ * field-by-field by the SDK, so nothing here needs to dereference them — and
+ * `unknown` means a future reader is forced to narrow instead of silently
+ * inheriting `any`. It is NOT a stricter public contract: assigning any value to
+ * `unknown` is always allowed, so every call that typechecks today still does.
+ * A `JsonValue` union would have been stricter and would reject the `Date` and
+ * `undefined` values customers do pass, so it is deliberately not used.
+ */
+export type AttributeBag = { [key: string]: unknown };
+
 export type LocalStorageCache = {
-  get: (key: string) => any;
-  set: (key: string, value: any) => any;
+  get: (key: string) => unknown;
+  set: (key: string, value: unknown) => void;
   remove: (key: string) => void;
   getAllKeys: () => string[];
   clear: () => void;
@@ -103,7 +117,8 @@ export type IntemptVariables = {
 };
 
 export type EditorPayload = {
-  experience: any;
+  /** Opaque here: the web editor round-trips it untouched. */
+  experience: unknown;
   variantId: string;
   token: string;
 };
@@ -132,28 +147,28 @@ export type RecommendationParams = {
 export type IdentifyParams = {
   userId: string;
   eventTitle?: string;
-  userAttributes?: { [key: string]: any };
-  data?: { [key: string]: any };
+  userAttributes?: AttributeBag;
+  data?: AttributeBag;
 };
 
 export type GroupParams = {
   accountId: string;
   eventTitle?: string;
-  accountAttributes?: { [key: string]: any };
+  accountAttributes?: AttributeBag;
 };
 
 export type TrackParams = {
   eventTitle: string;
-  data: { [key: string]: any };
+  data: AttributeBag;
 };
 
 export type RecordParams = {
   eventTitle: string;
   accountId?: string;
   userId?: string;
-  accountAttributes?: { [key: string]: any };
-  userAttributes?: { [key: string]: any };
-  data?: { [key: string]: any };
+  accountAttributes?: AttributeBag;
+  userAttributes?: AttributeBag;
+  data?: AttributeBag;
 };
 
 export type AliasParams = {

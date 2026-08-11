@@ -4,6 +4,16 @@ import { PersistentStore } from '../../src/shared/storage/persistentStore.ts';
 import { RequestQueue } from '../../src/shared/queue/requestQueue.ts';
 
 /**
+ * Queue entries come back with `payload: unknown` — the queue stores event bodies
+ * without ever reading a field, so it does not claim to know their shape. These
+ * tests wrote the payloads, so they do; this is where that knowledge is stated
+ * once instead of cast at twenty call sites.
+ */
+function pl(entry: { payload: unknown }): Record<string, any> {
+  return entry.payload as Record<string, any>;
+}
+
+/**
  * `fake-indexeddb` is installed globally by tests/unit/setup.ts, so these run
  * against a real IndexedDB implementation rather than a hand-written double.
  * The fallback paths are exercised by breaking the real thing, not by mocking
@@ -383,13 +393,11 @@ describe('PersistentStore', () => {
     await queue.enqueue({ event: 'b' }, 1000);
 
     const batch = await queue.fillBatch(10);
-    expect(batch.map((i) => i.payload.event)).toEqual(['a', 'b']);
+    expect(batch.map((i) => pl(i).event)).toEqual(['a', 'b']);
     expect(store.getDriver()).toBe('indexeddb');
 
     await queue.removeItemsByID([batch[0].id]);
-    expect((await queue.fillBatch(10)).map((i) => i.payload.event)).toEqual([
-      'b',
-    ]);
+    expect((await queue.fillBatch(10)).map((i) => pl(i).event)).toEqual(['b']);
   });
 
   it('reports no driver before init has run', () => {
@@ -569,7 +577,7 @@ describe('PersistentStore', () => {
       queueStorage: new PersistentStore({ dbName }) as any,
     });
 
-    expect((await second.fillBatch(10)).map((i) => i.payload.event)).toEqual([
+    expect((await second.fillBatch(10)).map((i) => pl(i).event)).toEqual([
       'survives',
     ]);
   });

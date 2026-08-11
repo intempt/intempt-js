@@ -182,9 +182,15 @@ export const ChoicesService = {
       auth_config: authRequest,
     });
 
-    const storedData: StoredData = localStorageCache.get(key);
+    // `localStorageCache.get` is typed `unknown`, not `any`, so this cast is a
+    // decision rather than an accident: the value came out of localStorage, where
+    // any page script — or an older bundle — could have written anything. Narrow
+    // by checking the one field we read, and treat every other shape as "no
+    // changes" rather than letting `undefined.map` throw inside the render path.
+    const stored = localStorageCache.get(key);
+    const changes = (stored as StoredData)?.changes;
 
-    return storedData?.changes ?? [];
+    return Array.isArray(changes) ? changes : [];
   },
 
   setChangesData: async function ({

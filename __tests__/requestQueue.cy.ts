@@ -109,7 +109,11 @@ describe('RequestQueue', () => {
 
       const batch = await newQueue.fillBatch(10);
       expect(batch.length).to.equal(1);
-      expect(batch[0].payload.event).to.equal('persistent');
+      // `payload` is typed `unknown`: the queue stores event bodies without
+      // reading them. This spec enqueued it, so it knows the shape.
+      expect((batch[0].payload as { event: string }).event).to.equal(
+        'persistent',
+      );
     });
 
     it('should work without persistence', async () => {

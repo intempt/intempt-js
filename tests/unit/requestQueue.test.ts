@@ -2,6 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { RequestQueue } from '../../src/shared/queue/requestQueue.ts';
 import { QueueStorage } from '../../src/shared/storage/queueStorage.ts';
 
+/**
+ * Queue entries come back with `payload: unknown` — the queue stores event bodies
+ * without ever reading a field, so it does not claim to know their shape. These
+ * tests wrote the payloads, so they do; this is where that knowledge is stated
+ * once instead of cast at twenty call sites.
+ */
+function pl(entry: { payload: unknown }): Record<string, any> {
+  return entry.payload as Record<string, any>;
+}
+
 const KEY = '__unit_queue__';
 
 function makeQueue(overrides: Record<string, any> = {}) {
@@ -26,7 +36,7 @@ describe('RequestQueue', () => {
       const second = makeQueue();
       const batch = await second.fillBatch(10);
 
-      expect(batch.map((i) => i.payload.event)).toEqual(['a', 'b']);
+      expect(batch.map((i) => pl(i).event)).toEqual(['a', 'b']);
     });
 
     it('falls back to the memory queue when persistence is off', async () => {
@@ -65,7 +75,7 @@ describe('RequestQueue', () => {
       }
 
       const batch = await queue.fillBatch(3);
-      expect(batch.map((i) => i.payload.n)).toEqual([0, 1, 2]);
+      expect(batch.map((i) => pl(i).n)).toEqual([0, 1, 2]);
     });
 
     it('is non-destructive — reading a batch does not dequeue it', async () => {
@@ -86,7 +96,9 @@ describe('RequestQueue', () => {
       const storage = new QueueStorage();
       const [entry] = await storage.entries(`${KEY}:i:`);
       await storage.setItem(entry.key, {
-        ...entry.value,
+        // `StoredEntry.value` is `unknown` — it came out of storage. This test put
+        // it there one line earlier, so it can say what it is.
+        ...(entry.value as Record<string, unknown>),
         flushAfter: Date.now() - 1,
       });
 
@@ -103,7 +115,7 @@ describe('RequestQueue', () => {
       }
 
       const batch = await makeQueue().fillBatch(20);
-      expect(batch.map((i) => i.payload.n)).toEqual(
+      expect(batch.map((i) => pl(i).n)).toEqual(
         Array.from({ length: 20 }, (_, i) => i),
       );
     });
@@ -132,7 +144,7 @@ describe('RequestQueue', () => {
       const batch = await queue.fillBatch(10);
       expect(await queue.removeItemsByID([batch[0].id])).toBe(true);
 
-      expect((await queue.fillBatch(10)).map((i) => i.payload.n)).toEqual([2]);
+      expect((await queue.fillBatch(10)).map((i) => pl(i).n)).toEqual([2]);
       // One record per event: exactly one key should remain under the prefix.
       expect(await new QueueStorage().keys(`${KEY}:i:`)).toHaveLength(1);
     });
@@ -200,7 +212,7 @@ describe('RequestQueue', () => {
 
       const batch = await makeQueue().fillBatch(10);
 
-      expect(batch.map((i) => i.payload.n)).toEqual([1, 2]);
+      expect(batch.map((i) => pl(i).n)).toEqual([1, 2]);
       // The legacy key is removed so the import cannot run twice and duplicate.
       expect(localStorage.getItem(KEY)).toBeNull();
     });
@@ -209,9 +221,9 @@ describe('RequestQueue', () => {
       const queue = makeQueue();
       await queue.enqueue({ n: 1 }, 1000);
 
-      expect((await makeQueue().fillBatch(10)).map((i) => i.payload.n)).toEqual(
-        [1],
-      );
+      expect((await makeQueue().fillBatch(10)).map((i) => pl(i).n)).toEqual([
+        1,
+      ]);
     });
 
     it('ignores malformed legacy entries rather than failing the import', async () => {
@@ -225,7 +237,7 @@ describe('RequestQueue', () => {
       );
 
       const batch = await makeQueue().fillBatch(10);
-      expect(batch.map((i) => i.payload.n)).toEqual([7]);
+      expect(batch.map((i) => pl(i).n)).toEqual([7]);
     });
   });
 
@@ -255,7 +267,7 @@ describe('RequestQueue', () => {
 
       // Drop OLDEST: recent events are the valuable ones (current session,
       // current funnel), so the survivors are the tail.
-      expect(batch.map((i) => i.payload.n)).toEqual([7, 8, 9, 10, 11]);
+      expect(batch.map((i) => pl(i).n)).toEqual([7, 8, 9, 10, 11]);
     });
 
     it('counts what it dropped instead of losing it silently', async () => {
@@ -284,7 +296,7 @@ describe('RequestQueue', () => {
       }
 
       const batch = await queue.fillBatch(100);
-      expect(batch.map((i) => i.payload.n)).toEqual([6, 7, 8]);
+      expect(batch.map((i) => pl(i).n)).toEqual([6, 7, 8]);
       expect(queue.getDroppedEventCount()).toBe(6);
     });
 
@@ -867,7 +879,7 @@ describe('RequestQueue', () => {
       (queue as any).lock = null;
 
       const batch = await queue.fillBatch(10);
-      expect(batch.map((i) => i.payload.n)).toEqual([1]);
+      expect(batch.map((i) => pl(i).n)).toEqual([1]);
     });
   });
 

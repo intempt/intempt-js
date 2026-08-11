@@ -9,6 +9,7 @@ import {
   UtmKey,
 } from './constants.types.ts';
 import { IntemptShopifyEvent } from '../interfaces/events.interface.ts';
+import { AttributeBag } from './intemptJs.types.ts';
 
 export type DeviceType =
   | DeviceTypeName.DESKTOP
@@ -140,8 +141,8 @@ export type IdentifyModelPayload = {
   sessionId: string;
   pageId: string;
   userId: string;
-  userAttributes?: { [key: string]: any };
-  data?: { [key: string]: any };
+  userAttributes?: AttributeBag;
+  data?: AttributeBag;
 };
 
 export type GroupModelPayload = {
@@ -151,7 +152,7 @@ export type GroupModelPayload = {
   sessionId: string;
   pageId: string;
   accountId: string;
-  accountAttributes?: { [key: string]: any };
+  accountAttributes?: AttributeBag;
 };
 
 export type TrackModelPayload = {
@@ -160,7 +161,7 @@ export type TrackModelPayload = {
   profileId: string;
   sessionId: string;
   pageId: string;
-  data?: { [key: string]: any };
+  data?: AttributeBag;
 };
 
 export type RecordModelPayload = {
@@ -171,9 +172,9 @@ export type RecordModelPayload = {
   sessionId?: string;
   accountId?: string;
   userId?: string;
-  data?: { [key: string]: any };
-  accountAttributes?: { [key: string]: any };
-  userAttributes?: { [key: string]: any };
+  data?: AttributeBag;
+  accountAttributes?: AttributeBag;
+  userAttributes?: AttributeBag;
 };
 
 export type AliasModelPayload = {
