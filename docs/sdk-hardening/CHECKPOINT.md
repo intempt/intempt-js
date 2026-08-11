@@ -1408,6 +1408,52 @@ None are done yet, deliberately — measure the merged tree first.
 5. `BACKLOG.md` **4.2 can close** — with the high advisory gone, `ci.yml`'s dev-dep
    audit half can become blocking instead of advisory.
 
+## 3o. Second wave — four code lanes IN FLIGHT as of 2026-08-12 02:20. HOW TO FINISH THEM.
+
+**Merged-tree gates from wave 1 all passed** before these launched, so `e71a356` is a
+good base: unit **920/920**, mutation **86.57%** (merged, not lane-local), Cypress
+**0 failing**, size limits all pass (gzip 26.93/27.2, brotli 23.38/23.6, raw
+92.55/93 — passing but tight), ESLint 0 errors / 236 warnings, bundle 92,548 B.
+
+Four lanes are running against `e71a356` in **hand-built, HEAD-verified worktrees**
+(the `isolation: "worktree"` flag is unreliable — see §3n failure 1):
+
+| Lane | Branch | Worktree | Task |
+|---|---|---|---|
+| **F** | `lane-f-pagestracker` | `.claude/worktrees/lane-f-pagestracker` | **D-9, D-10, D-11** — popstate double-exit, replaceState orphan exit, missing `hashchange` — plus 3 `any` |
+| **G** | `lane-g-choices` | `.claude/worktrees/lane-g-choices` | **D-6, D-7, D-8, D-22** — the all-or-nothing experiences engine — plus 5 `any` |
+| **H** | `lane-h-transport` | `.claude/worktrees/lane-h-transport` | `FRONTEND.md` **#10**: `fetch(keepalive)` → XHR fallback. **`sendBeacon` explicitly OUT of scope** (needs `BACKEND.md` 1) |
+| **I** | `lane-i-loader` | `.claude/worktrees/lane-i-loader` | **D-17** (`?shopify=false` enables), **D-27** (empty `api_host` becomes `''` not default), **D-12**'s uncaught throw |
+
+**To finish, in this order:**
+1. For each lane: `git -C <worktree> log --oneline e71a356..HEAD` to see what it did,
+   then verify by RUNNING — never from its summary. `npm run build` (the typecheck
+   gate), `npm run test:unit`, `npm run test` (Cypress), `stat -c%s dist/intempt.min.js`,
+   and `npx eslint <its files>` **reading the printed count, because eslint exits 0
+   on warnings** — that is exactly how a wave-1 lane reported zero when it had one.
+2. `git merge --no-edit <branch>` each, from the primary checkout. Wave 1 merged
+   four branches with zero conflicts because territories were disjoint; these four
+   are disjoint too (pagesTracker / choices / transport / loaders).
+3. Re-run every gate ON THE MERGED TREE, including `npm run test:mutation`. Lane H
+   edits code whose mutation score is 88%, so a drop there means its new code is
+   untested.
+4. THEN move the thresholds — never before measuring:
+   - `stryker.conf.json` `break` **80 → 85** (86.57 measured on the merged wave-1 tree)
+   - `package.json` `--max-warnings` **245 → 236**, lower again if the lanes' `any`
+     removals drop it further
+   - `vitest.config.ts` per-glob floors to ~2 under the new measures
+   - `.size-limit.json` **only if a lane pushes past a limit** — raw has ~450 B of
+     headroom, so H or G may force it. Raising it is a loosening: state the reason.
+5. Register **D-27** in `DEFECTS.md` (Lane A found it; Lane I fixes it), and mark
+   **D-6/7/8/9/10/11/12/17/22** fixed as the lanes land.
+6. `BACKLOG.md` **4.2 can close** — vite 6 landed, so `ci.yml`'s dev-dep audit half
+   can go from advisory to blocking at `--audit-level=high`.
+
+**Nothing is pushed. There are ~13 local commits and CI has never seen any of it.**
+The user's own open items: check live host sites for the `/v1`-less URL, approve
+`npm install` → `npm ci` and the `branches: ['*']` fix in `build.yaml`, push and open
+the PR into `staging`, and hand over `BACKEND.md`.
+
 ## 4. Three live defects — ✅ all three fixed
 
 Real bugs found during the audit, fixed out of phase order because all three were
