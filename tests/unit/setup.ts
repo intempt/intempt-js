@@ -29,10 +29,28 @@ beforeEach(() => {
   }
 
   // jsdom keeps cookies for the document's lifetime; expire them all.
+  //
+  // D-26: expiring with `path=/` alone is not enough. A cookie written with a
+  // `domain=` attribute — which the consent cookie does, deliberately, so an
+  // opt-out on `www.example.com` carries to `shop.example.com` (§3g/D-23) — is a
+  // *different* cookie from the host-only one of the same name, and a deletion
+  // that omits `domain` does not match it. Such a cookie therefore survived
+  // teardown and leaked into the next test, which is why the privacy suites clear
+  // their own state instead of trusting this hook. Expiring the name against every
+  // registrable suffix of the current host as well as host-only covers both.
+  const hostname = location.hostname;
+  const labels = hostname.split('.');
+  const domains: (string | null)[] = [null]; // host-only: no `domain=` attribute
+  for (let i = 0; i < labels.length - 1; i++) {
+    domains.push(labels.slice(i).join('.'), `.${labels.slice(i).join('.')}`);
+  }
+
   for (const cookie of document.cookie.split(';')) {
     const name = cookie.split('=')[0]?.trim();
-    if (name) {
-      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/`;
+    if (!name) continue;
+    for (const domain of domains) {
+      const scope = domain === null ? '' : `;domain=${domain}`;
+      document.cookie = `${name}=;expires=Thu, 01 Jan 1970 00:00:00 GMT;path=/${scope}`;
     }
   }
 });
