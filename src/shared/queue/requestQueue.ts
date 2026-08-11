@@ -16,7 +16,28 @@ export interface RequestQueueOptions {
   enqueueThrottleMs?: number;
   errorReporter?: (msg: string, err?: any) => void;
   pid?: string;
+  maxQueuedEvents?: number;
 }
+
+/**
+ * Hard cap on pending events, enforced by dropping the oldest.
+ *
+ * Without a cap the queue grows until the storage tier's quota fails, and a
+ * quota failure is **silent**: the write throws, the event falls back to memory,
+ * and nothing counts what was lost. The circuit breaker made this load-bearing
+ * rather than theoretical — it deliberately stops sending for 60s at a time
+ * while events keep arriving, so the queue is now guaranteed to grow during
+ * exactly the situation the breaker exists to manage.
+ *
+ * A cap does not avoid data loss; it converts unbounded, silent, quota-driven
+ * loss into bounded loss with a number attached. That number is the point.
+ *
+ * 10,000 events is far above any legitimate session (a heavy session is tens to
+ * low hundreds) and still well inside the ~5 MB localStorage floor at typical
+ * payload sizes, so reaching it means something is wrong — a sustained outage or
+ * a runaway tracking loop — and dropping is the right response either way.
+ */
+const MAX_QUEUED_EVENTS = 10000;
 
 /**
  * Persistent queue for tracking events.
@@ -60,6 +81,27 @@ export class RequestQueue {
   private migrated: boolean = false;
   private reportError: (msg: string, err?: any) => void;
   private sequence: number = 0;
+  private maxQueuedEvents: number;
+  /**
+   * Running total of events dropped to stay under the cap, for the lifetime of
+   * this page. Read via `getDroppedEventCount()`.
+   */
+  private droppedEventCount: number = 0;
+  /**
+   * Cheap estimate of pending events, used to decide *whether* to run the exact
+   * count.
+   *
+   * An exact count means listing every key, which is the O(N)-per-enqueue cost
+   * the per-event layout exists to avoid — paying it on every enqueue would undo
+   * that work to enforce a limit almost never reached. So this counter tracks
+   * locally and only when it reaches the cap does `enforceQueueCap()` do the
+   * real scan, which also resyncs this value to the truth. Being an estimate is
+   * fine: it can only drift low by missing another tab's writes, and the exact
+   * scan at the boundary is what actually enforces the cap.
+   *
+   * -1 means "not yet seeded from storage".
+   */
+  private approxQueuedCount: number = -1;
 
   constructor(storageKey: string, options: RequestQueueOptions = {}) {
     this.storageKey = storageKey;
@@ -67,6 +109,7 @@ export class RequestQueue {
     this.usePersistence = options.usePersistence !== false;
     this.queueStorage = options.queueStorage || new QueueStorage(options.sharedLockStorage);
     this.reportError = options.errorReporter || (() => {});
+    this.maxQueuedEvents = options.maxQueuedEvents || MAX_QUEUED_EVENTS;
 
     if (this.usePersistence) {
       this.lock = new SharedLock(storageKey, {
@@ -115,6 +158,7 @@ export class RequestQueue {
 
     if (!this.usePersistence) {
       this.memQueue.push(queueEntry);
+      this.capMemQueue();
       return true;
     }
 
@@ -122,6 +166,7 @@ export class RequestQueue {
     if (!this.usePersistence) {
       // ensureInit downgraded us to memory-only.
       this.memQueue.push(queueEntry);
+      this.capMemQueue();
       return true;
     }
 
@@ -130,6 +175,8 @@ export class RequestQueue {
       // No lock: the key is unique to this event, so there is nothing to race.
       await this.queueStorage.setItem(key, { ...queueEntry, key });
       this.memQueue.push({ ...queueEntry, key } as QueueEntry & { key: string });
+      this.approxQueuedCount = this.approxQueuedCount < 0 ? -1 : this.approxQueuedCount + 1;
+      await this.enforceQueueCap();
       return true;
     } catch (error) {
       this.reportError('Error enqueueing item', error);
@@ -137,6 +184,86 @@ export class RequestQueue {
       // not also mean a lost event.
       this.memQueue.push(queueEntry);
       return false;
+    }
+  }
+
+  /** Events dropped to stay under the cap, since this page loaded. */
+  getDroppedEventCount(): number {
+    return this.droppedEventCount;
+  }
+
+  /**
+   * Cap the in-memory queue, used when persistence is off or unavailable.
+   *
+   * Same policy as the persistent path — drop oldest — because `memQueue` is
+   * FIFO-ordered too.
+   */
+  private capMemQueue(): void {
+    const overflow = this.memQueue.length - this.maxQueuedEvents;
+    if (overflow <= 0) return;
+
+    this.memQueue.splice(0, overflow);
+    this.droppedEventCount += overflow;
+    this.reportError(
+      `Queue full (${this.maxQueuedEvents}); dropped ${overflow} oldest event(s), ` +
+        `${this.droppedEventCount} total this page`
+    );
+  }
+
+  /**
+   * Hold the persisted queue at or below `maxQueuedEvents` by deleting the
+   * oldest records.
+   *
+   * Dropping the *oldest* is the deliberate policy: recent events are the more
+   * valuable ones (current session, current funnel), and because keys sort
+   * chronologically the oldest are a cheap prefix of `keys()` — no sorting, no
+   * reading of values.
+   *
+   * The scan only runs once the local estimate reaches the cap, so the common
+   * path stays O(1); see `approxQueuedCount`. The scan doubles as a resync, which
+   * is what corrects for events another tab added or removed behind our back.
+   *
+   * **Known imprecision, accepted.** "Oldest" means key order, and the tiebreak
+   * sequence in `makeItemKey` is per-instance, so two tabs writing inside the
+   * *same millisecond* interleave arbitrarily — eviction can then drop an event
+   * a fraction of a millisecond newer than another. That ordering caveat is
+   * pre-existing; the cap only makes it observable. It is not worth a
+   * cross-tab-coordinated counter: the cost is at most a few misordered events
+   * at the boundary of a queue that is already overflowing, and the alternative
+   * puts shared state back on the hot path that per-event records just cleared.
+   */
+  private async enforceQueueCap(): Promise<void> {
+    if (this.approxQueuedCount >= 0 && this.approxQueuedCount < this.maxQueuedEvents) {
+      return;
+    }
+
+    try {
+      const keys = await this.queueStorage.keys(this.itemPrefix);
+      this.approxQueuedCount = keys.length;
+      if (keys.length <= this.maxQueuedEvents) return;
+
+      // keys() is FIFO-ordered, so the overflow is the leading slice.
+      const doomed = keys.slice(0, keys.length - this.maxQueuedEvents);
+      await this.queueStorage.removeItems(doomed);
+
+      const doomedSet = new Set(doomed);
+      this.memQueue = this.memQueue.filter(
+        entry => !doomedSet.has((entry as QueueEntry & { key?: string }).key as string)
+      );
+      this.approxQueuedCount = this.maxQueuedEvents;
+      this.droppedEventCount += doomed.length;
+
+      // The whole point of the cap: loss that is counted and reported rather
+      // than a silent quota failure nobody ever hears about.
+      this.reportError(
+        `Queue full (${this.maxQueuedEvents}); dropped ${doomed.length} oldest event(s), ` +
+          `${this.droppedEventCount} total this page`
+      );
+    } catch (error) {
+      // Never let cap enforcement break enqueueing — the event is already
+      // written, and failing here would turn a housekeeping problem into a
+      // rejected event.
+      this.reportError('Error enforcing queue cap', error);
     }
   }
 
@@ -258,6 +385,12 @@ export class RequestQueue {
       // Atomic on the IndexedDB tier; per-key on localStorage. Either way there
       // is no stale-array write-back, which is what used to lose events.
       await this.queueStorage.removeItems(keys);
+      // Keep the cap estimate honest. Drifting high would trigger needless
+      // scans; drifting low is harmless, since the scan at the boundary is what
+      // enforces the cap.
+      if (this.approxQueuedCount > 0) {
+        this.approxQueuedCount = Math.max(0, this.approxQueuedCount - keys.length);
+      }
       return true;
     } catch (error) {
       this.reportError('Error removing items', error);
@@ -267,6 +400,7 @@ export class RequestQueue {
 
   async clear(): Promise<void> {
     this.memQueue = [];
+    this.approxQueuedCount = 0;
     if (this.usePersistence) {
       await this.ensureInit();
       if (!this.usePersistence) return;

@@ -223,6 +223,106 @@ describe('RequestQueue', () => {
     });
   });
 
+  describe('bounded queue', () => {
+    it('holds the queue at the cap by dropping the oldest events', async () => {
+      const queue = makeQueue({ maxQueuedEvents: 5 });
+      for (let i = 0; i < 12; i++) {
+        await queue.enqueue({ n: i }, 1000);
+      }
+
+      // Unbounded, this grows until the storage quota throws -- and a quota
+      // failure is silent, so the loss is both larger and invisible.
+      const batch = await queue.fillBatch(100);
+      expect(batch).toHaveLength(5);
+
+      // Drop OLDEST: recent events are the valuable ones (current session,
+      // current funnel), so the survivors are the tail.
+      expect(batch.map(i => i.payload.n)).toEqual([7, 8, 9, 10, 11]);
+    });
+
+    it('counts what it dropped instead of losing it silently', async () => {
+      const reported: string[] = [];
+      const queue = makeQueue({
+        maxQueuedEvents: 5,
+        errorReporter: (m: string) => reported.push(m),
+      });
+      for (let i = 0; i < 12; i++) {
+        await queue.enqueue({ n: i }, 1000);
+      }
+
+      // The entire point of the cap: bounded loss with a number attached,
+      // rather than unbounded loss nobody hears about.
+      expect(queue.getDroppedEventCount()).toBe(7);
+      expect(reported.join(' ')).toContain('Queue full');
+    });
+
+    it('caps the memory queue too when persistence is off', async () => {
+      const queue = new RequestQueue(KEY, { usePersistence: false, maxQueuedEvents: 3 });
+      for (let i = 0; i < 9; i++) {
+        await queue.enqueue({ n: i }, 1000);
+      }
+
+      const batch = await queue.fillBatch(100);
+      expect(batch.map(i => i.payload.n)).toEqual([6, 7, 8]);
+      expect(queue.getDroppedEventCount()).toBe(6);
+    });
+
+    it('enforces the cap against events another tab queued', async () => {
+      // Two instances on one storage key, as two tabs are. The second has never
+      // seen the first's events in its own memQueue, so this exercises the
+      // storage scan rather than the local estimate.
+      const tabA = makeQueue({ maxQueuedEvents: 5 });
+      for (let i = 0; i < 5; i++) {
+        await tabA.enqueue({ n: i }, 1000);
+      }
+
+      const tabB = makeQueue({ maxQueuedEvents: 5 });
+      await tabB.enqueue({ n: 99 }, 1000);
+
+      // Read through a third instance: it has an empty memQueue, so fillBatch
+      // reflects what is actually in storage rather than one tab's local view.
+      const reader = makeQueue({ maxQueuedEvents: 5 });
+      const stored = await reader.fillBatch(100);
+      expect(stored).toHaveLength(5);
+      expect(tabB.getDroppedEventCount()).toBe(1);
+
+      // Deliberately NOT asserting *which* event went. The tiebreak sequence in
+      // makeItemKey is per-instance, so two tabs writing inside the same
+      // millisecond interleave arbitrarily and eviction can take an event a
+      // fraction of a millisecond newer. Pre-existing ordering caveat, made
+      // observable by the cap; see enforceQueueCap. The guarantee that matters
+      // is that the cap holds across tabs at all.
+    });
+
+    it('leaves a queue under the cap completely alone', async () => {
+      const queue = makeQueue({ maxQueuedEvents: 100 });
+      for (let i = 0; i < 20; i++) {
+        await queue.enqueue({ n: i }, 1000);
+      }
+
+      expect(await queue.fillBatch(100)).toHaveLength(20);
+      expect(queue.getDroppedEventCount()).toBe(0);
+    });
+
+    it('does not reject an event when cap enforcement fails', async () => {
+      const storage = new QueueStorage();
+      const reported: string[] = [];
+      const queue = makeQueue({
+        maxQueuedEvents: 2,
+        queueStorage: storage,
+        errorReporter: (m: string) => reported.push(m),
+      });
+      await queue.enqueue({ n: 0 }, 1000);
+      vi.spyOn(storage, 'keys').mockRejectedValue(new Error('scan failed'));
+
+      // Housekeeping failing must not turn into a rejected event -- it is
+      // already written at this point.
+      expect(await queue.enqueue({ n: 1 }, 1000)).toBe(true);
+      expect(await queue.enqueue({ n: 2 }, 1000)).toBe(true);
+      expect(reported.join(' ')).toContain('Error enforcing queue cap');
+    });
+  });
+
   describe('persistence failure', () => {
     it('degrades to memory-only rather than throwing', async () => {
       const reported: string[] = [];

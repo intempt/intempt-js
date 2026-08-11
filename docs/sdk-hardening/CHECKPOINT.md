@@ -12,9 +12,9 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Next action** | **§3 — bounded queue + drop policy** (load shedding 3 of 3). Has open design questions; ask before building. |
-| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. Unit 141 / Cypress 213, all passing. Bundle 80.25 kB / 22.75 kB gzip. |
+| **Next action** | **§3 — `ci.yml`.** Client-side load shedding is complete; nothing is blocked. |
+| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. Unit 147 / Cypress 213, all passing. Bundle 81.74 kB / 23.08 kB gzip. |
 
 ---
 
@@ -103,9 +103,8 @@ Recorded so they are not re-litigated:
 
 Remaining work that needs nothing from anyone else:
 
-1. **Load shedding, client-side three of four — in progress.** Jitter ✅ (§3a),
-   circuit breaker ✅ (§3b). Remaining: a bounded queue with an explicit drop
-   policy (today the queue grows until quota fails, and quota failure is silent).
+1. **Load shedding, client-side three of four — ✅ complete.** Jitter (§3a),
+   circuit breaker (§3b), bounded queue (§3c). The fourth needs the backend.
 2. Rest of Phase 2 — port the guard suites into the unit tier, golden-file
    contract tests on the payload shape, `ci.yml` so the tiers gate merges.
 3. Cross-subdomain consent cookie (the D15 limitation).
@@ -208,19 +207,63 @@ breaker closed by hand. The breaker legitimately trips at 5 failures, long befor
 the ceiling reaches its cap, so the two mechanisms are tested in isolation.
 6 breaker tests added (141 unit total).
 
-## 3. Next concrete action — bounded queue with an explicit drop policy
+## 3c. Load shedding 3 of 3 — bounded queue + drop policy ✅
 
-Load shedding 3 of 3, and now the most valuable remaining item, because §3b made
-it sharper: the breaker deliberately holds sending shut for 60s at a time while
-events keep queueing, so the unbounded queue is now guaranteed to grow during
-precisely the situation the breaker exists to manage.
+Landed 2026-08-11 in `src/shared/queue/requestQueue.ts`. **Parameters the user
+chose — do not re-litigate:** cap by **event count** (10,000, overridable via
+`maxQueuedEvents`), **drop oldest**, surfaced as a **counter + the existing
+`errorReporter`**.
 
-Today the queue grows until storage quota fails, and **quota failure is silent**.
-A cap plus a deliberate policy — drop oldest, count the drops, report the count —
-turns silent data loss into a measurable number. Design questions to settle with
-the user first: cap by event count or bytes, drop oldest or newest, and how the
-drop count is surfaced (it needs somewhere to go, which ties into the Phase 4
-structured logger).
+Previously the queue grew until the storage tier's quota failed, and a quota
+failure is **silent**: the write throws, the event falls back to memory, nothing
+counts what was lost. §3b made that load-bearing rather than theoretical — the
+circuit breaker deliberately stops sending for 60s at a time while events keep
+arriving.
+
+A cap does not avoid data loss. It converts unbounded, silent, quota-driven loss
+into bounded loss with a number attached — `getDroppedEventCount()` on both
+`RequestQueue` and `RequestBatcher`, plus a report through `errorReporter` at each
+drop. The number is the deliverable.
+
+**The performance trap, and how it is avoided.** An exact count means listing
+every key — the O(N)-per-enqueue cost that per-event records (§6c) exist to
+remove. Paying it on every enqueue to enforce a limit almost never reached would
+undo that work. So `approxQueuedCount` tracks locally and the real scan runs
+**only when the estimate reaches the cap**, where it doubles as a resync. The
+estimate can only drift low (by missing another tab's writes), and the scan at
+the boundary is what actually enforces the cap, so drift is harmless.
+
+Cap enforcement failures are caught and reported but never reject the event — it
+is already written by then, and failing there would turn housekeeping into loss.
+Memory-only mode is capped too, same drop-oldest policy.
+
+**Ordering caveat, found by a test and accepted.** "Oldest" means key order, and
+`makeItemKey`'s tiebreak sequence is **per-instance**, so two tabs writing inside
+the same millisecond interleave arbitrarily — eviction can drop an event a
+fraction of a millisecond newer than another. The ordering limitation is
+pre-existing; the cap only makes it observable. Not worth a cross-tab counter:
+the cost is a few misordered events at the boundary of an already-overflowing
+queue, and the fix would put shared state back on the hot path §6c just cleared.
+The cross-tab test therefore asserts the cap holds, not *which* event went.
+
+6 tests added (147 unit total).
+
+## 3. Next concrete action — pick one, nothing is blocked
+
+Client-side load shedding is **complete** (jitter §3a, breaker §3b, bounded queue
+§3c). The fourth item, a server-controlled brake, is backlogged on the backend.
+
+Highest value now, in the author's order:
+
+1. **`ci.yml`** — 147 unit + 213 Cypress tests gate *nothing*; they run only when
+   someone remembers. This is the weakest link in everything built so far.
+2. **Port the guard suites into the unit tier** (`src/guard/**`,
+   `src/intemptJs/guards/**` are Cypress-only and excluded from the coverage
+   gate), then widen `coverage.include` and raise thresholds in the same commit
+   (D20).
+3. **Golden-file contract tests** on the outbound payload shape.
+4. Cross-subdomain consent cookie (D15), structured logger + killing `any`
+   (Phase 4). The logger has a concrete consumer now: the drop counter from §3c.
 
 The fourth load-shedding item — a server-controlled brake — is **backlogged**, it
 needs backend work. See `BACKEND.md` §5.
@@ -519,7 +562,7 @@ not behaviour. If they break again, prefer rewriting them to go through
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
 | 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (105 tests, gate enforced); guard-suite port, contract tests and WDIO tier 2 remain |
-| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding 🟡 **jitter ✅, circuit breaker ✅, bounded queue ⬜ next** |
+| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ✅ **jitter, circuit breaker, bounded queue** (4th ⏸ BE) |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | ⬜ |
 

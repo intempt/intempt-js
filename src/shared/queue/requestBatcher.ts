@@ -202,6 +202,18 @@ export class RequestBatcher {
     return this.queue.clear();
   }
 
+  /**
+   * Events dropped by the queue cap since this page loaded.
+   *
+   * Non-zero means real, bounded data loss — an outage long enough to overflow
+   * the queue, or a runaway tracking loop. Surfaced here so the Phase 4
+   * structured logger has something to read; the drops are also reported through
+   * `errorReporter` as they happen.
+   */
+  getDroppedEventCount(): number {
+    return this.queue.getDroppedEventCount();
+  }
+
   private scheduleFlush(flushMS: number): void {
     this.flushInterval = flushMS;
     if (!this.stopped) {
