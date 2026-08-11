@@ -23,6 +23,32 @@ export interface RequestBatcherOptions {
 const MAX_RETRY_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
+ * Full jitter: wait a uniformly random time in [0, ceiling) rather than exactly
+ * `ceiling`. AWS Architecture Blog formulation ("Exponential Backoff And Jitter").
+ *
+ * Deterministic backoff synchronises the fleet. Every client that failed at the
+ * same instant retries at the same instant, and stays in phase forever after
+ * because they all run the same doubling schedule. That converts a brief ingest
+ * wobble into a self-reinforcing thundering herd: the same retry load, delivered
+ * as narrow spikes instead of spread out, each spike large enough to re-break
+ * ingest just as it recovers. At 1-10M concurrent sessions the SDK becomes the
+ * amplifier. Jitter does not change how often a client retries — only that
+ * clients stop retrying *together*.
+ *
+ * Full jitter (vs equal jitter, `ceiling/2 + random(0, ceiling/2)`) gives the
+ * widest spread and the lowest expected contention. Its usual objection — that a
+ * client may retry almost immediately — does not apply here: `flush()` cannot
+ * start while `requestInProgress` is true, which already supplies a floor.
+ *
+ * `Math.random` is deliberate. This is load spreading, not security. `generateId`
+ * uses `crypto.getRandomValues` for an unrelated reason (id collisions, D19) —
+ * do not "make them consistent".
+ */
+function fullJitter(ceilingMS: number): number {
+  return Math.floor(Math.random() * ceilingMS);
+}
+
+/**
  * Hard caps on the two client-side dedupe structures.
  *
  * Both are unbounded-growth hazards on a long-lived tab (a dashboard left open
@@ -47,6 +73,20 @@ export class RequestBatcher {
   private batchSize: number;
   private flushInterval: number;
   private stopped: boolean;
+  /**
+   * Deterministic exponential ceiling for the retry backoff, tracked separately
+   * from `flushInterval` on purpose.
+   *
+   * `scheduleFlush()` assigns `flushInterval = flushMS`, so the doubling used to
+   * ride on the scheduled delay itself. Feeding it a *jittered* delay would make
+   * the next ceiling double from that random draw instead of from the true
+   * schedule — a short draw would collapse the backoff and the fleet would creep
+   * back toward hammering, which is the failure this change exists to prevent.
+   * So the ceiling doubles deterministically here and only the sleep is jittered.
+   *
+   * 0 means "not currently backing off"; reset by `resetFlush()`.
+   */
+  private retryCeilingMS: number = 0;
   private requestInProgress: boolean = false;
   private timeoutID: number | null = null;
   private consecutiveRemovalFailures: number = 0;
@@ -114,6 +154,10 @@ export class RequestBatcher {
   }
 
   private resetFlush(): void {
+    // Leaving the backoff ceiling set here would make a later, unrelated failure
+    // resume from the previous incident's ceiling instead of from the base
+    // interval.
+    this.retryCeilingMS = 0;
     this.scheduleFlush(this.libConfig.batchFlushIntervalMs);
   }
 
@@ -452,12 +496,30 @@ export class RequestBatcher {
         response?.httpStatusCode === 429 ||
         response?.httpStatusCode <= 0
       ) {
-        // Retry with exponential backoff
-        let retryMS = this.flushInterval * 2;
+        // Retry with exponential backoff, spread across the fleet with full
+        // jitter. The ceiling doubles deterministically; the sleep is a random
+        // point below it. See `fullJitter` for why.
+        let ceilingMS = Math.min(
+          MAX_RETRY_INTERVAL_MS,
+          (this.retryCeilingMS || this.flushInterval) * 2
+        );
+        let retryMS = fullJitter(ceilingMS);
+
         if (response?.retryAfter) {
-          retryMS = parseInt(response.retryAfter, 10) * 1000 || retryMS;
+          // NOT jittered, deliberately. The server named a time and we honour it
+          // exactly. This leaves every client told "come back in 30s" returning
+          // in the same 30th second — the same herd, just server-scheduled — so
+          // it is arguably wrong. It stays as-is pending confirmation from the
+          // ingest team on whether /track emits Retry-After at all, and on which
+          // statuses; the branch may well be dead code today. See BACKEND.md.
+          const retryAfterMS = parseInt(response.retryAfter, 10) * 1000;
+          if (retryAfterMS) {
+            ceilingMS = Math.min(MAX_RETRY_INTERVAL_MS, retryAfterMS);
+            retryMS = ceilingMS;
+          }
         }
-        retryMS = Math.min(MAX_RETRY_INTERVAL_MS, retryMS);
+
+        this.retryCeilingMS = ceilingMS;
         this.reportError(`Error; retry in ${retryMS} ms`);
         // Definitely not ingested — release the pre-send mark so the retry can
         // actually send these rather than evicting them as duplicates.

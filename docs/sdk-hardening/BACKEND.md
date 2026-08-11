@@ -63,6 +63,31 @@ loss** (D17). Required semantics:
 
 Anything that is not a definite answer is treated as "not delivered" and retried.
 
+### 2a. Open question — does ingest actually send `Retry-After`?
+
+**We need a yes/no plus the conditions.** The SDK parses the header
+(`autoTracker.module.ts:205`) and honours it verbatim over its own backoff, but
+nobody has confirmed `…/sources/<id>/track` ever emits it. It may be dead code.
+
+Why it matters: as of 2026-08-11 the SDK applies **full jitter** to its own
+exponential backoff, so a fleet failing together now spreads its retries instead
+of arriving as one spike. `Retry-After` is the one path still unjittered, because
+it is an explicit server instruction. But if ingest tells 1M clients "come back in
+30s", all 1M return in the same 30th second — reintroducing exactly the
+thundering herd the jitter removed, only now server-scheduled and synchronised
+more tightly than the client ever was.
+
+So:
+
+1. Does `/track` emit `Retry-After`? On which statuses — 429 only, or 503 too?
+2. If yes, we intend to treat it as a **floor jittered upward**
+   (`retryAfter + random(0, retryAfter * 0.2)`) — never returning sooner than
+   asked, but not in a synchronised block either. **Confirm that is acceptable**,
+   i.e. that the value means "not before T" rather than "exactly at T".
+3. If ingest would rather control the spread itself, the alternative is for the
+   server to vary the per-client `Retry-After` value. Either works; it should be
+   one or the other, not both, or the delays compound.
+
 ---
 
 ## 3. Idempotency on `eventId` — would let us delete client complexity

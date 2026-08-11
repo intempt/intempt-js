@@ -191,6 +191,10 @@ describe('RequestBatcher', () => {
   describe('retry and backoff', () => {
     it('schedules a backoff instead of hammering ingest on a 500', async () => {
       vi.useFakeTimers();
+      // Pin the jitter draw high. Without this the test is flaky by
+      // construction: full jitter picks uniformly in [0, ceiling), so a low draw
+      // legitimately retries inside the 500ms window below.
+      vi.spyOn(Math, 'random').mockReturnValue(0.99);
       await batcher.enqueue(event('evt-500'));
       defaultResponse = { httpStatusCode: 500, ok: false };
 
@@ -201,6 +205,82 @@ describe('RequestBatcher', () => {
       // retries immediately turns a partial outage into a self-inflicted DDoS.
       vi.advanceTimersByTime(500);
       expect(sendCalls).toHaveLength(1);
+    });
+
+    it('jitters the backoff so a fleet does not retry in lockstep', async () => {
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 500, ok: false };
+
+      // One fresh batcher per sample stands in for one client in the fleet: each
+      // fails once, from the same base interval, exactly as a fleet does when
+      // ingest wobbles.
+      const delays = new Set<number>();
+      for (let i = 0; i < 100; i++) {
+        // Own storage key per client — they are separate browsers, and sharing
+        // one key would let the queues and dedupe sets interfere.
+        const client = makeBatcher({ storageKey: `${KEY}_fleet_${i}` });
+        await client.enqueue(event(`evt-fleet-${i}`));
+        await client.flush();
+        delays.add((client as any).flushInterval);
+      }
+
+      // The actual property under test. Deterministic backoff collapses this to
+      // a single value — which is the thundering herd, stated as an assertion.
+      expect(delays.size).toBeGreaterThan(50);
+    });
+
+    it('doubles the ceiling from the true schedule, not from the jittered draw', async () => {
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 500, ok: false };
+      // A very low draw: the sleep is near zero, but it must NOT become the base
+      // the next ceiling doubles from, or repeated failures stop backing off at
+      // all and the fleet creeps back to hammering.
+      vi.spyOn(Math, 'random').mockReturnValue(0);
+
+      // Base interval is 1000ms, so the ceiling walks 2000 -> 4000 -> 8000 even
+      // though every scheduled sleep was 0.
+      await batcher.enqueue(event('evt-ceiling-1'));
+      await batcher.flush();
+      expect((batcher as any).retryCeilingMS).toBe(2000);
+
+      await batcher.enqueue(event('evt-ceiling-2'));
+      await batcher.flush();
+      expect((batcher as any).retryCeilingMS).toBe(4000);
+
+      await batcher.enqueue(event('evt-ceiling-3'));
+      await batcher.flush();
+      expect((batcher as any).retryCeilingMS).toBe(8000);
+    });
+
+    it('caps the jittered backoff ceiling at ten minutes', async () => {
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 500, ok: false };
+      vi.spyOn(Math, 'random').mockReturnValue(0.5);
+
+      for (let i = 0; i < 20; i++) {
+        await batcher.enqueue(event(`evt-cap-${i}`));
+        await batcher.flush();
+      }
+
+      expect((batcher as any).retryCeilingMS).toBe(10 * 60 * 1000);
+      expect((batcher as any).flushInterval).toBe(5 * 60 * 1000);
+    });
+
+    it('resets the backoff ceiling after a success', async () => {
+      vi.useFakeTimers();
+      vi.spyOn(Math, 'random').mockReturnValue(0.5);
+      defaultResponse = { httpStatusCode: 500, ok: false };
+      await batcher.enqueue(event('evt-reset-fail'));
+      await batcher.flush();
+      expect((batcher as any).retryCeilingMS).toBeGreaterThan(0);
+
+      // A later, unrelated failure must start from the base interval again
+      // rather than resuming the previous incident's ceiling.
+      defaultResponse = { httpStatusCode: 200, ok: true };
+      await batcher.enqueue(event('evt-reset-ok'));
+      await batcher.flush();
+
+      expect((batcher as any).retryCeilingMS).toBe(0);
     });
 
     it('honours Retry-After over its own backoff', async () => {

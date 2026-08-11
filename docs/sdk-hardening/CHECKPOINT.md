@@ -12,9 +12,9 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Next action** | **§3 — jitter on retry backoff. The user has open design questions on it; ask before building.** |
-| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. Unit 129 / Cypress 213, all passing. Bundle 79.46 kB / 22.53 kB gzip. |
+| **Next action** | **§3 — circuit breaker** (load shedding 2 of 3). Jitter ✅ landed. |
+| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **backoff jitter ✅**. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Full jitter on retry backoff (§3a)**. Unit 133 / Cypress 213, all passing. Bundle 79.66 kB / 22.59 kB gzip. |
 
 ---
 
@@ -103,22 +103,77 @@ Recorded so they are not re-litigated:
 
 Remaining work that needs nothing from anyone else:
 
-1. **Load shedding, client-side three of four — this is the next action.**
-   **Jitter on backoff** first: cheapest and highest value, because a million
-   clients currently retry in lockstep and amplify any ingest incident. Then a
-   circuit breaker, then a bounded queue with an explicit drop policy (today the
-   queue grows until quota fails, and quota failure is silent).
+1. **Load shedding, client-side three of four — in progress.** Jitter ✅ (§3a).
+   Next a circuit breaker, then a bounded queue with an explicit drop policy
+   (today the queue grows until quota fails, and quota failure is silent).
 2. Rest of Phase 2 — port the guard suites into the unit tier, golden-file
    contract tests on the payload shape, `ci.yml` so the tiers gate merges.
 3. Cross-subdomain consent cookie (the D15 limitation).
 4. Phase 4 client-side leftovers — structured logger, killing `any`.
 
-## 3. Next concrete action — jitter on retry backoff
+## 3a. Load shedding 1 of 3 — full jitter on retry backoff ✅
 
-> **The user has open questions about this item (as of 2026-08-11) and wants to
-> discuss the design before it is built. Do not start implementing it in a fresh
-> session without checking in first — ask what they decided.** Everything needed
-> to have that conversation is below.
+Landed 2026-08-11 in `src/shared/queue/requestBatcher.ts`. **Decisions the user
+made — do not re-litigate:**
+
+- **Full jitter**, not equal jitter: `sleep = random(0, ceiling)`. The usual
+  objection (a client may retry almost immediately) does not apply, because
+  `flush()` cannot start while `requestInProgress` is true.
+- **Retries only.** The steady-state 5s flush interval is *not* jittered. It
+  remains a real, unfixed exposure — cohorts that load together (CDN purge,
+  deploy wave, email blast) still flush in lockstep forever in normal operation.
+  Deliberately deferred, not overlooked.
+- **`Retry-After` is honoured exactly, unjittered**, pending a backend answer —
+  see the open question below.
+
+**The one non-obvious implementation point.** `scheduleFlush()` assigns
+`this.flushInterval = flushMS`, so the exponential doubling used to ride on the
+scheduled delay itself. Feeding it a *jittered* delay would make the next ceiling
+double from a random draw — a low draw collapses the backoff and the fleet creeps
+back toward hammering, i.e. the change would silently undo itself. So a separate
+`retryCeilingMS` field doubles deterministically and only the sleep is jittered.
+`resetFlush()` clears it, so a later unrelated failure starts from the base
+interval rather than resuming the last incident's ceiling. There is a test for
+each of those three properties.
+
+**Tests:** 4 added (133 unit total). The fleet-spread test runs 100 independent
+batchers through one failure each and asserts >50 distinct delays — under
+deterministic backoff that collapses to 1, so the test states the thundering herd
+as an assertion. `schedules a backoff instead of hammering ingest on a 500` had to
+pin `Math.random`; it was flaky by construction otherwise, since a low draw
+legitimately retries inside its 500 ms window.
+
+**Open question for the backend team — carried into `BACKEND.md`:** does
+`…/sources/<id>/track` ever emit a `Retry-After` header, and on which statuses?
+The SDK parses it at `autoTracker.module.ts:205` but nobody has confirmed ingest
+sends it, so that branch may be dead code. If it *is* live, honouring it verbatim
+means every client told "come back in 30s" returns in the same 30th second — the
+same herd, server-scheduled — and it should become a floor jittered upward
+(`retryAfter + random(0, retryAfter * 0.2)`).
+
+**Note for benchmarking against Mixpanel: Mixpanel does not jitter at all.**
+`request-batcher.js:274` is `var retryMS = this.flushInterval * 2;`, identical to
+what this SDK shipped (ours is a port). They jitter their shared-lock poll
+(`shared-lock.js:68`) but never the backoff. So this item is *ahead* of the
+comparator, not catching up to it — do not "correct" it back toward Mixpanel.
+
+## 3. Next concrete action — circuit breaker
+
+Load shedding 2 of 3. After N consecutive failures, stop attempting for a long
+window rather than probing every interval. Jitter spreads the herd; it does not
+reduce the total number of attempts a client makes against an ingest tier that is
+genuinely down — that is this item's job.
+
+Then, 3 of 3: **a bounded queue with an explicit drop policy.** Today the queue
+grows until storage quota fails, and quota failure is **silent**. A cap plus a
+deliberate policy (drop oldest, count the drops, report the count) turns silent
+data loss into a measurable number.
+
+The fourth load-shedding item — a server-controlled brake — is **backlogged**, it
+needs backend work. See `BACKEND.md` §5.
+
+<details>
+<summary>Original jitter design spec, kept for provenance</summary>
 
 ### The problem
 
@@ -173,16 +228,7 @@ currently assert exact `flushInterval` values that jitter makes non-deterministi
 Stub `Math.random` to pin it, and add a test asserting the spread is actually
 wide (e.g. 100 samples do not collapse to one value).
 
-### After jitter, in order
-
-1. **Circuit breaker** — after N consecutive failures, stop for a long window
-   rather than probing every interval.
-2. **Bounded queue with an explicit drop policy** — today the queue grows until
-   quota fails, and quota failure is **silent**. A cap plus a deliberate policy
-   (drop oldest, count the drops, report the count) turns silent loss into a
-   measurable number.
-3. The fourth load-shedding item — a server-controlled brake — is **backlogged**,
-   it needs backend work. See `BACKEND.md` §5.
+</details>
 
 ### Other unblocked work, if the user redirects
 
@@ -420,7 +466,7 @@ not behaviour. If they break again, prefer rewriting them to go through
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
 | 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (105 tests, gate enforced); guard-suite port, contract tests and WDIO tier 2 remain |
-| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ⬜ **next** |
+| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding 🟡 **jitter ✅, circuit breaker ⬜ next, bounded queue ⬜** |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | ⬜ |
 
