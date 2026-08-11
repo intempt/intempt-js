@@ -251,8 +251,23 @@ function initSDK() {
   // Check if stub existed (we'll need this to know if we should remove it)
   const hadStub = stubQueue !== null
 
-  // Create real IntemptJs instance
-  const realIntempt = new IntemptJs({ ...getIntemptConfig() })
+  // Create real IntemptJs instance.
+  //
+  // When the script tag can't be found, getIntemptConfig() falls back to an
+  // all-empty config, and `new IntemptJs(...)` throws inside isValidConfig
+  // (D-12). Nothing downstream catches that — main.ts calls `SDK.init()`
+  // un-try/caught — so an uncaught throw here would propagate into the host
+  // page and could break the customer's own JavaScript, not just our
+  // tracking. An analytics SDK must never break the page that embeds it
+  // (the same principle consentCookie.ts's cookie helpers apply): report it
+  // loudly through the logger and return without throwing.
+  let realIntempt: IntemptJs
+  try {
+    realIntempt = new IntemptJs({ ...getIntemptConfig() })
+  } catch (error) {
+    log.error('IntemptJs failed to initialize; the SDK will not track on this page', error)
+    return
+  }
 
   // Replace window.intempt with real instance
   ;(window as any).intempt = realIntempt

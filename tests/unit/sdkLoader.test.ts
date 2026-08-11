@@ -103,8 +103,8 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
     });
 
     it(
-      "logs the exact \"CAN'T FIND SCRIPT\" string and throws when no script tag matches the CDN link " +
-        '— this is the documented support signature (D-12/CHECKPOINT §0), so the string must not drift',
+      "logs the exact \"CAN'T FIND SCRIPT\" string, and no longer throws, when no script tag matches " +
+        'the CDN link (D-12) — the support signature stays, the uncaught throw into the host page does not',
       () => {
         // No script appended at all: `document.scripts` has nothing whose src
         // includes the CDN link.
@@ -112,16 +112,15 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
 
         // getIntemptConfig() falls back to an all-empty config (organization:
         // '', sourceId: '', project: '', writeKey: ''), and IntemptJsGuard's
-        // isValidConfig() throws on any of those being ''. Nothing in
-        // sdkLoader.ts or main.ts catches it, so SDK.init() itself throws —
-        // matching main.ts's un-try/caught `SDK.init()` call.
-        expect(() => SDK.init()).toThrow(
-          'IntemptJs initialization failed: All config fields must be provided.',
-        );
+        // isValidConfig() throws on any of those being ''. sdkLoader.ts now
+        // catches that throw around the constructor call: main.ts calls
+        // `SDK.init()` un-try/caught, and an analytics SDK must never break
+        // the page that embeds it.
+        expect(() => SDK.init()).not.toThrow();
 
         expect(errorSpy).toHaveBeenCalledWith("CAN'T FIND SCRIPT");
-        // window.intempt is never assigned, because the throw happens inside
-        // `new IntemptJs(...)`, before the loader's own assignment line runs.
+        // window.intempt is never assigned, because construction failed and
+        // the loader returns before its own assignment line runs.
         expect((window as any).intempt).toBeUndefined();
       },
     );
@@ -142,28 +141,26 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
 
   describe('required config fields', () => {
     it.each(['project', 'key', 'source', 'organization'])(
-      'throws when %s is missing from the query string entirely',
+      'does not throw, and leaves window.intempt unset, when %s is missing from the query string entirely (D-12)',
       (missingParam) => {
         const params = new URLSearchParams(REQUIRED_QUERY);
         params.delete(missingParam);
         appendScript(params.toString());
 
-        expect(() => SDK.init()).toThrow(
-          'IntemptJs initialization failed: All config fields must be provided.',
-        );
+        expect(() => SDK.init()).not.toThrow();
+        expect((window as any).intempt).toBeUndefined();
       },
     );
 
     it.each(['project', 'key', 'source', 'organization'])(
-      'throws when %s is present but empty — a blank value is treated identically to a missing one',
+      'does not throw when %s is present but empty — a blank value is treated identically to a missing one (D-12)',
       (emptyParam) => {
         const params = new URLSearchParams(REQUIRED_QUERY);
         params.set(emptyParam, '');
         appendScript(params.toString());
 
-        expect(() => SDK.init()).toThrow(
-          'IntemptJs initialization failed: All config fields must be provided.',
-        );
+        expect(() => SDK.init()).not.toThrow();
+        expect((window as any).intempt).toBeUndefined();
       },
     );
 
