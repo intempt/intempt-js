@@ -24,46 +24,60 @@ anything you queued.
 ```html
 <!-- 1. Queue stub — buffers calls until the SDK is ready -->
 <script>
-(function () {
-  if (window.intempt) return;
-  var queue = [], pending = [];
-  var methods = ['identify','group','track','record','alias','consent',
-                 'productAdd','productOrdered','productView','logOut',
-                 'optIn','optOut','isUserOptIn','recommendation'];
-  var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
-  methods.forEach(function (m) {
-    stub[m] = function () {
-      var args = [].slice.call(arguments);
-      if (m === 'recommendation') {
-        return new Promise(function (resolve, reject) {
-          pending.push({ resolve: resolve, reject: reject });
-          queue.push({ method: m, args: args });
-        });
-      }
-      queue.push({ method: m, args: args });
-    };
-  });
-  window.intempt = stub;
-})();
+  (function () {
+    if (window.intempt) return;
+    var queue = [],
+      pending = [];
+    var methods = [
+      'identify',
+      'group',
+      'track',
+      'record',
+      'alias',
+      'consent',
+      'productAdd',
+      'productOrdered',
+      'productView',
+      'logOut',
+      'optIn',
+      'optOut',
+      'isUserOptIn',
+      'recommendation',
+    ];
+    var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
+    methods.forEach(function (m) {
+      stub[m] = function () {
+        var args = [].slice.call(arguments);
+        if (m === 'recommendation') {
+          return new Promise(function (resolve, reject) {
+            pending.push({ resolve: resolve, reject: reject });
+            queue.push({ method: m, args: args });
+          });
+        }
+        queue.push({ method: m, args: args });
+      };
+    });
+    window.intempt = stub;
+  })();
 </script>
 
 <!-- 2. Load the SDK asynchronously -->
 <script
   async
-  src="https://cdn.intempt.com/v1/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password">
-</script>
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password"
+></script>
 ```
 
 There is no constructor. Configuration goes in the script URL's query string:
 
-| Parameter | Description |
-|-----------|-------------|
-| `organization` | Organization identifier |
-| `project` | Project identifier |
-| `source` | Source ID (`sourceId`) you're sending data to |
-| `key` | API key, in `username.password` form |
-| `shopify` | Shopify tracking — add `&shopify=1` to enable, omit to disable |
-| `magento` | Magento product detection — add `&magento=1` to enable, omit to disable |
+| Parameter      | Description                                                             |
+| -------------- | ----------------------------------------------------------------------- |
+| `organization` | Organization identifier                                                 |
+| `project`      | Project identifier                                                      |
+| `source`       | Source ID (`sourceId`) you're sending data to                           |
+| `key`          | API key, in `username.password` form                                    |
+| `shopify`      | Shopify tracking — add `&shopify=1` to enable, omit to disable          |
+| `magento`      | Magento product detection — add `&magento=1` to enable, omit to disable |
 
 > **The `/v1/` path segment is required.** The SDK finds its own `<script>` tag by matching
 > that URL. Without it, it reads an empty configuration and never starts — the console shows
@@ -71,7 +85,7 @@ There is no constructor. Configuration goes in the script URL's query string:
 > [migration guide](docs/MIGRATION.md#1-add-v1-to-the-script-url).
 
 > `shopify` and `magento` are enabled by **presence**: the parameter with any non-empty value
-> turns it on. `&shopify=0` and `&shopify=false` both *enable* it. To disable, leave it out.
+> turns it on. `&shopify=0` and `&shopify=false` both _enable_ it. To disable, leave it out.
 
 ## 30-second example
 
@@ -84,7 +98,7 @@ window.intempt.identify({ userId: 'user_123' });
 // What they did — both fields are required, and `data` must be non-empty
 window.intempt.track({
   eventTitle: 'Purchase Completed',
-  data: { amount: 99.99, currency: 'USD' }
+  data: { amount: 99.99, currency: 'USD' },
 });
 
 // See what the SDK is sending, including the automatic events
@@ -105,15 +119,15 @@ captured.
 
 ## Documentation
 
-| | |
-|---|---|
-| **[USAGE.md](USAGE.md)** | The guide, task by task. Start here. |
-| **[API reference](docs/API.md)** | Every method, every validation rule, every error string, and the limitations |
-| **[examples/](examples/)** | Runnable pages: [basic](examples/basic-html/index.html), [consent](examples/consent-banner/index.html), [SPA routing](examples/spa/index.html), [commerce](examples/ecommerce/index.html), [TypeScript](examples/typescript/) |
-| **[TypeScript quickstart](docs/TYPESCRIPT.md)** | Declarations to copy, a typed wrapper, and the traps types can't catch |
-| **[Migration guide](docs/MIGRATION.md)** | Upgrading an older integration, with a checklist |
-| **Frameworks** | [React](docs/integrations/REACT.md) · [Next.js](docs/integrations/NEXTJS.md) · [Vue](docs/integrations/VUE.md) |
-| Platform docs | [docs.intempt.com/js-sdk](https://docs.intempt.com/js-sdk) |
+|                                                 |                                                                                                                                                                                                                               |
+| ----------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[USAGE.md](USAGE.md)**                        | The guide, task by task. Start here.                                                                                                                                                                                          |
+| **[API reference](docs/API.md)**                | Every method, every validation rule, every error string, and the limitations                                                                                                                                                  |
+| **[examples/](examples/)**                      | Runnable pages: [basic](examples/basic-html/index.html), [consent](examples/consent-banner/index.html), [SPA routing](examples/spa/index.html), [commerce](examples/ecommerce/index.html), [TypeScript](examples/typescript/) |
+| **[TypeScript quickstart](docs/TYPESCRIPT.md)** | Declarations to copy, a typed wrapper, and the traps types can't catch                                                                                                                                                        |
+| **[Migration guide](docs/MIGRATION.md)**        | Upgrading an older integration, with a checklist                                                                                                                                                                              |
+| **Frameworks**                                  | [React](docs/integrations/REACT.md) · [Next.js](docs/integrations/NEXTJS.md) · [Vue](docs/integrations/VUE.md)                                                                                                                |
+| Platform docs                                   | [docs.intempt.com/js-sdk](https://docs.intempt.com/js-sdk)                                                                                                                                                                    |
 
 The framework pages are integration **guides**, not adapter packages — without a module build
 there is nothing for an adapter to wrap. Each is a script tag plus a typed wrapper you own.
@@ -168,15 +182,15 @@ On Shopify, calling `productAdd`/`productView` yourself as well will double-coun
 
 Stated up front, because finding them after you integrate is worse.
 
-| | |
-|---|---|
-| **CDN install only** | No module build, no `import`, no published types |
-| **The CDN path is mutable** | `/v1/intempt.min.js` is overwritten in place on release. Don't pin an SRI hash on it — self-host if you need SRI. |
-| **No public ID getters** | Profile/session/page IDs are internal. `getProfileId()` was removed. |
-| **Consent is origin-scoped** | `localStorage`, so an opt-out doesn't cross subdomains |
-| **`consent()` doesn't stop tracking** | It records a decision. `optOut()` is the switch — and call `consent()` first, or it's dropped. |
-| **`recommendation()` ignores opt-out** | It calls the API regardless. Gate it yourself. |
-| **The write key is in the page** | Inherent to a browser SDK. Scope it to one source, write-only, and rotate it. |
+|                                        |                                                                                                                   |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **CDN install only**                   | No module build, no `import`, no published types                                                                  |
+| **The CDN path is mutable**            | `/v1/intempt.min.js` is overwritten in place on release. Don't pin an SRI hash on it — self-host if you need SRI. |
+| **No public ID getters**               | Profile/session/page IDs are internal. `getProfileId()` was removed.                                              |
+| **Consent is origin-scoped**           | `localStorage`, so an opt-out doesn't cross subdomains                                                            |
+| **`consent()` doesn't stop tracking**  | It records a decision. `optOut()` is the switch — and call `consent()` first, or it's dropped.                    |
+| **`recommendation()` ignores opt-out** | It calls the API regardless. Gate it yourself.                                                                    |
+| **The write key is in the page**       | Inherent to a browser SDK. Scope it to one source, write-only, and rotate it.                                     |
 
 ## Forthcoming
 

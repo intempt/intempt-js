@@ -92,7 +92,10 @@ describe('cookie primitives', () => {
     // jsdom does not expose attributes through document.cookie, so assert on what
     // was written rather than on what was parsed back.
     const written: string[] = [];
-    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      'cookie',
+    );
     Object.defineProperty(document, 'cookie', {
       configurable: true,
       get: () => '',
@@ -123,7 +126,10 @@ describe('cookie primitives', () => {
  */
 function captureCookieWrites(): { written: string[]; restore: () => void } {
   const written: string[] = [];
-  const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+  const descriptor = Object.getOwnPropertyDescriptor(
+    Document.prototype,
+    'cookie',
+  );
 
   Object.defineProperty(document, 'cookie', {
     configurable: true,
@@ -198,7 +204,10 @@ describe('parsing the cookie jar', () => {
   });
 
   function withJar(jar: string) {
-    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      'cookie',
+    );
     Object.defineProperty(document, 'cookie', {
       configurable: true,
       get: () => jar,
@@ -281,7 +290,9 @@ describe('the attributes actually written', () => {
     // eTLD+1 case writes two — asserted in consentState.test.ts, which runs on a
     // domain-scoped host.
     expect(capture.written).toHaveLength(1);
-    expect(capture.written[0]).toContain('expires=Thu, 01 Jan 1970 00:00:00 GMT');
+    expect(capture.written[0]).toContain(
+      'expires=Thu, 01 Jan 1970 00:00:00 GMT',
+    );
     expect(capture.written[0]).toContain('path=/');
     expect(capture.written[0]).not.toContain('domain=');
   });
@@ -300,7 +311,10 @@ describe('the attributes actually written', () => {
 });
 
 describe('cookie access that throws', () => {
-  const originalCookie = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+  const originalCookie = Object.getOwnPropertyDescriptor(
+    Document.prototype,
+    'cookie',
+  );
 
   function breakCookies() {
     Object.defineProperty(document, 'cookie', {
@@ -349,7 +363,10 @@ describe('cookie access that throws', () => {
     // A cookie-blocking extension accepts the assignment and drops the cookie.
     // The caller needs to know so it can lean on localStorage instead — this is
     // information, not an error.
-    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      'cookie',
+    );
     Object.defineProperty(document, 'cookie', {
       configurable: true,
       get: () => '',

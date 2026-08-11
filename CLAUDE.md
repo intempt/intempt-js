@@ -18,7 +18,7 @@ Supporting documents:
 - `docs/sdk-hardening/DECISIONS.md` — settled decisions with rationale.
 - `docs/sdk-hardening/BACKLOG.md` — **everything deliberately parked**, with what
   unblocks each item and what leaving it parked costs. `CHECKPOINT.md` §0b is what
-  *is* being worked; this is the complement. If an item appears in both, §0b wins.
+  _is_ being worked; this is the complement. If an item appears in both, §0b wins.
 - `docs/sdk-hardening/DEFECTS.md` — 26 known, documented, deliberately unfixed
   defects, with a suggested fix order. Read before "fixing" surprising behaviour:
   much of it is asserted by a test on purpose.

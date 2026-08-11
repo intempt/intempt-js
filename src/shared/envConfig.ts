@@ -1,9 +1,9 @@
 /**
  * Environment Configuration Utility
- * 
+ *
  * Centralized management of environment variables that can be initialized
  * from Vite's import.meta.env (production builds) or custom values (tests).
- * 
+ *
  * Usage:
  *   - Production: EnvConfig.initFromVite() (auto-initialized)
  *   - Tests: EnvConfig.initFromValues({ VITE_API: '...', ... })
@@ -70,11 +70,19 @@ class EnvConfigManager {
       VITE_API: viteEnv.VITE_API || this.DEFAULT_CONFIG.VITE_API,
       VITE_CDN_LINK: viteEnv.VITE_CDN_LINK || this.DEFAULT_CONFIG.VITE_CDN_LINK,
       VITE_ENV: viteEnv.VITE_ENV || this.DEFAULT_CONFIG.VITE_ENV,
-      VITE_CHOICES_API: viteEnv.VITE_CHOICES_API || this.DEFAULT_CONFIG.VITE_CHOICES_API,
-      VITE_WEB_EDITOR_BASE_LINK: viteEnv.VITE_WEB_EDITOR_BASE_LINK || this.DEFAULT_CONFIG.VITE_WEB_EDITOR_BASE_LINK,
-      VITE_OPENER_LINKS: viteEnv.VITE_OPENER_LINKS ?? this.DEFAULT_CONFIG.VITE_OPENER_LINKS,
-      VITE_WEB_EDITOR_STORAGE_KEY: viteEnv.VITE_WEB_EDITOR_STORAGE_KEY || this.DEFAULT_CONFIG.VITE_WEB_EDITOR_STORAGE_KEY,
-      VITE_LOCATION_API_URL: viteEnv.VITE_LOCATION_API_URL || this.DEFAULT_CONFIG.VITE_LOCATION_API_URL,
+      VITE_CHOICES_API:
+        viteEnv.VITE_CHOICES_API || this.DEFAULT_CONFIG.VITE_CHOICES_API,
+      VITE_WEB_EDITOR_BASE_LINK:
+        viteEnv.VITE_WEB_EDITOR_BASE_LINK ||
+        this.DEFAULT_CONFIG.VITE_WEB_EDITOR_BASE_LINK,
+      VITE_OPENER_LINKS:
+        viteEnv.VITE_OPENER_LINKS ?? this.DEFAULT_CONFIG.VITE_OPENER_LINKS,
+      VITE_WEB_EDITOR_STORAGE_KEY:
+        viteEnv.VITE_WEB_EDITOR_STORAGE_KEY ||
+        this.DEFAULT_CONFIG.VITE_WEB_EDITOR_STORAGE_KEY,
+      VITE_LOCATION_API_URL:
+        viteEnv.VITE_LOCATION_API_URL ||
+        this.DEFAULT_CONFIG.VITE_LOCATION_API_URL,
       DEV: viteEnv.DEV !== undefined ? viteEnv.DEV : this.DEFAULT_CONFIG.DEV,
     };
   }
@@ -149,9 +157,17 @@ class EnvConfigManager {
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
-        urls = Array.isArray(parsed) ? parsed.map(String) : raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+        urls = Array.isArray(parsed)
+          ? parsed.map(String)
+          : raw
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean);
       } catch {
-        urls = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+        urls = raw
+          .split(',')
+          .map((s: string) => s.trim())
+          .filter(Boolean);
       }
     }
     const origins: string[] = [];

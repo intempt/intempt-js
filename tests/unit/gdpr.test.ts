@@ -10,9 +10,11 @@ import {
 import { loadStoredConsent } from '../../src/shared/consentState.ts';
 
 /** A window with DNT on, injected rather than mutating jsdom's shared navigator. */
-const DNT_ON = { navigator: { doNotTrack: '1' } } as unknown as Window & typeof globalThis;
-const GPC_ON = { navigator: { globalPrivacyControl: true } } as unknown as Window &
+const DNT_ON = { navigator: { doNotTrack: '1' } } as unknown as Window &
   typeof globalThis;
+const GPC_ON = {
+  navigator: { globalPrivacyControl: true },
+} as unknown as Window & typeof globalThis;
 const NO_SIGNAL = { navigator: {} } as unknown as Window & typeof globalThis;
 
 describe('the consent decision table, ported from gdpr-utils', () => {
@@ -133,9 +135,16 @@ describe('diagnostic notices', () => {
 
   it('names both when both are set', () => {
     const onNotice = vi.fn();
-    hasOptedOut({ win: { navigator: { doNotTrack: '1', globalPrivacyControl: true } } as never, onNotice });
+    hasOptedOut({
+      win: {
+        navigator: { doNotTrack: '1', globalPrivacyControl: true },
+      } as never,
+      onNotice,
+    });
 
-    expect(onNotice.mock.calls[0][0]).toContain('Global Privacy Control and Do Not Track');
+    expect(onNotice.mock.calls[0][0]).toContain(
+      'Global Privacy Control and Do Not Track',
+    );
   });
 
   it('warns once per page, not once per event', () => {
@@ -190,7 +199,10 @@ describe('consent reads that throw', () => {
     // Inferring an opt-out from it would silently zero a customer's data on a
     // browser quirk — so this matches Mixpanel's `_addOptOutCheck`, which
     // continues on failure.
-    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      'cookie',
+    );
     Object.defineProperty(document, 'cookie', {
       configurable: true,
       get() {
@@ -200,9 +212,11 @@ describe('consent reads that throw', () => {
         throw new Error('SecurityError');
       },
     });
-    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
-      throw new Error('SecurityError');
-    });
+    const getItem = vi
+      .spyOn(Storage.prototype, 'getItem')
+      .mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
 
     expect(hasOptedOut({ win: NO_SIGNAL })).toBe(false);
     expect(hasOptedIn()).toBe(false);
@@ -216,7 +230,10 @@ describe('consent reads that throw', () => {
 
   it('never throws out of optOut, even with every store dead', () => {
     // The hard rule: this runs inside the host page's consent-banner click handler.
-    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      'cookie',
+    );
     Object.defineProperty(document, 'cookie', {
       configurable: true,
       get() {
@@ -226,12 +243,16 @@ describe('consent reads that throw', () => {
         throw new Error('SecurityError');
       },
     });
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('QuotaExceededError');
-    });
-    const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
-      throw new Error('SecurityError');
-    });
+    const setItem = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+    const removeItem = vi
+      .spyOn(Storage.prototype, 'removeItem')
+      .mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
 
     expect(() => optOut()).not.toThrow();
     expect(() => optIn()).not.toThrow();

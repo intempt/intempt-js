@@ -14,11 +14,11 @@
 **Front-end work alone reaches ~85, not 91.** Two dimensions are capped by things
 outside this list:
 
-| Cap | Why | Worth |
-|---|---|---|
-| Dimension 4 (security) caps at ~62 | The write key is a client-side `Authorization: Basic` header. Removing it is `BACKEND.md` item 1 — there is no client-side fix. | ~2.3 pts |
-| Dimension 2 (reliability) caps at ~86 | `sendBeacon` cannot set headers, so the transport chain's most important leg is blocked behind the same credential change. | ~0.9 pts |
-| Dimension 1 (tests) caps below 92 | Safari / iOS Safari / Android coverage needs a paid device cloud (Sauce or BrowserStack). A budget decision, not a backend one. | ~1 pt |
+| Cap                                   | Why                                                                                                                             | Worth    |
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Dimension 4 (security) caps at ~62    | The write key is a client-side `Authorization: Basic` header. Removing it is `BACKEND.md` item 1 — there is no client-side fix. | ~2.3 pts |
+| Dimension 2 (reliability) caps at ~86 | `sendBeacon` cannot set headers, so the transport chain's most important leg is blocked behind the same credential change.      | ~0.9 pts |
+| Dimension 1 (tests) caps below 92     | Safari / iOS Safari / Android coverage needs a paid device cloud (Sauce or BrowserStack). A budget decision, not a backend one. | ~1 pt    |
 
 So: **62 → ~85 on this list. 85 → 91 needs the two `BACKEND.md` items plus the
 browser-matrix spend.** Do not plan the last six points as front-end work.
@@ -29,22 +29,22 @@ browser-matrix spend.** Do not plan the last six points as front-end work.
 
 Ranked by points per day. Total **+22.9 points, ~30 working days**.
 
-| # | Task | Dim | Δ | Est |
-|---|---|---|---|---|
-| 1 | Packaging | 5 | +3.6 | 3d |
-| 2 | Structured logging & metrics **✅ done** | 6 | +3.4 | 3d |
-| 3 | CI breadth | 8 | +2.8 | 2.5d |
-| 4 | Security, the client-side half | 4 | +1.7 | 1.5d |
-| 5 | Privacy & consent | 7 | +2.4 | 3d |
-| 6 | Code health | 10 | +1.7 | 3d |
-| 7 | Docs & DX | 9 | +2.5 | 4d |
-| 8 | Test breadth (**in progress**) | 1 | +3.0 | 6d |
-| 9 | Performance & footprint | 3 | +1.2 | 2.5d |
-| 10 | Reliability, the client-side half | 2 | +0.6 | 1.5d |
+| #   | Task                                     | Dim | Δ    | Est  |
+| --- | ---------------------------------------- | --- | ---- | ---- |
+| 1   | Packaging                                | 5   | +3.6 | 3d   |
+| 2   | Structured logging & metrics **✅ done** | 6   | +3.4 | 3d   |
+| 3   | CI breadth                               | 8   | +2.8 | 2.5d |
+| 4   | Security, the client-side half           | 4   | +1.7 | 1.5d |
+| 5   | Privacy & consent                        | 7   | +2.4 | 3d   |
+| 6   | Code health                              | 10  | +1.7 | 3d   |
+| 7   | Docs & DX                                | 9   | +2.5 | 4d   |
+| 8   | Test breadth (**in progress**)           | 1   | +3.0 | 6d   |
+| 9   | Performance & footprint                  | 3   | +1.2 | 2.5d |
+| 10  | Reliability, the client-side half        | 2   | +0.6 | 1.5d |
 
 **Two departures from strict ranking, and the reasons:**
 
-- **Do #3 first regardless.** It is the cheapest real points on the board *and* it
+- **Do #3 first regardless.** It is the cheapest real points on the board _and_ it
   protects everything else. **Done 2026-08-11, together with #4.**
   **Still true and now the single highest-leverage five minutes on this list: the
   branch has never been pushed, so not one of these gates has ever actually run.**
@@ -173,7 +173,7 @@ internal.
 Four sub-items. **Only the last is underway.**
 
 - ⬜ `intemptJs.ts` public API: `track`, `identify`, `alias`, `group`, `record`,
-  `consent`. Their *argument validation* is covered by the 80 `IntemptJsGuard`
+  `consent`. Their _argument validation_ is covered by the 80 `IntemptJsGuard`
   tests; the methods themselves have **no test**.
 - ⬜ The choices engine — 1,289 LOC of DOM mutation plus the web editor, the
   capability Mixpanel does not have, and essentially untested.
@@ -205,9 +205,9 @@ Also previously parked by the user (code-splitting).
 
 ## Where this leaves the score
 
-| | Score | Gap to Mixpanel |
-|---|---|---|
-| Audit baseline | 40 | 45 |
-| Today | **62** | 23 |
-| This list complete | **~85** | 0 |
-| Plus `BACKEND.md` 1–2 and a device cloud | **~91** | — |
+|                                          | Score   | Gap to Mixpanel |
+| ---------------------------------------- | ------- | --------------- |
+| Audit baseline                           | 40      | 45              |
+| Today                                    | **62**  | 23              |
+| This list complete                       | **~85** | 0               |
+| Plus `BACKEND.md` 1–2 and a device cloud | **~91** | —               |

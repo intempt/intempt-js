@@ -30,15 +30,15 @@ Two consequences, one security and one reliability, with a single root cause:
 Re-audited 2026-08-11. The original version of this document cited only the
 batch-track site, which understated the work on both sides: a token that only
 `/track` accepts would leave four credentialed `fetch` calls behind, and the
-client would then carry *both* auth schemes indefinitely.
+client would then carry _both_ auth schemes indefinitely.
 
-| Call site | Endpoint |
-|---|---|
-| `autoTracker.module.ts:178` (header `:193`) | `…/sources/<id>/track` — batch, the hot path |
+| Call site                                   | Endpoint                                        |
+| ------------------------------------------- | ----------------------------------------------- |
+| `autoTracker.module.ts:178` (header `:193`) | `…/sources/<id>/track` — batch, the hot path    |
 | `autoTracker.module.ts:433` (header `:441`) | `…/sources/<id>/track` — second, non-batch path |
-| `autoTracker.module.ts:395` (header `:402`) | `…/projects/<p>/consents/data` |
-| `intemptJs.ts:306` (header, near `:319`) | `…/projects/<p>/feeds/<id>/data` |
-| `choices.service.ts:56` (request at `:194`) | `…/optimization/choose-web` |
+| `autoTracker.module.ts:395` (header `:402`) | `…/projects/<p>/consents/data`                  |
+| `intemptJs.ts:306` (header, near `:319`)    | `…/projects/<p>/feeds/<id>/data`                |
+| `choices.service.ts:56` (request at `:194`) | `…/optimization/choose-web`                     |
 
 **What this asks of you:** the new token needs to be accepted on **all four
 endpoints**, not just ingest — or tell us which of them should keep `Basic` and
@@ -51,7 +51,7 @@ this document that we cannot answer client-side.**
 Only the two `/track` sites need `sendBeacon`, so the transport work depends on
 the first two rows alone. The other three are the security finding only.
 
-### What is *not* blocked on you — recorded so the split is clear
+### What is _not_ blocked on you — recorded so the split is clear
 
 Client-side leftovers we will fix regardless of the token decision: an unguarded
 `console.error('credentials not found')` at `choices.service.ts:94` (every other
@@ -90,13 +90,13 @@ The SDK's backoff, batch-halving and dequeue decisions all key off the response,
 and we have already fixed one bug where an ambiguous answer caused **silent data
 loss** (D17). Required semantics:
 
-| Status | SDK behaviour |
-|---|---|
-| 2xx | accepted — dequeue |
-| 400 | permanently bad payload — drop, do not retry |
-| 413 | too large — halve the batch and retry; a single-event 413 is dropped |
-| 429 + `Retry-After` | back off for exactly that long |
-| 5xx | retryable — exponential backoff |
+| Status              | SDK behaviour                                                        |
+| ------------------- | -------------------------------------------------------------------- |
+| 2xx                 | accepted — dequeue                                                   |
+| 400                 | permanently bad payload — drop, do not retry                         |
+| 413                 | too large — halve the batch and retry; a single-event 413 is dropped |
+| 429 + `Retry-After` | back off for exactly that long                                       |
+| 5xx                 | retryable — exponential backoff                                      |
 
 Anything that is not a definite answer is treated as "not delivered" and retried.
 
@@ -205,13 +205,13 @@ entirely yours.
 
 ## Summary
 
-| # | Item | Unblocks | Effort shape |
-|---|---|---|---|
-| 1 | Public ingest-only token, accepted off-header, `text/plain`, rate-limited — **on all four credentialed endpoints, see §1** | `sendBeacon`; fixes unload loss **and** the credential finding | New credential type + auth path on 4 endpoints |
-| 2 | Retry-actionable status codes | Correct backoff; prevents silent loss | Mostly confirmation |
-| 3 | Idempotency on `eventId` | Lets us **remove** client complexity | Ingest dedupe store |
-| 4 | Accept `$lib_version` | Incident forensics | Confirmation, likely no code |
-| 5 | Load-shedding directive in the response | Server-side control during an incident | Small, ship server-first |
-| 6 | Regional ingest endpoints (and whether write keys are region-scoped) | A real data-residency switch, not just a host override | Regional deployment; SDK side is a lookup table |
+| #   | Item                                                                                                                       | Unblocks                                                       | Effort shape                                    |
+| --- | -------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------- | ----------------------------------------------- |
+| 1   | Public ingest-only token, accepted off-header, `text/plain`, rate-limited — **on all four credentialed endpoints, see §1** | `sendBeacon`; fixes unload loss **and** the credential finding | New credential type + auth path on 4 endpoints  |
+| 2   | Retry-actionable status codes                                                                                              | Correct backoff; prevents silent loss                          | Mostly confirmation                             |
+| 3   | Idempotency on `eventId`                                                                                                   | Lets us **remove** client complexity                           | Ingest dedupe store                             |
+| 4   | Accept `$lib_version`                                                                                                      | Incident forensics                                             | Confirmation, likely no code                    |
+| 5   | Load-shedding directive in the response                                                                                    | Server-side control during an incident                         | Small, ship server-first                        |
+| 6   | Regional ingest endpoints (and whether write keys are region-scoped)                                                       | A real data-residency switch, not just a host override         | Regional deployment; SDK side is a lookup table |
 
 Items 1–2 are the minimum to unblock the SDK's reliability work.

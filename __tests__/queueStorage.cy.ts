@@ -54,9 +54,9 @@ describe('QueueStorage', () => {
       const complexData = {
         events: [
           { id: 1, name: 'event1' },
-          { id: 2, name: 'event2' }
+          { id: 2, name: 'event2' },
         ],
-        metadata: { timestamp: Date.now() }
+        metadata: { timestamp: Date.now() },
       };
       await storage.setItem(testKey, complexData);
       const retrieved = await storage.getItem(testKey);
@@ -81,4 +81,3 @@ describe('QueueStorage', () => {
     });
   });
 });
-

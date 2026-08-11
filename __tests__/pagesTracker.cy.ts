@@ -11,7 +11,9 @@ import { clearCookies, setCookie } from './support/testHelpers.ts';
 let previousNavigationHandler: (() => void) | undefined;
 
 function createLiveTracker(): PageTrackerModule {
-  const addEventListenerStub = window.addEventListener as unknown as { restore?: () => void };
+  const addEventListenerStub = window.addEventListener as unknown as {
+    restore?: () => void;
+  };
   addEventListenerStub.restore?.();
 
   if (previousNavigationHandler) {
@@ -28,13 +30,15 @@ function createLiveTracker(): PageTrackerModule {
 
   const tracker = new PageTrackerModule();
   tracker.init();
-  previousNavigationHandler = (tracker as unknown as { _handleNavigation: () => void })._handleNavigation;
+  previousNavigationHandler = (
+    tracker as unknown as { _handleNavigation: () => void }
+  )._handleNavigation;
   return tracker;
 }
 
 describe('PageTrackerModule', () => {
   let pageTracker: PageTrackerModule;
-  
+
   beforeEach(() => {
     clearCookies();
     cy.stub(window, 'addEventListener').as('addEventListener');
@@ -75,7 +79,7 @@ describe('PageTrackerModule', () => {
       clearCookies();
       // getId() should create a new session if cookie doesn't exist
       const pageId = pageTracker.getId();
-      
+
       // getId() calls setPageSession() if no cookie exists, which should return a valid ID
       expect(pageId).to.be.a('string');
       if (pageId !== '') {
@@ -93,7 +97,7 @@ describe('PageTrackerModule', () => {
       clearCookies();
       const newTracker = new PageTrackerModule();
       newTracker.init();
-      
+
       // getId() should work because it will create a session if one doesn't exist
       // According to the implementation:
       // 1. It tries to read from getCookie()
@@ -101,12 +105,12 @@ describe('PageTrackerModule', () => {
       // 3. If that also fails, it calls setPageSession() which creates a new session
       // 4. setPageSession() returns the cookie object, which getId() then parses
       const pageId = newTracker.getId();
-      
+
       // getId() should always return a valid ID because it creates one if missing
       // However, if there's an error in setPageSession(), it might return empty
       // So we verify the behavior: either it works immediately, or we test the fallback
       expect(pageId).to.be.a('string');
-      
+
       // If empty, it means setPageSession() returned null (error case)
       // But in normal operation, it should work
       if (pageId !== '') {
@@ -124,7 +128,7 @@ describe('PageTrackerModule', () => {
       const id1 = pageTracker.getId();
       const id2 = pageTracker.getId();
       const id3 = pageTracker.getId();
-      
+
       expect(id1).to.eq(id2);
       expect(id2).to.eq(id3);
     });
@@ -133,28 +137,28 @@ describe('PageTrackerModule', () => {
   describe('Event Tracking', () => {
     it('should start tracking on load event', () => {
       cy.stub(window, 'dispatchEvent').as('dispatchEvent');
-      
+
       // Simulate load event
       window.dispatchEvent(new Event('load'));
-      
+
       cy.get('@dispatchEvent').should('have.been.called');
     });
 
     it('should end tracking on beforeunload event', () => {
       cy.stub(window, 'dispatchEvent').as('dispatchEvent');
-      
+
       // Simulate beforeunload event
       window.dispatchEvent(new Event('beforeunload'));
-      
+
       cy.get('@dispatchEvent').should('have.been.called');
     });
 
     it('should handle pageshow event for bfcache restore', () => {
       cy.stub(pageTracker, 'start').as('start');
-      
+
       const event = new PageTransitionEvent('pageshow', { persisted: true });
       window.dispatchEvent(event);
-      
+
       // Note: The actual implementation checks e.persisted in the handler
       // This test verifies the event listener is set up
       expect(window.addEventListener).to.be.calledWith('pageshow');
@@ -163,9 +167,9 @@ describe('PageTrackerModule', () => {
     it('should handle popstate event for navigation', () => {
       cy.stub(pageTracker, 'end').as('end');
       cy.stub(pageTracker, 'start').as('start');
-      
+
       window.dispatchEvent(new PopStateEvent('popstate'));
-      
+
       // The actual handlers call end() and start()
       // This verifies the listener is registered
       expect(window.addEventListener).to.be.calledWith('popstate');
@@ -175,20 +179,20 @@ describe('PageTrackerModule', () => {
   describe('SPA Navigation', () => {
     it('should patch history.pushState for SPA navigation', () => {
       cy.stub(window, 'dispatchEvent').as('dispatchEvent');
-      
+
       // The _patchHistoryForSpa method should be called in init()
       // This patches pushState to fire 'locationchange' event
       history.pushState({}, 'Title', '/new-path');
-      
+
       // Verify locationchange event was dispatched
       cy.get('@dispatchEvent').should('have.been.called');
     });
 
     it('should patch history.replaceState for SPA navigation', () => {
       cy.stub(window, 'dispatchEvent').as('dispatchEvent');
-      
+
       history.replaceState({}, 'Title', '/new-path');
-      
+
       // Verify locationchange event was dispatched
       cy.get('@dispatchEvent').should('have.been.called');
     });
@@ -204,13 +208,13 @@ describe('PageTrackerModule', () => {
           id: 'pag_test1',
           startTime: Date.now(),
           current_page: firstPage,
-          previous_page: ''
+          previous_page: '',
         };
         setCookie('page_session', JSON.stringify(firstPageData));
 
         // The start() method will update the cookie
         pageTracker.start();
-        
+
         // Check previous page
         const previousPage = (pageTracker as any).getPreviousPage();
         // Previous page should be set (either firstPage or current location)
@@ -222,7 +226,7 @@ describe('PageTrackerModule', () => {
       clearCookies();
       const newTracker = new PageTrackerModule();
       newTracker.init();
-      
+
       const startTime = (newTracker as any).getPageSessionStartTime();
       expect(startTime).to.be.a('number');
       expect(startTime).to.be.above(0);
@@ -245,9 +249,9 @@ describe('PageTrackerModule', () => {
       // Set invalid JSON in cookie
       setCookie('page_session', 'invalid-json');
       cy.stub(console, 'error').as('consoleError');
-      
+
       const pageId = pageTracker.getId();
-      
+
       // Should handle error - either return empty string or generate new ID
       expect(pageId).to.be.a('string');
     });
@@ -256,9 +260,9 @@ describe('PageTrackerModule', () => {
       // Set malformed cookie
       setCookie('page_session', '{invalid');
       cy.stub(console, 'log').as('consoleLog');
-      
+
       pageTracker.refresh();
-      
+
       // Should handle error gracefully
       const pageId = pageTracker.getId();
       expect(pageId).to.be.a('string');
@@ -353,7 +357,10 @@ describe('PageTrackerModule', () => {
 
       window.history.replaceState({}, '', '/nav-defects-d10-replaced');
 
-      expect(pageEvents.map((e) => e.eventName)).to.deep.eq(['Leave Page', 'View Page']);
+      expect(pageEvents.map((e) => e.eventName)).to.deep.eq([
+        'Leave Page',
+        'View Page',
+      ]);
     });
   });
 
@@ -380,7 +387,10 @@ describe('PageTrackerModule', () => {
       window.location.hash = '#section-2';
       window.dispatchEvent(new Event('hashchange'));
 
-      expect(pageEvents.map((e) => e.eventName)).to.deep.eq(['Leave Page', 'View Page']);
+      expect(pageEvents.map((e) => e.eventName)).to.deep.eq([
+        'Leave Page',
+        'View Page',
+      ]);
       expect(pageEvents[1]?.fullUrl).to.include('#section-2');
     });
   });

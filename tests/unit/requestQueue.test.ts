@@ -26,7 +26,7 @@ describe('RequestQueue', () => {
       const second = makeQueue();
       const batch = await second.fillBatch(10);
 
-      expect(batch.map(i => i.payload.event)).toEqual(['a', 'b']);
+      expect(batch.map((i) => i.payload.event)).toEqual(['a', 'b']);
     });
 
     it('falls back to the memory queue when persistence is off', async () => {
@@ -39,9 +39,14 @@ describe('RequestQueue', () => {
     it('keeps the event in memory and reports when a storage write fails', async () => {
       const reported: string[] = [];
       const storage = new QueueStorage();
-      vi.spyOn(storage, 'setItem').mockRejectedValue(new Error('QuotaExceededError'));
+      vi.spyOn(storage, 'setItem').mockRejectedValue(
+        new Error('QuotaExceededError'),
+      );
 
-      const queue = makeQueue({ queueStorage: storage, errorReporter: (m: string) => reported.push(m) });
+      const queue = makeQueue({
+        queueStorage: storage,
+        errorReporter: (m: string) => reported.push(m),
+      });
       const ok = await queue.enqueue({ event: 'a' }, 1000);
 
       // Reported as a failure, but the event is NOT dropped — losing it would
@@ -60,7 +65,7 @@ describe('RequestQueue', () => {
       }
 
       const batch = await queue.fillBatch(3);
-      expect(batch.map(i => i.payload.n)).toEqual([0, 1, 2]);
+      expect(batch.map((i) => i.payload.n)).toEqual([0, 1, 2]);
     });
 
     it('is non-destructive — reading a batch does not dequeue it', async () => {
@@ -80,7 +85,10 @@ describe('RequestQueue', () => {
       // One record per event now, so age the record in place under its own key.
       const storage = new QueueStorage();
       const [entry] = await storage.entries(`${KEY}:i:`);
-      await storage.setItem(entry.key, { ...entry.value, flushAfter: Date.now() - 1 });
+      await storage.setItem(entry.key, {
+        ...entry.value,
+        flushAfter: Date.now() - 1,
+      });
 
       const batch = await makeQueue().fillBatch(10);
       expect(batch[0].orphaned).toBe(true);
@@ -95,7 +103,9 @@ describe('RequestQueue', () => {
       }
 
       const batch = await makeQueue().fillBatch(20);
-      expect(batch.map(i => i.payload.n)).toEqual(Array.from({ length: 20 }, (_, i) => i));
+      expect(batch.map((i) => i.payload.n)).toEqual(
+        Array.from({ length: 20 }, (_, i) => i),
+      );
     });
 
     it('returns an empty batch for an empty queue', async () => {
@@ -122,7 +132,7 @@ describe('RequestQueue', () => {
       const batch = await queue.fillBatch(10);
       expect(await queue.removeItemsByID([batch[0].id])).toBe(true);
 
-      expect((await queue.fillBatch(10)).map(i => i.payload.n)).toEqual([2]);
+      expect((await queue.fillBatch(10)).map((i) => i.payload.n)).toEqual([2]);
       // One record per event: exactly one key should remain under the prefix.
       expect(await new QueueStorage().keys(`${KEY}:i:`)).toHaveLength(1);
     });
@@ -155,7 +165,9 @@ describe('RequestQueue', () => {
 
       // Removal no longer writes the queue back, so a failing setItem is no
       // longer the failure mode — a failing delete is.
-      vi.spyOn(QueueStorage.prototype, 'removeItems').mockRejectedValue(new Error('delete failed'));
+      vi.spyOn(QueueStorage.prototype, 'removeItems').mockRejectedValue(
+        new Error('delete failed'),
+      );
 
       expect(await queue.removeItemsByID([batch[0].id])).toBe(false);
     });
@@ -188,7 +200,7 @@ describe('RequestQueue', () => {
 
       const batch = await makeQueue().fillBatch(10);
 
-      expect(batch.map(i => i.payload.n)).toEqual([1, 2]);
+      expect(batch.map((i) => i.payload.n)).toEqual([1, 2]);
       // The legacy key is removed so the import cannot run twice and duplicate.
       expect(localStorage.getItem(KEY)).toBeNull();
     });
@@ -197,17 +209,23 @@ describe('RequestQueue', () => {
       const queue = makeQueue();
       await queue.enqueue({ n: 1 }, 1000);
 
-      expect((await makeQueue().fillBatch(10)).map(i => i.payload.n)).toEqual([1]);
+      expect((await makeQueue().fillBatch(10)).map((i) => i.payload.n)).toEqual(
+        [1],
+      );
     });
 
     it('ignores malformed legacy entries rather than failing the import', async () => {
       localStorage.setItem(
         KEY,
-        JSON.stringify([null, { no: 'id' }, { id: 'ok', flushAfter: Date.now() + 10_000, payload: { n: 7 } }]),
+        JSON.stringify([
+          null,
+          { no: 'id' },
+          { id: 'ok', flushAfter: Date.now() + 10_000, payload: { n: 7 } },
+        ]),
       );
 
       const batch = await makeQueue().fillBatch(10);
-      expect(batch.map(i => i.payload.n)).toEqual([7]);
+      expect(batch.map((i) => i.payload.n)).toEqual([7]);
     });
   });
 
@@ -237,7 +255,7 @@ describe('RequestQueue', () => {
 
       // Drop OLDEST: recent events are the valuable ones (current session,
       // current funnel), so the survivors are the tail.
-      expect(batch.map(i => i.payload.n)).toEqual([7, 8, 9, 10, 11]);
+      expect(batch.map((i) => i.payload.n)).toEqual([7, 8, 9, 10, 11]);
     });
 
     it('counts what it dropped instead of losing it silently', async () => {
@@ -257,13 +275,16 @@ describe('RequestQueue', () => {
     });
 
     it('caps the memory queue too when persistence is off', async () => {
-      const queue = new RequestQueue(KEY, { usePersistence: false, maxQueuedEvents: 3 });
+      const queue = new RequestQueue(KEY, {
+        usePersistence: false,
+        maxQueuedEvents: 3,
+      });
       for (let i = 0; i < 9; i++) {
         await queue.enqueue({ n: i }, 1000);
       }
 
       const batch = await queue.fillBatch(100);
-      expect(batch.map(i => i.payload.n)).toEqual([6, 7, 8]);
+      expect(batch.map((i) => i.payload.n)).toEqual([6, 7, 8]);
       expect(queue.getDroppedEventCount()).toBe(6);
     });
 
@@ -327,9 +348,14 @@ describe('RequestQueue', () => {
     it('degrades to memory-only rather than throwing', async () => {
       const reported: string[] = [];
       const storage = new QueueStorage();
-      vi.spyOn(storage, 'init').mockRejectedValue(new Error('localStorage not available'));
+      vi.spyOn(storage, 'init').mockRejectedValue(
+        new Error('localStorage not available'),
+      );
 
-      const queue = makeQueue({ queueStorage: storage, errorReporter: (m: string) => reported.push(m) });
+      const queue = makeQueue({
+        queueStorage: storage,
+        errorReporter: (m: string) => reported.push(m),
+      });
       await queue.ensureInit();
 
       expect(reported.join(' ')).toContain('Disabling persistence');
@@ -357,7 +383,9 @@ describe('RequestQueue', () => {
       // every read; the legacy key is deleted after the first pass, so a second
       // run is a no-op *today* — but it would become duplicate imports the moment
       // deletion fails. Asserting the flag, not just the outcome.
-      const storage = await seedLegacy([{ id: 'l1', payload: { n: 1 }, flushAfter: 1 }]);
+      const storage = await seedLegacy([
+        { id: 'l1', payload: { n: 1 }, flushAfter: 1 },
+      ]);
       const queue = makeQueue({ queueStorage: storage });
 
       await queue.fillBatch(10);
@@ -372,7 +400,10 @@ describe('RequestQueue', () => {
       // Kills `|| !this.usePersistence`.
       const queue = new RequestQueue(KEY, { usePersistence: false });
       await queue.fillBatch(10);
-      expect((queue as any).migrated, 'the migration must not even be marked done').toBe(false);
+      expect(
+        (queue as any).migrated,
+        'the migration must not even be marked done',
+      ).toBe(false);
     });
 
     it('leaves a non-array legacy value alone rather than importing it', async () => {
@@ -384,7 +415,10 @@ describe('RequestQueue', () => {
       const queue = makeQueue({ queueStorage: storage });
 
       expect(await queue.fillBatch(10)).toHaveLength(0);
-      expect(await storage.getItem(KEY), 'and it must not be deleted either').toEqual({
+      expect(
+        await storage.getItem(KEY),
+        'and it must not be deleted either',
+      ).toEqual({
         not: 'an array',
       });
     });
@@ -412,14 +446,16 @@ describe('RequestQueue', () => {
       const queue = makeQueue({ queueStorage: storage });
 
       const batch = await queue.fillBatch(10);
-      expect(batch.map(i => i.id).sort()).toEqual(['good-1', 'good-2']);
+      expect(batch.map((i) => i.id).sort()).toEqual(['good-1', 'good-2']);
     });
 
     it('gives a legacy entry with no flushAfter an immediate deadline', async () => {
       // Kills `entry.flushAfter || Date.now()`. Falling back to 0/undefined would
       // sort the event to the head forever or make its key unparseable; falling
       // back to now means it flushes on the next pass, which is the intent.
-      const storage = await seedLegacy([{ id: 'no-deadline', payload: { n: 1 } }]);
+      const storage = await seedLegacy([
+        { id: 'no-deadline', payload: { n: 1 } },
+      ]);
       const queue = makeQueue({ queueStorage: storage });
 
       const batch = await queue.fillBatch(10);
@@ -431,7 +467,9 @@ describe('RequestQueue', () => {
     it('deletes the legacy key so the import cannot run twice', async () => {
       // Kills the `removeItem(this.storageKey)` call. If it survives, every page
       // load re-imports the same events — unbounded duplication at ingest.
-      const storage = await seedLegacy([{ id: 'l1', payload: { n: 1 }, flushAfter: 1 }]);
+      const storage = await seedLegacy([
+        { id: 'l1', payload: { n: 1 }, flushAfter: 1 },
+      ]);
       const queue = makeQueue({ queueStorage: storage });
 
       await queue.fillBatch(10);
@@ -442,7 +480,9 @@ describe('RequestQueue', () => {
       // Kills the catch body. A migration that throws must not take the queue
       // down with it.
       const storage = new QueueStorage();
-      await storage.setItem(KEY, [{ id: 'l1', payload: { n: 1 }, flushAfter: 1 }]);
+      await storage.setItem(KEY, [
+        { id: 'l1', payload: { n: 1 }, flushAfter: 1 },
+      ]);
       vi.spyOn(storage, 'removeItem').mockRejectedValue(new Error('boom'));
 
       const reported: string[] = [];
@@ -483,21 +523,33 @@ describe('RequestQueue', () => {
 
       const itemKey = (await storage.keys(`${KEY}:i:`))[0];
       await storage.setItem(itemKey, 'not an object');
-      await storage.setItem(`${KEY}:i:9999999999999_0_zz`, { id: 'zz', payload: { n: 2 }, flushAfter: 1 });
+      await storage.setItem(`${KEY}:i:9999999999999_0_zz`, {
+        id: 'zz',
+        payload: { n: 2 },
+        flushAfter: 1,
+      });
 
-      const batch = await (makeQueue({ queueStorage: storage })).fillBatch(10);
-      expect(batch.map(i => i.id)).toEqual(['zz']);
+      const batch = await makeQueue({ queueStorage: storage }).fillBatch(10);
+      expect(batch.map((i) => i.id)).toEqual(['zz']);
     });
   });
 
   describe('fillBatch — orphan adoption', () => {
     /** Seed a record directly, as another tab would have written it. */
-    async function seedItem(storage: QueueStorage, id: string, flushAfter: number, ts = 1) {
-      await storage.setItem(`${KEY}:i:${String(ts).padStart(16, '0')}_0_${id}`, {
-        id,
-        payload: { id },
-        flushAfter,
-      });
+    async function seedItem(
+      storage: QueueStorage,
+      id: string,
+      flushAfter: number,
+      ts = 1,
+    ) {
+      await storage.setItem(
+        `${KEY}:i:${String(ts).padStart(16, '0')}_0_${id}`,
+        {
+          id,
+          payload: { id },
+          flushAfter,
+        },
+      );
     }
 
     it('marks an item past its deadline as orphaned, and one still waiting as not', async () => {
@@ -508,7 +560,7 @@ describe('RequestQueue', () => {
       await seedItem(storage, 'fresh', Date.now() + 60_000, 2);
 
       const batch = await makeQueue({ queueStorage: storage }).fillBatch(10);
-      const byId = Object.fromEntries(batch.map(i => [i.id, i]));
+      const byId = Object.fromEntries(batch.map((i) => [i.id, i]));
       expect(byId['ripe'].orphaned).toBe(true);
       expect(byId['fresh'].orphaned).toBeUndefined();
     });
@@ -527,7 +579,10 @@ describe('RequestQueue', () => {
 
       expect(batch).toHaveLength(2);
       expect(keysSpy).not.toHaveBeenCalled();
-      expect(entriesSpy, 'no second read once the batch is full').not.toHaveBeenCalled();
+      expect(
+        entriesSpy,
+        'no second read once the batch is full',
+      ).not.toHaveBeenCalled();
     });
 
     it('stops adopting orphans at batchSize', async () => {
@@ -552,7 +607,7 @@ describe('RequestQueue', () => {
       await queue.enqueue({ n: 1 }, -1);
 
       const batch = await queue.fillBatch(10);
-      const ids = batch.map(i => i.id);
+      const ids = batch.map((i) => i.id);
       expect(new Set(ids).size, 'no id may appear twice').toBe(ids.length);
       expect(batch).toHaveLength(1);
     });
@@ -570,7 +625,9 @@ describe('RequestQueue', () => {
 
       const tabB = makeQueue({ queueStorage: storage });
       expect(await tabB.removeItemsByID([item.id])).toBe(true);
-      expect(await makeQueue({ queueStorage: storage }).fillBatch(10)).toHaveLength(0);
+      expect(
+        await makeQueue({ queueStorage: storage }).fillBatch(10),
+      ).toHaveLength(0);
     });
 
     it('matches a key by its full id suffix, not a partial one', async () => {
@@ -579,13 +636,24 @@ describe('RequestQueue', () => {
       // silent loss that no other assertion would catch.
       const storage = new QueueStorage();
       const queue = makeQueue({ queueStorage: storage });
-      await storage.setItem(`${KEY}:i:0000000000000001_0_abc`, { id: 'abc', payload: {}, flushAfter: 1 });
-      await storage.setItem(`${KEY}:i:0000000000000002_0_abcdef`, { id: 'abcdef', payload: {}, flushAfter: 1 });
+      await storage.setItem(`${KEY}:i:0000000000000001_0_abc`, {
+        id: 'abc',
+        payload: {},
+        flushAfter: 1,
+      });
+      await storage.setItem(`${KEY}:i:0000000000000002_0_abcdef`, {
+        id: 'abcdef',
+        payload: {},
+        flushAfter: 1,
+      });
 
       await queue.removeItemsByID(['abc']);
 
       const left = await makeQueue({ queueStorage: storage }).fillBatch(10);
-      expect(left.map(i => i.id), 'abcdef must survive removal of abc').toEqual(['abcdef']);
+      expect(
+        left.map((i) => i.id),
+        'abcdef must survive removal of abc',
+      ).toEqual(['abcdef']);
     });
 
     it('reports a removal failure and returns false', async () => {
@@ -600,7 +668,9 @@ describe('RequestQueue', () => {
       await queue.enqueue({ n: 1 }, 1000);
       const [item] = await queue.fillBatch(10);
 
-      vi.spyOn(storage, 'removeItems').mockRejectedValue(new Error('remove fail'));
+      vi.spyOn(storage, 'removeItems').mockRejectedValue(
+        new Error('remove fail'),
+      );
 
       expect(await queue.removeItemsByID([item.id])).toBe(false);
       expect(reported.join(' ')).toContain('Error removing items');
@@ -625,7 +695,7 @@ describe('RequestQueue', () => {
       expect((queue as any).approxQueuedCount).toBe(3);
 
       const batch = await queue.fillBatch(10);
-      await queue.removeItemsByID(batch.map(i => i.id));
+      await queue.removeItemsByID(batch.map((i) => i.id));
 
       expect((queue as any).approxQueuedCount).toBe(0);
 
@@ -641,7 +711,9 @@ describe('RequestQueue', () => {
       // This is the path a consent withdrawal takes: anything left behind is data
       // the customer asked to be rid of.
       const storage = new QueueStorage();
-      await storage.setItem(KEY, [{ id: 'legacy', payload: {}, flushAfter: 1 }]);
+      await storage.setItem(KEY, [
+        { id: 'legacy', payload: {}, flushAfter: 1 },
+      ]);
       const queue = makeQueue({ queueStorage: storage });
       await queue.enqueue({ n: 1 }, 1000);
       await queue.enqueue({ n: 2 }, 1000);
@@ -651,7 +723,9 @@ describe('RequestQueue', () => {
       expect((queue as any).approxQueuedCount).toBe(0);
       expect(await storage.keys(`${KEY}:i:`)).toEqual([]);
       expect(await storage.getItem(KEY)).toBeNull();
-      expect(await makeQueue({ queueStorage: storage }).fillBatch(10)).toHaveLength(0);
+      expect(
+        await makeQueue({ queueStorage: storage }).fillBatch(10),
+      ).toHaveLength(0);
     });
 
     it('reports a clear failure without throwing into the caller', async () => {
@@ -665,7 +739,9 @@ describe('RequestQueue', () => {
       });
       await queue.enqueue({ n: 1 }, 1000);
 
-      vi.spyOn(storage, 'removeItems').mockRejectedValue(new Error('clear fail'));
+      vi.spyOn(storage, 'removeItems').mockRejectedValue(
+        new Error('clear fail'),
+      );
 
       await expect(queue.clear()).resolves.toBeUndefined();
       expect(reported.join(' ')).toContain('Error clearing queue');
@@ -753,7 +829,9 @@ describe('RequestQueue', () => {
 
       // Each enqueue past the cap drops exactly the one it overflows by, so
       // the last of the three reports carries the final running total.
-      expect(reported.join(' ')).toContain('Queue full (2); dropped 1 oldest event(s), 3 total this page');
+      expect(reported.join(' ')).toContain(
+        'Queue full (2); dropped 1 oldest event(s), 3 total this page',
+      );
     });
 
     it('does not report anything at exactly the cap, only past it', async () => {
@@ -789,7 +867,7 @@ describe('RequestQueue', () => {
       (queue as any).lock = null;
 
       const batch = await queue.fillBatch(10);
-      expect(batch.map(i => i.payload.n)).toEqual([1]);
+      expect(batch.map((i) => i.payload.n)).toEqual([1]);
     });
   });
 
@@ -833,12 +911,20 @@ describe('RequestQueue', () => {
 
   describe('fillBatch — orphan adoption from another tab, mid-batch', () => {
     /** Seed a record directly, as another tab would have written it. */
-    async function seedItem(storage: QueueStorage, id: string, flushAfter: number, ts: number) {
-      await storage.setItem(`${KEY}:i:${String(ts).padStart(16, '0')}_0_${id}`, {
-        id,
-        payload: { id },
-        flushAfter,
-      });
+    async function seedItem(
+      storage: QueueStorage,
+      id: string,
+      flushAfter: number,
+      ts: number,
+    ) {
+      await storage.setItem(
+        `${KEY}:i:${String(ts).padStart(16, '0')}_0_${id}`,
+        {
+          id,
+          payload: { id },
+          flushAfter,
+        },
+      );
     }
 
     it('adopts a ripe orphan from another tab to fill out an under-size batch', async () => {
@@ -856,9 +942,9 @@ describe('RequestQueue', () => {
 
       const batch = await queue.fillBatch(5);
       expect(batch).toHaveLength(2);
-      const orphan = batch.find(i => i.id === 'other-tab-orphan');
+      const orphan = batch.find((i) => i.id === 'other-tab-orphan');
       expect(orphan?.orphaned).toBe(true);
-      const mine = batch.find(i => (i.payload as any).mine);
+      const mine = batch.find((i) => (i.payload as any).mine);
       expect(mine?.orphaned).toBeUndefined();
     });
 
@@ -872,7 +958,7 @@ describe('RequestQueue', () => {
       await seedItem(storage, 'other-tab-fresh', Date.now() + 60_000, 1);
 
       const batch = await queue.fillBatch(5);
-      expect(batch.map(i => i.id)).not.toContain('other-tab-fresh');
+      expect(batch.map((i) => i.id)).not.toContain('other-tab-fresh');
     });
   });
 
@@ -959,11 +1045,15 @@ describe('RequestQueue', () => {
       // `typeof entry !== 'object'` arm to `false`, which would let a bare
       // number or boolean legacy entry through into makeItemKey().
       const storage = new QueueStorage();
-      await storage.setItem(KEY, [42, true, { id: 'good', payload: { n: 1 }, flushAfter: 1 }]);
+      await storage.setItem(KEY, [
+        42,
+        true,
+        { id: 'good', payload: { n: 1 }, flushAfter: 1 },
+      ]);
       const queue = makeQueue({ queueStorage: storage });
 
       const batch = await queue.fillBatch(10);
-      expect(batch.map(i => i.id)).toEqual(['good']);
+      expect(batch.map((i) => i.id)).toEqual(['good']);
     });
   });
 
@@ -976,11 +1066,14 @@ describe('RequestQueue', () => {
       const now = Date.now();
       vi.spyOn(Date, 'now').mockReturnValue(now);
       const storage = new QueueStorage();
-      await storage.setItem(`${KEY}:i:${String(1).padStart(16, '0')}_0_boundary`, {
-        id: 'boundary',
-        payload: { id: 'boundary' },
-        flushAfter: now,
-      });
+      await storage.setItem(
+        `${KEY}:i:${String(1).padStart(16, '0')}_0_boundary`,
+        {
+          id: 'boundary',
+          payload: { id: 'boundary' },
+          flushAfter: now,
+        },
+      );
 
       const batch = await makeQueue({ queueStorage: storage }).fillBatch(10);
       expect(batch[0].orphaned).toBeUndefined();

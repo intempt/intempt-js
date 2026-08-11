@@ -12,3 +12,10 @@ reports
 cypress/screenshots
 cypress/videos
 standalone
+
+# `.claude/worktrees/` holds full checkouts, including their own dist/ and
+# node_modules/. ESLint reported 4048 problems instead of 323 for exactly this
+# reason during the five-lane merge (CHECKPOINT §0a). Now that prettier is a
+# blocking gate, an unignored worktree would fail the build on files that are not
+# even this branch's.
+.claude

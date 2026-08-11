@@ -8,11 +8,14 @@ export class SharedLock {
   private timeoutMS: number;
   private pid: string;
 
-  constructor(lockKey: string, options: {
-    storage: Storage;
-    timeoutMS: number;
-    pid?: string;
-  }) {
+  constructor(
+    lockKey: string,
+    options: {
+      storage: Storage;
+      timeoutMS: number;
+      pid?: string;
+    },
+  ) {
     this.lockKey = `__intempt_lock_${lockKey}__`;
     this.storage = options.storage;
     this.timeoutMS = options.timeoutMS || 5000;
@@ -42,10 +45,13 @@ export class SharedLock {
       try {
         const existingLock = this.storage.getItem(this.lockKey);
         if (!existingLock) {
-          this.storage.setItem(this.lockKey, JSON.stringify({
-            pid: this.pid,
-            timestamp: Date.now()
-          }));
+          this.storage.setItem(
+            this.lockKey,
+            JSON.stringify({
+              pid: this.pid,
+              timestamp: Date.now(),
+            }),
+          );
           // Verify we got the lock
           const verify = this.storage.getItem(this.lockKey);
           if (verify && JSON.parse(verify).pid === this.pid) {
@@ -82,7 +88,6 @@ export class SharedLock {
   }
 
   private delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
+    return new Promise((resolve) => setTimeout(resolve, ms));
   }
 }
-

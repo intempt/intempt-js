@@ -10,15 +10,14 @@ export type LocalStorageCache = {
   clear: () => void;
 };
 
-export type IdType = 'pag' | 'ses' | 'ev' |'prof';
+export type IdType = 'pag' | 'ses' | 'ev' | 'prof';
 
 export type IntemptIdsParams = {
-  sessionId?:string,
-  profileId?:string,
-  pageId?:string,
-  sourceId?:string,
-}
-
+  sessionId?: string;
+  profileId?: string;
+  pageId?: string;
+  sourceId?: string;
+};
 
 export type IntemptConfig = {
   organization: string;
@@ -89,87 +88,80 @@ export type IntemptConfig = {
    * become an unhandled error on your page.
    */
   onDiagnostic?: DiagnosticSink;
-}
+};
 
 export type IntemptVariables = {
-  orgName: string,
-  project: string,
-  sourceId: string,
-  profileId: string,
-  sessionId: string,
-  device: string,
-  username: string | null,
-  password: string | null,
-  url: string
-}
+  orgName: string;
+  project: string;
+  sourceId: string;
+  profileId: string;
+  sessionId: string;
+  device: string;
+  username: string | null;
+  password: string | null;
+  url: string;
+};
 
 export type EditorPayload = {
-  experience: any,
-  variantId: string,
-  token: string,
-}
+  experience: any;
+  variantId: string;
+  token: string;
+};
 
 export type ConsentAction = 'accept' | 'reject';
 
 export type ConsentParams = {
-  action: ConsentAction,
-  validUntil: number
-  email?:string,
-  message?: string
-  category?: string
-}
+  action: ConsentAction;
+  validUntil: number;
+  email?: string;
+  message?: string;
+  category?: string;
+};
 
 export type ProductParams = {
-  productId:string,
-  quantity?:number
-}
+  productId: string;
+  quantity?: number;
+};
 
 export type RecommendationParams = {
-  id:number,
-  quantity:number
-  fields:string[]
-}
-
+  id: number;
+  quantity: number;
+  fields: string[];
+};
 
 export type IdentifyParams = {
-   userId: string,
-   eventTitle?: string,
-   userAttributes?:{[key:string]:any}
-   data?:{[key:string]:any}
-}
+  userId: string;
+  eventTitle?: string;
+  userAttributes?: { [key: string]: any };
+  data?: { [key: string]: any };
+};
 
 export type GroupParams = {
-  accountId: string,
-  eventTitle?: string,
-  accountAttributes?: {[key:string]:any}
-}
+  accountId: string;
+  eventTitle?: string;
+  accountAttributes?: { [key: string]: any };
+};
 
 export type TrackParams = {
-  eventTitle: string,
-  data: {[key:string]:any}
-}
+  eventTitle: string;
+  data: { [key: string]: any };
+};
 
 export type RecordParams = {
-  eventTitle: string,
-  accountId?: string,
-  userId?: string,
-  accountAttributes?: {[key:string]:any}
-  userAttributes?: {[key:string]:any}
-  data?: {[key:string]:any}
-}
+  eventTitle: string;
+  accountId?: string;
+  userId?: string;
+  accountAttributes?: { [key: string]: any };
+  userAttributes?: { [key: string]: any };
+  data?: { [key: string]: any };
+};
 
 export type AliasParams = {
-  userId: string,
-  anotherUserId: string,
-}
+  userId: string;
+  anotherUserId: string;
+};
 
 export type AuthConfig = {
-  username: string,
-  password: string
-}
-
-
-
-
-
-
+  username: string;
+  password: string;
+};

@@ -1,25 +1,39 @@
 import { HtmlElementDataComponent } from '../../component/HtmlEventData.component.ts';
-import { SessionTrackerModule } from './modules/sessionTracker/sessionTracker.module.ts'
-import { ProfileTrackerModule } from './modules/profileTracker/profileTracker.module.ts'
+import { SessionTrackerModule } from './modules/sessionTracker/sessionTracker.module.ts';
+import { ProfileTrackerModule } from './modules/profileTracker/profileTracker.module.ts';
 import { PageTrackerModule } from './modules/pagesTracker/pagesTracker.module.ts';
 import { SessionEventModel } from './models/session.model.ts';
-import { debounce, dispatchIntemptEvent } from '../../../shared/shared.utils.ts';
+import {
+  debounce,
+  dispatchIntemptEvent,
+} from '../../../shared/shared.utils.ts';
 import { PageEventModel } from './models/pageEvent.model.ts';
 import { PageEventDataComponent } from '../../component/pageEventData.component.ts';
 import { HtmlEventModel } from './models/HtmlEvent.model.ts';
 import { HtmlTrackerModule } from './modules/htmlTracker/htmlTracker.module.ts';
 import { IntemptConfig } from '../../types/intemptJs.types.ts';
 import { ShopifyTrackerModule } from './modules/shopifyTracker/shopifyTracker.module.ts';
-import { IntemptEventListenerName, IntemptEventName } from '../../types/constants.types.ts';
-import { IntemptPageEventName, ShopifyEvent } from '../../types/autoTracker.types.ts';
+import {
+  IntemptEventListenerName,
+  IntemptEventName,
+} from '../../types/constants.types.ts';
+import {
+  IntemptPageEventName,
+  ShopifyEvent,
+} from '../../types/autoTracker.types.ts';
 import { ProductModel } from '../../models/product.model.ts';
 import { AutoTrackerTransport } from './autoTracker.transport.ts';
 import { EnvConfig } from '../../../shared/envConfig.ts';
-import { loadDoNotTrack, persistDoNotTrack } from '../../../shared/consentState.ts';
+import {
+  loadDoNotTrack,
+  persistDoNotTrack,
+} from '../../../shared/consentState.ts';
 import { shouldSuppressForBrowserSignal } from '../../../shared/privacy/doNotTrackSignals.ts';
 import { hasOptedOut } from '../../../shared/privacy/gdpr.ts';
-import { createPiiScrubber, PiiScrubber } from '../../../shared/privacy/piiScrubber.ts';
-
+import {
+  createPiiScrubber,
+  PiiScrubber,
+} from '../../../shared/privacy/piiScrubber.ts';
 
 import { createLogger } from '../../../shared/logger/logger.ts';
 import { MetricsSnapshot } from '../../../shared/logger/metrics.ts';
@@ -53,12 +67,12 @@ type TrackableEvent = {
  */
 export class AutoTrackerModule {
   private static _activeInstance: AutoTrackerModule | null = null;
-  private readonly _config:IntemptConfig;
+  private readonly _config: IntemptConfig;
   private readonly _profileTrackerModule = new ProfileTrackerModule();
   private readonly _sessionTrackerModule = new SessionTrackerModule();
   private readonly _pagesTrackerModule = new PageTrackerModule();
   private readonly _htmlTrackerModule = new HtmlTrackerModule();
-  private readonly _shopifyTrackerModule: ShopifyTrackerModule | undefined ;
+  private readonly _shopifyTrackerModule: ShopifyTrackerModule | undefined;
 
   private _doNotTrack: boolean = loadDoNotTrack();
 
@@ -98,7 +112,7 @@ export class AutoTrackerModule {
     const sessionId = this.getSessionId();
     const pageId = this.getPageId();
 
-    if(!profileId || !sessionId || !pageId) return;
+    if (!profileId || !sessionId || !pageId) return;
 
     const eventData = new ProductModel({
       eventTitle: eventName,
@@ -106,9 +120,9 @@ export class AutoTrackerModule {
       profileId,
       sessionId,
       pageId,
-    })
+    });
 
-    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData });
   };
 
   private readonly _onHtmlEvent = (event: Event): void => {
@@ -121,23 +135,31 @@ export class AutoTrackerModule {
     const sessionId = this.getSessionId();
     const pageId = this.getPageId();
 
-    if(!profileId || !sessionId || !pageId) return;
+    if (!profileId || !sessionId || !pageId) return;
 
     const eventData = new HtmlEventModel({
       name: eventName,
       sessionId: this.getSessionId(),
       profileId: this.getProfileId(),
       pageId: this._getPageId(),
-      data: new HtmlElementDataComponent(target, domEventName)
-    })
+      data: new HtmlElementDataComponent(target, domEventName),
+    });
 
-    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData });
   };
 
   private readonly _onPageEvent = (event: Event): void => {
     if (!this.isUserOptIn()) return;
     const { detail } = event as CustomEvent;
-    const { eventName, fullUrl, title, windowWidth, pageId, duration, previousPage } = detail;
+    const {
+      eventName,
+      fullUrl,
+      title,
+      windowWidth,
+      pageId,
+      duration,
+      previousPage,
+    } = detail;
 
     this.handleShopifyEvent(eventName);
 
@@ -146,23 +168,23 @@ export class AutoTrackerModule {
       title,
       fullUrl,
       windowWidth,
-      previousPage
+      previousPage,
     });
 
     const profileId = this.getProfileId();
     const sessionId = this.getSessionId();
 
-    if(!profileId || !sessionId || !pageId) return;
+    if (!profileId || !sessionId || !pageId) return;
 
     const pageEvent = new PageEventModel({
       name: eventName,
       sessionId,
       profileId,
       pageId,
-      data: eventData
-    })
+      data: eventData,
+    });
 
-    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: pageEvent});
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: pageEvent });
   };
 
   private readonly _onSessionEvent = (event: Event): void => {
@@ -173,17 +195,19 @@ export class AutoTrackerModule {
     const sessionId = this.getSessionId();
     const profileId = this.getProfileId();
 
-    if(!profileId || !sessionId) return;
+    if (!profileId || !sessionId) return;
 
     const sessionEvent = new SessionEventModel({
       name: eventName,
       sessionId,
       profileId,
       data: eventAttributes,
-      userAttributes
-    })
+      userAttributes,
+    });
 
-    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: sessionEvent});
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, {
+      event: sessionEvent,
+    });
   };
 
   private readonly _onPooledEvent = (customDomEvent: Event): void => {
@@ -203,7 +227,6 @@ export class AutoTrackerModule {
   };
 
   constructor(intemptConfig: IntemptConfig, api: string) {
-
     this._config = { ...intemptConfig };
     this._api = api;
     this._transport = new AutoTrackerTransport(this._config, this._api);
@@ -216,7 +239,9 @@ export class AutoTrackerModule {
     }
     AutoTrackerModule._activeInstance = this;
 
-    this._browserSignalSuppressed = shouldSuppressForBrowserSignal(intemptConfig.ignore_dnt);
+    this._browserSignalSuppressed = shouldSuppressForBrowserSignal(
+      intemptConfig.ignore_dnt,
+    );
 
     // Called for its side effect: the one-per-page console notice naming *which*
     // signal stopped the data. That notice is the difference between a support
@@ -226,7 +251,10 @@ export class AutoTrackerModule {
 
     this._scrubPii = createPiiScrubber(
       typeof intemptConfig.piiScrubbing === 'object'
-        ? { ...intemptConfig.piiScrubbing, enabled: intemptConfig.piiScrubbing.enabled !== false }
+        ? {
+            ...intemptConfig.piiScrubbing,
+            enabled: intemptConfig.piiScrubbing.enabled !== false,
+          }
         : { enabled: intemptConfig.piiScrubbing === true },
     );
 
@@ -237,8 +265,14 @@ export class AutoTrackerModule {
     // Initialize batcher
     this._transport.initialize();
 
-    document.addEventListener(IntemptEventListenerName.EVENT, this._onPooledEvent);
-    document.addEventListener(IntemptEventListenerName.SESSION, this._onSessionEvent);
+    document.addEventListener(
+      IntemptEventListenerName.EVENT,
+      this._onPooledEvent,
+    );
+    document.addEventListener(
+      IntemptEventListenerName.SESSION,
+      this._onSessionEvent,
+    );
     document.addEventListener(IntemptEventListenerName.PAGE, this._onPageEvent);
 
     try {
@@ -247,7 +281,10 @@ export class AutoTrackerModule {
       log.error('page tracker failed to start', e);
     }
 
-    document.addEventListener(IntemptEventListenerName.SHOPIFY, this._onShopifyEvent);
+    document.addEventListener(
+      IntemptEventListenerName.SHOPIFY,
+      this._onShopifyEvent,
+    );
     document.addEventListener(IntemptEventListenerName.HTML, this._onHtmlEvent);
   }
 
@@ -260,11 +297,26 @@ export class AutoTrackerModule {
   dispose(): void {
     if (this._disposed) return;
 
-    document.removeEventListener(IntemptEventListenerName.EVENT, this._onPooledEvent);
-    document.removeEventListener(IntemptEventListenerName.SESSION, this._onSessionEvent);
-    document.removeEventListener(IntemptEventListenerName.PAGE, this._onPageEvent);
-    document.removeEventListener(IntemptEventListenerName.SHOPIFY, this._onShopifyEvent);
-    document.removeEventListener(IntemptEventListenerName.HTML, this._onHtmlEvent);
+    document.removeEventListener(
+      IntemptEventListenerName.EVENT,
+      this._onPooledEvent,
+    );
+    document.removeEventListener(
+      IntemptEventListenerName.SESSION,
+      this._onSessionEvent,
+    );
+    document.removeEventListener(
+      IntemptEventListenerName.PAGE,
+      this._onPageEvent,
+    );
+    document.removeEventListener(
+      IntemptEventListenerName.SHOPIFY,
+      this._onShopifyEvent,
+    );
+    document.removeEventListener(
+      IntemptEventListenerName.HTML,
+      this._onHtmlEvent,
+    );
 
     this._transport.dispose();
 
@@ -275,7 +327,7 @@ export class AutoTrackerModule {
     }
   }
 
-  refresh(){
+  refresh() {
     this._profileTrackerModule.refresh();
     this._sessionTrackerModule.refresh();
     this._pagesTrackerModule.refresh();
@@ -294,20 +346,20 @@ export class AutoTrackerModule {
    * only the stored flag would have it answer `true` while the SDK silently
    * dropped everything.
    */
-  get doNotTrack(){
+  get doNotTrack() {
     return this._doNotTrack || this._browserSignalSuppressed;
   }
 
-  set doNotTrack(value: boolean){
+  set doNotTrack(value: boolean) {
     // Only the explicit decision is stored and mutated. A browser signal is not
     // the visitor's stored consent and cannot be cleared by `optIn()` — see the
     // note on `_browserSignalSuppressed`.
-    this._doNotTrack = value
-    persistDoNotTrack(value)
+    this._doNotTrack = value;
+    persistDoNotTrack(value);
   }
 
-  isUserOptIn(): boolean{
-    return !this.doNotTrack
+  isUserOptIn(): boolean {
+    return !this.doNotTrack;
   }
 
   /**
@@ -318,7 +370,7 @@ export class AutoTrackerModule {
    * `doNotTrack = false` would persist an explicit opt-in and re-create exactly
    * the decision that was just cleared.
    */
-  forgetConsentDecision(): void{
+  forgetConsentDecision(): void {
     this._doNotTrack = false;
   }
 
@@ -326,16 +378,14 @@ export class AutoTrackerModule {
     const browserSessionId = this._sessionTrackerModule.getId();
     const localSessionId = this._sessionTrackerModule.getLocalId();
 
-    return !!browserSessionId
-      ? browserSessionId
-      : localSessionId;
+    return !!browserSessionId ? browserSessionId : localSessionId;
   }
 
   getProfileId() {
     return this._profileTrackerModule.getId();
   }
 
-  getPageId(){
+  getPageId() {
     return this._pagesTrackerModule.getId();
   }
 
@@ -352,11 +402,11 @@ export class AutoTrackerModule {
   }
 
   private handleShopifyEvent(eventName: IntemptPageEventName) {
-    if(eventName === IntemptEventName.PAGE_LEAVE) return;
-    this._shopifyTrackerModule?.track()
+    if (eventName === IntemptEventName.PAGE_LEAVE) return;
+    this._shopifyTrackerModule?.track();
   }
 
-  private _onTrackData(rawData: TrackableEvent){
+  private _onTrackData(rawData: TrackableEvent) {
     // The single choke point for scrubbing: both the batcher and the legacy
     // debounced fallback go through here, so one call covers every event path.
     //
@@ -387,16 +437,15 @@ export class AutoTrackerModule {
     }
   }
 
-  private _onTrackDataLegacy(data: TrackableEvent){
+  private _onTrackDataLegacy(data: TrackableEvent) {
     // Keep existing implementation as fallback
-    let debouncedSendEvents:ReturnType<typeof debounce>;
+    let debouncedSendEvents: ReturnType<typeof debounce>;
     const name = data.name.toLowerCase();
-     this._eventPool.push(data);
+    this._eventPool.push(data);
 
-    if(name.toLowerCase() === 'leave page'){
+    if (name.toLowerCase() === 'leave page') {
       debouncedSendEvents = debounce(() => this._sendTrackEventData(), 0);
-    }
-    else{
+    } else {
       debouncedSendEvents = debounce(() => this._sendTrackEventData(), 1000);
     }
 
@@ -404,11 +453,11 @@ export class AutoTrackerModule {
   }
 
   private async _sendConsentTrackEventData(data: TrackableEvent) {
-    const {organization, sourceId, project, writeKey} = this._config;
+    const { organization, sourceId, project, writeKey } = this._config;
 
     const url = `${this._api}/${organization}/projects/${project}/consents/data`;
 
-    const [ username, password ] = writeKey.split('.');
+    const [username, password] = writeKey.split('.');
 
     const encodedCredentials = btoa(`${username}:${password}`);
 
@@ -417,10 +466,10 @@ export class AutoTrackerModule {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${encodedCredentials}`,
+          Authorization: `Basic ${encodedCredentials}`,
         },
         body: JSON.stringify({ ...data }),
-        keepalive: true
+        keepalive: true,
       });
 
       if (!response.ok) {
@@ -428,13 +477,11 @@ export class AutoTrackerModule {
       }
     } catch (error) {
       log.error('error sending track event data', error);
-
     }
-
   }
 
   private async _sendTrackEventData() {
-    if(this._eventPool.length === 0) return;
+    if (this._eventPool.length === 0) return;
     /**
      * Make deep copy of the eventPool
      * */
@@ -442,35 +489,31 @@ export class AutoTrackerModule {
 
     this._clearEventPool();
 
-    const {organization, sourceId, project, writeKey} = this._config;
+    const { organization, sourceId, project, writeKey } = this._config;
 
     const url = `${this._api}/${organization}/projects/${project}/sources/${sourceId}/track`;
 
-    const [ username, password ] = writeKey.split('.');
+    const [username, password] = writeKey.split('.');
 
     const encodedCredentials = btoa(`${username}:${password}`);
-
 
     try {
       const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${encodedCredentials}`,
+          Authorization: `Basic ${encodedCredentials}`,
         },
         body: JSON.stringify({ track: data }),
-        keepalive: true
+        keepalive: true,
       });
 
       if (!response.ok) {
-         throw new Error(`HTTP error! Status: ${response.status}`);
+        throw new Error(`HTTP error! Status: ${response.status}`);
       }
-
     } catch (error) {
       log.error('_sendTrackEventData failed', error);
-
     }
-
   }
 
   private _getPageId() {
@@ -481,4 +524,3 @@ export class AutoTrackerModule {
     this._eventPool.length = 0;
   }
 }
-

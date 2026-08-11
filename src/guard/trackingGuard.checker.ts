@@ -21,10 +21,9 @@ export function createGuardContext(): GuardContext {
  * This is the main function to call in main.ts
  */
 export async function shouldBlockTracking(
-  guardManager: TrackingGuardManager
+  guardManager: TrackingGuardManager,
 ): Promise<boolean> {
   const context = createGuardContext();
   const result = await guardManager.evaluate(context);
   return result.blocked;
 }
-

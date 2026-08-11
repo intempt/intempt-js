@@ -1,8 +1,6 @@
 import { EditorPayload } from '../intemptJs/types/intemptJs.types.ts';
 import { EnvConfig } from '../shared/envConfig.ts';
 
-
-
 import { createLogger } from '../shared/logger/logger.ts';
 
 const log = createLogger('WebEditor');
@@ -19,14 +17,12 @@ class WebEditor {
   private get JS_URL(): string {
     return `${this.BASE}/app.js`;
   }
-  private readonly HOST_ID :string = 'intempt-root-host';
-  private readonly APP_ID  :string = 'intempt-editor-root';
+  private readonly HOST_ID: string = 'intempt-root-host';
+  private readonly APP_ID: string = 'intempt-editor-root';
   private readonly ALLOWED_ORIGINS: readonly string[];
-  private __INTEMPT_EDITOR_MOUNTED :boolean = false;
-  private _readyAcked  :boolean = false;
+  private __INTEMPT_EDITOR_MOUNTED: boolean = false;
+  private _readyAcked: boolean = false;
   private _readyInterval: ReturnType<typeof setInterval> | null = null;
-
-
 
   constructor() {
     const qs = new URLSearchParams(location.search);
@@ -34,23 +30,17 @@ class WebEditor {
     this.ALLOWED_ORIGINS = EnvConfig.getOpenerOrigins();
   }
 
-
-
-
   init() {
     const onReady = () => this.postReadyWithRetry();
-    const listener = (event: MessageEvent) => this.handleMessageFromOpener(event);
+    const listener = (event: MessageEvent) =>
+      this.handleMessageFromOpener(event);
 
-    window.addEventListener('message', listener)
+    window.addEventListener('message', listener);
 
     if (document.readyState === 'loading') {
       window.addEventListener('DOMContentLoaded', onReady, { once: true });
-    }
-    else this.postReadyWithRetry();
-
-
+    } else this.postReadyWithRetry();
   }
-
 
   private ensureShadowHost() {
     let host = document.getElementById(this.HOST_ID) as HTMLElement | null;
@@ -77,7 +67,7 @@ class WebEditor {
 
     const msg = event.data || {};
 
-    let chOk= true;
+    let chOk = true;
 
     let editorPayload: EditorPayload = {
       experience: undefined,
@@ -85,9 +75,7 @@ class WebEditor {
       token: '',
     };
 
-
     if (msg?.type === 'INIT') {
-
       this._readyAcked = true;
       if (this._readyInterval) {
         clearInterval(this._readyInterval);
@@ -95,24 +83,29 @@ class WebEditor {
       }
 
       const p = msg.payload || {};
-      editorPayload = {...p};
+      editorPayload = { ...p };
 
-      if (this.CHANNEL && msg.channel && msg.channel !== this.CHANNEL) chOk = false;
+      if (this.CHANNEL && msg.channel && msg.channel !== this.CHANNEL)
+        chOk = false;
     }
-
 
     if (!chOk) return;
 
     const reply = (payload: any) => {
-      try { (event.source as Window)?.postMessage(payload, event.origin); } catch {}
+      try {
+        (event.source as Window)?.postMessage(payload, event.origin);
+      } catch {}
     };
 
-
-
-    const { experience, variantId, token } = editorPayload
+    const { experience, variantId, token } = editorPayload;
 
     if (!experience || !variantId || !token) {
-      reply({ type: 'ACK', ok: false, error: 'invalid_payload', channel: this.CHANNEL });
+      reply({
+        type: 'ACK',
+        ok: false,
+        error: 'invalid_payload',
+        channel: this.CHANNEL,
+      });
       return;
     }
 
@@ -122,11 +115,15 @@ class WebEditor {
       return Promise.all([
         this.injectCssIntoShadow(this.CSS_URL, shadow),
         this.injectWebEditorScript(editorPayload, appRoot),
-      ])
-    }
-    catch (e) {
+      ]);
+    } catch (e) {
       log.warn('failed to write session or mount editor', e);
-      reply({ type: 'ACK', ok: false, error: 'init_failed', channel: this.CHANNEL });
+      reply({
+        type: 'ACK',
+        ok: false,
+        error: 'init_failed',
+        channel: this.CHANNEL,
+      });
       return;
     }
   }
@@ -135,7 +132,6 @@ class WebEditor {
     let tries = 0;
     const maxTries = 5;
     this._readyInterval = setInterval(() => {
-
       if ((this._readyAcked || tries++ >= maxTries) && this._readyInterval) {
         clearInterval(this._readyInterval);
         if (!this._readyAcked) {
@@ -144,19 +140,18 @@ class WebEditor {
         return;
       }
 
-
       try {
         for (const origin of this.ALLOWED_ORIGINS) {
           window.opener?.postMessage(
             { type: 'READY', channel: this.CHANNEL },
-            origin
+            origin,
           );
         }
         if (this.ALLOWED_ORIGINS.length > 0) log.debug('READY sent');
       } catch (e) {
         log.warn('postReady failed', e);
       }
-    }, 200)
+    }, 200);
   }
 
   private async injectCssIntoShadow(url: string, shadow: ShadowRoot) {
@@ -166,21 +161,28 @@ class WebEditor {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const css = await res.text();
 
-      if ('adoptedStyleSheets' in Document.prototype && 'replaceSync' in CSSStyleSheet.prototype) {
+      if (
+        'adoptedStyleSheets' in Document.prototype &&
+        'replaceSync' in CSSStyleSheet.prototype
+      ) {
         const sheet = new CSSStyleSheet();
         sheet.replaceSync(css);
         // append without breaking existing sheets
-        (shadow as any).adoptedStyleSheets = [...(shadow as any).adoptedStyleSheets, sheet];
-      }
-      else {
+        (shadow as any).adoptedStyleSheets = [
+          ...(shadow as any).adoptedStyleSheets,
+          sheet,
+        ];
+      } else {
         const style = document.createElement('style');
         style.textContent = css;
         shadow.appendChild(style);
       }
       return;
-    }
-    catch (e) {
-      log.warn('CSS fetch failed or CORS blocked; falling back to <link> in shadow', e);
+    } catch (e) {
+      log.warn(
+        'CSS fetch failed or CORS blocked; falling back to <link> in shadow',
+        e,
+      );
     }
 
     // Fallback: <link rel="stylesheet"> inside shadow (works in modern Chromium/Firefox)
@@ -190,24 +192,26 @@ class WebEditor {
     shadow.appendChild(link);
   }
 
-  private async injectWebEditorScript(payload: EditorPayload, appRoot:HTMLElement) {
-      // @vite-ignore keeps Vite from trying to pre-bundle/transform the URL
-      const mod: any = await import(/* @vite-ignore */ this.JS_URL);
+  private async injectWebEditorScript(
+    payload: EditorPayload,
+    appRoot: HTMLElement,
+  ) {
+    // @vite-ignore keeps Vite from trying to pre-bundle/transform the URL
+    const mod: any = await import(/* @vite-ignore */ this.JS_URL);
 
-      if (mod?.mount) {
-        await mod.mount(appRoot);
-      }
-      else if ((window as any).__INTEMPT_MOUNT) {
-        (window as any).__INTEMPT_MOUNT(appRoot, payload); // fallback: global mount function
-      }
-      else {
-        throw new Error('No mount function exported or on window.__INTEMPT_MOUNT');
-      }
+    if (mod?.mount) {
+      await mod.mount(appRoot);
+    } else if ((window as any).__INTEMPT_MOUNT) {
+      (window as any).__INTEMPT_MOUNT(appRoot, payload); // fallback: global mount function
+    } else {
+      throw new Error(
+        'No mount function exported or on window.__INTEMPT_MOUNT',
+      );
+    }
 
-      this.__INTEMPT_EDITOR_MOUNTED = true;
-      log.debug('editor mounted');
+    this.__INTEMPT_EDITOR_MOUNTED = true;
+    log.debug('editor mounted');
   }
 }
 
 export const WEB_EDITOR = new WebEditor();
-

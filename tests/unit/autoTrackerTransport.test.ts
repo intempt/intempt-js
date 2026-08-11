@@ -10,8 +10,15 @@ import { IntemptConfig } from '../../src/intemptJs/types/intemptJs.types.ts';
  * per call, `httpStatusCode` used for its failure/recovery classification).
  */
 
-type PrivateSend = (data: unknown[], options: { unloading?: boolean; keepalive?: boolean; timeout_ms?: number }) =>
-  Promise<{ httpStatusCode: number; ok?: boolean; retryAfter?: string; error?: string }>;
+type PrivateSend = (
+  data: unknown[],
+  options: { unloading?: boolean; keepalive?: boolean; timeout_ms?: number },
+) => Promise<{
+  httpStatusCode: number;
+  ok?: boolean;
+  retryAfter?: string;
+  error?: string;
+}>;
 
 function makeTransport(): AutoTrackerTransport {
   const config: IntemptConfig = {
@@ -23,8 +30,12 @@ function makeTransport(): AutoTrackerTransport {
   return new AutoTrackerTransport(config, 'https://api.example.com');
 }
 
-function send(transport: AutoTrackerTransport, options: Record<string, unknown> = {}) {
-  const fn = (transport as unknown as { _sendBatchRequest: PrivateSend })._sendBatchRequest;
+function send(
+  transport: AutoTrackerTransport,
+  options: Record<string, unknown> = {},
+) {
+  const fn = (transport as unknown as { _sendBatchRequest: PrivateSend })
+    ._sendBatchRequest;
   return fn.call(transport, [{ eventId: 'e1' }], options);
 }
 
@@ -82,9 +93,9 @@ describe('AutoTrackerTransport fetch -> XHR fallback', () => {
   });
 
   it('uses fetch on success and never constructs an XHR', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response('{}', { status: 200, headers: {} })
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('{}', { status: 200, headers: {} }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const transport = makeTransport();
@@ -97,7 +108,9 @@ describe('AutoTrackerTransport fetch -> XHR fallback', () => {
   });
 
   it('falls back to XHR when fetch rejects at the network layer, and XHR succeeding reports success', async () => {
-    const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValue(new TypeError('Failed to fetch'));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const transport = makeTransport();
@@ -111,7 +124,9 @@ describe('AutoTrackerTransport fetch -> XHR fallback', () => {
   });
 
   it('reports a single delivery failure when both fetch and XHR fail, not two', async () => {
-    const fetchMock = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    const fetchMock = vi
+      .fn()
+      .mockRejectedValue(new TypeError('Failed to fetch'));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const transport = makeTransport();
@@ -137,9 +152,9 @@ describe('AutoTrackerTransport fetch -> XHR fallback', () => {
   });
 
   it('does not fall back to XHR on an HTTP 400 — the server already rejected the payload', async () => {
-    const fetchMock = vi.fn().mockResolvedValue(
-      new Response('{}', { status: 400, headers: {} })
-    );
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValue(new Response('{}', { status: 400, headers: {} }));
     globalThis.fetch = fetchMock as unknown as typeof fetch;
 
     const transport = makeTransport();

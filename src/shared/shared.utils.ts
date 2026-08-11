@@ -1,7 +1,7 @@
-
 import { IdType } from '../intemptJs/types/intemptJs.types.ts';
 
-const ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const ID_ALPHABET =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 /**
  * Random suffix for an id.
@@ -19,7 +19,8 @@ const ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456
  * (`<base36-ts>_<ms>_<10 chars>`), so anything parsing it keeps working.
  */
 function randomSuffix(length: number): string {
-  const cryptoObj = typeof globalThis !== 'undefined' ? (globalThis as any).crypto : undefined;
+  const cryptoObj =
+    typeof globalThis !== 'undefined' ? (globalThis as any).crypto : undefined;
   let id = '';
 
   if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
@@ -46,17 +47,14 @@ function generateUniqueId() {
 
 export function generateId(type?: IdType) {
   const uuid = generateUniqueId();
-  return !!type
-    ? `${type}_${uuid}`
-    : uuid;
-
+  return !!type ? `${type}_${uuid}` : uuid;
 }
 
-export function dispatchIntemptEvent( eventName: string, data = {}){
+export function dispatchIntemptEvent(eventName: string, data = {}) {
   const event = new CustomEvent(eventName, {
     bubbles: true,
     cancelable: true,
-    detail: data
+    detail: data,
   });
 
   document.dispatchEvent(event);
@@ -65,8 +63,8 @@ export function dispatchIntemptEvent( eventName: string, data = {}){
 export function debounce(func: Function, wait: number) {
   let timeout: ReturnType<typeof setTimeout>;
 
-  return function (...args:any)   {
-    if(!!timeout)  clearTimeout(timeout);
+  return function (...args: any) {
+    if (!!timeout) clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
-  }
+  };
 }

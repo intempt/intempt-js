@@ -45,9 +45,15 @@ describe('logger', () => {
     errors = [];
     warns = [];
     logs = [];
-    vi.spyOn(console, 'error').mockImplementation((...a: any[]) => void errors.push(a));
-    vi.spyOn(console, 'warn').mockImplementation((...a: any[]) => void warns.push(a));
-    vi.spyOn(console, 'log').mockImplementation((...a: any[]) => void logs.push(a));
+    vi.spyOn(console, 'error').mockImplementation(
+      (...a: any[]) => void errors.push(a),
+    );
+    vi.spyOn(console, 'warn').mockImplementation(
+      (...a: any[]) => void warns.push(a),
+    );
+    vi.spyOn(console, 'log').mockImplementation(
+      (...a: any[]) => void logs.push(a),
+    );
   });
 
   afterEach(() => {
@@ -195,7 +201,7 @@ describe('logger', () => {
 
     it('forwards warnings and errors in production, where the console is silent', () => {
       const received: DiagnosticRecord[] = [];
-      configureLogger({ sink: r => received.push(r) });
+      configureLogger({ sink: (r) => received.push(r) });
       const log = createLogger('Queue');
 
       log.error('dropped 3 events');
@@ -206,13 +212,13 @@ describe('logger', () => {
       // A sink exists precisely to see production problems, so it must not
       // inherit the console's production silence. It does inherit a threshold:
       // warn and above, so routine chatter does not become a customer's bill.
-      expect(received.map(r => r.level)).toEqual(['error', 'warn']);
+      expect(received.map((r) => r.level)).toEqual(['error', 'warn']);
       expect([...errors, ...warns, ...logs]).toEqual([]);
     });
 
     it('delivers a structured record rather than a formatted string', () => {
       const received: DiagnosticRecord[] = [];
-      configureLogger({ sink: r => received.push(r) });
+      configureLogger({ sink: (r) => received.push(r) });
       const detail = { droppedEvents: 12 };
 
       createLogger('RequestBatcher').error('queue full', detail);
@@ -229,7 +235,7 @@ describe('logger', () => {
 
     it('receives debug records once debug is on', () => {
       const received: DiagnosticRecord[] = [];
-      configureLogger({ debug: true, sink: r => received.push(r) });
+      configureLogger({ debug: true, sink: (r) => received.push(r) });
 
       createLogger('Scope').debug('verbose');
 
@@ -238,7 +244,11 @@ describe('logger', () => {
 
     it('honours an explicit sinkLevel independently of the console level', () => {
       const received: DiagnosticRecord[] = [];
-      configureLogger({ level: 'silent', sinkLevel: 'debug', sink: r => received.push(r) });
+      configureLogger({
+        level: 'silent',
+        sinkLevel: 'debug',
+        sink: (r) => received.push(r),
+      });
 
       createLogger('Scope').debug('to telemetry only');
 
@@ -291,7 +301,7 @@ describe('logger', () => {
 
     it('can be removed with sink: null', () => {
       const received: DiagnosticRecord[] = [];
-      configureLogger({ sink: r => received.push(r) });
+      configureLogger({ sink: (r) => received.push(r) });
       configureLogger({ sink: null });
 
       createLogger('Scope').error('boom');
@@ -304,7 +314,7 @@ describe('logger', () => {
     it('leaves untouched fields alone, so one option does not clear another', () => {
       EnvConfig.initFromValues(PROD);
       const received: DiagnosticRecord[] = [];
-      configureLogger({ sink: r => received.push(r) });
+      configureLogger({ sink: (r) => received.push(r) });
       configureLogger({ debug: true });
 
       createLogger('Scope').debug('verbose');

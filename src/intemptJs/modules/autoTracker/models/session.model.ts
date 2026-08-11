@@ -1,14 +1,21 @@
-import { generateId } from '../../../../shared/shared.utils.ts'
-import { IntemptSessionEventNames, SessionEventParams, SessionEventPayload } from '../../../types/autoTracker.types.ts';
-
-
-
+import { generateId } from '../../../../shared/shared.utils.ts';
+import {
+  IntemptSessionEventNames,
+  SessionEventParams,
+  SessionEventPayload,
+} from '../../../types/autoTracker.types.ts';
 
 export class SessionEventModel {
-  readonly name:IntemptSessionEventNames;
+  readonly name: IntemptSessionEventNames;
   readonly payload: SessionEventPayload[] = [];
 
-  constructor({ name, sessionId, profileId, userAttributes, data }:SessionEventParams) {
+  constructor({
+    name,
+    sessionId,
+    profileId,
+    userAttributes,
+    data,
+  }: SessionEventParams) {
     this.name = name;
     this.payload.push({
       eventId: sessionId,
@@ -17,7 +24,6 @@ export class SessionEventModel {
       profileId,
       userAttributes,
       data,
-    })
+    });
   }
 }
-

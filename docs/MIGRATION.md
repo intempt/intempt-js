@@ -27,7 +27,7 @@ a versioned artifact, and there is no per-version URL to pin.
 Two things follow, and they shape how you should plan any migration:
 
 - **You cannot stay on an old build by not migrating.** Whatever is at `/v1/` is what your
-  visitors run. The changes below are already on your pages; migrating means updating *your*
+  visitors run. The changes below are already on your pages; migrating means updating _your_
   integration to match, not choosing a version.
 - **Do not pin an SRI `integrity` hash on that URL.** It will start failing the next time the
   bundle is republished, and a failed SRI check silently disables your analytics. If you need
@@ -41,12 +41,18 @@ Check what your visitors actually have with `window.intempt.VERSION` in the brow
 
 ```html
 <!-- WRONG — the SDK will not start -->
-<script async src="https://cdn.intempt.com/intempt.min.js?organization=…"></script>
+<script
+  async
+  src="https://cdn.intempt.com/intempt.min.js?organization=…"
+></script>
 ```
 
 ```html
 <!-- Correct -->
-<script async src="https://cdn.intempt.com/v1/intempt.min.js?organization=…"></script>
+<script
+  async
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=…"
+></script>
 ```
 
 **Why it matters.** The SDK reads its configuration from the query string on its own
@@ -63,31 +69,45 @@ side, check this first.
 ## 2. Add the queue stub
 
 Older integrations loaded the SDK script alone and wrapped calls in a readiness check, or
-worse, called `window.intempt.track(...)` and hoped. Add the stub *before* the SDK script:
+worse, called `window.intempt.track(...)` and hoped. Add the stub _before_ the SDK script:
 
 ```html
 <script>
-(function () {
-  if (window.intempt) return;
-  var queue = [], pending = [];
-  var methods = ['identify','group','track','record','alias','consent',
-                 'productAdd','productOrdered','productView','logOut',
-                 'optIn','optOut','isUserOptIn','recommendation'];
-  var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
-  methods.forEach(function (m) {
-    stub[m] = function () {
-      var args = [].slice.call(arguments);
-      if (m === 'recommendation') {
-        return new Promise(function (resolve, reject) {
-          pending.push({ resolve: resolve, reject: reject });
-          queue.push({ method: m, args: args });
-        });
-      }
-      queue.push({ method: m, args: args });
-    };
-  });
-  window.intempt = stub;
-})();
+  (function () {
+    if (window.intempt) return;
+    var queue = [],
+      pending = [];
+    var methods = [
+      'identify',
+      'group',
+      'track',
+      'record',
+      'alias',
+      'consent',
+      'productAdd',
+      'productOrdered',
+      'productView',
+      'logOut',
+      'optIn',
+      'optOut',
+      'isUserOptIn',
+      'recommendation',
+    ];
+    var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
+    methods.forEach(function (m) {
+      stub[m] = function () {
+        var args = [].slice.call(arguments);
+        if (m === 'recommendation') {
+          return new Promise(function (resolve, reject) {
+            pending.push({ resolve: resolve, reject: reject });
+            queue.push({ method: m, args: args });
+          });
+        }
+        queue.push({ method: m, args: args });
+      };
+    });
+    window.intempt = stub;
+  })();
 </script>
 ```
 
@@ -119,16 +139,18 @@ every outbound event; no getter exposes them.
 
 **What to do instead**, depending on why you were reading it:
 
-| You were using it to | Do this instead |
-|---|---|
+| You were using it to                        | Do this instead                                                                                                                                    |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Join SDK events to your own backend records | Call `identify({ userId })` with an ID **you** control, and join on that. This is more robust anyway — the profile ID does not survive `logOut()`. |
-| Correlate a support ticket with a session | Listen for `intempt:event` and log `e.detail.event` into your own tooling, which includes the IDs. |
-| Pass the ID to a server-side API call | Same: capture it from an `intempt:event` payload. Treat the shape as unstable — it is internal and has changed within the 6.x line. |
+| Correlate a support ticket with a session   | Listen for `intempt:event` and log `e.detail.event` into your own tooling, which includes the IDs.                                                 |
+| Pass the ID to a server-side API call       | Same: capture it from an `intempt:event` payload. Treat the shape as unstable — it is internal and has changed within the 6.x line.                |
 
 ```javascript
 // Capturing the IDs yourself, if you genuinely need them
 let lastPayload = null;
-window.addEventListener('intempt:event', (e) => { lastPayload = e.detail.event; });
+window.addEventListener('intempt:event', (e) => {
+  lastPayload = e.detail.event;
+});
 ```
 
 ## 4. Opt-out now persists across reloads
@@ -139,7 +161,7 @@ again on their next page load**. It now writes to `localStorage` under
 
 **If you built a workaround, remove it.** The common one was storing your own consent flag and
 calling `optOut()` on every page load from your own bootstrap. That still works, but it is now
-redundant, and if it runs *before* your consent UI has resolved it can fight the SDK's own
+redundant, and if it runs _before_ your consent UI has resolved it can fight the SDK's own
 state.
 
 **Two behaviours to know now that it is real state:**
@@ -155,13 +177,13 @@ state.
 
 Also worth correcting if your consent flow assumed otherwise: **`consent()` does not stop
 tracking.** It records the visitor's decision as an event. A reject flow needs
-`consent({ action: 'reject' })` *then* `optOut()` — in that order, because `consent()` is
+`consent({ action: 'reject' })` _then_ `optOut()` — in that order, because `consent()` is
 itself gated on the opt-out flag and would be silently dropped if you opted out first.
 
 ## 5. `VERSION` is available
 
 ```javascript
-window.intempt.VERSION   // e.g. '6.0.0'
+window.intempt.VERSION; // e.g. '6.0.0'
 ```
 
 Previously the version existed only as a string literal inside the bundle. It now comes from

@@ -6,17 +6,17 @@
 > **Keep it current: update this file in the same commit as the work it
 > describes.** The next session will trust it.
 
-| | |
-|---|---|
-| **Branch** | `beso/sdk-enterprise-hardening` — **pushed**, upstream set, `ci.yml` green |
-| **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
-| **Last updated** | 2026-08-12 (six more defects fixed — §3q) |
-| **Next action** | **§3q is the current state — start there.** Nine lanes merged, all gates green, branch **PUSHED**. The user's chosen order for the remaining work is **defects → prettier sweep → `any` → autoTracker splits**; six defects are done (§3q) and **the next step is the repo-wide prettier sweep, which must land alone**. **Four defects are blocked on a user decision — see §3q.** |
-| **Score** | **~78 / 100** (audit baseline 40, Mixpanel comparator 85). Front-end-only ceiling ~85 — see `FRONTEND.md`. |
-| **Tests** | Unit **936** (32 files) · Cypress **126** · mutation **86.57%** (floor **85** — target reached) · coverage all src **76.86 / 70.62 / 77.36 / 77.79** (gates 75/68/75/75) · bundle **93,890 B / 27.35 kB gzip** · ESLint 0 errors / **205** warnings (ratchet 205) · audit **2 moderate, 0 high** |
-| **Phase** | 0 ✅ · 1 ⏸ parked (packaging) · 2 ✅ tier-1 + CI gate + guard port + mutation · 3 ✅ except transports ⏸ (BE) and code-split (⬜, now cheap — see D-23) · 4 🟡 privacy ✅ §3h, client-side security ✅ §3g-ii, observability ✅ §3i, credential ⏸ (BE), `any` ⬜ · 5 🟡 CI breadth ✅ §3g, release/changesets ⬜ |
-| **Landed, by section** | §3a jitter · §3b circuit breaker · §3c bounded queue · §3d `ci.yml` · §3e guard-suite port · §3f mutation testing · §3g CI breadth + supply chain · §3h privacy & consent · §3i logger & metrics · §3j docs & DX · §3k public-API / payload-contract / choices tests · §4 three live defects · §5 `psl` dropped · §6a unit tier · §6b IndexedDB · §6c per-event records |
-| **Known defects** | **7 remain open of 27 — `DEFECTS.md`.** 20 fixed. **None is now unblocked code work:** D-1/D-3/D-15 need ingest, D-14/D-18/D-19/D-20 need one user decision (§3q). Severity-1 remaining: no event carries a timestamp; session events share one `eventId`. |
+|                        |                                                                                                                                                                                                                                                                                                                                                                                     |
+| ---------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Branch**             | `beso/sdk-enterprise-hardening` — **pushed**, upstream set, `ci.yml` green                                                                                                                                                                                                                                                                                                          |
+| **Forked from**        | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars")                                                                                                                                                                                                                                                                                                 |
+| **Last updated**       | 2026-08-12 (six more defects fixed — §3q)                                                                                                                                                                                                                                                                                                                                           |
+| **Next action**        | **§3q is the current state — start there.** Nine lanes merged, all gates green, branch **PUSHED**. The user's chosen order for the remaining work is **defects → prettier sweep → `any` → autoTracker splits**; six defects are done (§3q) and **the next step is the repo-wide prettier sweep, which must land alone**. **Four defects are blocked on a user decision — see §3q.** |
+| **Score**              | **~78 / 100** (audit baseline 40, Mixpanel comparator 85). Front-end-only ceiling ~85 — see `FRONTEND.md`.                                                                                                                                                                                                                                                                          |
+| **Tests**              | Unit **936** (32 files) · Cypress **126** · mutation **86.57%** (floor **85** — target reached) · coverage all src **76.86 / 70.62 / 77.36 / 77.79** (gates 75/68/75/75) · bundle **93,890 B / 27.35 kB gzip** · ESLint 0 errors / **205** warnings (ratchet 205) · audit **2 moderate, 0 high**                                                                                    |
+| **Phase**              | 0 ✅ · 1 ⏸ parked (packaging) · 2 ✅ tier-1 + CI gate + guard port + mutation · 3 ✅ except transports ⏸ (BE) and code-split (⬜, now cheap — see D-23) · 4 🟡 privacy ✅ §3h, client-side security ✅ §3g-ii, observability ✅ §3i, credential ⏸ (BE), `any` ⬜ · 5 🟡 CI breadth ✅ §3g, release/changesets ⬜                                                                    |
+| **Landed, by section** | §3a jitter · §3b circuit breaker · §3c bounded queue · §3d `ci.yml` · §3e guard-suite port · §3f mutation testing · §3g CI breadth + supply chain · §3h privacy & consent · §3i logger & metrics · §3j docs & DX · §3k public-API / payload-contract / choices tests · §4 three live defects · §5 `psl` dropped · §6a unit tier · §6b IndexedDB · §6c per-event records             |
+| **Known defects**      | **7 remain open of 27 — `DEFECTS.md`.** 20 fixed. **None is now unblocked code work:** D-1/D-3/D-15 need ingest, D-14/D-18/D-19/D-20 need one user decision (§3q). Severity-1 remaining: no event carries a timestamp; session events share one `eventId`.                                                                                                                          |
 
 ---
 
@@ -24,10 +24,10 @@
 
 Work is split by who can do it, and each half has its own document:
 
-| | Doc | Reaches |
-|---|---|---|
-| Needs nobody else | **`FRONTEND.md`** — 10 tasks, ranked by rubric points per day | 62 → **~85** |
-| Needs the ingest team | **`BACKEND.md`** — 5 items, handover spec | ~85 → **~91** |
+|                       | Doc                                                           | Reaches       |
+| --------------------- | ------------------------------------------------------------- | ------------- |
+| Needs nobody else     | **`FRONTEND.md`** — 10 tasks, ranked by rubric points per day | 62 → **~85**  |
+| Needs the ingest team | **`BACKEND.md`** — 5 items, handover spec                     | ~85 → **~91** |
 
 **Current score: 62/100** (audit baseline 40, Mixpanel comparator 85). Dimension 4
 (security) cannot exceed ~62 and dimension 2 ~86 without `BACKEND.md` item 1, so
@@ -38,15 +38,15 @@ Work is split by who can do it, and each half has its own document:
 Five independent lanes were built concurrently in separate worktrees and merged
 here. **Measured on the merged tree, not reported by the lanes:**
 
-| Gate | Result |
-|---|---|
-| Unit | **794 passed** (from 444) |
-| Coverage | 93.12 / 89.92 / 95.33 / 93.90 vs gate 90/87/87/90 ✅ |
-| Mutation | **77.58%** (from 75.94), floor ratcheted 73 → **75** ✅ |
-| Cypress | 122/122 ✅ |
-| Build + tsc | clean; bundle **91.25 kB / 26.64 kB gzip** |
-| ESLint | 0 errors, 323 warnings (at the `--max-warnings` ratchet) ✅ |
-| Secret scan / reserved words | clean ✅ |
+| Gate                         | Result                                                      |
+| ---------------------------- | ----------------------------------------------------------- |
+| Unit                         | **794 passed** (from 444)                                   |
+| Coverage                     | 93.12 / 89.92 / 95.33 / 93.90 vs gate 90/87/87/90 ✅        |
+| Mutation                     | **77.58%** (from 75.94), floor ratcheted 73 → **75** ✅     |
+| Cypress                      | 122/122 ✅                                                  |
+| Build + tsc                  | clean; bundle **91.25 kB / 26.64 kB gzip**                  |
+| ESLint                       | 0 errors, 323 warnings (at the `--max-warnings` ratchet) ✅ |
+| Secret scan / reserved words | clean ✅                                                    |
 
 Lanes: **A** CI breadth + client-side security (§3g), **B** privacy & consent
 (§3h), **C** structured logging & metrics (§3i), **D** docs & DX, **E** public-API
@@ -55,7 +55,7 @@ Lanes: **A** CI breadth + client-side security (§3g), **B** privacy & consent
 ### Six things the merge itself surfaced — none were visible to any single lane
 
 1. **`tsc` rejected lane E's tests while vitest accepted them.** `shopify` and
-   `magento` are *required* on `IntemptConfig`, and the new config literals omitted
+   `magento` are _required_ on `IntemptConfig`, and the new config literals omitted
    them. The unit tier does not typecheck, so a test can pass locally and still
    break `npm run build`. Fixed in the literals; the general lesson is that
    `npm run test:unit` is not a sufficient pre-merge check — `npm run build` is.
@@ -87,12 +87,12 @@ without asking anyone, unless marked ⏸.
 
 ### Needs a human decision, not code — these block real work
 
-| # | Decision | What it gates |
-|---|---|---|
-| 1 | ~~**Deploy Node version.**~~ ✅ **resolved 2026-08-12 — the user approved the bump.** `build.yaml`'s three `node-version` matrices are now **22.x** (were 21.x). Invariant §6.2 is therefore *amended, not broken*: the deploy path may be edited with the user's explicit approval, and this is the record of it. **Not pushed** — the user wants the SDK tested first. Two follow-ons are NOT done and are still parked: `npm install` → `npm ci` in the same file (it currently resolves a fresh tree per run, which is what caused CI failures #1–2), and the `branches: ['*']` → `['**']` trigger fix (`BACKLOG.md` 4.3). Un-parking the vite advisory (`BACKLOG.md` 4.2) is now possible. | Was: the vite advisory, the meaning of the CI signal, and any future toolchain bump |
-| 2 | ~~**DNT/GPC honoured by default.**~~ ✅ **resolved 2026-08-12 — the user approved a release note.** Wording is drafted in `RELEASE-NOTES-DRAFT.md`; it needs a home (`CHANGELOG.md`) once packaging is un-parked. | Nothing now |
-| 3 | **Hand `BACKEND.md` to the ingest team — ⏸ backlogged by the user 2026-08-12** (`BACKLOG.md` 1.3). Spec is written and ready. Shareable page: https://claude.ai/code/artifact/82bd5a93-23fe-49e5-b371-ae3fae3acd56 | **The tallest blocker in the programme:** all six `BACKEND.md` items, dimension 4's ~62 ceiling, and the wire-format defects D-1/D-3/D-15 |
-| 4 | **Check live host sites for the `/v1`-less CDN URL** (D-12). The docs shipped a snippet that produces a silently dead integration. **User is checking 2026-08-13.** | Any customer who copied the old docs |
+| #   | Decision                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        | What it gates                                                                                                                             |
+| --- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | ~~**Deploy Node version.**~~ ✅ **resolved 2026-08-12 — the user approved the bump.** `build.yaml`'s three `node-version` matrices are now **22.x** (were 21.x). Invariant §6.2 is therefore _amended, not broken_: the deploy path may be edited with the user's explicit approval, and this is the record of it. **Not pushed** — the user wants the SDK tested first. Two follow-ons are NOT done and are still parked: `npm install` → `npm ci` in the same file (it currently resolves a fresh tree per run, which is what caused CI failures #1–2), and the `branches: ['*']` → `['**']` trigger fix (`BACKLOG.md` 4.3). Un-parking the vite advisory (`BACKLOG.md` 4.2) is now possible. | Was: the vite advisory, the meaning of the CI signal, and any future toolchain bump                                                       |
+| 2   | ~~**DNT/GPC honoured by default.**~~ ✅ **resolved 2026-08-12 — the user approved a release note.** Wording is drafted in `RELEASE-NOTES-DRAFT.md`; it needs a home (`CHANGELOG.md`) once packaging is un-parked.                                                                                                                                                                                                                                                                                                                                                                                                                                                                               | Nothing now                                                                                                                               |
+| 3   | **Hand `BACKEND.md` to the ingest team — ⏸ backlogged by the user 2026-08-12** (`BACKLOG.md` 1.3). Spec is written and ready. Shareable page: https://claude.ai/code/artifact/82bd5a93-23fe-49e5-b371-ae3fae3acd56                                                                                                                                                                                                                                                                                                                                                                                                                                                                              | **The tallest blocker in the programme:** all six `BACKEND.md` items, dimension 4's ~62 ceiling, and the wire-format defects D-1/D-3/D-15 |
+| 4   | **Check live host sites for the `/v1`-less CDN URL** (D-12). The docs shipped a snippet that produces a silently dead integration. **User is checking 2026-08-13.**                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             | Any customer who copied the old docs                                                                                                      |
 
 ### Code work, in order
 
@@ -151,12 +151,12 @@ It took **five** red runs, and each cause is worth keeping — four were
 environment differences the local machine could not have shown, and the fifth was
 a genuinely nondeterministic test:
 
-| # | Failure | Cause and fix |
-|---|---|---|
-| 1–2 | every job at `npm ci`, EUSAGE | The lock was generated by **npm 11**; the runner had **npm 10.5** (Node 21) and resolved the tree differently — `Missing: esbuild@0.28.2 from lock file`. `npm ci` was clean on every local npm, so this was only findable by pushing. Fixed by pinning `npm i -g npm@11` before every `npm ci`. |
-| 3 | unit on Node 20 | `webidl.util.markAsUncloneable is not a function` — an undici API jsdom 30 needs and Node 20 lacks. Every jsdom test file failed to start its worker. Matrix moved off 20. |
-| 4 | unit on Node 22, one test | Test-harness race, not src: `flushAndCapture`'s 5 ms settle was not enough for the IndexedDB enqueue writes on that runner, so no request was issued and the caller dereferenced `undefined`. Now 20 ms + a 60×2 ms poll, and it throws with the URLs it did see. |
-| 5 | three goldens on Node 24, while 22 passed — **on a docs-only commit** | The goldens were nondeterministic. Every test in `payloadContract.test.ts` shares one SDK instance (deliberately — a second one duplicates every event, D-2), so earlier tests' events and the auto-tracked bootstrap could still be queued and ride along in a later flush. Each golden was recording "my event **plus whatever else was in this batch**", and which else varied with scheduling. Fixed with `trackBodyFor(call, ...names)`, narrowing each golden to the entries its own test generated; re-recorded, and the diff was **198 pure deletions** of shared `Session start` entries — no field, nesting or ordering within a kept entry changed. Each golden now describes exactly one event type, which is what makes it usable as an ingest contract. |
+| #   | Failure                                                               | Cause and fix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1–2 | every job at `npm ci`, EUSAGE                                         | The lock was generated by **npm 11**; the runner had **npm 10.5** (Node 21) and resolved the tree differently — `Missing: esbuild@0.28.2 from lock file`. `npm ci` was clean on every local npm, so this was only findable by pushing. Fixed by pinning `npm i -g npm@11` before every `npm ci`.                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| 3   | unit on Node 20                                                       | `webidl.util.markAsUncloneable is not a function` — an undici API jsdom 30 needs and Node 20 lacks. Every jsdom test file failed to start its worker. Matrix moved off 20.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| 4   | unit on Node 22, one test                                             | Test-harness race, not src: `flushAndCapture`'s 5 ms settle was not enough for the IndexedDB enqueue writes on that runner, so no request was issued and the caller dereferenced `undefined`. Now 20 ms + a 60×2 ms poll, and it throws with the URLs it did see.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| 5   | three goldens on Node 24, while 22 passed — **on a docs-only commit** | The goldens were nondeterministic. Every test in `payloadContract.test.ts` shares one SDK instance (deliberately — a second one duplicates every event, D-2), so earlier tests' events and the auto-tracked bootstrap could still be queued and ride along in a later flush. Each golden was recording "my event **plus whatever else was in this batch**", and which else varied with scheduling. Fixed with `trackBodyFor(call, ...names)`, narrowing each golden to the entries its own test generated; re-recorded, and the diff was **198 pure deletions** of shared `Session start` entries — no field, nesting or ordering within a kept entry changed. Each golden now describes exactly one event type, which is what makes it usable as an ingest contract. |
 
 **The pattern across all five is worth internalising before the next push:** four
 of the five were invisible locally and only one was a code defect. A different npm
@@ -194,7 +194,7 @@ engineering). No source files were modified — this was explicitly a report-onl
 phase at the user's instruction.
 
 Headline: **Intempt 40 / Mixpanel 85.** The architecture scores ~70; the gap is
-almost entirely *commercial shippability* (tests, semver/publishing, CI breadth,
+almost entirely _commercial shippability_ (tests, semver/publishing, CI breadth,
 observability, persisted consent, credential hygiene), which is additive work
 rather than a rewrite.
 
@@ -232,7 +232,7 @@ Task status (full detail in `AUDIT.md` §2, Phase 1):
    **Next session: confirm with the ingest team that a `$lib_version` field is
    accepted before stamping it.** Do not ship this blind — a rejected payload is
    dropped events.
-3. ⬜ Hand-author `src/index.d.ts` as the *public* contract (mirror
+3. ⬜ Hand-author `src/index.d.ts` as the _public_ contract (mirror
    `/home/beso/mixpanel-js/src/index.d.ts`), so internal refactors don't break
    consumers.
 4. ⬜ `CHANGELOG.md` + adopt changesets.
@@ -289,7 +289,7 @@ made — do not re-litigate:**
   `flush()` cannot start while `requestInProgress` is true.
 - **Steady-state flush interval jittered too**, in a follow-up commit: `±10%`
   around the configured value via `jitterAroundBase()` in `resetFlush()`, which
-  is the single choke point for the normal schedule. A *narrow band*, not full
+  is the single choke point for the normal schedule. A _narrow band_, not full
   jitter — this path is not a failure response, and the configured interval is a
   batching-latency contract the customer set; full jitter here would halve
   effective throughput on average and make batch sizes erratic. That band is
@@ -302,7 +302,7 @@ made — do not re-litigate:**
 
 **The one non-obvious implementation point.** `scheduleFlush()` assigns
 `this.flushInterval = flushMS`, so the exponential doubling used to ride on the
-scheduled delay itself. Feeding it a *jittered* delay would make the next ceiling
+scheduled delay itself. Feeding it a _jittered_ delay would make the next ceiling
 double from a random draw — a low draw collapses the backoff and the fleet creeps
 back toward hammering, i.e. the change would silently undo itself. So a separate
 `retryCeilingMS` field doubles deterministically and only the sleep is jittered.
@@ -320,7 +320,7 @@ legitimately retries inside its 500 ms window.
 **Open question for the backend team — carried into `BACKEND.md`:** does
 `…/sources/<id>/track` ever emit a `Retry-After` header, and on which statuses?
 The SDK parses it at `autoTracker.module.ts:205` but nobody has confirmed ingest
-sends it, so that branch may be dead code. If it *is* live, honouring it verbatim
+sends it, so that branch may be dead code. If it _is_ live, honouring it verbatim
 means every client told "come back in 30s" returns in the same 30th second — the
 same herd, server-scheduled — and it should become a floor jittered upward
 (`retryAfter + random(0, retryAfter * 0.2)`).
@@ -328,7 +328,7 @@ same herd, server-scheduled — and it should become a floor jittered upward
 **Note for benchmarking against Mixpanel: Mixpanel does not jitter at all.**
 `request-batcher.js:274` is `var retryMS = this.flushInterval * 2;`, identical to
 what this SDK shipped (ours is a port). They jitter their shared-lock poll
-(`shared-lock.js:68`) but never the backoff. So this item is *ahead* of the
+(`shared-lock.js:68`) but never the backoff. So this item is _ahead_ of the
 comparator, not catching up to it — do not "correct" it back toward Mixpanel.
 
 ## 3b. Load shedding 2 of 3 — circuit breaker ✅
@@ -413,7 +413,7 @@ fraction of a millisecond newer than another. The ordering limitation is
 pre-existing; the cap only makes it observable. Not worth a cross-tab counter:
 the cost is a few misordered events at the boundary of an already-overflowing
 queue, and the fix would put shared state back on the hot path §6c just cleared.
-The cross-tab test therefore asserts the cap holds, not *which* event went.
+The cross-tab test therefore asserts the cap holds, not _which_ event went.
 
 6 tests added (147 unit total).
 
@@ -424,18 +424,18 @@ programme was previously guarded by tests that ran **only when someone
 remembered to run them**; this converts them into a gate.
 
 **The two real gaps it closes.** `build.yaml`'s `Build-and-Test` job runs on
-*push* only, skips `main`/`staging` refs, and runs only Cypress + build. So
+_push_ only, skips `main`/`staging` refs, and runs only Cypress + build. So
 (a) the 147-test vitest tier and its coverage gate ran **nowhere** in CI, and
 (b) a **pull request** into `staging` or `main` was gated by **nothing at all**
 — the autopr-created staging→main PR included.
 
 Three jobs, each running a script that already exists and already passes:
 
-| Job | Command | Node |
-|---|---|---|
-| `unit` | `npm run test:coverage` (thresholds enforced in `vitest.config.ts`) | matrix 20.x, 21.x |
-| `build` | `npm run build` + `node scripts/checkReservedWords.js` | 21.x |
-| `e2e` | `npm run test:e2e` | 21.x |
+| Job     | Command                                                             | Node              |
+| ------- | ------------------------------------------------------------------- | ----------------- |
+| `unit`  | `npm run test:coverage` (thresholds enforced in `vitest.config.ts`) | matrix 20.x, 21.x |
+| `build` | `npm run build` + `node scripts/checkReservedWords.js`              | 21.x              |
+| `e2e`   | `npm run test:e2e`                                                  | 21.x              |
 
 **Decisions worth not re-deriving:**
 
@@ -459,7 +459,7 @@ gate that is red on arrival gets disabled. The reasons are also written into the
 workflow file itself so they are not lost:
 
 - **Lint / prettier** — there is no `lint` script and no ESLint or prettier
-  config in this repo. The job would fail on *command not found*.
+  config in this repo. The job would fail on _command not found_.
 - **Size budget** — needs `.size-limit.json` pinned at the current 81.74 kB /
   23.08 kB gzip first, then it can ratchet.
 - **`npm audit --audit-level=high`** — **measured 2026-08-11: 19 advisories
@@ -473,13 +473,13 @@ workflow file itself so they are not lost:
 **Verified before commit**, each command run locally on this branch, not
 inferred: `npm ci` exit 0; `npm run test:coverage` 147/147 with the gate passing
 (statements/lines 90.34%, branches 86.37%, functions 86.71% — the numbers as of
-*that* commit; §3e supersedes them); `npm run build`
+_that_ commit; §3e supersedes them); `npm run build`
 clean at 81.74 kB / 23.08 kB gzip; `checkReservedWords.js` clean;
 `npm run test:e2e` 213 passing / 4 pending. The YAML was parsed to confirm the
 three jobs and both triggers resolve.
 
-**Still not verified, and cannot be from here:** that the workflow is green *on
-GitHub*. The branch has not been pushed. First push must be
+**Still not verified, and cannot be from here:** that the workflow is green _on
+GitHub_. The branch has not been pushed. First push must be
 `git push -u origin beso/sdk-enterprise-hardening` (Invariants §6.1) — and note
 that push will trigger both `build.yaml` and this new file. Watch the first run.
 
@@ -489,25 +489,25 @@ Landed 2026-08-11. `__tests__/trackingGuard.cy.ts` and `__tests__/botGuard.cy.ts
 were **migrated and deleted**, not duplicated — do not go looking for them. Four
 new unit files, **210 new tests** (unit 147 → **357**, Cypress 213 → **122**).
 
-| New file | Covers |
-|---|---|
-| `tests/unit/guardConditions.test.ts` | all 10 condition factories |
-| `tests/unit/botDetection.test.ts` | `isLegitimateBrowser`, `isLikelyBot`, the crawler guard |
-| `tests/unit/trackingGuardManager.test.ts` | manager lifecycle + `checker.ts` |
-| `tests/unit/intemptJsGuard.test.ts` | `IntemptJsGuard` — **had no test anywhere** |
+| New file                                  | Covers                                                  |
+| ----------------------------------------- | ------------------------------------------------------- |
+| `tests/unit/guardConditions.test.ts`      | all 10 condition factories                              |
+| `tests/unit/botDetection.test.ts`         | `isLegitimateBrowser`, `isLikelyBot`, the crawler guard |
+| `tests/unit/trackingGuardManager.test.ts` | manager lifecycle + `checker.ts`                        |
+| `tests/unit/intemptJsGuard.test.ts`       | `IntemptJsGuard` — **had no test anywhere**             |
 
 **Coverage went up, not down**, despite the scope widening — `src/shared/**` plus
 `src/guard/**` plus `src/intemptJs/guards/**`:
 
-| | Before (shared only) | After (all three) |
-|---|---|---|
-| Statements / lines | 90.34% | **92.57%** |
-| Branches | 86.37% | **89.64%** |
-| Functions | 86.71% | **88.88%** |
+|                    | Before (shared only) | After (all three) |
+| ------------------ | -------------------- | ----------------- |
+| Statements / lines | 90.34%               | **92.57%**        |
+| Branches           | 86.37%               | **89.64%**        |
+| Functions          | 86.71%               | **88.88%**        |
 
 Thresholds moved in the same commit per **D20**: 85/75/85/85 → **90/87/87/90**,
 about two points under measured. Widening `coverage.include` without raising them
-would have silently *lowered* the effective bar, which is the whole point of D20.
+would have silently _lowered_ the effective bar, which is the whole point of D20.
 
 **Two things the port found that the Cypress specs had hidden.**
 
@@ -527,7 +527,7 @@ would have silently *lowered* the effective bar, which is the whole point of D20
 
    **The mechanism is worth knowing before anyone "fixes" it**, because it is
    counter-intuitive: `isLegitimateBrowser` rejects `compatible; XxxBot` via
-   `/compatible;\s*[a-z]+bot/i`, so the UA is *not* a browser — and the guard
+   `/compatible;\s*[a-z]+bot/i`, so the UA is _not_ a browser — and the guard
    therefore never runs its browser branch, which is the only place that blocks an
    unrecognised identifier after `compatible;`. **The pre-check that correctly
    identifies these as non-browsers is what routes them around the check that
@@ -554,21 +554,21 @@ the hour and every branch is now covered.
 Landed 2026-08-11: **StrykerJS + the vitest runner**, `stryker.conf.json`,
 `npm run test:mutation`, wired into `ci.yml` as a `pull_request`-only job.
 
-**Why, in one sentence:** line coverage says a line *ran*; mutation score says a
-test would *notice* if that line were wrong — and the three data-loss defects the
+**Why, in one sentence:** line coverage says a line _ran_; mutation score says a
+test would _notice_ if that line were wrong — and the three data-loss defects the
 property tests found (§6a) were all in code that was already "covered".
 
 **Baseline, measured twice and identical both times** (2,123 mutants over
 `src/shared/**` + `src/guard/**` + `src/intemptJs/guards/**`, 3m 0s / 3m 14s):
 
-| Area | Mutation score | Line coverage |
-|---|---|---|
-| **All files** | **70.66%** | 92.57% |
-| `src/intemptJs/guards` | 97.51% | — |
-| `src/guard` | 85.48% | — |
-| `src/shared` | 59.71% | — |
-| → `src/shared/queue` | **54.93%** | — |
-| → `src/shared/storage` | 64.09% | — |
+| Area                   | Mutation score | Line coverage |
+| ---------------------- | -------------- | ------------- |
+| **All files**          | **70.66%**     | 92.57%        |
+| `src/intemptJs/guards` | 97.51%         | —             |
+| `src/guard`            | 85.48%         | —             |
+| `src/shared`           | 59.71%         | —             |
+| → `src/shared/queue`   | **54.93%**     | —             |
+| → `src/shared/storage` | 64.09%         | —             |
 
 1,285 killed · 13 timeout · 398 survived · **141 with no coverage at all**.
 
@@ -616,12 +616,12 @@ Six tests were added to `tests/unit/requestBatcher.test.ts` aimed at the named
 survivors above, explicitly **to measure the kill rate rather than to chase the
 score**. The measurement is the deliverable, and it contradicted the estimate:
 
-| | Before | After |
-|---|---|---|
-| Overall score | 70.66% | **71.42%** |
+|                     | Before | After      |
+| ------------------- | ------ | ---------- |
+| Overall score       | 70.66% | **71.42%** |
 | `requestBatcher.ts` | 54.92% | **58.74%** |
-| Survived | 398 | 397 |
-| No coverage | 141 | 128 |
+| Survived            | 398    | 397        |
+| No coverage         | 141    | 128        |
 
 **6 tests killed 14 mutants — about 2.3 each, and +0.76 points overall.** The
 prior estimate in this document was "15–25 tests gets us to the low 80s". That
@@ -629,7 +629,7 @@ was wrong by roughly 4×: at the measured rate, +10 points needs on the order of
 **80–100 tests**. Do not plan on the old number.
 
 **Why the survivor count barely moved (398 → 397) while 14 mutants died.** Almost
-all the kills came out of the *no-coverage* column, not the survived column —
+all the kills came out of the _no-coverage_ column, not the survived column —
 those six tests reached code nothing had executed before. The 397 remaining
 survivors are different in kind: they are in code that **does** run and is simply
 not asserted, so each needs its own targeted assertion. There is no bulk win left
@@ -640,16 +640,16 @@ was overruled — go to 85, in file order, ratcheting `break` upward as each fil
 lands rather than setting 85 up front (setting it now would fail every PR for the
 duration). Progress:
 
-| Step | Tests added | Overall | File |
-|---|---|---|---|
-| baseline | — | 70.66% | — |
-| `requestBatcher.ts` first pass | 6 | 71.42% | 54.92 → 58.74% |
-| `requestQueue.ts` | 30 | 73.76% | 54.96 → **72.73%** |
-| `requestBatcher.ts` response classification | 34 | 75.12% | 58.74 → 65.57% |
-| `requestBatcher.ts` dedupe/scheduling internals | 23 | **75.94%** | 65.57 → **69.67%** |
-| five-lane merge (logger + privacy arrived with tests) | — | 77.54% | — |
-| `storage/**` — see §3f-ii | 27 | **80.31%** | 64.09 → **84.52%** |
-| `consentCookie.ts` — see §3f-iii | 18 | **80.90%** | 61.54 → not re-split (see below) |
+| Step                                                  | Tests added | Overall    | File                             |
+| ----------------------------------------------------- | ----------- | ---------- | -------------------------------- |
+| baseline                                              | —           | 70.66%     | —                                |
+| `requestBatcher.ts` first pass                        | 6           | 71.42%     | 54.92 → 58.74%                   |
+| `requestQueue.ts`                                     | 30          | 73.76%     | 54.96 → **72.73%**               |
+| `requestBatcher.ts` response classification           | 34          | 75.12%     | 58.74 → 65.57%                   |
+| `requestBatcher.ts` dedupe/scheduling internals       | 23          | **75.94%** | 65.57 → **69.67%**               |
+| five-lane merge (logger + privacy arrived with tests) | —           | 77.54%     | —                                |
+| `storage/**` — see §3f-ii                             | 27          | **80.31%** | 64.09 → **84.52%**               |
+| `consentCookie.ts` — see §3f-iii                      | 18          | **80.90%** | 61.54 → not re-split (see below) |
 
 `break` is now **80** (was 75). Raise it with each batch; never ahead of the work.
 
@@ -665,16 +665,16 @@ in the repo**), `browserDetection.ts` 19, `consentState.ts` 18,
 
 **The rate beat the §3f-i projection (1.4–1.9/test) because this batch went at the
 no-coverage column, not the survived column.** §3f-i's own note said the cheap
-bulk wins were gone *in `requestBatcher.ts`*; that did not generalise —
+bulk wins were gone _in `requestBatcher.ts`_; that did not generalise —
 `storage/**` still had 53 of its 116 undetected mutants with no coverage at all.
 **Pick the next file by its no-cov count, not its total.**
 
-| File | Before | After |
-|---|---|---|
+| File                 | Before | After      |
+| -------------------- | ------ | ---------- |
 | `persistentStore.ts` | 48.68% | **94.74%** |
-| `indexedDbStore.ts` | 56.59% | 74.42% |
-| `queueStorage.ts` | 76.27% | 89.83% |
-| `storage/**` | 64.09% | **84.52%** |
+| `indexedDbStore.ts`  | 56.59% | 74.42%     |
+| `queueStorage.ts`    | 76.27% | 89.83%     |
+| `storage/**`         | 64.09% | **84.52%** |
 
 `queueStorage.ts` rose without a single test naming it — the `PersistentStore`
 fallback-tier tests exercise it as the delegate, which is how it should be tested
@@ -707,7 +707,7 @@ score 80.31 → **80.90**, roughly **0.8 detections per test** — worse than th
 which by the §3f-ii heuristic looked cheap. It was not.
 
 **Why, so the heuristic can be corrected:** the no-cov mutants in this file are
-concentrated in *guards against missing globals* (`typeof document === 'undefined'`,
+concentrated in _guards against missing globals_ (`typeof document === 'undefined'`,
 the `window.location` catch) and in **string literals inside `onFailure` reports**.
 A test can execute those branches — mine do — without killing many mutants,
 because the observable behaviour of most mutations there is identical (still
@@ -715,8 +715,8 @@ returns `null`, still returns `false`, still does not throw). **Refine the rule 
 prefer no-cov mutants in code that computes a value, not in code that guards or
 reports.** A file full of defensive early-returns has a low ceiling per test.
 
-The tests are still worth having — they pin rule 1 of that module, *nothing here
-may ever throw*, across SSR and sandboxed-iframe conditions, and that is a real
+The tests are still worth having — they pin rule 1 of that module, _nothing here
+may ever throw_, across SSR and sandboxed-iframe conditions, and that is a real
 compliance property, not a score chase. But do not budget the remaining ~100
 detections against files shaped like this one.
 
@@ -744,13 +744,13 @@ lines 175–560 — the response-classification block at 585–743 is now done),
 `storageHandler.ts` 23, `browserDetection.ts` 19, `requestQueue.ts` 58 (the
 harder half: enqueue/cap internals, lines 114–236), tail elsewhere.
 
-Kill rate so far: 36 tests, +89 detections, +3.1 points. The rate *fell* on the
+Kill rate so far: 36 tests, +89 detections, +3.1 points. The rate _fell_ on the
 second pass (2.3 → 1.4 mutants per test) because the remaining survivors are
 deeper paths needing their own setup, not shallow accessors. Extrapolating from
 the second number, 85% needs roughly another **100–130 tests**.
 
 **A second real defect came out of it, in the legacy migration.** The fallback
-deadline (`entry.flushAfter || Date.now()`) went into the record's *key* but not
+deadline (`entry.flushAfter || Date.now()`) went into the record's _key_ but not
 into the record, so an imported legacy entry with no `flushAfter` kept
 `undefined` — and every later comparison is `now > item.flushAfter`, which is
 false against `undefined`. Such an event could therefore **never be adopted as an
@@ -778,7 +778,7 @@ Bundle after the fix: 81.78 kB / 23.09 kB gzip (from 81.74 / 23.08). Unit tier
 **363 tests**; coverage 93.51% / 89.90% / 90.74%, all above the gate.
 
 **Not done, and this is the real backlog item now:** the 398 survivors and 141
-no-coverage mutants in `src/shared/**` are a *worklist*, not noise. Killing the
+no-coverage mutants in `src/shared/**` are a _worklist_, not noise. Killing the
 queue-core survivors is higher value than any remaining Phase 2 item, because the
 tests that kill them are the ones that would have caught §6a's three defects
 without needing a property test to stumble into them. Open
@@ -795,13 +795,13 @@ afterthought.** ci.yml's old bottom-of-file note explained that lint/size/audit
 were omitted precisely because a gate that is red on day one gets disabled, so
 each one here was calibrated against a measurement first.
 
-| File | What it pins |
-|---|---|
-| `eslint.config.js` | flat config, **0 errors / 323 warnings** |
-| `.prettierignore` | + generated dirs (coverage, reports, `.stryker-tmp`) |
-| `.size-limit.json` | gzip **23.06 kB**, brotli **20.12 kB**, raw **81.83 kB**, each ~2% headroom |
-| `scripts/scanBundleSecrets.js` | bundle credential scan |
-| `.github/workflows/release.yml` | npm publish + provenance |
+| File                            | What it pins                                                                |
+| ------------------------------- | --------------------------------------------------------------------------- |
+| `eslint.config.js`              | flat config, **0 errors / 323 warnings**                                    |
+| `.prettierignore`               | + generated dirs (coverage, reports, `.stryker-tmp`)                        |
+| `.size-limit.json`              | gzip **23.06 kB**, brotli **20.12 kB**, raw **81.83 kB**, each ~2% headroom |
+| `scripts/scanBundleSecrets.js`  | bundle credential scan                                                      |
+| `.github/workflows/release.yml` | npm publish + provenance                                                    |
 
 New scripts: `lint`, `lint:fix`, `format`, `format:check`, `size`,
 `scan:secrets`. New ci.yml jobs: **`static`** (eslint blocking, prettier
@@ -823,7 +823,7 @@ repo's `GITHUB_TOKEN`. The Sonar quality gate is un-commented.
   Biggest: `no-unused-expressions` 47 (mostly `a?.b()` statements),
   `no-extra-boolean-cast` 15, `no-useless-escape` 9 (bot-detection and
   reserved-word regexes — changing a regex is a behaviour change, not a drive-by).
-  Rules that *are* errors each measured zero first.
+  Rules that _are_ errors each measured zero first.
 - **Prettier is advisory (`continue-on-error`), deliberately.** **98 of 107 files
   fail `prettier --check`** — `.prettierrc` was committed long ago and never
   enforced. The fix is one repo-wide `npm run format`, but it touches nearly all
@@ -836,7 +836,7 @@ repo's `GITHUB_TOKEN`. The Sonar quality gate is un-commented.
 - **`release.yml` never triggers on a branch push** — `v*` tags or
   `workflow_dispatch` only, and a manual run defaults to `dry-run: true`. npm
   versions cannot be withdrawn. `id-token: write` is required or the provenance
-  publish *fails* rather than shipping unattested.
+  publish _fails_ rather than shipping unattested.
 
 **One latent bug found by the linter and left for #6 with a pointer:**
 `choices.service.ts:164` passes an `async` function as a Promise executor, so a
@@ -855,8 +855,8 @@ break 73**), **@vitest/coverage-v8 2→4**, **@rollup/plugin-terser 0.4→1.0**
 
 **Cypress 15 forced one real fix, not just a type error.** `cy.exec()` renamed
 `code` → `exitCode`, so the old read was `undefined`, `undefined !== 0` was
-always true, and `bundleReservedWords.cy.ts`'s `before()` hook threw *"Build
-failed with exit code undefined"* on a good build. `tsc` caught it.
+always true, and `bundleReservedWords.cy.ts`'s `before()` hook threw _"Build
+failed with exit code undefined"_ on a good build. `tsc` caught it.
 
 **`vite` is BLOCKED, and this is the one thing here not to re-litigate.** The
 remaining high needs vite ≥ 6.4.3, and **every vite from 6 onward declares
@@ -882,7 +882,7 @@ bump lands. **Do not work around `build.yaml` to close it.**
   mutable CDN path** every customer loads, with nothing to roll back to.
   Calibrated for low false positives against the real bundle — the two things in
   it that look like secrets are the `Authorization` **header name** (5
-  occurrences, ignored; only a scheme + literal *value* is a finding) and the
+  occurrences, ignored; only a scheme + literal _value_ is a finding) and the
   62-char base62 alphabet in the id generator (excluded by an ordering +
   Shannon-entropy check, not by hardcoding the string, so a real 62-char key
   there is still caught). **Verified in both directions:** real bundle exits 0; a
@@ -897,7 +897,7 @@ bump lands. **Do not work around `build.yaml` to close it.**
   queue stub is an **inline script** a strict CSP silently blocks, losing every
   pre-load call.
   **SRI ships as a warning, not a recommendation** — `/v1/intempt.min.js` is
-  *mutable*, so a correct hash stops matching at the next release and the browser
+  _mutable_, so a correct hash stops matching at the next release and the browser
   then refuses to run the SDK at all. Documenting SRI without that would document
   a future outage. Customers needing SRI are pointed at support for a versioned
   URL. **The real fix is an immutable versioned CDN path** — same root cause as
@@ -930,20 +930,20 @@ in this section is additive or opt-in.
 
 ### What landed
 
-| Deliverable | State |
-|---|---|
-| Cross-subdomain consent cookie at the eTLD+1 | ✅ **D15 closed** — D23 |
-| `gdpr-utils.js` port (301 LOC) with attribution | ✅ `src/shared/privacy/gdpr.ts`, `NOTICE` updated |
-| DNT + GPC, with `ignore_dnt` | ✅ D24 |
-| PII masking/scrubbing, opt-in-safe | ✅ off by default — D25 |
-| Data-residency switch | 🟡 **reduced to `apiHost`; no `region` enum** — D26 |
+| Deliverable                                     | State                                               |
+| ----------------------------------------------- | --------------------------------------------------- |
+| Cross-subdomain consent cookie at the eTLD+1    | ✅ **D15 closed** — D23                             |
+| `gdpr-utils.js` port (301 LOC) with attribution | ✅ `src/shared/privacy/gdpr.ts`, `NOTICE` updated   |
+| DNT + GPC, with `ignore_dnt`                    | ✅ D24                                              |
+| PII masking/scrubbing, opt-in-safe              | ✅ off by default — D25                             |
+| Data-residency switch                           | 🟡 **reduced to `apiHost`; no `region` enum** — D26 |
 
 ### Cross-subdomain consent — how the fallback actually behaves
 
 Cookie at `.example.com` **plus** localStorage, both written on every change,
 cookie authoritative on read. The subtle part is the **upgrade path**: a
 localStorage-only opt-out (i.e. every visitor who opted out before this bundle) is
-promoted to a cookie *on read*, which is what closes D15 for the existing
+promoted to a cookie _on read_, which is what closes D15 for the existing
 population rather than only for future opt-outs. An opt-**in** is never promoted —
 the mechanism may only widen an opt-out, so its failure direction is "more private
 than asked". There is a test asserting exactly that asymmetry.
@@ -956,7 +956,7 @@ not modified** — §5's parity warning respected.
 
 1. **Lookbehind would have killed the whole bundle on Safari < 16.4.** The card and
    phone patterns originally used `(?<!…)`. A regex literal is parsed when the
-   bundle *loads*, so an unsupported construct is a SyntaxError that takes the
+   bundle _loads_, so an unsupported construct is a SyntaxError that takes the
    entire SDK down rather than degrading one feature. Leading boundaries are
    capture groups now (`PiiPattern.sensitiveGroup`). **Any future pattern must
    obey this.**
@@ -1007,7 +1007,8 @@ and therefore present **even when scrubbing is disabled** — i.e. every custome
 pays for a feature most will not enable. The clean fix is code-splitting
 (`FRONTEND.md` item 9), which the user parked. Flagging it rather than
 micro-optimising: if the size gate from `FRONTEND.md` item 3 lands first, pin it
-*after* this.
+_after_ this.
+
 ## 3i. Phase 4 — structured logging & metrics ✅ (`FRONTEND.md` item 2)
 
 Dimension 6 (observability) was the **worst-scoring dimension in the audit**: 25
@@ -1049,7 +1050,7 @@ problems:
   drop count, breaker state and **transition count**, readable as a snapshot via
   `intempt.getDiagnostics()` and emitted through the logger on each transition.
   **This is the consumer §3c's drop counter was waiting for.** Depth and drops are
-  *sampled* through provider callbacks at snapshot time rather than pushed on
+  _sampled_ through provider callbacks at snapshot time rather than pushed on
   every enqueue — pushing would put per-event work back on the hot path that §6c
   exists to keep clear. Latency is a running total, not a sample array, for the
   same reason the two dedupe structures are capped: unbounded growth on a
@@ -1057,7 +1058,7 @@ problems:
 
 **Queue and batcher changes are wiring only.** `requestQueue.ts` gained one
 read-only accessor (`getQueueDepth()`); `requestBatcher.ts` gained a logger, a
-metrics instance, `getMetrics()`, and calls that *observe* the breaker at the
+metrics instance, `getMetrics()`, and calls that _observe_ the breaker at the
 three points where its state already changed. No queueing, retry, breaker or
 dedupe logic was touched, and all 100 existing batcher tests plus the 50 queue
 tests pass unmodified.
@@ -1066,18 +1067,18 @@ tests pass unmodified.
 
 - `sdkLoader.ts` — `CAN'T FIND SCRIPT`. This branch means the bundle could not
   find its own `<script>` tag, so there is no config, no write key, and the
-  logger cannot have been configured (`debug: true` arrives *with* the config
+  logger cannot have been configured (`debug: true` arrives _with_ the config
   that just failed to load). It is also the known signature of the mutable `/v1`
   CDN path coupling, and support tells customers to look for this exact string.
 - `envConfig.ts` — the logger gates itself on `EnvConfig.isProduction()`, so
   routing this one would make the logger and its own configuration source
-  mutually dependent, and it fires *during* the initialisation it would consult.
+  mutually dependent, and it fires _during_ the initialisation it would consult.
 
 **Bundle: 81.80 kB / 23.09 kB gzip → 85.25 kB / 24.26 kB gzip** (+3.45 kB raw,
 +1.17 kB gzip). Measured split: logger 0.80 kB, metrics 1.10 kB, call sites
 ~1.55 kB. The call-site share is mostly **message strings that now ship**:
 `vite.config.ts` sets `esbuild.pure: ['console.log']`, which deleted every
-`console.log` call *and its string literals* from the production bundle
+`console.log` call _and its string literals_ from the production bundle
 outright — verified directly against esbuild. In other words part of the old
 bundle's smallness **was** the missing production diagnostics, and a switchable
 debug channel necessarily keeps those strings at runtime. `log.debug` is
@@ -1110,7 +1111,7 @@ point; corrected six inaccuracies in `USAGE.md`.
 `.d.ts` yet (`FRONTEND.md` #1), so it would have to run on `src/` and would
 document ~55 internal modules — `RequestBatcher`, `SharedLock`, the choices engine
 — as if they were the customer surface; the real contract is not in a type
-signature but in the guard's throw strings and the *order* its checks run in,
+signature but in the guard's throw strings and the _order_ its checks run in,
 which TypeDoc does not emit; and `typedoc` was not a devDependency. The reference
 is hand-written against `intemptJs.guard.ts`, covering the 15 methods on
 `window.intempt`. **Revisit after #1 lands.**
@@ -1124,7 +1125,7 @@ All 60+ internal markdown links resolve (scripted).
 **Not verified, and listed so nobody assumes otherwise:** the `/v1/` CDN URL
 against the live CDN (see D-12 — this is the important one); `next/script`
 `beforeInteractive` ordering; React's dev warning on camelCase `doNotCapture`
-(the docs use the lowercase `donotcapture` form, whose runtime match *is* certain
+(the docs use the lowercase `donotcapture` form, whose runtime match _is_ certain
 per the DOM spec); the `next-auth` / `react-router` / `vue-router` snippets, whose
 Intempt calls are checked but which were not compiled; Nuxt `app.head.script`
 ordering. No HTML example was opened in a browser against a real source, so no
@@ -1138,11 +1139,11 @@ Landed 2026-08-11 (lane E). **143 tests** across three files, closing the larges
 remaining test gap: the enforced coverage scope was ~3,160 of 7,973 lines of
 `src/`, and the public API class and experiences engine were outside it.
 
-| File | Tests | Covers |
-|---|---|---|
-| `tests/unit/intemptJs.test.ts` | 47 | the public API class (335 LOC) |
-| `tests/unit/payloadContract.test.ts` | 17 + **10 golden fixtures** | the outbound wire format |
-| `tests/unit/choicesEngine.test.ts` | 79 | the 7 DOM mutation types, stylesheet injection, cloning |
+| File                                 | Tests                       | Covers                                                  |
+| ------------------------------------ | --------------------------- | ------------------------------------------------------- |
+| `tests/unit/intemptJs.test.ts`       | 47                          | the public API class (335 LOC)                          |
+| `tests/unit/payloadContract.test.ts` | 17 + **10 golden fixtures** | the outbound wire format                                |
+| `tests/unit/choicesEngine.test.ts`   | 79                          | the 7 DOM mutation types, stylesheet injection, cloning |
 
 **The golden fixtures are the load-bearing part.** `tests/unit/__golden__/payload/`
 records the exact JSON posted to `…/sources/<id>/track`. That is what unblocks
@@ -1152,7 +1153,7 @@ change to it fails a test with a readable diff.
 
 **`vitest.config.ts` was NOT widened to include `src/intemptJs/**` or
 `choices/**`** — lane E did not own that file. So these 143 tests improve real
-coverage without yet being *enforced*. Widening the include list and raising the
+coverage without yet being _enforced_. Widening the include list and raising the
 thresholds together (D20) is item 2 of §0b.
 
 The web-editor postMessage handshake (`src/loaders/webEditorLoader.ts`) was the
@@ -1165,10 +1166,8 @@ severity-1 wire-format items and the D-24 correction to §4 of this file.
 ## 3. Next concrete action — **superseded by §0b**
 
 > The ordered, current worklist is **§0b** at the top of this file. What follows is
-> the older per-item detail, kept because it explains *why* each item is ranked
+> the older per-item detail, kept because it explains _why_ each item is ranked
 > where it is. If the two disagree, §0b wins — it is maintained.
-
-
 
 Client-side load shedding is **complete** (jitter §3a, breaker §3b, bounded queue
 §3c). The fourth item, a server-controlled brake, is backlogged on the backend.
@@ -1186,28 +1185,28 @@ Highest value now, in the author's order:
    code** — not as a campaign. §3f-i measured the rate at ~2.3 mutants per test
    and recommends against grinding the score; the remaining 397 survivors each
    need their own assertion.
-2. Structured logger + killing `any` (Phase 4). The logger has a concrete consumer
+3. Structured logger + killing `any` (Phase 4). The logger has a concrete consumer
    now: the drop counter from §3c, plus the consent notices and scrubber failures
    from §3g, which currently route through optional callbacks. Cross-subdomain
    consent (D15) is **done** — §3g.
-3. **Credential hygiene (Phase 4)** — but note this is now known to be **mostly
+4. **Credential hygiene (Phase 4)** — but note this is now known to be **mostly
    blocked on the backend**, not client-side work: five call sites across four
    endpoints carry the `btoa`'d write key, and the fix is `BACKEND.md` item 1.
    The part that was ours alone is **done — §3g-ii**: the `choices.service.ts:94`
    diagnostic is guarded, SRI/CSP guidance is in `USAGE.md`, and a bundle secret
    scan gates `build` and `release`. Only the credential itself remains, and it
    is the backend's.
-2. Cross-subdomain consent cookie (D15) and killing `any` (Phase 4). The
+5. Cross-subdomain consent cookie (D15) and killing `any` (Phase 4). The
    **structured logger is done — §3i**, and the drop counter from §3c now has its
    consumer. What remains of dimension 6 is breadth, not plumbing: route the
    quota-failure telemetry from `FRONTEND.md` item 10 through the sink.
-3. **Credential hygiene (Phase 4)** — but note this is now known to be **mostly
+6. **Credential hygiene (Phase 4)** — but note this is now known to be **mostly
    blocked on the backend**, not client-side work: five call sites across four
    endpoints carry the `btoa`'d write key, and the fix is `BACKEND.md` item 1.
    What is ours alone is small (SRI/CSP guidance in the customer docs; the
    unguarded `console.error` at `choices.service.ts:94` was fixed by §3i's
    sweep).
-4. Close the bot-detection false negative documented in §3e, if it is judged
+7. Close the bot-detection false negative documented in §3e, if it is judged
    worth the risk — it needs the compatible;-inspection moved out of the browser
    branch, which changes behaviour for real traffic, so it wants a parity check
    against live UA logs rather than reasoning.
@@ -1246,22 +1245,22 @@ includes reachable modules, so an unimported file costs nothing at all.
 earlier the same day). The claim had propagated as "~459 LOC ship to every customer"
 and as a reason `FRONTEND.md` #9 was "cheaper than it looks". Both were wrong.
 
-**The general lesson, worth more than this item:** *verify a bundle claim against the
-bundle.* "It is in `src/`" does not mean "customers download it", and every claim in
+**The general lesson, worth more than this item:** _verify a bundle claim against the
+bundle._ "It is in `src/`" does not mean "customers download it", and every claim in
 this programme about payload should be checked with `stat` and `grep` on
 `dist/intempt.min.js` rather than reasoned from the source tree. This one survived an
 audit, a defect register, a test comment and a fresh backlog entry without anyone
 running the two commands that refute it.
 
 **Consequence for `FRONTEND.md` #9 (parked):** its "1,644 LOC they never execute"
-figure is not payload either. The honest saving there is whatever is *imported but
-unused at runtime* — a smaller and harder number. Measure before budgeting 2.5 days.
+figure is not payload either. The honest saving there is whatever is _imported but
+unused at runtime_ — a smaller and harder number. Measure before budgeting 2.5 days.
 
 ### Also in this commit
 
 A replacement assertion in the live handler's suite: it exposes exactly
 `insert`/`remove`/`style`/`update` as **own properties**. `_applyChanges` routes with
-`changesHandler.hasOwnProperty(change.type)`, so that set *is* the set of change
+`changesHandler.hasOwnProperty(change.type)`, so that set _is_ the set of change
 types the SDK can apply — which is what made the 7-type class dead rather than merely
 unused. The old test asserted this by comparing the two classes; now it guards the
 dispatch contract on its own.
@@ -1276,20 +1275,20 @@ Landed 2026-08-12. `coverage.include` was the three areas Phase 2 targeted; it i
 `src/**/*.ts`. **The reported number therefore described the best-tested third of the
 SDK and said nothing about the rest.** Measured across everything:
 
-| Area | Statements |
-|---|---|
-| `src/guard/**` | 98.49% |
-| `src/shared/**` | ~96% |
-| `autoTracker/**` | 58.52% |
-| `choices/**` | 50.37% |
-| `HtmlEventData.component.ts` | **0%** |
-| `shopifyTracker` | **2.56%** |
-| `src/main.ts` | **0%** |
-| `src/loaders` | **4.54%** (`sdkLoader.ts` 9.67%) |
-| **All of `src/`** | **72.5 / 66.05 / 74.4 / 73.77** |
+| Area                         | Statements                       |
+| ---------------------------- | -------------------------------- |
+| `src/guard/**`               | 98.49%                           |
+| `src/shared/**`              | ~96%                             |
+| `autoTracker/**`             | 58.52%                           |
+| `choices/**`                 | 50.37%                           |
+| `HtmlEventData.component.ts` | **0%**                           |
+| `shopifyTracker`             | **2.56%**                        |
+| `src/main.ts`                | **0%**                           |
+| `src/loaders`                | **4.54%** (`sdkLoader.ts` 9.67%) |
+| **All of `src/`**            | **72.5 / 66.05 / 74.4 / 73.77**  |
 
 **`sdkLoader.ts` is the finding.** It builds the entire `IntemptConfig` from the
-script URL's query string — it *is* the public configuration surface of the supported
+script URL's query string — it _is_ the public configuration surface of the supported
 embed — and it is at **9.67%**. §3h already hit the consequence: three new privacy
 options existed on the type and were unreachable by any customer because the loader
 had never been taught to read them. That is exactly what 9% hides, and it is a higher
@@ -1297,7 +1296,7 @@ priority than any remaining mutation-score work.
 
 **Per-glob thresholds are what make the widening safe.** D20's trap is that widening
 `include` without moving thresholds silently lowers the bar — but a single global
-number must be set low enough for the *worst* area, which dilutes the good ones. So
+number must be set low enough for the _worst_ area, which dilutes the good ones. So
 the gate is now three-tiered: a whole-repo floor of 70/64/72/71, `src/shared/**` at
 93/88/94/94, and `src/guard/**` at 96/91/98/96. Well-covered code keeps its own high
 floor and cannot regress behind the global average.
@@ -1316,13 +1315,13 @@ Five lanes ran concurrently in separate worktrees and **all five are merged into
 this branch with ZERO conflicts** (commit `bdd294e` is the last merge). File
 territories were assigned as prohibitions per lane, which is why nothing collided.
 
-| Lane | Delivered | Verified by the orchestrator |
-|---|---|---|
-| **A** | `sdkLoader.ts` **9.67% → ~71%**, 33 tests, new `tests/unit/sdkLoader.test.ts` | base sha, diff scope, 841 unit, 0 lint warnings |
-| **B** | mutation **80.90% → 86.57%**, 78 tests over 4 files | score read from its own report, 886 unit, 0 warnings, bundle unchanged |
-| **C** | **vite 5.4.21 → 6.4.3**, audit 4 (1 high, 3 mod) → **2 moderate** | `npm ci`, build, 808 unit, Cypress 0 failing, mutation 80.90 unchanged |
-| **D** | `autoTracker.transport.ts` extracted, **D-2 fixed**, 8 `any` removed | 809 unit, lint 26→18 on its paths, bundle +1,504 B attributed by commit |
-| **E** | **D-4 and D-5 fixed**, `_ids()` dedupe | 808 unit, bundle −240 B, and **one lint warning it wrongly reported as zero** |
+| Lane  | Delivered                                                                     | Verified by the orchestrator                                                  |
+| ----- | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| **A** | `sdkLoader.ts` **9.67% → ~71%**, 33 tests, new `tests/unit/sdkLoader.test.ts` | base sha, diff scope, 841 unit, 0 lint warnings                               |
+| **B** | mutation **80.90% → 86.57%**, 78 tests over 4 files                           | score read from its own report, 886 unit, 0 warnings, bundle unchanged        |
+| **C** | **vite 5.4.21 → 6.4.3**, audit 4 (1 high, 3 mod) → **2 moderate**             | `npm ci`, build, 808 unit, Cypress 0 failing, mutation 80.90 unchanged        |
+| **D** | `autoTracker.transport.ts` extracted, **D-2 fixed**, 8 `any` removed          | 809 unit, lint 26→18 on its paths, bundle +1,504 B attributed by commit       |
+| **E** | **D-4 and D-5 fixed**, `_ids()` dedupe                                        | 808 unit, bundle −240 B, and **one lint warning it wrongly reported as zero** |
 
 **Merged-tree numbers, measured here and not reported by any lane:** unit
 **920/920** (26 files), build+tsc clean, coverage **75.64 / 70.09 / 76.09 / 76.75**,
@@ -1418,14 +1417,15 @@ good base: unit **920/920**, mutation **86.57%** (merged, not lane-local), Cypre
 Four lanes are running against `e71a356` in **hand-built, HEAD-verified worktrees**
 (the `isolation: "worktree"` flag is unreliable — see §3n failure 1):
 
-| Lane | Branch | Worktree | Task |
-|---|---|---|---|
-| **F** | `lane-f-pagestracker` | `.claude/worktrees/lane-f-pagestracker` | **D-9, D-10, D-11** — popstate double-exit, replaceState orphan exit, missing `hashchange` — plus 3 `any` |
-| **G** | `lane-g-choices` | `.claude/worktrees/lane-g-choices` | **D-6, D-7, D-8, D-22** — the all-or-nothing experiences engine — plus 5 `any` |
-| **H** | `lane-h-transport` | `.claude/worktrees/lane-h-transport` | `FRONTEND.md` **#10**: `fetch(keepalive)` → XHR fallback. **`sendBeacon` explicitly OUT of scope** (needs `BACKEND.md` 1) |
-| **I** | `lane-i-loader` | `.claude/worktrees/lane-i-loader` | **D-17** (`?shopify=false` enables), **D-27** (empty `api_host` becomes `''` not default), **D-12**'s uncaught throw |
+| Lane  | Branch                | Worktree                                | Task                                                                                                                      |
+| ----- | --------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| **F** | `lane-f-pagestracker` | `.claude/worktrees/lane-f-pagestracker` | **D-9, D-10, D-11** — popstate double-exit, replaceState orphan exit, missing `hashchange` — plus 3 `any`                 |
+| **G** | `lane-g-choices`      | `.claude/worktrees/lane-g-choices`      | **D-6, D-7, D-8, D-22** — the all-or-nothing experiences engine — plus 5 `any`                                            |
+| **H** | `lane-h-transport`    | `.claude/worktrees/lane-h-transport`    | `FRONTEND.md` **#10**: `fetch(keepalive)` → XHR fallback. **`sendBeacon` explicitly OUT of scope** (needs `BACKEND.md` 1) |
+| **I** | `lane-i-loader`       | `.claude/worktrees/lane-i-loader`       | **D-17** (`?shopify=false` enables), **D-27** (empty `api_host` becomes `''` not default), **D-12**'s uncaught throw      |
 
 **To finish, in this order:**
+
 1. For each lane: `git -C <worktree> log --oneline e71a356..HEAD` to see what it did,
    then verify by RUNNING — never from its summary. `npm run build` (the typecheck
    gate), `npm run test:unit`, `npm run test` (Cypress), `stat -c%s dist/intempt.min.js`,
@@ -1458,8 +1458,8 @@ Four lanes are running against `e71a356` in **hand-built, HEAD-verified worktree
   after on its files — nothing added. Bundle +118 B. Branch `lane-i-loader`.
 - **Lane H ✅ committed (`1f4c93b`) but IT BREAKS THE SIZE GATE.** The
   `fetch(keepalive)` → XHR fallback costs **+697 B**, taking the bundle to
-  **93,245 B against the 93 kB raw limit** — `npm run size` says *"Package size limit
-  has exceeded by 245 B"*. gzip 27.14/27.2 and brotli 23.58/23.6 still pass, but only
+  **93,245 B against the 93 kB raw limit** — `npm run size` says _"Package size limit
+  has exceeded by 245 B"_. gzip 27.14/27.2 and brotli 23.58/23.6 still pass, but only
   barely. **Merging H therefore REQUIRES raising `.size-limit.json`, which is a
   loosening and needs the user's decision.** Unit 924/924 (27 files), lint 0,
   `sendBeacon` correctly left out of scope, `requestBatcher.ts` untouched.
@@ -1529,16 +1529,16 @@ first push of ~24 commits, so **`ci.yml` is running on all of it for the first t
 check that run before trusting anything below.** §0c records that four of five past CI
 failures were invisible locally.
 
-| Gate | Session start | Now |
-|---|---|---|
-| Unit | 794 | **930** (31 files) |
-| Cypress | 122 | **126** |
-| Mutation | 77.54% | **86.57%** — the user's 85% floor, reached |
-| Coverage | 3 dirs, ~96% | **all `src/`**, 76.82 / 70.63 / 77.31 / 77.77 |
-| ESLint | 323 warnings | **205**, 0 errors |
-| Advisories | 4 (1 high) | **2 moderate, 0 high** |
-| Bundle | 91,248 B | **93,814 B** |
-| Defects fixed | 0 | **13**, plus D-27 found and fixed |
+| Gate          | Session start | Now                                           |
+| ------------- | ------------- | --------------------------------------------- |
+| Unit          | 794           | **930** (31 files)                            |
+| Cypress       | 122           | **126**                                       |
+| Mutation      | 77.54%        | **86.57%** — the user's 85% floor, reached    |
+| Coverage      | 3 dirs, ~96%  | **all `src/`**, 76.82 / 70.63 / 77.31 / 77.77 |
+| ESLint        | 323 warnings  | **205**, 0 errors                             |
+| Advisories    | 4 (1 high)    | **2 moderate, 0 high**                        |
+| Bundle        | 91,248 B      | **93,814 B**                                  |
+| Defects fixed | 0             | **13**, plus D-27 found and fixed             |
 
 **Thresholds were all moved to just under measurement** — stryker `break` 85,
 `--max-warnings` 205, coverage 75/68/75/75. `.size-limit.json` was **raised**
@@ -1595,14 +1595,14 @@ Worked in the order the user set: **defects → prettier sweep → `any` → aut
 splits.** This is the defects step, and it is done as far as it can go without a
 decision. One commit each, per `DEFECTS.md`'s no-batching rule.
 
-| Defect | Fix | Customer-visible? |
-|---|---|---|
+| Defect   | Fix                                                                     | Customer-visible?                                 |
+| -------- | ----------------------------------------------------------------------- | ------------------------------------------------- |
 | **D-13** | `RecordModel._name`/`ProductModel._name` returned `''`; now `this.name` | Yes — CustomEvent detail only, **never the wire** |
-| **D-16** | `consent()` no longer reads a `pageId` the model discards | Yes, as an improvement — see below |
-| **D-21** | `__intemptGuardManager` documented as internal, not a config hook | No |
-| **D-24** | the unreachable `if (!isValidConfig(config)) return;` deleted | No — behaviour identical |
-| **D-25** | a **missing** required config field now fails like an empty one | Yes, for direct constructors only |
-| **D-26** | shared cookie teardown now expires domain-scoped cookies | Test-only |
+| **D-16** | `consent()` no longer reads a `pageId` the model discards               | Yes, as an improvement — see below                |
+| **D-21** | `__intemptGuardManager` documented as internal, not a config hook       | No                                                |
+| **D-24** | the unreachable `if (!isValidConfig(config)) return;` deleted           | No — behaviour identical                          |
+| **D-25** | a **missing** required config field now fails like an empty one         | Yes, for direct constructors only                 |
+| **D-26** | shared cookie teardown now expires domain-scoped cookies                | Test-only                                         |
 
 **The one non-obvious finding, in D-16.** The discarded `getPageId()` read was not
 merely dead work: `PageTrackerModule.getId()` **mints the page-session cookie** when
@@ -1640,14 +1640,14 @@ worse than none.
 Each converts silence into a throw, or changes a value ingest already receives. All
 four are one-liners once the call is made; none should be shipped on my judgement.
 
-| Defect | The decision |
-|---|---|
-| **D-14** | An untitled `group()` is named `'Identify'` at ingest, indistinguishable from an identify. Fixing it **changes a value already in customer reports** (e.g. to `'Group'`), so it needs ingest sign-off and a release note — not just a code change. |
+| Defect   | The decision                                                                                                                                                                                                                                                             |
+| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **D-14** | An untitled `group()` is named `'Identify'` at ingest, indistinguishable from an identify. Fixing it **changes a value already in customer reports** (e.g. to `'Group'`), so it needs ingest sign-off and a release note — not just a code change.                       |
 | **D-18** | `productAdd`/`productView`/`productOrdered` call no guard at all: `productAdd(undefined)` builds an event with `data: undefined`. Adding a guard means the SDK **throws inside a customer's page** where it used to send junk. Breaking, and worth a deprecation window. |
-| **D-19** | `identify` rejects a falsy `userId`; `group` accepts `accountId: 0` and `''`. Same shape as D-18 — tightening `group` throws for callers that work today. |
-| **D-20** | `consent.validUntil` is typed required and never validated. Same again: validating it throws in a consent banner's click handler, which is the one place a throw is most damaging. |
+| **D-19** | `identify` rejects a falsy `userId`; `group` accepts `accountId: 0` and `''`. Same shape as D-18 — tightening `group` throws for callers that work today.                                                                                                                |
+| **D-20** | `consent.validUntil` is typed required and never validated. Same again: validating it throws in a consent banner's click handler, which is the one place a throw is most damaging.                                                                                       |
 
-**My recommendation if asked:** do D-20 and D-19 as *warn-and-proceed* through the
+**My recommendation if asked:** do D-20 and D-19 as _warn-and-proceed_ through the
 logger rather than throws (no breakage, the problem becomes visible), hold D-18
 behind a deprecation note, and hold D-14 until the ingest conversation
 (`BACKEND.md`) is happening anyway, since it is a wire-value change.
@@ -1659,11 +1659,11 @@ customer-visible today. Covered by `tests/unit/requestBatcher.test.ts` — the
 original `__tests__/batcherDedupeLifecycle.cy.ts` was **migrated into the unit
 tier and deleted**, so do not go looking for it.
 
-| # | Defect | Fix |
-|---|---|---|
-| 1 | `itemIdsSentSuccessfully` never pruned → memory leak on long-lived tabs | `recordDeliveryAttempts()` now **deletes** an item's counter when its queue removal succeeds — the counter only ever mattered for items still in the queue, i.e. whose removal *failed*, so retaining the rest was pure leak. Hard cap `MAX_TRACKED_ITEM_IDS = 1000` as a backstop. **Also fixed the same class of bug in `sentEventIds`**: persistence was capped at 1000 but the in-memory `Set` was not, so it grew without bound while only the tail was ever written. `markEventIdsSent()` caps it, and an over-sized persisted set is trimmed on load. |
-| 2 | `handleResponse` returned before `removeItemsFromQueue` when `unloading: true` → duplicate sends | On unload, if `isDefiniteSuccess(response)` (an `ok`/2xx, never an error or 0/5xx), the batch is now dequeued. Inconclusive outcomes keep the old retain-for-next-load behaviour — losing events is worse than a possible duplicate. **Second, deeper cause fixed:** items skipped by the `alreadySent` check were only `continue`d, so they sat at the head of the queue forever, burning part of every future batch, and became re-sendable once their eventId aged out of the capped window. They are now **evicted**. |
-| 3 | `optIn`/`optOut` set an in-memory flag only → opt-out reset on reload | New `src/shared/consentState.ts` (`loadDoNotTrack` / `persistDoNotTrack`). `AutoTrackerModule._doNotTrack` initialises from storage; the setter persists. Opt-**in** writes too, so consent is not a one-way door. Storage errors are swallowed — `optOut()` must never throw back into a consent banner's click handler. |
+| #   | Defect                                                                                           | Fix                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| --- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1   | `itemIdsSentSuccessfully` never pruned → memory leak on long-lived tabs                          | `recordDeliveryAttempts()` now **deletes** an item's counter when its queue removal succeeds — the counter only ever mattered for items still in the queue, i.e. whose removal _failed_, so retaining the rest was pure leak. Hard cap `MAX_TRACKED_ITEM_IDS = 1000` as a backstop. **Also fixed the same class of bug in `sentEventIds`**: persistence was capped at 1000 but the in-memory `Set` was not, so it grew without bound while only the tail was ever written. `markEventIdsSent()` caps it, and an over-sized persisted set is trimmed on load. |
+| 2   | `handleResponse` returned before `removeItemsFromQueue` when `unloading: true` → duplicate sends | On unload, if `isDefiniteSuccess(response)` (an `ok`/2xx, never an error or 0/5xx), the batch is now dequeued. Inconclusive outcomes keep the old retain-for-next-load behaviour — losing events is worse than a possible duplicate. **Second, deeper cause fixed:** items skipped by the `alreadySent` check were only `continue`d, so they sat at the head of the queue forever, burning part of every future batch, and became re-sendable once their eventId aged out of the capped window. They are now **evicted**.                                    |
+| 3   | `optIn`/`optOut` set an in-memory flag only → opt-out reset on reload                            | New `src/shared/consentState.ts` (`loadDoNotTrack` / `persistDoNotTrack`). `AutoTrackerModule._doNotTrack` initialises from storage; the setter persists. Opt-**in** writes too, so consent is not a one-way door. Storage errors are swallowed — `optOut()` must never throw back into a consent banner's click handler.                                                                                                                                                                                                                                    |
 
 ### Carried-forward caveats from these fixes
 
@@ -1686,11 +1686,11 @@ suffix set and no data table.
 
 **Measured, before → after:**
 
-| | Before | After |
-|---|---|---|
-| `dist/intempt.min.js` | 225.86 kB | **72.43 kB** |
-| gzip | 64.89 kB | **20.86 kB** |
-| Runtime dependencies | `psl`, `@types/psl` | **none** |
+|                       | Before              | After        |
+| --------------------- | ------------------- | ------------ |
+| `dist/intempt.min.js` | 225.86 kB           | **72.43 kB** |
+| gzip                  | 64.89 kB            | **20.86 kB** |
+| Runtime dependencies  | `psl`, `@types/psl` | **none**     |
 
 That is a **68% cut on every page load**, and the SDK now has a zero-dependency
 runtime — which also removes the whole `psl` supply-chain surface ahead of
@@ -1700,7 +1700,7 @@ Phase 4.
 harness ran the old `psl`-backed `handleDomain` and the new one over 58
 hostnames. It found and forced the fix for a real regression: private suffixes
 (`github.io`, `vercel.app`, `herokuapp.com`, `appspot.com`, `blogspot.com`, and
-**`myshopify.com`** — this SDK ships a Shopify tracker) resolve to a *public*
+**`myshopify.com`** — this SDK ships a Shopify tracker) resolve to a _public_
 suffix under a naive last-two-labels rule, and a browser rejects such a cookie
 outright rather than mis-scoping it. Those hosts now have their own entries.
 
@@ -1724,13 +1724,13 @@ against a current public-suffix list.**
 Config in `vitest.config.ts`; shared jsdom/storage/timer setup in
 `tests/unit/setup.ts` (adapted from Mixpanel's `jsdom-setup.js`, Apache-2.0).
 
-| Script | What it runs |
-|---|---|
-| `npm run test:unit` | tier 1 — vitest, jsdom, fast |
-| `npm run test:coverage` | tier 1 + coverage gate |
-| `npm run test:mutation` | StrykerJS over the same scope — see §3f |
-| `npm run test:e2e` | tier 2 — the remaining 12 Cypress specs, real browser |
-| `npm test` | alias of `test:e2e` (unchanged, so nothing that called it breaks) |
+| Script                  | What it runs                                                      |
+| ----------------------- | ----------------------------------------------------------------- |
+| `npm run test:unit`     | tier 1 — vitest, jsdom, fast                                      |
+| `npm run test:coverage` | tier 1 + coverage gate                                            |
+| `npm run test:mutation` | StrykerJS over the same scope — see §3f                           |
+| `npm run test:e2e`      | tier 2 — the remaining 12 Cypress specs, real browser             |
+| `npm test`              | alias of `test:e2e` (unchanged, so nothing that called it breaks) |
 
 **Coverage gate is enforced and passing** on `src/shared/**` + `src/guard/**` +
 `src/intemptJs/guards/**` (widened in §3e): lines/statements **92.57%** (≥90),
@@ -1751,20 +1751,20 @@ It failed on the first run, on every seed, and found **three real data-loss
 defects that code review had missed**:
 
 1. **A network error while `navigator.onLine` was true was treated as a
-   *success*.** The retryable check required `httpStatusCode <= 0 && !navigator.onLine`,
+   _success_.** The retryable check required `httpStatusCode <= 0 && !navigator.onLine`,
    so any transport failure where the browser still believed it had a link — a
    captive portal, a dead VPN, an unreachable API — fell through every branch and
    the batch was dequeued **having never been delivered**. This is the most
    serious defect found in the programme so far: silent, total loss of a batch,
    in the exact conditions a flaky network produces.
 2. **Pre-send marks were never rolled back on failure.** Event ids are marked
-   sent *before* the request (so a page dying mid-flight cannot duplicate), but a
+   sent _before_ the request (so a page dying mid-flight cannot duplicate), but a
    failed send left the mark, so the events were filtered as "already sent" on
    every later flush and then evicted — silently lost. Now rolled back on any
    definite failure; the mark stands only when the outcome is genuinely unknown
    (page unloading with no response), which is the case it was designed for.
 3. **`generateId` collided within a millisecond.** Eight of its ten random
-   characters were a *shuffle of the timestamp's own base-36 digits*, so ids
+   characters were a _shuffle of the timestamp's own base-36 digits_, so ids
    minted in the same millisecond differed by a permutation of identical
    characters plus two random ones. A 5,000-iteration loop collides. These ids
    identify **profiles and sessions**, so a collision merges two visitors' data —
@@ -1795,7 +1795,7 @@ so it drops into `RequestQueue` through the existing `queueStorage` option.
 Fallback policy: IndexedDB first; on a failed open, localStorage **permanently
 for that page** (the causes — private mode, sandboxed iframe, corrupt profile —
 are not transient within a page's life, and retrying per-operation would make
-every write pay the failed-open cost); if a write fails *after* a successful
+every write pay the failed-open cost); if a write fails _after_ a successful
 open, fall back mid-flight rather than dropping the batch; if neither tier comes
 up, reject so `RequestQueue` degrades to its in-memory queue.
 
@@ -1840,7 +1840,7 @@ runs under the shared lock, tolerates malformed entries, and a failed migration
 is reported but never blocks new events. Three tests cover it.
 
 `removeItemsByID` resolves keys from memory when it can and falls back to a
-storage key scan for items queued by *another tab*, which are not in this page's
+storage key scan for items queued by _another tab_, which are not in this page's
 `memQueue`.
 
 **Test-suite note for the next session:** several Cypress and unit assertions
@@ -1855,7 +1855,7 @@ not behaviour. If they break again, prefer rewriting them to go through
    deliberately unset (it was created from `origin/staging` and would otherwise
    have pushed there by default). When first pushing, use
    `git push -u origin beso/sdk-enterprise-hardening`.
-2. **Production deploys only from `main`**, and the `/v1` CDN path is *mutable* —
+2. **Production deploys only from `main`**, and the `/v1` CDN path is _mutable_ —
    overwriting it is live for all customers with no artifact to roll back to.
    One incident already: `af1a16b`, reverted in `3dc3a54`.
 3. **After any deploy, verify the live bundle** and spot-check real host sites
@@ -1864,20 +1864,20 @@ not behaviour. If they break again, prefer rewriting them to go through
    (`target: ES2020`), so TS costs ~0 bundle bytes. It is not a footprint problem.
 5. **Do not add features before the Phase 2 test tier exists.** Every feature
    added first makes the test tier more expensive to build.
-6. Mixpanel is **Apache-2.0**. Direct code reuse is fine *with* attribution —
+6. Mixpanel is **Apache-2.0**. Direct code reuse is fine _with_ attribution —
    retain license headers and NOTICE the derivation. Confirm with counsel before
    shipping copied files.
 
 ## 7. Phase map & projected score
 
-| Phase | Scope | Δ | Cumulative | Status |
-|---|---|---|---|---|
-| 0 | Audit & plan | — | 40 | ✅ Complete |
-| 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
-| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (**363 tests**, gate enforced at 90/87/87/90), **`ci.yml` gates merges ✅**, **guard suites ported ✅**, **mutation testing ✅ (71.42%)**; killing queue-core survivors, contract tests and WDIO tier 2 remain |
-| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ✅ **jitter, circuit breaker, bounded queue** (4th ⏸ BE) |
-| 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | 🟡 **client-side security ✅ (§3g-ii)** — secret scan, last diagnostic guarded, SRI/CSP docs; **supply chain ✅ (§3g-i)**, 19 advisories → 4 with `vite` blocked on Node 21. Credential itself ⏸ (BE). `gdpr-utils`, logger, killing `any` remain |
-| 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. **CI breadth ✅ (§3g)**: lint/format, size budget, audit gate, SHA pins, Sonar gate, **`release.yml` ✅**. `browser-tests.yml` (needs Sauce) / changesets remain |
+| Phase | Scope                                                                                                      | Δ   | Cumulative | Status                                                                                                                                                                                                                                                                                          |
+| ----- | ---------------------------------------------------------------------------------------------------------- | --- | ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 0     | Audit & plan                                                                                               | —   | 40         | ✅ Complete                                                                                                                                                                                                                                                                                     |
+| 1     | Make it a package (semver, `.d.ts`, exports, changelog)                                                    | +7  | 47         | 🟡 **In progress** (2/5 tasks)                                                                                                                                                                                                                                                                  |
+| 2     | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate)                                    | +12 | 59         | 🟡 tier 1 ✅ (**363 tests**, gate enforced at 90/87/87/90), **`ci.yml` gates merges ✅**, **guard suites ported ✅**, **mutation testing ✅ (71.42%)**; killing queue-core survivors, contract tests and WDIO tier 2 remain                                                                     |
+| 3     | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding)    | +14 | 73         | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ✅ **jitter, circuit breaker, bounded queue** (4th ⏸ BE)                                                                                                              |
+| 4     | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84         | 🟡 **client-side security ✅ (§3g-ii)** — secret scan, last diagnostic guarded, SRI/CSP docs; **supply chain ✅ (§3g-i)**, 19 advisories → 4 with `vite` blocked on Node 21. Credential itself ⏸ (BE). `gdpr-utils`, logger, killing `any` remain                                               |
+| 5     | CI/CD, docs, release engineering                                                                           | +9  | **91**     | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. **CI breadth ✅ (§3g)**: lint/format, size budget, audit gate, SHA pins, Sonar gate, **`release.yml` ✅**. `browser-tests.yml` (needs Sauce) / changesets remain |
 
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | 🟡 **privacy & consent ✅ (§3h)** — `gdpr-utils` ported, cross-subdomain consent (D15 closed), DNT/GPC, opt-in PII scrubbing, `apiHost`; credential hygiene ⏸ (mostly BE), logger ⬜, supply chain ⬜, kill `any` ⬜ |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | 🟡 **observability ✅ — logger, sink hook, metrics (§3i)**; credential hygiene mostly ⏸ (BE); `gdpr-utils` port, supply chain, `any` remain |
@@ -1903,25 +1903,25 @@ defect 3. Credential hygiene (Phase 4) is the one item from that list still open
 
 ## 9. Reference material
 
-| What | Where |
-|---|---|
-| **The ordered TODO list** | **this file, §0b** |
-| **~30 defects found and not fixed, with a suggested order** | **`docs/sdk-hardening/DEFECTS.md`** |
-| Full audit + 5-phase plan + proposed CI/CD harness | `docs/sdk-hardening/AUDIT.md` |
-| **Front-end roadmap to ~85, ranked by points/day** | **`docs/sdk-hardening/FRONTEND.md`** |
-| What the SDK needs from ingest (handover spec) | `docs/sdk-hardening/BACKEND.md` |
-| Settled decisions + rationale | `docs/sdk-hardening/DECISIONS.md` |
-| Mixpanel comparator checkout | `/home/beso/mixpanel-js` (v2.81.0) |
-| Proposed CI/CD files (not applied) | `AUDIT.md` §3b — 7 files, with rollout order |
-| Mixpanel files to port | `AUDIT.md` §3 — file-by-file table with effort estimates |
-| Audit as a shareable web page | https://claude.ai/code/artifact/0976f36f-3570-499b-876f-7bca41f5854a |
+| What                                                        | Where                                                                |
+| ----------------------------------------------------------- | -------------------------------------------------------------------- |
+| **The ordered TODO list**                                   | **this file, §0b**                                                   |
+| **~30 defects found and not fixed, with a suggested order** | **`docs/sdk-hardening/DEFECTS.md`**                                  |
+| Full audit + 5-phase plan + proposed CI/CD harness          | `docs/sdk-hardening/AUDIT.md`                                        |
+| **Front-end roadmap to ~85, ranked by points/day**          | **`docs/sdk-hardening/FRONTEND.md`**                                 |
+| What the SDK needs from ingest (handover spec)              | `docs/sdk-hardening/BACKEND.md`                                      |
+| Settled decisions + rationale                               | `docs/sdk-hardening/DECISIONS.md`                                    |
+| Mixpanel comparator checkout                                | `/home/beso/mixpanel-js` (v2.81.0)                                   |
+| Proposed CI/CD files (not applied)                          | `AUDIT.md` §3b — 7 files, with rollout order                         |
+| Mixpanel files to port                                      | `AUDIT.md` §3 — file-by-file table with effort estimates             |
+| Audit as a shareable web page                               | https://claude.ai/code/artifact/0976f36f-3570-499b-876f-7bca41f5854a |
 | `BACKEND.md` as a shareable web page (for the backend team) | https://claude.ai/code/artifact/82bd5a93-23fe-49e5-b371-ae3fae3acd56 |
-| Originating session | https://claude.ai/code/session_018wfQQGBNVphxBe7QsJVCYV |
+| Originating session                                         | https://claude.ai/code/session_018wfQQGBNVphxBe7QsJVCYV              |
 
 The artifact is a rendered copy of `AUDIT.md` for sharing with non-engineers.
 **`AUDIT.md` in this repo is the authority** — if the two diverge, the repo wins.
 To update the artifact, republish `AUDIT.md` passing that URL as `url`; publishing
-without it creates a *second* artifact instead of updating this one.
+without it creates a _second_ artifact instead of updating this one.
 
 ## 10. How to resume from cold start
 

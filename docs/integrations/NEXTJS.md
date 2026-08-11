@@ -60,17 +60,28 @@ const STUB = `
 
 const SDK_SRC =
   'https://cdn.intempt.com/v1/intempt.min.js' +
-  '?organization=' + process.env.NEXT_PUBLIC_INTEMPT_ORG +
-  '&project=' + process.env.NEXT_PUBLIC_INTEMPT_PROJECT +
-  '&source=' + process.env.NEXT_PUBLIC_INTEMPT_SOURCE +
-  '&key=' + process.env.NEXT_PUBLIC_INTEMPT_KEY;
+  '?organization=' +
+  process.env.NEXT_PUBLIC_INTEMPT_ORG +
+  '&project=' +
+  process.env.NEXT_PUBLIC_INTEMPT_PROJECT +
+  '&source=' +
+  process.env.NEXT_PUBLIC_INTEMPT_SOURCE +
+  '&key=' +
+  process.env.NEXT_PUBLIC_INTEMPT_KEY;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
     <html lang="en">
       <body>
-        <Script id="intempt-stub" strategy="beforeInteractive"
-                dangerouslySetInnerHTML={{ __html: STUB }} />
+        <Script
+          id="intempt-stub"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{ __html: STUB }}
+        />
         <Script id="intempt-sdk" src={SDK_SRC} strategy="beforeInteractive" />
         {children}
       </body>
@@ -116,8 +127,8 @@ navigate, so page views are automatic in the App Router and the Pages Router ali
 will double-count every route change.
 
 The exception is worth knowing about: Next.js uses `replaceState` in places you did not ask
-for it, and **a `replaceState` to an unchanged URL emits a *Leave Page* with no matching *View
-Page***. If your exit counts look inflated, that is where to look. There is no client-side fix
+for it, and **a `replaceState` to an unchanged URL emits a _Leave Page_ with no matching _View
+Page_**. If your exit counts look inflated, that is where to look. There is no client-side fix
 in the SDK today; deduplicate on the platform side.
 
 ## 5. Identify after auth resolves, not on first render
@@ -152,14 +163,14 @@ avoids re-identifying on every token refresh.
 
 ## 6. What not to do
 
-| Don't | Why |
-|---|---|
-| Inject the SDK `<script>` from a `useEffect` | Effects run twice in dev Strict Mode. Two tags means two SDK instances and doubled page views. |
-| Call `analytics.*` from a Server Component | No `window`. Best case it no-ops silently; worst case a bare `window.intempt` reference throws during SSR. |
-| `strategy="afterInteractive"` on the stub | Components can mount and call before the stub exists. Those events are lost. |
-| Track route changes yourself | Already automatic through the History API patch. |
-| Read `isUserOptIn()` during the first render | Through the queue stub it returns `undefined`, and `!undefined` reads as "opted out". Wait for readiness — see the consent hook in [REACT.md](REACT.md). |
-| Pin an SRI `integrity` hash on the CDN URL | The `/v1/` path is mutable and republished in place, so the hash will start failing and silently disable your analytics. Self-host a versioned copy if you need SRI. |
+| Don't                                        | Why                                                                                                                                                                  |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Inject the SDK `<script>` from a `useEffect` | Effects run twice in dev Strict Mode. Two tags means two SDK instances and doubled page views.                                                                       |
+| Call `analytics.*` from a Server Component   | No `window`. Best case it no-ops silently; worst case a bare `window.intempt` reference throws during SSR.                                                           |
+| `strategy="afterInteractive"` on the stub    | Components can mount and call before the stub exists. Those events are lost.                                                                                         |
+| Track route changes yourself                 | Already automatic through the History API patch.                                                                                                                     |
+| Read `isUserOptIn()` during the first render | Through the queue stub it returns `undefined`, and `!undefined` reads as "opted out". Wait for readiness — see the consent hook in [REACT.md](REACT.md).             |
+| Pin an SRI `integrity` hash on the CDN URL   | The `/v1/` path is mutable and republished in place, so the hash will start failing and silently disable your analytics. Self-host a versioned copy if you need SRI. |
 
 ## 7. Middleware, edge, and CSP
 

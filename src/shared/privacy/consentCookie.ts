@@ -67,7 +67,9 @@ export function consentCookieDomain(hostname?: string): string {
 
 function isSecureContext(): boolean {
   try {
-    return typeof window !== 'undefined' && window.location?.protocol === 'https:';
+    return (
+      typeof window !== 'undefined' && window.location?.protocol === 'https:'
+    );
   } catch {
     return false;
   }
@@ -80,7 +82,10 @@ function isSecureContext(): boolean {
  * is a fallback lookup in either case, and distinguishing them would only give
  * it a reason to throw.
  */
-export function readConsentCookie(name: string, onFailure?: CookieFailureReporter): string | null {
+export function readConsentCookie(
+  name: string,
+  onFailure?: CookieFailureReporter,
+): string | null {
   try {
     if (typeof document === 'undefined') {
       return null;
@@ -160,7 +165,10 @@ export function writeConsentCookie(
  * `app.example.com` (domain) can have either. Deleting only the current scope
  * leaves the other one live and the opt-out state ambiguous.
  */
-export function clearConsentCookie(name: string, onFailure?: CookieFailureReporter): void {
+export function clearConsentCookie(
+  name: string,
+  onFailure?: CookieFailureReporter,
+): void {
   try {
     if (typeof document === 'undefined') {
       return;

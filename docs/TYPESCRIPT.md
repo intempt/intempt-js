@@ -120,7 +120,7 @@ Two deliberate choices in there:
   production.
 - **`isUserOptIn()` returns `boolean | undefined`.** Through the queue stub it returns
   `undefined`, not `false`. Typing it `boolean` hides a real case: `!isUserOptIn()` is
-  `true` for an *un-loaded* SDK, which reads as "opted out" when it means "not ready".
+  `true` for an _un-loaded_ SDK, which reads as "opted out" when it means "not ready".
 - **Attribute bags are `Record<string, unknown>`, not `any`.** The SDK's own internal type
   is `{[key: string]: any}`; `unknown` gives you the same freedom on the way in without
   poisoning inference on the way out.
@@ -253,22 +253,29 @@ narrowing.
 Types describe the declaration above; they cannot describe the runtime guards. These four
 compile cleanly and fail at runtime:
 
-| Compiles | Fails because |
-|---|---|
-| `track({ eventTitle: 'Click On', data: { a: 1 } })` | `click on` is a [reserved title](API.md#reserved-event-titles). Case-insensitive. |
-| `track({ eventTitle: 'Signup', data: {} })` | `data` must be **non-empty**. |
-| `identify({ userId: '' })` | `userId` must be truthy — `''` is rejected. |
-| `consent({ action: 'accept' as ConsentAction, validUntil: 0 })` | Compiles *and* runs; `validUntil` is never validated, so `0` is accepted and sent. |
+| Compiles                                                        | Fails because                                                                      |
+| --------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `track({ eventTitle: 'Click On', data: { a: 1 } })`             | `click on` is a [reserved title](API.md#reserved-event-titles). Case-insensitive.  |
+| `track({ eventTitle: 'Signup', data: {} })`                     | `data` must be **non-empty**.                                                      |
+| `identify({ userId: '' })`                                      | `userId` must be truthy — `''` is rejected.                                        |
+| `consent({ action: 'accept' as ConsentAction, validUntil: 0 })` | Compiles _and_ runs; `validUntil` is never validated, so `0` is accepted and sent. |
 
 If reserved titles matter in your codebase, make them unrepresentable:
 
 ```ts
 type ReservedTitle =
-  | 'auto-track' | 'view page' | 'leave page' | 'change on'
-  | 'click on' | 'submit on' | 'identify' | 'consent';
+  | 'auto-track'
+  | 'view page'
+  | 'leave page'
+  | 'change on'
+  | 'click on'
+  | 'submit on'
+  | 'identify'
+  | 'consent';
 
 /** `never` for a reserved title in any casing, otherwise `T` itself. */
-type AllowedTitle<T extends string> = Lowercase<T> extends ReservedTitle ? never : T;
+type AllowedTitle<T extends string> =
+  Lowercase<T> extends ReservedTitle ? never : T;
 
 export function trackSafe<T extends string>(
   eventTitle: AllowedTitle<T>,

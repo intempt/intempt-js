@@ -42,7 +42,7 @@ describe('SharedLock', () => {
 
     const critical = (name: string) => async () => {
       order.push(`${name}:enter`);
-      await new Promise(resolve => setTimeout(resolve, 10));
+      await new Promise((resolve) => setTimeout(resolve, 10));
       order.push(`${name}:exit`);
     };
 
@@ -65,7 +65,9 @@ describe('SharedLock', () => {
       JSON.stringify({ pid: 'dead-tab', timestamp: Date.now() - 60_000 }),
     );
 
-    await expect(makeLock('pid-a').withLock(async () => 'ok')).resolves.toBe('ok');
+    await expect(makeLock('pid-a').withLock(async () => 'ok')).resolves.toBe(
+      'ok',
+    );
   });
 
   it('does not steal a lock that is still fresh', async () => {
@@ -74,9 +76,9 @@ describe('SharedLock', () => {
       JSON.stringify({ pid: 'other-tab', timestamp: Date.now() }),
     );
 
-    await expect(makeLock('pid-a', 200).withLock(async () => 'ok')).rejects.toThrow(
-      'Failed to acquire lock',
-    );
+    await expect(
+      makeLock('pid-a', 200).withLock(async () => 'ok'),
+    ).rejects.toThrow('Failed to acquire lock');
   });
 
   it('does not release a lock it does not own', async () => {
@@ -96,14 +98,20 @@ describe('SharedLock', () => {
       throw new Error('SecurityError');
     });
 
-    await expect(makeLock('pid-a', 200).withLock(async () => 'ok')).rejects.toThrow(
-      'Failed to acquire lock',
-    );
+    await expect(
+      makeLock('pid-a', 200).withLock(async () => 'ok'),
+    ).rejects.toThrow('Failed to acquire lock');
   });
 
   it('generates a distinct pid per instance when none is supplied', () => {
-    const a = new SharedLock(KEY, { storage: window.localStorage, timeoutMS: 100 });
-    const b = new SharedLock(KEY, { storage: window.localStorage, timeoutMS: 100 });
+    const a = new SharedLock(KEY, {
+      storage: window.localStorage,
+      timeoutMS: 100,
+    });
+    const b = new SharedLock(KEY, {
+      storage: window.localStorage,
+      timeoutMS: 100,
+    });
 
     expect((a as any).pid).not.toBe((b as any).pid);
   });
@@ -152,6 +160,8 @@ describe('QueueStorage', () => {
       throw new Error('SecurityError');
     });
 
-    await expect(new QueueStorage().init()).rejects.toThrow('localStorage not available');
+    await expect(new QueueStorage().init()).rejects.toThrow(
+      'localStorage not available',
+    );
   });
 });

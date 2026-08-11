@@ -1,16 +1,16 @@
-import { IntemptConfig } from '../intemptJs/types/intemptJs.types.ts'
-import { IntemptJs } from '../intemptJs/intemptJs.ts'
-import { EnvConfig } from '../shared/envConfig.ts'
+import { IntemptConfig } from '../intemptJs/types/intemptJs.types.ts';
+import { IntemptJs } from '../intemptJs/intemptJs.ts';
+import { EnvConfig } from '../shared/envConfig.ts';
 
 import { createLogger } from '../shared/logger/logger.ts';
 
 const log = createLogger('Intempt');
 
 type QueuedCall = {
-  method: string
-  args: any[]
-  timestamp?: number
-}
+  method: string;
+  args: any[];
+  timestamp?: number;
+};
 
 /**
  * Read a boolean from a script-URL query parameter.
@@ -24,24 +24,34 @@ type QueuedCall = {
  * `?ignore_dnt=false` silently meaning "ignore the visitor's Do Not Track
  * signal" is the kind of default that ends up in a regulator's finding.
  */
-export function readBooleanParam(params: URLSearchParams, name: string): boolean | undefined {
-  const raw = params.get(name)
-  if (raw === null) return undefined
+export function readBooleanParam(
+  params: URLSearchParams,
+  name: string,
+): boolean | undefined {
+  const raw = params.get(name);
+  if (raw === null) return undefined;
 
-  const normalized = raw.trim().toLowerCase()
-  if (normalized === '' || normalized === 'true' || normalized === '1' || normalized === 'yes') {
+  const normalized = raw.trim().toLowerCase();
+  if (
+    normalized === '' ||
+    normalized === 'true' ||
+    normalized === '1' ||
+    normalized === 'yes'
+  ) {
     // A bare `?ignore_dnt` with no value reads as opting in to the flag, which is
     // how HTML boolean attributes behave and therefore what an author expects.
-    return true
+    return true;
   }
-  return false
+  return false;
 }
 
 function getIntemptConfig(): IntemptConfig {
-  const cdnLink = EnvConfig.getCdnLink()
-  const scripts = document.scripts
+  const cdnLink = EnvConfig.getCdnLink();
+  const scripts = document.scripts;
 
-  const intemptScript = Array.from(scripts).find((s) => s.src.includes(cdnLink))
+  const intemptScript = Array.from(scripts).find((s) =>
+    s.src.includes(cdnLink),
+  );
   if (!intemptScript) {
     // Deliberately a raw, unconditional console.error and NOT routed through the
     // logger.
@@ -55,7 +65,7 @@ function getIntemptConfig(): IntemptConfig {
     // message is the only diagnostic that exists. It is also the known signature
     // of the mutable `/v1` CDN path coupling, and support has told customers to
     // look for this exact string. Changing it would break that.
-    console.error("CAN'T FIND SCRIPT")
+    console.error("CAN'T FIND SCRIPT");
     return {
       project: '',
       writeKey: '',
@@ -63,10 +73,10 @@ function getIntemptConfig(): IntemptConfig {
       organization: '',
       shopify: false,
       magento: false,
-    }
+    };
   }
 
-  const source = new URL(intemptScript.src)
+  const source = new URL(intemptScript.src);
   return {
     project: source.searchParams.get('project') ?? '',
     writeKey: source.searchParams.get('key') ?? '',
@@ -91,7 +101,7 @@ function getIntemptConfig(): IntemptConfig {
     // through to the build-time default (D-27). Treat an empty value the same
     // as an absent one.
     apiHost: source.searchParams.get('api_host') || undefined,
-  }
+  };
 }
 
 /**
@@ -99,28 +109,28 @@ function getIntemptConfig(): IntemptConfig {
  * Checks multiple possible queue property names for compatibility
  */
 function extractStubQueue(): QueuedCall[] | null {
-  if (!window.intempt) return null
+  if (!window.intempt) return null;
 
-  const stub = window.intempt as any
+  const stub = window.intempt as any;
 
-  if (Array.isArray(stub._queue)) return stub._queue
-  if (Array.isArray(stub._stubQueue)) return stub._stubQueue
-  if (Array.isArray(stub.queue)) return stub.queue
-  if (Array.isArray(stub.__queue)) return stub.__queue
+  if (Array.isArray(stub._queue)) return stub._queue;
+  if (Array.isArray(stub._stubQueue)) return stub._stubQueue;
+  if (Array.isArray(stub.queue)) return stub.queue;
+  if (Array.isArray(stub.__queue)) return stub.__queue;
 
-  return null
+  return null;
 }
 
 /**
  * Extracts pending promises from stub if it exists
  */
 function extractStubPromises(): any[] | null {
-  if (!window.intempt) return null
+  if (!window.intempt) return null;
 
-  const stub = window.intempt as any
-  if (Array.isArray(stub._pendingPromises)) return stub._pendingPromises
+  const stub = window.intempt as any;
+  if (Array.isArray(stub._pendingPromises)) return stub._pendingPromises;
 
-  return null
+  return null;
 }
 
 /**
@@ -128,36 +138,36 @@ function extractStubPromises(): any[] | null {
  * Returns null if no stub script is found
  */
 function findStubScriptTag(): HTMLScriptElement | null {
-  const cdnLink = EnvConfig.getCdnLink()
-  const scripts = Array.from(document.scripts)
-  
+  const cdnLink = EnvConfig.getCdnLink();
+  const scripts = Array.from(document.scripts);
+
   // Find the SDK script tag (the one we need to keep)
-  const sdkScript = scripts.find((s) => s.src.includes(cdnLink))
-  
+  const sdkScript = scripts.find((s) => s.src.includes(cdnLink));
+
   // Find stub script - it's any script that:
   // 1. Is NOT the SDK script
   // 2. Either has inline content with stub markers OR src pointing to stub file
   for (const script of scripts) {
     // Skip the SDK script
-    if (script === sdkScript) continue
-    
+    if (script === sdkScript) continue;
+
     // Check if inline script contains stub markers
-    const hasStubMarkers = script.textContent?.includes('_isStub') || 
-                          script.textContent?.includes('_queue') ||
-                          script.textContent?.includes('_pendingPromises')
-    
+    const hasStubMarkers =
+      script.textContent?.includes('_isStub') ||
+      script.textContent?.includes('_queue') ||
+      script.textContent?.includes('_pendingPromises');
+
     // Check if external script points to stub file
-    const isStubFile = script.src && (
-      script.src.includes('stub') || 
-      script.src.includes('standalone')
-    )
-    
+    const isStubFile =
+      script.src &&
+      (script.src.includes('stub') || script.src.includes('standalone'));
+
     if (hasStubMarkers || isStubFile) {
-      return script
+      return script;
     }
   }
-  
-  return null
+
+  return null;
 }
 
 /**
@@ -166,15 +176,15 @@ function findStubScriptTag(): HTMLScriptElement | null {
  */
 function removeStubScriptTag(): void {
   try {
-    const stubScript = findStubScriptTag()
+    const stubScript = findStubScriptTag();
     if (stubScript && stubScript.parentNode) {
-      stubScript.parentNode.removeChild(stubScript)
-      
-      log.debug('removed stub script tag')
+      stubScript.parentNode.removeChild(stubScript);
+
+      log.debug('removed stub script tag');
     }
   } catch (error) {
     // Silently fail - removal is optional cleanup
-    log.warn('failed to remove stub script tag', error)
+    log.warn('failed to remove stub script tag', error);
   }
 }
 
@@ -190,30 +200,30 @@ function replayQueuedCalls(
   queue: QueuedCall[],
   pendingPromises: any[] | null,
 ): void {
-  if (!queue || queue.length === 0) return
+  if (!queue || queue.length === 0) return;
 
-  log.debug(`replaying ${queue.length} queued calls from stub`)
+  log.debug(`replaying ${queue.length} queued calls from stub`);
 
   for (const call of queue) {
     try {
-      const fn = (realIntempt as any)[call.method]
+      const fn = (realIntempt as any)[call.method];
       if (typeof fn !== 'function') {
-        log.warn(`method ${call.method} not found on IntemptJs instance`)
-        continue
+        log.warn(`method ${call.method} not found on IntemptJs instance`);
+        continue;
       }
 
-      const result = fn.apply(realIntempt, call.args)
+      const result = fn.apply(realIntempt, call.args);
 
       // Handle async methods (recommendation returns Promise)
       if (result instanceof Promise) {
-        let promiseInfo: any = null
+        let promiseInfo: any = null;
 
         // Resolve stub promises for recommendation in the same order calls were queued.
         if (pendingPromises && call.method === 'recommendation') {
           if (pendingPromises.length > 0) {
-            promiseInfo = pendingPromises.shift() // FIFO
+            promiseInfo = pendingPromises.shift(); // FIFO
           } else {
-            log.warn('no pending promise found for recommendation call')
+            log.warn('no pending promise found for recommendation call');
           }
         }
 
@@ -221,35 +231,35 @@ function replayQueuedCalls(
           result
             .then((data: any) => promiseInfo.resolve(data))
             .catch((err: any) => {
-              if (promiseInfo.reject) promiseInfo.reject(err)
-              else log.error(`error in async queued call ${call.method}`, err)
-            })
+              if (promiseInfo.reject) promiseInfo.reject(err);
+              else log.error(`error in async queued call ${call.method}`, err);
+            });
         } else {
           // No promise to resolve, just handle errors
           result.catch((err: any) => {
-            log.error(`error in async queued call ${call.method}`, err)
-          })
+            log.error(`error in async queued call ${call.method}`, err);
+          });
         }
       }
     } catch (error) {
-      log.error(`error replaying queued call ${call.method}`, error)
+      log.error(`error replaying queued call ${call.method}`, error);
     }
   }
 
   // Optional: clear extracted arrays to prevent accidental double-replay
   try {
-    queue.length = 0
-    if (pendingPromises) pendingPromises.length = 0
-  } catch { }
+    queue.length = 0;
+    if (pendingPromises) pendingPromises.length = 0;
+  } catch {}
 }
 
 function initSDK() {
   // Extract from stub BEFORE replacing window.intempt
-  const stubQueue = extractStubQueue()
-  const stubPromises = extractStubPromises()
-  
+  const stubQueue = extractStubQueue();
+  const stubPromises = extractStubPromises();
+
   // Check if stub existed (we'll need this to know if we should remove it)
-  const hadStub = stubQueue !== null
+  const hadStub = stubQueue !== null;
 
   // Create real IntemptJs instance.
   //
@@ -261,30 +271,33 @@ function initSDK() {
   // tracking. An analytics SDK must never break the page that embeds it
   // (the same principle consentCookie.ts's cookie helpers apply): report it
   // loudly through the logger and return without throwing.
-  let realIntempt: IntemptJs
+  let realIntempt: IntemptJs;
   try {
-    realIntempt = new IntemptJs({ ...getIntemptConfig() })
+    realIntempt = new IntemptJs({ ...getIntemptConfig() });
   } catch (error) {
-    log.error('IntemptJs failed to initialize; the SDK will not track on this page', error)
-    return
+    log.error(
+      'IntemptJs failed to initialize; the SDK will not track on this page',
+      error,
+    );
+    return;
   }
 
   // Replace window.intempt with real instance
-  ;(window as any).intempt = realIntempt
+  (window as any).intempt = realIntempt;
 
   // Replay queued calls if stub existed
   if (stubQueue && stubQueue.length > 0) {
-    replayQueuedCalls(realIntempt, stubQueue, stubPromises)
+    replayQueuedCalls(realIntempt, stubQueue, stubPromises);
   }
 
   // Remove stub script tag if stub existed
   if (hadStub) {
-    removeStubScriptTag()
+    removeStubScriptTag();
   }
 
-  log.info('SDK initialized', (window as any).intempt)
+  log.info('SDK initialized', (window as any).intempt);
 }
 
 export const SDK = {
   init: initSDK,
-}
+};

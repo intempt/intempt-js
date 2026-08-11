@@ -1,6 +1,9 @@
 // Export all guard-related types and classes
 export { TrackingGuardManager } from './trackingGuard.manager.ts';
-export { shouldBlockTracking, createGuardContext } from './trackingGuard.checker.ts';
+export {
+  shouldBlockTracking,
+  createGuardContext,
+} from './trackingGuard.checker.ts';
 export {
   createDomainBlockGuard,
   createPathBlockGuard,
@@ -11,16 +14,15 @@ export {
   createLocalStorageGuard,
   createTimeBlockGuard,
   createCrawlerBotBlockGuard,
-  createCustomGuard
+  createCustomGuard,
 } from './trackingGuard.conditions.ts';
 export {
   isLegitimateBrowser,
-  isLikelyBot
+  isLikelyBot,
 } from './trackingGuard.browserDetection.ts';
 export type {
   GuardContext,
   GuardCondition,
   GuardConfig,
-  GuardResult
+  GuardResult,
 } from './trackingGuard.types.ts';
-

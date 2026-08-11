@@ -1,10 +1,12 @@
-import { defineConfig } from 'vite'
-import terser from '@rollup/plugin-terser'
-import { reservedWords } from './config/reservedWords.js'
-import { readFileSync } from 'node:fs'
+import { defineConfig } from 'vite';
+import terser from '@rollup/plugin-terser';
+import { reservedWords } from './config/reservedWords.js';
+import { readFileSync } from 'node:fs';
 
 // Single-source the SDK version from package.json — see src/shared/version.ts
-const { version } = JSON.parse(readFileSync('./package.json', 'utf-8')) as { version: string }
+const { version } = JSON.parse(readFileSync('./package.json', 'utf-8')) as {
+  version: string;
+};
 
 export default defineConfig({
   define: {
@@ -12,7 +14,7 @@ export default defineConfig({
   },
 
   esbuild: {
-   pure: ['console.log'],
+    pure: ['console.log'],
     minifyIdentifiers: false,
   },
 
@@ -38,4 +40,4 @@ export default defineConfig({
       ],
     },
   },
-})
+});

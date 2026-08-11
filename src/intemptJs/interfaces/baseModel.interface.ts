@@ -1,12 +1,11 @@
 import {
   AliasModelPayload,
   GroupModelPayload,
-  IdentifyModelPayload, ProductModelPayload,
+  IdentifyModelPayload,
+  ProductModelPayload,
   RecordModelPayload,
   TrackModelPayload,
 } from '../types/autoTracker.types.ts';
-
-
 
 interface BaseModel {
   readonly name: string;
@@ -45,7 +44,7 @@ export interface ModelTrack extends BaseModel {
   readonly payload: TrackModelPayload[];
 }
 
-export interface ConsentTrack  {
+export interface ConsentTrack {
   readonly type: 'consent';
   get _name(): string;
 }

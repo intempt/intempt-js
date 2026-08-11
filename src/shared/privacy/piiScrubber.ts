@@ -108,8 +108,17 @@ export const DEFAULT_REDACTION = '[REDACTED]';
  * an orphan that ingest cannot attach to anything.
  */
 const ALWAYS_EXEMPT_KEYS: readonly string[] = [
-  'profileid', 'sessionid', 'pageid', 'sourceid', 'eventid',
-  'type', 'name', 'action', 'source', 'timestamp', 'validuntil',
+  'profileid',
+  'sessionid',
+  'pageid',
+  'sourceid',
+  'eventid',
+  'type',
+  'name',
+  'action',
+  'source',
+  'timestamp',
+  'validuntil',
 ];
 
 /**
@@ -118,13 +127,36 @@ const ALWAYS_EXEMPT_KEYS: readonly string[] = [
  * rules cover its contents anyway.
  */
 export const DEFAULT_REDACT_KEYS: readonly string[] = [
-  'email', 'emailaddress', 'e_mail', 'mail',
-  'phone', 'phonenumber', 'telephone', 'mobile', 'tel',
-  'password', 'passwd', 'pwd', 'secret', 'token', 'apikey', 'api_key',
-  'authorization', 'auth',
-  'ssn', 'socialsecuritynumber', 'nationalid', 'taxid',
-  'creditcard', 'cardnumber', 'cc_number', 'cvv', 'cvc',
-  'dob', 'dateofbirth', 'birthdate',
+  'email',
+  'emailaddress',
+  'e_mail',
+  'mail',
+  'phone',
+  'phonenumber',
+  'telephone',
+  'mobile',
+  'tel',
+  'password',
+  'passwd',
+  'pwd',
+  'secret',
+  'token',
+  'apikey',
+  'api_key',
+  'authorization',
+  'auth',
+  'ssn',
+  'socialsecuritynumber',
+  'nationalid',
+  'taxid',
+  'creditcard',
+  'cardnumber',
+  'cc_number',
+  'cvv',
+  'cvc',
+  'dob',
+  'dateofbirth',
+  'birthdate',
 ];
 
 /** Luhn (mod-10) checksum. See the module note on why this is load-bearing. */
@@ -193,18 +225,24 @@ const MAX_DEPTH = 12;
  * identity function — the disabled path costs one closure call and no traversal,
  * so the default configuration pays essentially nothing for this module.
  */
-export function createPiiScrubber(options: PiiScrubberOptions = {}): PiiScrubber {
+export function createPiiScrubber(
+  options: PiiScrubberOptions = {},
+): PiiScrubber {
   if (options.enabled !== true) {
     return (<T>(payload: T): T => payload) as PiiScrubber;
   }
 
   const redaction = options.redaction ?? DEFAULT_REDACTION;
   const redactKeys = new Set(
-    [...(options.redactKeys ?? DEFAULT_REDACT_KEYS), ...(options.additionalRedactKeys ?? [])].map(
-      (key) => key.toLowerCase(),
-    ),
+    [
+      ...(options.redactKeys ?? DEFAULT_REDACT_KEYS),
+      ...(options.additionalRedactKeys ?? []),
+    ].map((key) => key.toLowerCase()),
   );
-  const patterns = [...(options.patterns ?? DEFAULT_PII_PATTERNS), ...(options.additionalPatterns ?? [])];
+  const patterns = [
+    ...(options.patterns ?? DEFAULT_PII_PATTERNS),
+    ...(options.additionalPatterns ?? []),
+  ];
   const exemptKeys = new Set([
     ...ALWAYS_EXEMPT_KEYS,
     ...(options.exemptKeys ?? []).map((key) => key.toLowerCase()),
@@ -224,7 +262,8 @@ export function createPiiScrubber(options: PiiScrubberOptions = {}): PiiScrubber
 
       result = result.replace(pattern, (...args: unknown[]) => {
         const match = args[0] as string;
-        const sensitive = groupIndex === 0 ? match : (args[groupIndex] as string | undefined);
+        const sensitive =
+          groupIndex === 0 ? match : (args[groupIndex] as string | undefined);
 
         if (typeof sensitive !== 'string' || sensitive.length === 0) {
           return match;
@@ -258,7 +297,11 @@ export function createPiiScrubber(options: PiiScrubberOptions = {}): PiiScrubber
     // Only plain-ish objects are walked. Dates, RegExps and class instances are
     // returned as-is: rebuilding them field by field would change their type on
     // the wire, which is a payload-shape change dressed up as redaction.
-    if (value !== null && typeof value === 'object' && !(value instanceof Date)) {
+    if (
+      value !== null &&
+      typeof value === 'object' &&
+      !(value instanceof Date)
+    ) {
       const source = value as Record<string, unknown>;
       const output: Record<string, unknown> = {};
 
@@ -297,7 +340,10 @@ export function createPiiScrubber(options: PiiScrubberOptions = {}): PiiScrubber
     try {
       return scrub(payload, 0) as T;
     } catch (error) {
-      options.onFailure?.('PII scrubbing failed; payload sent unmodified', error);
+      options.onFailure?.(
+        'PII scrubbing failed; payload sent unmodified',
+        error,
+      );
       return payload;
     }
   }) as PiiScrubber;

@@ -24,54 +24,64 @@
 ## Severity 1 — customer data is wrong, lost, or duplicated
 
 ### D-1. No event carries a timestamp · `asserted`
+
 All 8 models have the `timestamp` line **commented out**. Events sit in the queue
 across the 60s circuit-breaker window, exponential backoff, and page reloads, so
-ingest attributes each to its *delivery* moment. Intra-session ordering is not
+ingest attributes each to its _delivery_ moment. Intra-session ordering is not
 recoverable from the payload at all.
 **Most consequential finding in the set.** Belongs in the same ingest conversation
 as `$lib_version` (`BACKEND.md` item 4) because it changes the wire format.
 Golden fixtures in `tests/unit/__golden__/payload/` record the current shape.
 
 ### D-2. A second `IntemptJs` instance duplicates every event · `fixed` 2026-08-12 — teardown + static `_activeInstance`; a second instance disposes the first ("last instance wins"). Needs a release-note line: it silently stops a first instance.
+
 `AutoTrackerModule` subscribes to `document` with **no teardown**, so a second
 instance double-sends. A fresh instance per test produced **14 consent POSTs for
 one `consent()` call**. Real-world triggers: two copies of the snippet on a page,
 or a SPA re-running init on route change.
 
 ### D-3. `session.model.ts:14` — `eventId: sessionId` · `asserted`
+
 Every session event in a visit shares one id, and the batcher **dedupes on
 eventId** (§4 defect 1). Session events after the first are therefore droppable
 by design.
 
 ### D-4. `recommendation()` has no opt-out check · `fixed` 2026-08-12 — `recommendation()` is now gated on opt-out.
+
 `intemptJs.ts:302`. The only public method where `optOut()` fails to stop an
 identifier leaving the page. Privacy exposure, not just a data bug.
 
 ### D-5. `consent()` is gated on the opt-out flag · `fixed` 2026-08-12 — recording a consent decision is an audit record, not tracking, so it survives `optOut()`. Only `isConsentValid` can stop it.
+
 `optOut()` then `consent({action:'reject'})` **silently discards the record of the
 refusal** — a GDPR audit-trail hazard. The reverse order breaks re-consent.
-Documented as a required call order in `USAGE.md` (opt-out *after* recording), but
+Documented as a required call order in `USAGE.md` (opt-out _after_ recording), but
 the ordering trap is still there.
 
 ### D-6. One malformed choice discards every choice · `fixed` 2026-08-12 — per-item isolation; one malformed choice no longer discards the rest.
+
 `choices.service.ts:31`, `choicesDataGuard` does `acc.push(...item.changes)`
 unguarded. A single bad entry in the response means the visitor gets **no**
 experiences.
 
 ### D-7. `markPointersFromChanges` takes down the whole batch · `fixed` 2026-08-12 — same isolation in the pointer-marking pass.
+
 Runs at `choices.module.ts:40`, **outside** the per-change `try/catch` at 53–62,
 so any throw means no experiences render at all. Three ways to throw:
+
 - a change with no `xPathSelector` → `document.evaluate(undefined)`
 - an `iwe` id that is not a legal attribute name → `InvalidCharacterError` (`:99`)
 - only the first id per element is marked (`:89–102`), so a container referenced
   by two changes silently skips the second
 
 ### D-8. `style`/`update`/`insert` are async and never awaited · `fixed` 2026-08-12 — async handlers are awaited, so failures reach the try/catch.
+
 `choices.module.ts:52–62`. The synchronous `catch` cannot see their failures, so
 the "Error applying change of type" diagnostic **never fires for 3 of the 4 live
 types**, and failures surface as unhandled rejections in the customer's page.
 
 ### D-9. `pagesTracker` — `popstate` fires the exit twice · `fixed` 2026-08-12 — `popstate` no longer fires the exit twice.
+
 `init()` registers a `popstate` listener (`:45`) that does `end(); safeStart()`,
 and `_patchHistoryForSpa()` registers another (`:67`) that dispatches
 `locationchange`, handled at `:50` with `end(); safeStart()` again. `start()`
@@ -79,11 +89,13 @@ dedupes on identical href; **`end()` does not.** Every back/forward navigation
 emits **two `Leave Page` events and one `View Page`**.
 
 ### D-10. `pagesTracker` — `replaceState` to an unchanged URL emits an orphan exit · `fixed` 2026-08-12 — a no-op `replaceState` no longer emits an orphan exit.
+
 Same asymmetry. Frameworks that `replaceState` to sync query params (Next.js,
 `router.replace`, `navigate(…, {replace:true})`) produce a stream of exit events
 with no matching views — inflating exit counts and corrupting time-on-page.
 
 ### D-11. No `hashchange` listener · `fixed` 2026-08-12 — a `hashchange` listener was added, so hash-routed SPAs are tracked.
+
 Hash-only routers emit **no page views at all**.
 
 ---
@@ -91,6 +103,7 @@ Hash-only routers emit **no page views at all**.
 ## Severity 2 — wrong or misleading behaviour, contained blast radius
 
 ### D-12. The documented install snippet was broken · `fixed`
+
 `README.md` / `USAGE.md` shipped `https://cdn.intempt.com/intempt.min.js` with no
 `/v1/`. That never matches `getCdnLink()`, so the SDK logs `CAN'T FIND SCRIPT`,
 reads an empty config, and the constructor throws inside `main.ts`'s async
@@ -100,6 +113,7 @@ a silently dead integration.
 **Docs are fixed. Still to do: check real host sites for the `/v1`-less URL.**
 
 ### D-13. `_name` returns `''` for record and product · `fixed` 2026-08-12
+
 `record.model.ts`, `product.model.ts`. `intempt:record` and `intempt:product`
 announced an **empty** `eventName` to customer listeners. Both getters now return
 `this.name`, which was always correct. `_name` is read only for the CustomEvent
@@ -107,13 +121,16 @@ detail, never for the outbound payload, so the wire is unchanged — but a liste
 that worked around the empty string now sees a real name. **Release-note it.**
 
 ### D-14. `GroupModel` defaults its name to `'Identify'` · `asserted`
+
 `group.model.ts:12`. An untitled `group()` is indistinguishable from an identify
 at ingest.
 
 ### D-15. Auto-tracked events carry no `type` field · `asserted`
+
 All 7 manual models set one. Ingest cannot classify on `type`.
 
 ### D-16. `consent()` computes a `pageId` and throws it away · `fixed` 2026-08-12
+
 `intemptJs.ts` passed it to a model with no such field. The read is now gone. It
 was not free: `PageTrackerModule.getId()` **mints the page-session cookie** when
 none exists, and `consent()` is deliberately ungated by opt-out (D-5), so an
@@ -122,19 +139,23 @@ that refused tracking. Adding `pageId` to the consent wire contract instead is a
 ingest question — `BACKEND.md`.
 
 ### D-17. `?shopify=false` and `?shopify=0` both **enable** Shopify tracking · `fixed` 2026-08-12 — `shopify`/`magento` use the real boolean parser, so `?shopify=false` disables.
+
 Read via `!!searchParams.get()`, so any present value is true. Pre-existing; the
 new privacy switches deliberately did **not** inherit this pattern.
 
 ### D-18. Commerce methods validate nothing · `asserted`
+
 `intemptJs.ts:229/250/272` — `productAdd`/`productView`/`productOrdered` call no
 guard and send whatever they are given.
 
 ### D-19. `identify` and `group` disagree on empty ids · `asserted`
+
 `identify` rejects a falsy `userId`; `group` accepts `accountId: 0` and `''`.
 
 ### D-20. `consent.validUntil` is typed required, never validated · `open`
 
 ### D-21. `window.__intemptGuardManager` is effectively unusable · `fixed` 2026-08-12 — documented as internal
+
 Assigned during module evaluation, but the guard decision resolves in microtasks
 immediately after, so no later `<script>` can affect it. **Documented as internal**
 (the first of the two options): `main.ts` no longer claims it "allows users to
@@ -144,11 +165,13 @@ is still open and is a product decision** — the bootstrap would have to await
 something, which delays every page's first event.
 
 ### D-22. `choices.service.ts:164` — `async` function as a Promise executor · `fixed` 2026-08-12 — the `async` Promise executor no longer swallows throws.
+
 A throw inside is swallowed instead of rejecting. Surfaced by ESLint.
 
 ---
 
 ### D-27. `apiHost` treats an empty query value as a value · `fixed` 2026-08-12
+
 `src/loaders/sdkLoader.ts:72-89` used `?? undefined` for `apiHost` while the four
 required fields use `?? ''`. So `?api_host=` with an **empty** value arrived as `''`
 rather than `undefined`, and `resolveIngestBaseUrl` received an empty string instead
@@ -160,6 +183,7 @@ work in one sentence. Fixed so an empty value is treated as absent.
 ## Severity 3 — dead code, hygiene, test-only
 
 ### D-23. `ModificationHandler.ts` is dead code · `fixed` — deleted 2026-08-12
+
 459 LOC implementing 7 mutation types, **imported by nothing**. The live engine is
 `WebEditorModificationHandler` (4 types), and the two use incompatible
 element-addressing conventions, so it could not simply be re-enabled.
@@ -178,6 +202,7 @@ and ~517 lines of tests pinning behaviour nothing could invoke — but the reaso
 maintenance and honesty, **not** payload. Do not carry the byte argument forward.
 
 ### D-24. `isValidConfig`'s caller is dead code · `fixed` 2026-08-12
+
 **This corrects an earlier note in `CHECKPOINT.md` §4**, which said `optIn`/
 `optOut` throw on a misconfigured instance and wanted a one-line guard. Wrong on
 its premise: `isValidConfig` (`intemptJs.guard.ts:24`) only ever throws or returns
@@ -191,7 +216,8 @@ shape remains at the five public-method call sites** — removing it there wants
 guards' return type changed to `void`, so a future author cannot reintroduce the
 assumption, and that goes with the `any` sweep that rewrites those signatures.
 
-### D-25. `isValidConfig` checks `=== ''`, so a *missing* field passes · `fixed` 2026-08-12
+### D-25. `isValidConfig` checks `=== ''`, so a _missing_ field passes · `fixed` 2026-08-12
+
 Unreachable from the URL path (`?? ''` supplies empty strings), reachable by direct
 construction — where the instance built itself and failed later as a 401 the
 customer sees only in the network tab. Now each of the four required fields must be
@@ -199,8 +225,9 @@ a non-empty **string**, so missing, `undefined`, `null` and non-string values al
 fail at init with the existing message. Nine tests.
 
 ### D-26. `tests/unit/setup.ts` cookie teardown misses domain-scoped cookies · `fixed` 2026-08-12
+
 A cookie written with a `domain=` attribute — as the consent cookie is, deliberately
-(§3g/D-23) — is a *different* cookie from the host-only one of the same name, and a
+(§3g/D-23) — is a _different_ cookie from the host-only one of the same name, and a
 deletion omitting `domain` does not match it. Teardown now expires each name against
 every registrable suffix of the document host as well as host-only.
 `tests/unit/setupCookieTeardown.test.ts` guards it with a deliberately

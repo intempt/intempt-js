@@ -145,7 +145,9 @@ export class SdkMetrics {
   snapshot(): MetricsSnapshot {
     return {
       queueDepth: this.providers.queueDepth ? this.providers.queueDepth() : 0,
-      droppedEvents: this.providers.droppedEvents ? this.providers.droppedEvents() : 0,
+      droppedEvents: this.providers.droppedEvents
+        ? this.providers.droppedEvents()
+        : 0,
       flushCount: this.flushCount,
       flushFailureCount: this.flushFailureCount,
       lastFlushLatencyMs: this.lastFlushLatencyMs,

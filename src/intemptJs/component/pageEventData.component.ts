@@ -1,6 +1,5 @@
 import { BaseURLParser } from '../_baseUrlParser.ts';
 
-
 export class PageEventDataComponent {
   private readonly previousPage: string;
   private readonly windowWidth: number;
@@ -12,18 +11,14 @@ export class PageEventDataComponent {
   private readonly hash: string;
   private readonly url: string;
 
-  constructor({duration, title, fullUrl, windowWidth, previousPage}:any) {
-    const {
-      query,
-      urlHash,
-      origin,
-      pathname,
-      domain
-    } = new BaseURLParser(fullUrl);
+  constructor({ duration, title, fullUrl, windowWidth, previousPage }: any) {
+    const { query, urlHash, origin, pathname, domain } = new BaseURLParser(
+      fullUrl,
+    );
 
     this.previousPage = previousPage;
     this.windowWidth = windowWidth;
-    this.timeOnPage = !!duration ? Math.round(duration / 1000) : duration
+    this.timeOnPage = !!duration ? Math.round(duration / 1000) : duration;
     this.domain = domain;
     this.title = title;
     this.query = query;
@@ -31,6 +26,4 @@ export class PageEventDataComponent {
     this.path = pathname;
     this.url = fullUrl;
   }
-
-
 }

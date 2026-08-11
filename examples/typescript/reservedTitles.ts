@@ -21,7 +21,8 @@ export type ReservedTitle =
   | 'consent';
 
 /** `never` for a reserved title (in any casing), otherwise `T` itself. */
-export type AllowedTitle<T extends string> = Lowercase<T> extends ReservedTitle ? never : T;
+export type AllowedTitle<T extends string> =
+  Lowercase<T> extends ReservedTitle ? never : T;
 
 export function trackSafe<T extends string>(
   eventTitle: AllowedTitle<T>,

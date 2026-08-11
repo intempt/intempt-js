@@ -1,4 +1,9 @@
-import { GuardConfig, GuardContext, GuardResult, GuardCondition } from './trackingGuard.types.ts';
+import {
+  GuardConfig,
+  GuardContext,
+  GuardResult,
+  GuardCondition,
+} from './trackingGuard.types.ts';
 import { EnvConfig } from '../shared/envConfig.ts';
 
 import { createLogger } from '../shared/logger/logger.ts';
@@ -95,8 +100,9 @@ export class TrackingGuardManager {
     }
 
     // Get enabled guards only
-    const enabledGuards = Array.from(this._guards.values())
-      .filter(guard => guard.enabled !== false);
+    const enabledGuards = Array.from(this._guards.values()).filter(
+      (guard) => guard.enabled !== false,
+    );
 
     if (enabledGuards.length === 0) {
       return { blocked: false };
@@ -110,7 +116,7 @@ export class TrackingGuardManager {
           return {
             blocked: true,
             guardId: guard.id,
-            reason: guard.description || `Blocked by guard: ${guard.id}`
+            reason: guard.description || `Blocked by guard: ${guard.id}`,
           };
         }
       } catch (error) {
@@ -127,4 +133,3 @@ export class TrackingGuardManager {
     return { blocked: false };
   }
 }
-

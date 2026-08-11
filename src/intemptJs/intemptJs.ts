@@ -1,9 +1,12 @@
-import { AutoTrackerModule } from './modules/autoTracker/autoTracker.module.ts'
+import { AutoTrackerModule } from './modules/autoTracker/autoTracker.module.ts';
 import {
   AliasParams,
   ConsentParams,
   GroupParams,
-  IdentifyParams, IntemptConfig, ProductParams, RecommendationParams,
+  IdentifyParams,
+  IntemptConfig,
+  ProductParams,
+  RecommendationParams,
   RecordParams,
   TrackParams,
 } from './types/intemptJs.types.ts';
@@ -18,7 +21,10 @@ import { localStorageCache } from '../shared/storageHandler.ts';
 import { ConsentModel } from './models/consent.model.ts';
 import { ChoicesModule } from './modules/choices/choices.module.ts';
 import { ProductModel } from './models/product.model.ts';
-import { IntemptEventListenerName, IntemptEventName } from './types/constants.types.ts';
+import {
+  IntemptEventListenerName,
+  IntemptEventName,
+} from './types/constants.types.ts';
 import { EnvConfig } from '../shared/envConfig.ts';
 import { SDK_VERSION } from '../shared/version.ts';
 import { resolveIngestBaseUrl } from '../shared/privacy/dataResidency.ts';
@@ -27,7 +33,6 @@ import { configureLogger, createLogger } from '../shared/logger/logger.ts';
 import { MetricsSnapshot } from '../shared/logger/metrics.ts';
 
 const log = createLogger('Intempt');
-
 
 export class IntemptJs extends IntemptJsGuard {
   /** Build-time SDK version. Part of the public contract — see src/shared/version.ts */
@@ -42,14 +47,13 @@ export class IntemptJs extends IntemptJsGuard {
    * constructor because it depends on the config.
    */
   private readonly _api: string;
-  private readonly _autoTracker!:AutoTrackerModule;
-  private readonly _choices!:ChoicesModule;
-  private readonly _config:IntemptConfig;
+  private readonly _autoTracker!: AutoTrackerModule;
+  private readonly _choices!: ChoicesModule;
+  private readonly _config: IntemptConfig;
 
-
-  constructor(config:IntemptConfig) {
+  constructor(config: IntemptConfig) {
     super();
-    this._config = { ...config};
+    this._config = { ...config };
 
     // Logger first, before validation, on purpose: `isValidConfig` throws on a
     // bad config, and a customer debugging that throw wants the SDK's own
@@ -62,9 +66,13 @@ export class IntemptJs extends IntemptJsGuard {
 
     // Routed through the logger rather than a bare console.warn: the logger is
     // now the single gate for SDK diagnostics, and it is configured above.
-    this._api = resolveIngestBaseUrl(config?.apiHost, EnvConfig.getApi(), (message) => {
-      log.warn(message);
-    });
+    this._api = resolveIngestBaseUrl(
+      config?.apiHost,
+      EnvConfig.getApi(),
+      (message) => {
+        log.warn(message);
+      },
+    );
 
     // D-24: this was `if (!this.isValidConfig(config)) return;`, an unreachable
     // branch — `isValidConfig` only ever throws or returns literal `true`, so the
@@ -92,7 +100,6 @@ export class IntemptJs extends IntemptJsGuard {
     void this._choices.init();
   }
 
-
   /**
    * Current state of the delivery pipeline: queue depth, flush latency, events
    * dropped by the queue cap, and circuit-breaker state.
@@ -110,7 +117,7 @@ export class IntemptJs extends IntemptJsGuard {
    * Allow tracking
    * @return void
    * */
-  optIn(){
+  optIn() {
     this._autoTracker.doNotTrack = false;
   }
 
@@ -118,7 +125,7 @@ export class IntemptJs extends IntemptJsGuard {
    * Disable tracking
    * @return void
    * */
-  optOut(){
+  optOut() {
     this._autoTracker.doNotTrack = true;
   }
 
@@ -127,8 +134,8 @@ export class IntemptJs extends IntemptJsGuard {
    * @return { boolean }
    * Default: true
    * */
-  isUserOptIn(): boolean{
-    return !this._autoTracker.doNotTrack
+  isUserOptIn(): boolean {
+    return !this._autoTracker.doNotTrack;
   }
 
   /**
@@ -140,7 +147,7 @@ export class IntemptJs extends IntemptJsGuard {
    * banner needs this third state to decide whether to show itself at all.
    * @return { boolean }
    * */
-  hasExplicitlyOptedIn(): boolean{
+  hasExplicitlyOptedIn(): boolean {
     return hasOptedIn();
   }
 
@@ -158,7 +165,7 @@ export class IntemptJs extends IntemptJsGuard {
    * signal still applies: clearing a *stored* decision cannot clear that.
    * @return void
    * */
-  clearConsent(): void{
+  clearConsent(): void {
     clearOptInOut();
     if (this._autoTracker) {
       this._autoTracker.forgetConsentDecision();
@@ -186,10 +193,9 @@ export class IntemptJs extends IntemptJsGuard {
    * @return void
    *
    * */
-  identify(params:IdentifyParams):void{
+  identify(params: IdentifyParams): void {
     if (!this.isUserOptIn()) return;
     if (!this.isIdentifyValid(params)) return;
-
 
     const { profileId, sessionId, pageId } = this._ids();
 
@@ -197,18 +203,17 @@ export class IntemptJs extends IntemptJsGuard {
       ...params,
       profileId,
       sessionId,
-      pageId
-    })
-
-    dispatchIntemptEvent('intempt:identify', {
-      eventName: eventData._name
+      pageId,
     });
 
+    dispatchIntemptEvent('intempt:identify', {
+      eventName: eventData._name,
+    });
 
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-  group(params:GroupParams){
+  group(params: GroupParams) {
     if (!this.isUserOptIn()) return;
     if (!this.isGroupValid(params)) return;
 
@@ -218,17 +223,15 @@ export class IntemptJs extends IntemptJsGuard {
       ...params,
       profileId,
       sessionId,
-      pageId
-    })
-    dispatchIntemptEvent('intempt:group', {
-      eventName: eventData._name
+      pageId,
     });
-    dispatchIntemptEvent('intempt:event', { event: eventData});
-    
+    dispatchIntemptEvent('intempt:group', {
+      eventName: eventData._name,
+    });
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-
-  track(params:TrackParams){
+  track(params: TrackParams) {
     if (!this.isUserOptIn()) return;
     if (!this.isTrackValid(params)) return;
 
@@ -238,18 +241,16 @@ export class IntemptJs extends IntemptJsGuard {
       ...params,
       profileId,
       sessionId,
-      pageId
-    })
-
-
-    dispatchIntemptEvent('intempt:track',{
-      eventName: eventData._name
+      pageId,
     });
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+
+    dispatchIntemptEvent('intempt:track', {
+      eventName: eventData._name,
+    });
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-
-  record(params:RecordParams){
+  record(params: RecordParams) {
     if (!this.isUserOptIn()) return;
     if (!this.isRecordValid(params)) return;
 
@@ -259,17 +260,16 @@ export class IntemptJs extends IntemptJsGuard {
       ...params,
       profileId,
       sessionId,
-      pageId
-    })
+      pageId,
+    });
 
     dispatchIntemptEvent('intempt:record', {
-      eventName: eventData._name
+      eventName: eventData._name,
     });
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-
-  alias(params:AliasParams){
+  alias(params: AliasParams) {
     if (!this.isUserOptIn()) return;
     if (!this.isAliasValid(params)) return;
 
@@ -278,13 +278,12 @@ export class IntemptJs extends IntemptJsGuard {
     const eventData = new AliasModel({
       ...params,
       profileId,
-    })
-
+    });
 
     dispatchIntemptEvent('intempt:alias', {
-      eventName: eventData._name
+      eventName: eventData._name,
     });
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
   /**
@@ -303,7 +302,7 @@ export class IntemptJs extends IntemptJsGuard {
    * re-consent. The record survives regardless of tracking state; only its
    * own shape validation (`isConsentValid`) can stop it.
    * */
-  consent(params: ConsentParams):void {
+  consent(params: ConsentParams): void {
     if (!this.isConsentValid(params)) return;
 
     const profileId = this._autoTracker.getProfileId();
@@ -320,36 +319,36 @@ export class IntemptJs extends IntemptJsGuard {
     const eventData = new ConsentModel({
       ...params,
       profileId,
-      sourceId
-    })
-
-    dispatchIntemptEvent('intempt:consent', {
-      eventName: eventData._name
+      sourceId,
     });
 
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+    dispatchIntemptEvent('intempt:consent', {
+      eventName: eventData._name,
+    });
+
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-  productAdd(params: ProductParams){
+  productAdd(params: ProductParams) {
     if (!this.isUserOptIn()) return;
 
     const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new ProductModel({
       eventTitle: IntemptEventName.PRODUCT_ADD,
-      products: [ params ],
+      products: [params],
       profileId,
       sessionId,
       pageId,
-    })
+    });
 
     dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
-      eventName: eventData._name
+      eventName: eventData._name,
     });
-    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData });
   }
 
-  productOrdered(params: ProductParams[]){
+  productOrdered(params: ProductParams[]) {
     if (!this.isUserOptIn()) return;
 
     const { profileId, sessionId, pageId } = this._ids();
@@ -360,16 +359,15 @@ export class IntemptJs extends IntemptJsGuard {
       profileId,
       sessionId,
       pageId,
-    })
+    });
 
     dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
-      eventName: eventData._name
+      eventName: eventData._name,
     });
-    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
-
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData });
   }
 
-  productView(productId: string){
+  productView(productId: string) {
     if (!this.isUserOptIn()) return;
     const { profileId, sessionId, pageId } = this._ids();
 
@@ -379,31 +377,30 @@ export class IntemptJs extends IntemptJsGuard {
       profileId,
       sessionId,
       pageId,
-    })
-    dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
-      eventName: eventData._name
     });
-    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
-
+    dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
+      eventName: eventData._name,
+    });
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData });
   }
 
-  logOut(){
+  logOut() {
     if (!this.isUserOptIn()) return;
 
     this._autoTracker.refresh();
 
     dispatchIntemptEvent('intempt:logOut', {
-      eventName: 'Log Out'
+      eventName: 'Log Out',
     });
   }
 
-  async recommendation (params:RecommendationParams){
+  async recommendation(params: RecommendationParams) {
     if (!this.isUserOptIn()) return null;
 
-    const {organization, sourceId, project, writeKey} = this._config;
-    const {id, quantity, fields} = params
+    const { organization, sourceId, project, writeKey } = this._config;
+    const { id, quantity, fields } = params;
     const url = `${this._api}/${organization}/projects/${project}/feeds/${id}/data`;
-    const [ username, password ] = writeKey.split('.');
+    const [username, password] = writeKey.split('.');
     const profileId = this._autoTracker.getProfileId();
     const productId = localStorageCache.get('productId');
     const body = {
@@ -412,27 +409,25 @@ export class IntemptJs extends IntemptJsGuard {
       limit: quantity,
       fields,
       productId: productId?.toString(),
-    }
+    };
 
     const encodedCredentials = btoa(`${username}:${password}`);
-    try{
-      const response =  await fetch(url, {
+    try {
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${encodedCredentials}`,
+          Authorization: `Basic ${encodedCredentials}`,
         },
-        body: JSON.stringify({...body }),
-        keepalive: true
+        body: JSON.stringify({ ...body }),
+        keepalive: true,
       });
       return response?.json();
-    }
-    catch{
+    } catch {
       // Swallowed deliberately: a failed consent POST must not throw into the
       // customer's own click handler. The binding is omitted rather than named
       // and ignored, so the lint ratchet stays at zero warnings for this file.
-      return null
+      return null;
     }
-
   }
 }

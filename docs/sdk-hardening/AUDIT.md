@@ -1,7 +1,7 @@
 # Intempt JS SDK — Enterprise Commercial-Grade Audit
 
 > **Reference document — no source code was changed by this audit.** Every file
-> in §3b is a *proposal* to apply when you decide to proceed; none of it has been
+> in §3b is a _proposal_ to apply when you decide to proceed; none of it has been
 > applied. Phase 0 committed documentation only (`CLAUDE.md`, `docs/sdk-hardening/**`).
 >
 > **Current programme state is not in this file** — it is in
@@ -23,14 +23,14 @@ gap                 45 points
 ```
 
 **The gap is not where the number suggests.** Split the rubric into the two
-things it actually measures — *is the engineering sound* versus *is this
-shippable as a commercial product* — and the 47 points land almost entirely on
+things it actually measures — _is the engineering sound_ versus _is this
+shippable as a commercial product_ — and the 47 points land almost entirely on
 one side:
 
-| Cluster | Dimensions | Weight | Intempt | Mixpanel | Gap |
-|---|---|---|---|---|---|
-| **Architecture & engineering** | 2 Reliability, 10 Code health, 3 Performance | 33% | **~53** | 85 | −32 |
-| **Commercial shippability** | 1 Tests, 5 API/semver, 8 CI/CD, 6 Observability, 7 Privacy, 4 Security, 9 Docs | 67% | **~33** | 85 | −52 |
+| Cluster                        | Dimensions                                                                     | Weight | Intempt | Mixpanel | Gap |
+| ------------------------------ | ------------------------------------------------------------------------------ | ------ | ------- | -------- | --- |
+| **Architecture & engineering** | 2 Reliability, 10 Code health, 3 Performance                                   | 33%    | **~53** | 85       | −32 |
+| **Commercial shippability**    | 1 Tests, 5 API/semver, 8 CI/CD, 6 Observability, 7 Privacy, 4 Security, 9 Docs | 67%    | **~33** | 85       | −52 |
 
 Narrow it further to design-only (excluding footprint, which is a build-config
 problem rather than a design one) and the **architecture reads ~70**: the
@@ -41,19 +41,19 @@ layout under `src/intemptJs/modules/**` is genuinely cleaner than Mixpanel's
 What's absent is everything that turns working code into a product you can sell
 to an enterprise buyer:
 
-| Missing | Evidence | Consequence |
-|---|---|---|
-| Tests | 0 unit tests vs Mixpanel's 22 suites / 8,644 LOC | No safe change velocity; every refactor is a gamble |
-| Publishing | `"private": true`, `"version": "0.0.0"` | **Cannot be consumed as a package at all** |
-| Footprint | `psl` ships 152 KB for one function; no code splitting | Every page pays ~25 KB brotli for a table used once |
-| CI breadth | Node 21 (EOL) only, Chrome only, no lint/size/audit gate | Safari + iOS regressions ship undetected |
-| Credential hygiene | write key as client-side `Authorization: Basic` | Fails an enterprise security review outright |
-| Persisted consent | `optOut()` is an in-memory flag | Compliance defect, not a feature gap |
+| Missing            | Evidence                                                 | Consequence                                         |
+| ------------------ | -------------------------------------------------------- | --------------------------------------------------- |
+| Tests              | 0 unit tests vs Mixpanel's 22 suites / 8,644 LOC         | No safe change velocity; every refactor is a gamble |
+| Publishing         | `"private": true`, `"version": "0.0.0"`                  | **Cannot be consumed as a package at all**          |
+| Footprint          | `psl` ships 152 KB for one function; no code splitting   | Every page pays ~25 KB brotli for a table used once |
+| CI breadth         | Node 21 (EOL) only, Chrome only, no lint/size/audit gate | Safari + iOS regressions ship undetected            |
+| Credential hygiene | write key as client-side `Authorization: Basic`          | Fails an enterprise security review outright        |
+| Persisted consent  | `optOut()` is an in-memory flag                          | Compliance defect, not a feature gap                |
 
 **Why this matters for planning:** none of the above requires re-architecting.
 It is additive — write tests, add an IndexedDB tier beside the localStorage one,
 split the bundle, fix the `package.json`, add gates. That is why 40 → 91 is an
-~8-week programme rather than a rewrite. The three items that *are* code defects
+~8-week programme rather than a rewrite. The three items that _are_ code defects
 (memory leak, duplicate sends, unpersisted opt-out) are each a small,
 well-localised fix.
 
@@ -68,19 +68,19 @@ makes the test tier more expensive to build. Phase 2 should not be deferred.
 The rubric scores **engineering quality, not feature parity** — but the scope
 difference is real and it changes how the footprint numbers should be read.
 
-Mixpanel is *not* track-only. Measured surface:
+Mixpanel is _not_ track-only. Measured surface:
 
-| Capability | Mixpanel | Intempt |
-|---|---|---|
-| Event tracking, batching, queueing | ✅ | ✅ |
-| User profiles / people | ✅ `mixpanel-people.js` (473 LOC) | partial (`userAttribute.component.ts`) |
-| Groups | ✅ `mixpanel-group.js` (174 LOC) | ✅ `group.model.ts` |
-| Autocapture (clicks, rage/dead click, shadow DOM) | ✅ ~1,700 LOC | ✅ `autoTracker/**` |
-| Feature flags + variants | ✅ `flags/index.js` (708 LOC) | ❌ |
-| Audience targeting (json-logic) | ✅ `targeting/**` (separate 26 KB bundle) | partial (server-side) |
-| Session replay (rrweb) | ✅ separate **333 KB** bundle, on demand | ❌ |
-| **DOM-level experience delivery** | ❌ **none** | ✅ `choices/**` — 7 mutation types (`attribute`/`delete`/`edit`/`insert`/`move`/`styles`/`clone`), stylesheet injection, element cloning |
-| **Live visual web editor** | ❌ **none** | ✅ `WebEditorModificationHandler` + `webEditorLoader` + `openerOrigin`/`channel` postMessage handshake |
+| Capability                                        | Mixpanel                                  | Intempt                                                                                                                                  |
+| ------------------------------------------------- | ----------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Event tracking, batching, queueing                | ✅                                        | ✅                                                                                                                                       |
+| User profiles / people                            | ✅ `mixpanel-people.js` (473 LOC)         | partial (`userAttribute.component.ts`)                                                                                                   |
+| Groups                                            | ✅ `mixpanel-group.js` (174 LOC)          | ✅ `group.model.ts`                                                                                                                      |
+| Autocapture (clicks, rage/dead click, shadow DOM) | ✅ ~1,700 LOC                             | ✅ `autoTracker/**`                                                                                                                      |
+| Feature flags + variants                          | ✅ `flags/index.js` (708 LOC)             | ❌                                                                                                                                       |
+| Audience targeting (json-logic)                   | ✅ `targeting/**` (separate 26 KB bundle) | partial (server-side)                                                                                                                    |
+| Session replay (rrweb)                            | ✅ separate **333 KB** bundle, on demand  | ❌                                                                                                                                       |
+| **DOM-level experience delivery**                 | ❌ **none**                               | ✅ `choices/**` — 7 mutation types (`attribute`/`delete`/`edit`/`insert`/`move`/`styles`/`clone`), stylesheet injection, element cloning |
+| **Live visual web editor**                        | ❌ **none**                               | ✅ `WebEditorModificationHandler` + `webEditorLoader` + `openerOrigin`/`channel` postMessage handshake                                   |
 
 So: **you have a real capability Mixpanel does not** — an A/B content-mutation
 engine plus a visual editor, 1,644 LOC across `choices/**` + `webEditorLoader`.
@@ -91,11 +91,11 @@ Mixpanel has capability you don't (flags, replay). Neither is a superset, and th
 
 Measured, not assumed:
 
-| Bundle | Raw | gzip | brotli |
-|---|---|---|---|
-| `intempt.min.js` (everything) | 252 KB | 65 KB | 54 KB |
-| `mixpanel.min.js` (core) | 101 KB | 33 KB | 29 KB |
-| `mixpanel-recorder.min.js` (on-demand) | 333 KB | — | 61 KB |
+| Bundle                                 | Raw    | gzip  | brotli |
+| -------------------------------------- | ------ | ----- | ------ |
+| `intempt.min.js` (everything)          | 252 KB | 65 KB | 54 KB  |
+| `mixpanel.min.js` (core)               | 101 KB | 33 KB | 29 KB  |
+| `mixpanel-recorder.min.js` (on-demand) | 333 KB | —     | 61 KB  |
 
 Two claims to correct:
 
@@ -107,7 +107,7 @@ Two claims to correct:
    (`strict: true` is already on). Keep it.
 
 2. **`psl` is the actual cause — ~152 KB of the 252 KB.** The `psl` module is
-   152 KB raw, carrying **9,353 public-suffix rule literals**, and it *is* in the
+   152 KB raw, carrying **9,353 public-suffix rule literals**, and it _is_ in the
    shipped bundle (my first grep missed it because the identifier is minified;
    the data is unambiguous — `blogspot`, `ac.uk`, `co.jp`, `pvt.k12` all present
    in `dist/intempt.min.js`).
@@ -118,13 +118,15 @@ Two claims to correct:
    // src/shared/storageHandler.ts:3, used only at :48–63
    import psl from 'psl';
 
-   export function handleDomain(domain: string) { /* cookie-domain derivation */ }
+   export function handleDomain(domain: string) {
+     /* cookie-domain derivation */
+   }
    ```
 
 **This reframes the finding in your favour.** Subtract `psl` and your own code is
 roughly **100 KB — i.e. Mixpanel-core-sized — while also containing an
 experience-delivery engine and a visual editor that Mixpanel has no equivalent
-of.** Your code is *denser in capability per KB* than the comparator.
+of.** Your code is _denser in capability per KB_ than the comparator.
 
 The footprint problem is therefore two narrow, tractable things, not a
 pervasive one:
@@ -136,7 +138,7 @@ pervasive one:
 - **No code splitting.** A customer who only calls `track()` still downloads
   `choices/**` + `webEditorLoader` (1,644 LOC) and the web editor's injected
   22 KB string blob. Mixpanel's model is the fix and the proof: core stays
-  101 KB, the 333 KB recorder is a *separate bundle fetched on demand*. You have
+  101 KB, the 333 KB recorder is a _separate bundle fetched on demand_. You have
   more justification for splitting than they do, because your optional surface
   is a larger share of your total.
 
@@ -149,27 +151,27 @@ customer pays for the experiences engine.
 
 Measured facts used for scoring:
 
-| Metric | Intempt | Mixpanel |
-|---|---|---|
-| Source LOC (ts/js, excl. node_modules) | 11,991 | 12,445 |
-| Minified bundle | **252 KB** raw / 54 KB brotli (monolith) | **101 KB** raw / 29 KB brotli (core only) |
-| — of which one dependency | **~152 KB is `psl`** (9,353 rule literals, used in 1 function) | no equivalent data table |
-| — own code, `psl` excluded | **~100 KB** — *incl. experiences + visual editor* | 101 KB |
-| Modular sub-bundles | 0 (single monolith) | 5 (core / recorder / targeting / snippet / wrapper) |
-| TS downlevel-helper overhead | **0** (`target: ES2020`, no `__awaiter`/`__spreadArray` emitted) | n/a (JS) |
-| Capability Mixpanel lacks | DOM experience engine + visual web editor (1,644 LOC) | — |
-| Capability Intempt lacks | — | feature flags (708 LOC), session replay (333 KB on-demand) |
-| Unit tests | 0 | 22 suites, 8,644 LOC (mocha + jsdom + sinon + fake-indexeddb) |
-| Integration tests | 14 Cypress specs, Chrome only | WDIO on 6 real browser/OS targets via SauceLabs |
-| CI test matrix | Node 21 only, 1 browser | Node 22/24/26 × 6 browsers, JUnit/CTRF reporting |
-| Lint | none (prettier config only, not enforced) | eslint gate in `npm test` |
-| Public type surface | internal `.ts` only, no shipped `.d.ts` | `src/index.d.ts` shipped via `"types"` |
-| `package.json` publishable | **`"private": true`, `"version": "0.0.0"`** | versioned, `main`/`module`/`types`, CHANGELOG |
-| Persistence backends | localStorage only | localStorage **+ IndexedDB** (`src/storage/indexed-db.js`) with wrapper abstraction |
-| Transports | `fetch` only | XHR + `sendBeacon` + img fallback, per-call `transport` option |
-| Cross-tab safety | `sharedLock.ts` (88 LOC, port) | `shared-lock.js` (154 LOC, hardened) |
-| `: any` occurrences in src | 61 | n/a (JS) |
-| GDPR/consent module | `consent.model.ts` (31 LOC) | `gdpr-utils.js` (301 LOC) |
+| Metric                                 | Intempt                                                          | Mixpanel                                                                            |
+| -------------------------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| Source LOC (ts/js, excl. node_modules) | 11,991                                                           | 12,445                                                                              |
+| Minified bundle                        | **252 KB** raw / 54 KB brotli (monolith)                         | **101 KB** raw / 29 KB brotli (core only)                                           |
+| — of which one dependency              | **~152 KB is `psl`** (9,353 rule literals, used in 1 function)   | no equivalent data table                                                            |
+| — own code, `psl` excluded             | **~100 KB** — _incl. experiences + visual editor_                | 101 KB                                                                              |
+| Modular sub-bundles                    | 0 (single monolith)                                              | 5 (core / recorder / targeting / snippet / wrapper)                                 |
+| TS downlevel-helper overhead           | **0** (`target: ES2020`, no `__awaiter`/`__spreadArray` emitted) | n/a (JS)                                                                            |
+| Capability Mixpanel lacks              | DOM experience engine + visual web editor (1,644 LOC)            | —                                                                                   |
+| Capability Intempt lacks               | —                                                                | feature flags (708 LOC), session replay (333 KB on-demand)                          |
+| Unit tests                             | 0                                                                | 22 suites, 8,644 LOC (mocha + jsdom + sinon + fake-indexeddb)                       |
+| Integration tests                      | 14 Cypress specs, Chrome only                                    | WDIO on 6 real browser/OS targets via SauceLabs                                     |
+| CI test matrix                         | Node 21 only, 1 browser                                          | Node 22/24/26 × 6 browsers, JUnit/CTRF reporting                                    |
+| Lint                                   | none (prettier config only, not enforced)                        | eslint gate in `npm test`                                                           |
+| Public type surface                    | internal `.ts` only, no shipped `.d.ts`                          | `src/index.d.ts` shipped via `"types"`                                              |
+| `package.json` publishable             | **`"private": true`, `"version": "0.0.0"`**                      | versioned, `main`/`module`/`types`, CHANGELOG                                       |
+| Persistence backends                   | localStorage only                                                | localStorage **+ IndexedDB** (`src/storage/indexed-db.js`) with wrapper abstraction |
+| Transports                             | `fetch` only                                                     | XHR + `sendBeacon` + img fallback, per-call `transport` option                      |
+| Cross-tab safety                       | `sharedLock.ts` (88 LOC, port)                                   | `shared-lock.js` (154 LOC, hardened)                                                |
+| `: any` occurrences in src             | 61                                                               | n/a (JS)                                                                            |
+| GDPR/consent module                    | `consent.model.ts` (31 LOC)                                      | `gdpr-utils.js` (301 LOC)                                                           |
 
 ---
 
@@ -179,18 +181,18 @@ Weighted rubric behind the §0 headline. Each dimension scored 0–100, then
 weighted. The **Cluster** column maps each row to the architecture /
 shippability split in §0.
 
-| # | Dimension | Weight | Intempt | Mixpanel | Notes |
-|---|---|---|---|---|---|
-| 1 | **Correctness & test coverage** | 15% | **22** | 92 | Zero unit tests. 14 Cypress specs cover batcher/queue/lock/guard but no core API (`track`/`identify`/`alias`/`group`), no persistence, no consent. No coverage gate. |
-| 2 | **Reliability / delivery guarantees** | 15% | **58** | 90 | Batcher+queue+lock ported and functional: 429/5xx backoff, 413 halving, dedup by event id, unload flush. But: localStorage-only persistence (5 MB cap, sync main-thread), no IndexedDB tier, `fetch`-only transport, `unloading:true` path *returns without removing items* → guaranteed duplicate sends on next load, relying solely on `sentEventIds` set that is itself capped/serialized to localStorage. |
-| 3 | **Performance & footprint** | 12% | **45** | 85 | See §0b — own code is ~100 KB, competitive with Mixpanel core *while* carrying an experiences engine Mixpanel lacks; TypeScript adds zero. Two real defects: **`psl` ships ~152 KB for one function** (`storageHandler.ts:48`), and zero code-splitting means track-only customers download `choices/**` + web editor. No brotli measurement or size gate in CI. |
-| 4 | **Security posture** | 10% | **45** | 80 | `writeKey` is split and `btoa`-encoded into a **`Authorization: Basic`** header client-side (`autoTracker.module.ts:164-165`, header set at `:179`). Full write credential is readable in devtools and in the bundle's request log; it also *forces* `fetch` and makes `sendBeacon` impossible. No SRI story, no CSP guidance, no dependency audit in CI, Sonar quality gate is commented out. |
-| 5 | **API surface & backward compat** | 10% | **35** | 90 | No semver — `version: 0.0.0`, `private: true`, no CHANGELOG, no deprecation policy. Version is a **hardcoded string literal** (`console.log('version:', 'v6.0')` in `main.ts:48`). No published `.d.ts`. Global-side-effect init in `main.ts` IIFE with no `init()` contract. |
-| 6 | **Observability & diagnostics** | 8% | **25** | 75 | 54 raw `console.*` calls gated only on `EnvConfig.isProduction()`. `errorReporter` hook exists in the batcher but nothing wires it to a sink. No internal metrics (queue depth, flush latency, drop count), no debug mode, no self-telemetry. |
-| 7 | **Privacy & compliance** | 8% | **40** | 88 | `optIn`/`optOut` are in-memory only (`this._autoTracker.doNotTrack`) — **not persisted**, so opt-out resets on reload. No cookie/localStorage opt-out persistence, no DNT/GPC honoring, no `ignore_dnt` config, no PII masking/scrubbing, no data-residency switch. Mixpanel's `gdpr-utils.js` is the reference. |
-| 8 | **Build, release & CI/CD** | 10% | **38** | 88 | Build works (vite, 3 modes). But CI: no lint, no unit tests, no browser matrix, no size budget, no provenance/attestation, no npm publish, no changelog automation, unpinned action SHAs, `npm install` not `npm ci` (non-reproducible). Deploy is a raw S3 copy with a `/v1` path that has already caused an incident (revert `3dc3a54`). |
-| 9 | **Docs & DX** | 6% | **45** | 85 | `README.md` + `USAGE.md` exist; no generated API reference, no migration guide, no examples dir, no framework adapters (React/Next/Vue), no TS quickstart. |
-| 10 | **Code health & maintainability** | 6% | **50** | 78 | Structure is genuinely good (clear module boundaries, DI-ish config threading). Dragged down by 61 `: any`, no lint gate, `console` noise, duplicated `getProfileId/getSessionId/getPageId` triplet in every public method, 452-LOC `autoTracker.module.ts` doing init + transport + lifecycle. |
+| #   | Dimension                             | Weight | Intempt | Mixpanel | Notes                                                                                                                                                                                                                                                                                                                                                                                                         |
+| --- | ------------------------------------- | ------ | ------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | **Correctness & test coverage**       | 15%    | **22**  | 92       | Zero unit tests. 14 Cypress specs cover batcher/queue/lock/guard but no core API (`track`/`identify`/`alias`/`group`), no persistence, no consent. No coverage gate.                                                                                                                                                                                                                                          |
+| 2   | **Reliability / delivery guarantees** | 15%    | **58**  | 90       | Batcher+queue+lock ported and functional: 429/5xx backoff, 413 halving, dedup by event id, unload flush. But: localStorage-only persistence (5 MB cap, sync main-thread), no IndexedDB tier, `fetch`-only transport, `unloading:true` path _returns without removing items_ → guaranteed duplicate sends on next load, relying solely on `sentEventIds` set that is itself capped/serialized to localStorage. |
+| 3   | **Performance & footprint**           | 12%    | **45**  | 85       | See §0b — own code is ~100 KB, competitive with Mixpanel core _while_ carrying an experiences engine Mixpanel lacks; TypeScript adds zero. Two real defects: **`psl` ships ~152 KB for one function** (`storageHandler.ts:48`), and zero code-splitting means track-only customers download `choices/**` + web editor. No brotli measurement or size gate in CI.                                              |
+| 4   | **Security posture**                  | 10%    | **45**  | 80       | `writeKey` is split and `btoa`-encoded into a **`Authorization: Basic`** header client-side (`autoTracker.module.ts:164-165`, header set at `:179`). Full write credential is readable in devtools and in the bundle's request log; it also _forces_ `fetch` and makes `sendBeacon` impossible. No SRI story, no CSP guidance, no dependency audit in CI, Sonar quality gate is commented out.                |
+| 5   | **API surface & backward compat**     | 10%    | **35**  | 90       | No semver — `version: 0.0.0`, `private: true`, no CHANGELOG, no deprecation policy. Version is a **hardcoded string literal** (`console.log('version:', 'v6.0')` in `main.ts:48`). No published `.d.ts`. Global-side-effect init in `main.ts` IIFE with no `init()` contract.                                                                                                                                 |
+| 6   | **Observability & diagnostics**       | 8%     | **25**  | 75       | 54 raw `console.*` calls gated only on `EnvConfig.isProduction()`. `errorReporter` hook exists in the batcher but nothing wires it to a sink. No internal metrics (queue depth, flush latency, drop count), no debug mode, no self-telemetry.                                                                                                                                                                 |
+| 7   | **Privacy & compliance**              | 8%     | **40**  | 88       | `optIn`/`optOut` are in-memory only (`this._autoTracker.doNotTrack`) — **not persisted**, so opt-out resets on reload. No cookie/localStorage opt-out persistence, no DNT/GPC honoring, no `ignore_dnt` config, no PII masking/scrubbing, no data-residency switch. Mixpanel's `gdpr-utils.js` is the reference.                                                                                              |
+| 8   | **Build, release & CI/CD**            | 10%    | **38**  | 88       | Build works (vite, 3 modes). But CI: no lint, no unit tests, no browser matrix, no size budget, no provenance/attestation, no npm publish, no changelog automation, unpinned action SHAs, `npm install` not `npm ci` (non-reproducible). Deploy is a raw S3 copy with a `/v1` path that has already caused an incident (revert `3dc3a54`).                                                                    |
+| 9   | **Docs & DX**                         | 6%     | **45**  | 85       | `README.md` + `USAGE.md` exist; no generated API reference, no migration guide, no examples dir, no framework adapters (React/Next/Vue), no TS quickstart.                                                                                                                                                                                                                                                    |
+| 10  | **Code health & maintainability**     | 6%     | **50**  | 78       | Structure is genuinely good (clear module boundaries, DI-ish config threading). Dragged down by 61 `: any`, no lint gate, `console` noise, duplicated `getProfileId/getSessionId/getPageId` triplet in every public method, 452-LOC `autoTracker.module.ts` doing init + transport + lifecycle.                                                                                                               |
 
 ### Scores
 
@@ -201,7 +203,7 @@ Mixpanel JS SDK  →  85 / 100
 
 Intempt weighted: `.15(22)+.15(58)+.12(45)+.10(45)+.10(35)+.08(25)+.08(40)+.10(38)+.06(45)+.06(50)` = **39.8 → 40**
 
-**Verdict:** the *architecture* is at roughly 70 — the batching/queue/lock core is a competent Mixpanel port and the module layout is cleaner than Mixpanel's. What's missing is everything that makes a library *commercially shippable*: tests, semver/publishing, persistence tiering, transport fallbacks, persisted consent, credential hygiene, and a bundle budget. That's the 40→91 gap, and almost all of it is additive work rather than a rewrite. Note the scope caveat in §0b: the footprint deficit is one dependency plus a missing build split, not a design flaw — and TypeScript costs nothing.
+**Verdict:** the _architecture_ is at roughly 70 — the batching/queue/lock core is a competent Mixpanel port and the module layout is cleaner than Mixpanel's. What's missing is everything that makes a library _commercially shippable_: tests, semver/publishing, persistence tiering, transport fallbacks, persisted consent, credential hygiene, and a bundle budget. That's the 40→91 gap, and almost all of it is additive work rather than a rewrite. Note the scope caveat in §0b: the footprint deficit is one dependency plus a missing build split, not a design flaw — and TypeScript costs nothing.
 
 ### Top 8 blockers (ordered by score-per-effort)
 
@@ -231,18 +233,20 @@ Fixes dimension 5 (35→85) and part of 8.
    Inject at build time via vite `define`:
    ```ts
    // vite.config.ts
-   define: { __SDK_VERSION__: JSON.stringify(pkg.version) }
+   define: {
+     __SDK_VERSION__: JSON.stringify(pkg.version);
+   }
    ```
    Export it as `Intempt.VERSION` and stamp it on every outbound payload as
    `$lib_version` — Mixpanel does this (`Config.LIB_VERSION`) and it is how you
    correlate a server-side anomaly to a client build. Without it you cannot do
    incident forensics.
-3. **Ship `.d.ts`.** Hand-author `src/index.d.ts` as the *public* contract
+3. **Ship `.d.ts`.** Hand-author `src/index.d.ts` as the _public_ contract
    (mirror `mixpanel-js/src/index.d.ts`) rather than emitting from internals —
    this decouples refactors from consumer breakage.
 4. **`CHANGELOG.md`** + adopt semver formally. Automate with
    `changesets` (recommended over semantic-release here because your release is
-   an S3 artifact *and* an npm package, and changesets lets you gate both).
+   an S3 artifact _and_ an npm package, and changesets lets you gate both).
 5. **Explicit init contract.** `main.ts` currently self-initializes in a
    top-level IIFE. Keep that for the CDN/snippet build, but the module build
    must export a pure `createIntempt(config)` with **no** import-time side
@@ -273,15 +277,15 @@ actually catch:
 Port these Mixpanel unit suites directly — they are the highest-value ones and
 your code is already a port of what they test:
 
-| Mixpanel suite | LOC | Port to |
-|---|---|---|
-| `tests/unit/request-batcher.js` | large | `src/shared/queue/requestBatcher.ts` |
-| `tests/unit/request-queue.js` | large | `src/shared/queue/requestQueue.ts` |
-| `tests/unit/shared-lock.js` | — | `src/shared/storage/sharedLock.ts` |
-| `tests/unit/storage.js` | 87 | `src/shared/storageHandler.ts` + `queueStorage.ts` |
-| `tests/unit/indexed-db.js` | — | new IndexedDB tier (Phase 3) |
-| `tests/unit/gdpr-utils.js` | — | new consent module (Phase 4) |
-| `tests/unit/utils.js` | 535 | `src/shared/shared.utils.ts` |
+| Mixpanel suite                  | LOC   | Port to                                            |
+| ------------------------------- | ----- | -------------------------------------------------- |
+| `tests/unit/request-batcher.js` | large | `src/shared/queue/requestBatcher.ts`               |
+| `tests/unit/request-queue.js`   | large | `src/shared/queue/requestQueue.ts`                 |
+| `tests/unit/shared-lock.js`     | —     | `src/shared/storage/sharedLock.ts`                 |
+| `tests/unit/storage.js`         | 87    | `src/shared/storageHandler.ts` + `queueStorage.ts` |
+| `tests/unit/indexed-db.js`      | —     | new IndexedDB tier (Phase 3)                       |
+| `tests/unit/gdpr-utils.js`      | —     | new consent module (Phase 4)                       |
+| `tests/unit/utils.js`           | 535   | `src/shared/shared.utils.ts`                       |
 
 Copy their `fake-indexeddb` + `jsdom-global` + `sinon` fake-timer setup
 (`tests/unit/jsdom-setup.js`) verbatim — deterministic timer control is what
@@ -302,7 +306,7 @@ throughput target:
 Fixes dimensions 2 (58→90) and 3 (30→85).
 
 1. **IndexedDB persistence tier.** Port `src/storage/indexed-db.js` (132 LOC)
-   and `src/storage/wrapper.js`. This is the *single most important* inheritance
+   and `src/storage/wrapper.js`. This is the _single most important_ inheritance
    for your throughput goal: localStorage is synchronous and blocks the main
    thread on every queue write, and caps at ~5 MB shared with the host page. At
    sustained high event rates localStorage is the bottleneck and the failure
@@ -347,14 +351,14 @@ Fixes dimensions 4 (45→85), 6 (25→80), 7 (40→90).
 
 1. **Stop sending the write key as Basic auth.** Two options, pick per your
    ingest capability:
-   - *Preferred:* a public, ingest-only **project token** in the URL path or
+   - _Preferred:_ a public, ingest-only **project token** in the URL path or
      body (Mixpanel's model — the token is public by design and carries no
      write authority beyond event ingest). This unblocks `sendBeacon`, removes
      a credential from the client, and lets you rate-limit per token server-side.
-   - *If the write key must stay:* move it to a query param or body field so no
+   - _If the write key must stay:_ move it to a query param or body field so no
      custom header is required, and scope it server-side to ingest-only.
-   Either way, document that the client credential is public and must not be
-   reusable for reads or admin.
+     Either way, document that the client credential is public and must not be
+     reusable for reads or admin.
 2. **Port `gdpr-utils.js` (301 LOC).** You need persisted opt-out — currently
    `optOut()` sets an in-memory flag that is lost on reload, which is a
    compliance defect. Take Mixpanel's cookie+localStorage opt-out persistence,
@@ -394,14 +398,14 @@ Fixes dimensions 8 (38→92), 9 (45→85), 10 (50→80). Harness delivered in §
 
 ### Projected trajectory
 
-| After | Score |
-|---|---|
-| Baseline | 40 |
-| Phase 1 | 45 |
-| Phase 2 | 57 |
-| Phase 3 | 71 |
-| Phase 4 | 82 |
-| Phase 5 | **91** |
+| After    | Score  |
+| -------- | ------ |
+| Baseline | 40     |
+| Phase 1  | 45     |
+| Phase 2  | 57     |
+| Phase 3  | 71     |
+| Phase 4  | 82     |
+| Phase 5  | **91** |
 
 ---
 
@@ -411,20 +415,20 @@ Mixpanel is **Apache-2.0**, so direct code reuse is permitted with attribution
 (retain the license header and NOTICE the derivation). Confirm with your counsel
 before shipping copied files.
 
-| Take | From | Why | Effort |
-|---|---|---|---|
-| **IndexedDB storage + wrapper** | `src/storage/indexed-db.js`, `src/storage/wrapper.js`, `src/storage/local-storage.js` | Removes the localStorage bottleneck; prerequisite for high throughput | M |
-| **In-flight / orphaned item handling** | `src/request-queue.js` | Fixes your unload duplicate-send bug | M |
-| **Transport selection & `sendBeacon`** | `src/mixpanel-core.js:640–740` | Unload reliability on Safari | S |
-| **GDPR/consent utilities** | `src/gdpr-utils.js` (301 LOC) | Persisted opt-out; you have 31 LOC where you need 300 | M |
-| **Unit test harness & fake-timer setup** | `tests/unit/jsdom-setup.js`, `tests/unit/test-utils/` | Deterministic async tests; hardest part to get right | S |
-| **Batcher/queue/lock test suites** | `tests/unit/{request-batcher,request-queue,shared-lock,storage}.js` | Your code is already a port of the SUT — tests port nearly 1:1 | M |
-| **WDIO browser matrix config** | `tests/browser/wdio.{shared,local,sauce}.mjs`, `test-ports.js`, `testServer.js` | Real Safari/iOS/Android coverage | M |
-| **Multi-entrypoint loader pattern** | `src/loaders/*` + `rollup.config.mjs` | Enables code-splitting → bundle budget | L |
-| **eTLD+1 without a data table** | `src/utils.js` cookie-domain logic | Lets you delete `psl` | S |
-| **JSDoc → API reference** | `doc/build-docs.js` | Free docs from JSDoc you already wrote | S |
-| **Shared-lock hardening** | `src/shared-lock.js` (154 vs your 88 LOC) | Their extra 66 LOC is retry/timeout/clock-skew handling | S |
-| **Promise polyfill pattern** | `src/promise-polyfill.js` | Only if you must support legacy; otherwise skip | — |
+| Take                                     | From                                                                                  | Why                                                                   | Effort |
+| ---------------------------------------- | ------------------------------------------------------------------------------------- | --------------------------------------------------------------------- | ------ |
+| **IndexedDB storage + wrapper**          | `src/storage/indexed-db.js`, `src/storage/wrapper.js`, `src/storage/local-storage.js` | Removes the localStorage bottleneck; prerequisite for high throughput | M      |
+| **In-flight / orphaned item handling**   | `src/request-queue.js`                                                                | Fixes your unload duplicate-send bug                                  | M      |
+| **Transport selection & `sendBeacon`**   | `src/mixpanel-core.js:640–740`                                                        | Unload reliability on Safari                                          | S      |
+| **GDPR/consent utilities**               | `src/gdpr-utils.js` (301 LOC)                                                         | Persisted opt-out; you have 31 LOC where you need 300                 | M      |
+| **Unit test harness & fake-timer setup** | `tests/unit/jsdom-setup.js`, `tests/unit/test-utils/`                                 | Deterministic async tests; hardest part to get right                  | S      |
+| **Batcher/queue/lock test suites**       | `tests/unit/{request-batcher,request-queue,shared-lock,storage}.js`                   | Your code is already a port of the SUT — tests port nearly 1:1        | M      |
+| **WDIO browser matrix config**           | `tests/browser/wdio.{shared,local,sauce}.mjs`, `test-ports.js`, `testServer.js`       | Real Safari/iOS/Android coverage                                      | M      |
+| **Multi-entrypoint loader pattern**      | `src/loaders/*` + `rollup.config.mjs`                                                 | Enables code-splitting → bundle budget                                | L      |
+| **eTLD+1 without a data table**          | `src/utils.js` cookie-domain logic                                                    | Lets you delete `psl`                                                 | S      |
+| **JSDoc → API reference**                | `doc/build-docs.js`                                                                   | Free docs from JSDoc you already wrote                                | S      |
+| **Shared-lock hardening**                | `src/shared-lock.js` (154 vs your 88 LOC)                                             | Their extra 66 LOC is retry/timeout/clock-skew handling               | S      |
+| **Promise polyfill pattern**             | `src/promise-polyfill.js`                                                             | Only if you must support legacy; otherwise skip                       | —      |
 
 **Do not inherit:** their persistence key/cookie format (locks you to their
 schema), the rrweb recorder dependency (341 KB — build or buy separately), and
@@ -443,11 +447,11 @@ their mocha/babel-6 toolchain (you're on vite; vitest is strictly better).
 
 Mixpanel runs **three** workflows, and the split is the design worth copying:
 
-| Mixpanel workflow | Trigger | Matrix | Gate character |
-|---|---|---|---|
-| `unit-tests.yml` | every push + PR | Node 22/24/26 | fast, blocking |
-| `integration-tests.yml` | push to master + `**/*-rc` | 6 real browsers via SauceLabs | slow, release gate |
-| `openfeature-provider-tests.yml` | master | Node 22/24/26 | sub-package isolation |
+| Mixpanel workflow                | Trigger                    | Matrix                        | Gate character        |
+| -------------------------------- | -------------------------- | ----------------------------- | --------------------- |
+| `unit-tests.yml`                 | every push + PR            | Node 22/24/26                 | fast, blocking        |
+| `integration-tests.yml`          | push to master + `**/*-rc` | 6 real browsers via SauceLabs | slow, release gate    |
+| `openfeature-provider-tests.yml` | master                     | Node 22/24/26                 | sub-package isolation |
 
 Their test commands:
 
@@ -462,15 +466,15 @@ integration-test:sauce = wdio run tests/browser/wdio.sauce.mjs
 Three mechanics to inherit specifically:
 
 1. **JSON reporter → `dorny/test-reporter`.** They emit mocha-json to
-   `tests/*/results/*.json` and publish it as a GitHub *check run* with
+   `tests/*/results/*.json` and publish it as a GitHub _check run_ with
    `list-tests: failed`. Failures land in the PR UI instead of buried in log
    scrollback. Note they set `fail-on-error: false` on the reporter — the
-   *test step* fails the job, the reporter never does.
+   _test step_ fails the job, the reporter never does.
 2. **`specFileRetries: 3` in `wdio.shared.mjs`.** Real-device runs are flaky for
    infrastructural reasons; retrying the spec file (not the assertion) absorbs
    tunnel hiccups without hiding real failures.
 3. **Test server spawned by the runner's `onPrepare`.** `testServer.js` serves
-   the *built* artifact over two ports (parent + child, for cross-origin and
+   the _built_ artifact over two ports (parent + child, for cross-origin and
    iframe cases) and is torn down in `onComplete`. No separate CI step, no
    `wait-on` race in the workflow file.
 
@@ -753,7 +757,7 @@ S3 layout:
 /v1/latest.json                {"version": "...", "sri": "..."}
 ```
 
-```yaml
+````yaml
 name: Release
 
 on:
@@ -953,7 +957,7 @@ jobs:
             echo "Pinned: \`https://cdn.intempt.com/v1/${{ steps.v.outputs.version }}/intempt.min.js\`"
             echo "Rollback: re-run this workflow with \`rollback_to\` set to a prior version."
           } >> "$GITHUB_STEP_SUMMARY"
-```
+````
 
 ### File 4 — `vitest.config.ts` (unit tier + coverage gate)
 
@@ -1041,10 +1045,7 @@ export const sharedConfig = {
   specFileRetriesDelay: 5,
 
   // JSON output is what dorny/test-reporter consumes in the workflow.
-  reporters: [
-    'spec',
-    ['junit', { outputDir: './tests/browser/results' }],
-  ],
+  reporters: ['spec', ['junit', { outputDir: './tests/browser/results' }]],
 
   onPrepare: async () => {
     testServer = spawn('node', ['tests/browser/testServer.js'], {
@@ -1073,12 +1074,14 @@ if (process.env.INSPECT) args.push('--remote-debugging-port=9222');
 
 export const config = {
   ...sharedConfig,
-  capabilities: [{
-    browserName: 'chrome',
-    browserVersion: 'latest',
-    'goog:chromeOptions': { args },
-    'goog:loggingPrefs': { browser: 'ALL' },
-  }],
+  capabilities: [
+    {
+      browserName: 'chrome',
+      browserVersion: 'latest',
+      'goog:chromeOptions': { args },
+      'goog:loggingPrefs': { browser: 'ALL' },
+    },
+  ],
   logLevels: { webdriver: 'silent' },
 };
 ```
@@ -1087,8 +1090,14 @@ export const config = {
 // tests/browser/wdio.sauce.mjs — the 6-target release matrix
 import { sharedConfig } from './wdio.shared.mjs';
 
-const VALID = ['chrome-latest', 'edge-latest', 'safari-latest',
-               'firefox-latest', 'ios-safari-sim', 'android-chrome-sim'];
+const VALID = [
+  'chrome-latest',
+  'edge-latest',
+  'safari-latest',
+  'firefox-latest',
+  'ios-safari-sim',
+  'android-chrome-sim',
+];
 
 if (!process.env.SAUCE_USERNAME || !process.env.SAUCE_ACCESS_KEY) {
   console.error('Missing SAUCE_USERNAME / SAUCE_ACCESS_KEY');
@@ -1101,32 +1110,66 @@ if (!VALID.includes(process.env.BROWSER)) {
 
 // NOTE: Mixpanel uses Date.now() for the default tunnel name. In CI always pass
 // SAUCE_TUNNEL_NAME explicitly (the workflow does) so matrix legs never collide.
-const TUNNEL_NAME = process.env.SAUCE_TUNNEL_NAME
-  || `tunnel-${process.env.SAUCE_USERNAME}-local`;
+const TUNNEL_NAME =
+  process.env.SAUCE_TUNNEL_NAME || `tunnel-${process.env.SAUCE_USERNAME}-local`;
 
-const COMMON = { build: `intempt-js ${process.env.GITHUB_REF || 'local'} ${process.env.GITHUB_RUN_NUMBER || ''}` };
+const COMMON = {
+  build: `intempt-js ${process.env.GITHUB_REF || 'local'} ${process.env.GITHUB_RUN_NUMBER || ''}`,
+};
 
 const CAPS = {
-  'chrome-latest':  { browserName: 'chrome',        browserVersion: 'latest', platformName: 'Windows 11', 'sauce:options': COMMON },
-  'edge-latest':    { browserName: 'MicrosoftEdge', browserVersion: 'latest', platformName: 'Windows 11', 'sauce:options': COMMON },
-  'firefox-latest': { browserName: 'firefox',       browserVersion: 'latest', platformName: 'Windows 11', 'sauce:options': COMMON },
-  'safari-latest':  { browserName: 'safari',        browserVersion: 'latest', platformName: 'macOS 15',
-                      'sauce:options': { armRequired: true, ...COMMON } },
+  'chrome-latest': {
+    browserName: 'chrome',
+    browserVersion: 'latest',
+    platformName: 'Windows 11',
+    'sauce:options': COMMON,
+  },
+  'edge-latest': {
+    browserName: 'MicrosoftEdge',
+    browserVersion: 'latest',
+    platformName: 'Windows 11',
+    'sauce:options': COMMON,
+  },
+  'firefox-latest': {
+    browserName: 'firefox',
+    browserVersion: 'latest',
+    platformName: 'Windows 11',
+    'sauce:options': COMMON,
+  },
+  'safari-latest': {
+    browserName: 'safari',
+    browserVersion: 'latest',
+    platformName: 'macOS 15',
+    'sauce:options': { armRequired: true, ...COMMON },
+  },
   'ios-safari-sim': {
-    platformName: 'iOS', browserName: 'Safari',
+    platformName: 'iOS',
+    browserName: 'Safari',
     'appium:deviceName': 'iPhone Simulator',
     'appium:platformVersion': 'current_major',
     'appium:automationName': 'XCUITest',
     'appium:safariWebviewAtomWaitTimeout': 360000,
     'appium:webviewConnectTimeout': 60000,
-    'sauce:options': { ...COMMON, armRequired: true, deviceOrientation: 'PORTRAIT', idleTimeout: 300, maxDuration: 3600, newCommandTimeout: 300 },
+    'sauce:options': {
+      ...COMMON,
+      armRequired: true,
+      deviceOrientation: 'PORTRAIT',
+      idleTimeout: 300,
+      maxDuration: 3600,
+      newCommandTimeout: 300,
+    },
   },
   'android-chrome-sim': {
-    platformName: 'Android', browserName: 'Chrome',
+    platformName: 'Android',
+    browserName: 'Chrome',
     'appium:deviceName': 'Android GoogleAPI Emulator',
     'appium:platformVersion': 'current_major',
     'appium:automationName': 'UiAutomator2',
-    'sauce:options': { ...COMMON, deviceOrientation: 'PORTRAIT', idleTimeout: 180 },
+    'sauce:options': {
+      ...COMMON,
+      deviceOrientation: 'PORTRAIT',
+      idleTimeout: 180,
+    },
   },
 };
 
@@ -1136,15 +1179,20 @@ export const config = {
   baseUrl: `http://${process.env.SAUCE_HOST || 'localhost'}:3001`,
   user: process.env.SAUCE_USERNAME,
   key: process.env.SAUCE_ACCESS_KEY,
-  services: [['sauce', {
-    sauceConnect: true,
-    sauceConnectOpts: {
-      tunnelName: TUNNEL_NAME,
-      region: 'us',
-      proxyLocalhost: 'allow',
-      apiAddress: ':8032',
-    },
-  }]],
+  services: [
+    [
+      'sauce',
+      {
+        sauceConnect: true,
+        sauceConnectOpts: {
+          tunnelName: TUNNEL_NAME,
+          region: 'us',
+          proxyLocalhost: 'allow',
+          apiAddress: ':8032',
+        },
+      },
+    ],
+  ],
   capabilities: [CAPS[process.env.BROWSER]],
 };
 ```
@@ -1152,15 +1200,36 @@ export const config = {
 ### File 6 — `.size-limit.json` (bundle budget)
 
 Targets assume Phase 3's code-splitting and the removal of `psl`. Set the
-initial values to *today's* numbers so the gate can't fail on day one, then
+initial values to _today's_ numbers so the gate can't fail on day one, then
 ratchet down as each Phase 3 item lands.
 
 ```json
 [
-  { "name": "core",       "path": "dist/intempt.core.min.js",      "limit": "20 KB", "gzip": false, "brotli": true },
-  { "name": "autotrack",  "path": "dist/intempt.autotrack.min.js", "limit": "12 KB", "brotli": true },
-  { "name": "choices",    "path": "dist/intempt.choices.min.js",   "limit": "15 KB", "brotli": true },
-  { "name": "snippet",    "path": "dist/intempt.snippet.min.js",   "limit": "1 KB",  "brotli": true }
+  {
+    "name": "core",
+    "path": "dist/intempt.core.min.js",
+    "limit": "20 KB",
+    "gzip": false,
+    "brotli": true
+  },
+  {
+    "name": "autotrack",
+    "path": "dist/intempt.autotrack.min.js",
+    "limit": "12 KB",
+    "brotli": true
+  },
+  {
+    "name": "choices",
+    "path": "dist/intempt.choices.min.js",
+    "limit": "15 KB",
+    "brotli": true
+  },
+  {
+    "name": "snippet",
+    "path": "dist/intempt.snippet.min.js",
+    "limit": "1 KB",
+    "brotli": true
+  }
 ]
 ```
 
@@ -1186,7 +1255,10 @@ ratchet down as each Phase 3 item lands.
     "eqeqeq": ["error", "always"],
     "no-restricted-globals": [
       "error",
-      { "name": "localStorage", "message": "Use the storage wrapper so the IndexedDB tier and quota handling apply." }
+      {
+        "name": "localStorage",
+        "message": "Use the storage wrapper so the IndexedDB tier and quota handling apply."
+      }
     ]
   },
   "ignorePatterns": ["dist/", "node_modules/", "*.config.ts"]
@@ -1235,17 +1307,17 @@ New devDependencies: `vitest`, `@vitest/coverage-v8`, `jsdom`,
 
 ### Rollout order
 
-| Step | Change | Gate mode |
-|---|---|---|
-| 1 | Add eslint + prettier config, `lint` script | warn-only, non-blocking |
-| 2 | Add `ci.yml` with static + smoke + build jobs | blocking |
-| 3 | Add vitest + first ported suite (`requestQueue`) | blocking, no threshold yet |
-| 4 | Port remaining Mixpanel suites; enable coverage thresholds | blocking |
-| 5 | Flip `no-explicit-any` / `no-console` to `error` | blocking |
-| 6 | Add `.size-limit.json` at current sizes | blocking, ratchet later |
-| 7 | Add WDIO local config; then `browser-tests.yml` on `main`/`staging` only | blocking on release branches |
-| 8 | Add changesets; `release.yml`; retire the deploy job in `build.yaml` | blocking |
-| 9 | Un-comment the Sonar quality gate in `analyze.yaml` | blocking |
+| Step | Change                                                                   | Gate mode                    |
+| ---- | ------------------------------------------------------------------------ | ---------------------------- |
+| 1    | Add eslint + prettier config, `lint` script                              | warn-only, non-blocking      |
+| 2    | Add `ci.yml` with static + smoke + build jobs                            | blocking                     |
+| 3    | Add vitest + first ported suite (`requestQueue`)                         | blocking, no threshold yet   |
+| 4    | Port remaining Mixpanel suites; enable coverage thresholds               | blocking                     |
+| 5    | Flip `no-explicit-any` / `no-console` to `error`                         | blocking                     |
+| 6    | Add `.size-limit.json` at current sizes                                  | blocking, ratchet later      |
+| 7    | Add WDIO local config; then `browser-tests.yml` on `main`/`staging` only | blocking on release branches |
+| 8    | Add changesets; `release.yml`; retire the deploy job in `build.yaml`     | blocking                     |
+| 9    | Un-comment the Sonar quality gate in `analyze.yaml`                      | blocking                     |
 
 Steps 1–3 are roughly a day. Step 4 is the bulk of Phase 2. Step 7 needs a Sauce
 Labs account (or BrowserStack — same WDIO config, swap the service).
@@ -1258,7 +1330,7 @@ Framing first, because it changes what work matters: **1M events/sec is an
 ingest-tier number, not a browser-tier number.** No single browser produces more
 than ~10–100 events/sec. 1M/sec sustained means roughly 1–10M concurrent
 sessions. So the SDK's job is not to be fast in isolation — it is to (a) impose
-near-zero cost per client, (b) *never* amplify load during an incident, and
+near-zero cost per client, (b) _never_ amplify load during an incident, and
 (c) make the aggregate shape predictable enough for the ingest tier to plan
 capacity. The SDK is a load-shaping device.
 
@@ -1274,7 +1346,7 @@ capacity. The SDK is a load-shaping device.
   (your `sharedLock` becomes unnecessary), removes all queue I/O from the main
   thread, and gives one flush stream per browser instead of one per tab —
   cutting your server-side connection count by the average tabs-per-user. This
-  is the highest-leverage architectural change available and Mixpanel does *not*
+  is the highest-leverage architectural change available and Mixpanel does _not_
   have it; it is where you can beat the comparator rather than match it.
 
 ### 4b. Aggregate load shaping (the part that actually protects 1M/sec)
@@ -1293,9 +1365,9 @@ capacity. The SDK is a load-shaping device.
 - **Full-jitter exponential backoff with a cap and a circuit breaker.** Replace
   the current doubling with `random(0, min(cap, base·2^n))`. Add a breaker that
   stops flushing entirely after N consecutive failures and probes with a single
-  request. Honor `Retry-After` (you already do) *and* a `X-Intempt-Backoff`
+  request. Honor `Retry-After` (you already do) _and_ a `X-Intempt-Backoff`
   server hint so ingest can shed load cooperatively.
-- **Adaptive batch sizing.** You halve on 413; also *grow* on sustained success
+- **Adaptive batch sizing.** You halve on 413; also _grow_ on sustained success
   toward a max, and shrink on rising latency. Larger batches at high volume cut
   request count superlinearly — the dominant server cost at 1M/sec is requests,
   not bytes.

@@ -107,7 +107,8 @@ export class RequestQueue {
     this.storageKey = storageKey;
     this.itemPrefix = `${storageKey}:i:`;
     this.usePersistence = options.usePersistence !== false;
-    this.queueStorage = options.queueStorage || new QueueStorage(options.sharedLockStorage);
+    this.queueStorage =
+      options.queueStorage || new QueueStorage(options.sharedLockStorage);
     this.reportError = options.errorReporter || (() => {});
     this.maxQueuedEvents = options.maxQueuedEvents || MAX_QUEUED_EVENTS;
 
@@ -115,7 +116,7 @@ export class RequestQueue {
       this.lock = new SharedLock(storageKey, {
         storage: options.sharedLockStorage || window.localStorage,
         timeoutMS: options.sharedLockTimeoutMS || 5000,
-        pid: options.pid
+        pid: options.pid,
       });
     }
   }
@@ -127,7 +128,10 @@ export class RequestQueue {
       await this.queueStorage.init();
       this.initialized = true;
     } catch (error) {
-      this.reportError('Error initializing queue persistence. Disabling persistence', error);
+      this.reportError(
+        'Error initializing queue persistence. Disabling persistence',
+        error,
+      );
       this.initialized = true;
       this.usePersistence = false;
     }
@@ -153,7 +157,7 @@ export class RequestQueue {
     const queueEntry: QueueEntry = {
       id: this.generateId(),
       flushAfter: now + flushInterval * 2,
-      payload: item
+      payload: item,
     };
 
     if (!this.usePersistence) {
@@ -174,8 +178,11 @@ export class RequestQueue {
     try {
       // No lock: the key is unique to this event, so there is nothing to race.
       await this.queueStorage.setItem(key, { ...queueEntry, key });
-      this.memQueue.push({ ...queueEntry, key } as QueueEntry & { key: string });
-      this.approxQueuedCount = this.approxQueuedCount < 0 ? -1 : this.approxQueuedCount + 1;
+      this.memQueue.push({ ...queueEntry, key } as QueueEntry & {
+        key: string;
+      });
+      this.approxQueuedCount =
+        this.approxQueuedCount < 0 ? -1 : this.approxQueuedCount + 1;
       await this.enforceQueueCap();
       return true;
     } catch (error) {
@@ -219,7 +226,7 @@ export class RequestQueue {
     this.droppedEventCount += overflow;
     this.reportError(
       `Queue full (${this.maxQueuedEvents}); dropped ${overflow} oldest event(s), ` +
-        `${this.droppedEventCount} total this page`
+        `${this.droppedEventCount} total this page`,
     );
   }
 
@@ -246,7 +253,10 @@ export class RequestQueue {
    * puts shared state back on the hot path that per-event records just cleared.
    */
   private async enforceQueueCap(): Promise<void> {
-    if (this.approxQueuedCount >= 0 && this.approxQueuedCount < this.maxQueuedEvents) {
+    if (
+      this.approxQueuedCount >= 0 &&
+      this.approxQueuedCount < this.maxQueuedEvents
+    ) {
       return;
     }
 
@@ -261,7 +271,10 @@ export class RequestQueue {
 
       const doomedSet = new Set(doomed);
       this.memQueue = this.memQueue.filter(
-        entry => !doomedSet.has((entry as QueueEntry & { key?: string }).key as string)
+        (entry) =>
+          !doomedSet.has(
+            (entry as QueueEntry & { key?: string }).key as string,
+          ),
       );
       this.approxQueuedCount = this.maxQueuedEvents;
       this.droppedEventCount += doomed.length;
@@ -270,7 +283,7 @@ export class RequestQueue {
       // than a silent quota failure nobody ever hears about.
       this.reportError(
         `Queue full (${this.maxQueuedEvents}); dropped ${doomed.length} oldest event(s), ` +
-          `${this.droppedEventCount} total this page`
+          `${this.droppedEventCount} total this page`,
       );
     } catch (error) {
       // Never let cap enforcement break enqueueing — the event is already
@@ -326,7 +339,9 @@ export class RequestQueue {
     }
   }
 
-  private async readFromStorage(limit?: number): Promise<Array<QueueEntry & { key: string }>> {
+  private async readFromStorage(
+    limit?: number,
+  ): Promise<Array<QueueEntry & { key: string }>> {
     await this.ensureInit();
     if (!this.usePersistence) return [];
 
@@ -334,7 +349,9 @@ export class RequestQueue {
       await this.migrateLegacyQueue();
       const entries = await this.queueStorage.entries(this.itemPrefix, limit);
       return entries
-        .map(({ key, value }) => (value && typeof value === 'object' ? { ...value, key } : null))
+        .map(({ key, value }) =>
+          value && typeof value === 'object' ? { ...value, key } : null,
+        )
         .filter(Boolean) as Array<QueueEntry & { key: string }>;
     } catch (error) {
       this.reportError('Error reading from storage', error);
@@ -348,7 +365,9 @@ export class RequestQueue {
     // If memQueue is empty and persistence is enabled, initialize from storage
     if (this.memQueue.length === 0 && this.usePersistence) {
       const stored = await this.readFromStorage(batchSize);
-      this.memQueue = stored.map(item => (now > item.flushAfter ? { ...item, orphaned: true } : item));
+      this.memQueue = stored.map((item) =>
+        now > item.flushAfter ? { ...item, orphaned: true } : item,
+      );
     }
 
     const batch = this.memQueue.slice(0, batchSize);
@@ -357,7 +376,7 @@ export class RequestQueue {
     // left behind by another tab.
     if (this.usePersistence && batch.length < batchSize) {
       const stored = await this.readFromStorage(batchSize);
-      const idsInBatch = new Set(batch.map(item => item.id));
+      const idsInBatch = new Set(batch.map((item) => item.id));
 
       for (const item of stored) {
         if (batch.length >= batchSize) break;
@@ -376,11 +395,11 @@ export class RequestQueue {
 
     // Resolve storage keys before dropping the items from memory.
     const keysFromMemory = this.memQueue
-      .filter(item => idSet.has(item.id))
-      .map(item => (item as QueueEntry & { key?: string }).key)
+      .filter((item) => idSet.has(item.id))
+      .map((item) => (item as QueueEntry & { key?: string }).key)
       .filter(Boolean) as string[];
 
-    this.memQueue = this.memQueue.filter(item => !idSet.has(item.id));
+    this.memQueue = this.memQueue.filter((item) => !idSet.has(item.id));
 
     if (!this.usePersistence) {
       return true;
@@ -395,7 +414,7 @@ export class RequestQueue {
         // Items queued by another tab (or before this page loaded) are not in
         // memQueue, so their keys have to come from storage.
         const stored = await this.queueStorage.keys(this.itemPrefix);
-        keys = stored.filter(key => {
+        keys = stored.filter((key) => {
           for (const id of idSet) {
             if (key.endsWith(`_${id}`)) return true;
           }
@@ -410,7 +429,10 @@ export class RequestQueue {
       // scans; drifting low is harmless, since the scan at the boundary is what
       // enforces the cap.
       if (this.approxQueuedCount > 0) {
-        this.approxQueuedCount = Math.max(0, this.approxQueuedCount - keys.length);
+        this.approxQueuedCount = Math.max(
+          0,
+          this.approxQueuedCount - keys.length,
+        );
       }
       return true;
     } catch (error) {

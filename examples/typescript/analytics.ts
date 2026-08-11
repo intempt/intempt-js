@@ -10,7 +10,12 @@
  * 3. It is a seam. Swap this module in tests and assert on calls instead of on the DOM.
  */
 
-import type { IdentifyParams, Intempt, RecordParams, TrackParams } from './types/intempt';
+import type {
+  IdentifyParams,
+  Intempt,
+  RecordParams,
+  TrackParams,
+} from './types/intempt';
 
 /** Set from your own build config. Controls only whether swallowed errors are logged. */
 const DEBUG = false;
@@ -61,8 +66,11 @@ export function identify(params: IdentifyParams): void {
   safely('identify', () => s.identify(params));
 }
 
-export function group(accountId: string, eventTitle?: string,
-                      accountAttributes?: Record<string, unknown>): void {
+export function group(
+  accountId: string,
+  eventTitle?: string,
+  accountAttributes?: Record<string, unknown>,
+): void {
   const s = sdk();
   if (!s) return;
   // The SDK requires an eventTitle whenever accountAttributes are present.
@@ -88,7 +96,9 @@ export function recordConsent(
   const s = sdk();
   if (!s) return;
   if (action === 'accept') s.optIn();
-  safely('consent', () => s.consent({ action, validUntil: validUntilMs, ...extra }));
+  safely('consent', () =>
+    s.consent({ action, validUntil: validUntilMs, ...extra }),
+  );
   if (action === 'reject') s.optOut();
 }
 
@@ -122,7 +132,9 @@ export function productAdd(productId: string, quantity?: number): void {
   sdk()?.productAdd({ productId, quantity });
 }
 
-export function productOrdered(items: Array<{ productId: string; quantity?: number }>): void {
+export function productOrdered(
+  items: Array<{ productId: string; quantity?: number }>,
+): void {
   sdk()?.productOrdered(items);
 }
 

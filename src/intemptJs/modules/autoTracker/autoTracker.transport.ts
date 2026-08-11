@@ -83,7 +83,7 @@ export class AutoTrackerTransport {
           batchSize: 50,
           batchFlushIntervalMs: 5000,
           batchRequestTimeoutMs: 90000,
-          batchAutostart: true
+          batchAutostart: true,
         },
         sendRequestFunc: this._sendBatchRequest.bind(this),
         // No errorReporter here on purpose: RequestBatcher.reportError now
@@ -102,7 +102,7 @@ export class AutoTrackerTransport {
           // PersistentStore has no logger of its own, so this is where its
           // storage-tier failures (quota, blocked IndexedDB) become visible.
           errorReporter: (msg, err) => log.error(msg, err),
-        })
+        }),
       });
 
       // Start the batcher
@@ -115,9 +115,11 @@ export class AutoTrackerTransport {
         window.addEventListener('pagehide', this._onPageHide);
         window.addEventListener('visibilitychange', this._onVisibilityChange);
       }
-
     } catch (error) {
-      log.error('failed to initialize batcher, falling back to simple queue', error);
+      log.error(
+        'failed to initialize batcher, falling back to simple queue',
+        error,
+      );
       this._batcherInitialized = false;
     }
   }
@@ -141,20 +143,29 @@ export class AutoTrackerTransport {
     this._batcherInitialized = false;
   }
 
-  private async _sendBatchRequest(data: unknown[], options: BatchSendOptions): Promise<BatchSendResult> {
-    const {organization, sourceId, project, writeKey} = this._config;
+  private async _sendBatchRequest(
+    data: unknown[],
+    options: BatchSendOptions,
+  ): Promise<BatchSendResult> {
+    const { organization, sourceId, project, writeKey } = this._config;
     const url = `${this._api}/${organization}/projects/${project}/sources/${sourceId}/track`;
     const [username, password] = writeKey.split('.');
     const encodedCredentials = btoa(`${username}:${password}`);
     const authHeader = `Basic ${encodedCredentials}`;
     const body = JSON.stringify({ track: data });
     // For unload scenarios, use shorter timeout to avoid blocking navigation
-    const timeout = options.unloading ? 5000 : (options.timeout_ms || 90000);
+    const timeout = options.unloading ? 5000 : options.timeout_ms || 90000;
 
     // Primary leg: fetch with keepalive. This ensures the Authorization header
     // is included and requests are reliable during unload.
     if (typeof fetch === 'function') {
-      const fetchResult = await this._sendViaFetch(url, authHeader, body, options, timeout);
+      const fetchResult = await this._sendViaFetch(
+        url,
+        authHeader,
+        body,
+        options,
+        timeout,
+      );
       if (fetchResult) {
         return fetchResult;
       }
@@ -181,7 +192,7 @@ export class AutoTrackerTransport {
     authHeader: string,
     body: string,
     options: BatchSendOptions,
-    timeout: number
+    timeout: number,
   ): Promise<BatchSendResult | null> {
     try {
       const controller = new AbortController();
@@ -191,11 +202,11 @@ export class AutoTrackerTransport {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': authHeader,
+          Authorization: authHeader,
         },
         body,
         keepalive: options.keepalive !== false,
-        signal: controller.signal
+        signal: controller.signal,
       });
 
       clearTimeout(timeoutId);
@@ -203,7 +214,7 @@ export class AutoTrackerTransport {
       return {
         httpStatusCode: response.status,
         ok: response.ok,
-        retryAfter: response.headers.get('Retry-After') || undefined
+        retryAfter: response.headers.get('Retry-After') || undefined,
       };
     } catch {
       // Transport-layer failure only (network error, CORS failure, abort) —
@@ -213,7 +224,12 @@ export class AutoTrackerTransport {
   }
 
   /** XHR fallback leg, tried only after `fetch` fails to deliver a response. */
-  private _sendViaXHR(url: string, authHeader: string, body: string, timeout: number): Promise<BatchSendResult> {
+  private _sendViaXHR(
+    url: string,
+    authHeader: string,
+    body: string,
+    timeout: number,
+  ): Promise<BatchSendResult> {
     return new Promise((resolve) => {
       let xhr: XMLHttpRequest;
       try {
@@ -221,7 +237,7 @@ export class AutoTrackerTransport {
       } catch (error) {
         resolve({
           error: error instanceof Error ? error.message : 'xhr unavailable',
-          httpStatusCode: 0
+          httpStatusCode: 0,
         });
         return;
       }
@@ -235,7 +251,7 @@ export class AutoTrackerTransport {
         resolve({
           httpStatusCode: xhr.status,
           ok: xhr.status >= 200 && xhr.status < 300,
-          retryAfter: xhr.getResponseHeader('Retry-After') || undefined
+          retryAfter: xhr.getResponseHeader('Retry-After') || undefined,
         });
       };
 
@@ -252,7 +268,7 @@ export class AutoTrackerTransport {
       } catch (error) {
         resolve({
           error: error instanceof Error ? error.message : 'network error',
-          httpStatusCode: 0
+          httpStatusCode: 0,
         });
       }
     });

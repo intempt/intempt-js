@@ -16,33 +16,47 @@ Vue 3, Composition API. Notes for Nuxt are at [the end](#nuxt).
 <head>
   <!-- Queue stub: buffers window.intempt.* calls until the SDK arrives -->
   <script>
-  (function () {
-    if (window.intempt) return;
-    var queue = [], pending = [];
-    var methods = ['identify','group','track','record','alias','consent',
-                   'productAdd','productOrdered','productView','logOut',
-                   'optIn','optOut','isUserOptIn','recommendation'];
-    var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
-    methods.forEach(function (m) {
-      stub[m] = function () {
-        var args = [].slice.call(arguments);
-        if (m === 'recommendation') {
-          return new Promise(function (resolve, reject) {
-            pending.push({ resolve: resolve, reject: reject });
-            queue.push({ method: m, args: args });
-          });
-        }
-        queue.push({ method: m, args: args });
-      };
-    });
-    window.intempt = stub;
-  })();
+    (function () {
+      if (window.intempt) return;
+      var queue = [],
+        pending = [];
+      var methods = [
+        'identify',
+        'group',
+        'track',
+        'record',
+        'alias',
+        'consent',
+        'productAdd',
+        'productOrdered',
+        'productView',
+        'logOut',
+        'optIn',
+        'optOut',
+        'isUserOptIn',
+        'recommendation',
+      ];
+      var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
+      methods.forEach(function (m) {
+        stub[m] = function () {
+          var args = [].slice.call(arguments);
+          if (m === 'recommendation') {
+            return new Promise(function (resolve, reject) {
+              pending.push({ resolve: resolve, reject: reject });
+              queue.push({ method: m, args: args });
+            });
+          }
+          queue.push({ method: m, args: args });
+        };
+      });
+      window.intempt = stub;
+    })();
   </script>
 
   <script
     async
-    src="https://cdn.intempt.com/v1/intempt.min.js?organization=YOUR_ORG&project=YOUR_PROJECT&source=YOUR_SOURCE_ID&key=YOUR_KEY">
-  </script>
+    src="https://cdn.intempt.com/v1/intempt.min.js?organization=YOUR_ORG&project=YOUR_PROJECT&source=YOUR_SOURCE_ID&key=YOUR_KEY"
+  ></script>
 </head>
 ```
 
@@ -124,8 +138,8 @@ Two exceptions:
   });
   ```
 
-- **`router.replace()` to an unchanged URL emits a spurious *Leave Page*** with no matching
-  *View Page*. Vue Router uses `replaceState` for `router.replace` and for query-param updates,
+- **`router.replace()` to an unchanged URL emits a spurious _Leave Page_** with no matching
+  _View Page_. Vue Router uses `replaceState` for `router.replace` and for query-param updates,
   so a filter UI that calls `router.replace({ query })` on each keystroke produces a stream of
   exit events. Debounce it, or keep that state out of the URL.
 
@@ -136,7 +150,9 @@ Two exceptions:
 import { watch, type Ref } from 'vue';
 import * as analytics from '../analytics';
 
-export function useIntemptIdentity(user: Ref<{ id: string; email: string } | null>) {
+export function useIntemptIdentity(
+  user: Ref<{ id: string; email: string } | null>,
+) {
   watch(
     // Watch the id, not the object: a re-fetched user with the same id should not
     // re-identify.
@@ -220,7 +236,7 @@ function onExport() {
 ```
 
 The SDK already captures clicks, changes and submits with the element's tag, id, classes,
-visible text and selector path. Use `track` for the *meaning* of an action, not its occurrence.
+visible text and selector path. Use `track` for the _meaning_ of an action, not its occurrence.
 
 `doNotCapture` works as written in a template — Vue passes unknown attributes through and HTML
 attribute names are case-insensitive. It masks the captured **text** only: the element's tag and

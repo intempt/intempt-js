@@ -12,7 +12,11 @@ import * as analytics from './analytics';
 // Identity
 // ---------------------------------------------------------------------------
 
-export function onSignIn(user: { id: string; email: string; plan: string }): void {
+export function onSignIn(user: {
+  id: string;
+  email: string;
+  plan: string;
+}): void {
   analytics.identify({
     userId: user.id,
     eventTitle: 'Signed In',
@@ -97,7 +101,11 @@ export function onAddToCart(productId: string, quantity: number): void {
 }
 
 export async function loadRecommendations(): Promise<unknown[]> {
-  const items = await analytics.recommend(123, 10, ['productId', 'name', 'price']);
+  const items = await analytics.recommend(123, 10, [
+    'productId',
+    'name',
+    'price',
+  ]);
   return Array.isArray(items) ? items : [];
 }
 
@@ -119,15 +127,12 @@ export function theTraps(): void {
   // 1. Reserved event title, matched case-insensitively:
   //    window.intempt?.track({ eventTitle: 'Click On', data: { a: 1 } });
   //    -> Error: The 'Click On' event title is forbidden
-
   // 2. `data` must be non-empty:
   //    window.intempt?.track({ eventTitle: 'Signup', data: {} });
   //    -> Error: Track parameters are invalid: 'data' can't be empty.
-
   // 3. `userId` must be truthy — '' is rejected:
   //    window.intempt?.identify({ userId: '' });
   //    -> Error: Identify parameters are invalid: 'userId' is required.
-
   // 4. `validUntil` is typed required but never validated, so this succeeds and sends a
   //    consent event with validUntil 0:
   //    window.intempt?.consent({ action: 'accept', validUntil: 0 });

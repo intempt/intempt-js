@@ -119,11 +119,12 @@ export function hasOptedOut(options: ConsentQueryOptions = {}): boolean {
       if (signals.anySignal) {
         if (!dntNoticeEmitted) {
           dntNoticeEmitted = true;
-          const which = signals.gpc && signals.dnt
-            ? 'Global Privacy Control and Do Not Track are'
-            : signals.gpc
-              ? 'Global Privacy Control is'
-              : 'Do Not Track is';
+          const which =
+            signals.gpc && signals.dnt
+              ? 'Global Privacy Control and Do Not Track are'
+              : signals.gpc
+                ? 'Global Privacy Control is'
+                : 'Do Not Track is';
           notice(
             `[Intempt] ${which} enabled in this browser, so no data will be sent. ` +
               'To ignore browser privacy signals — for example because you operate ' +

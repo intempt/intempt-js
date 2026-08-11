@@ -48,7 +48,11 @@ describe('TrackingGuardManager — registration', () => {
   });
 
   it('registers and reports a guard', () => {
-    manager.register({ id: 'test-guard', condition: ALWAYS_BLOCK, enabled: true });
+    manager.register({
+      id: 'test-guard',
+      condition: ALWAYS_BLOCK,
+      enabled: true,
+    });
     expect(manager.hasGuard('test-guard')).toBe(true);
     expect(manager.getGuards()).toHaveLength(1);
   });
@@ -57,7 +61,10 @@ describe('TrackingGuardManager — registration', () => {
     manager.register({ id: 'test-guard', condition: ALWAYS_BLOCK });
     expect(manager.unregister('test-guard')).toBe(true);
     expect(manager.hasGuard('test-guard')).toBe(false);
-    expect(manager.unregister('test-guard'), 'removing it twice reports false').toBe(false);
+    expect(
+      manager.unregister('test-guard'),
+      'removing it twice reports false',
+    ).toBe(false);
   });
 
   it('clears every guard', () => {
@@ -87,9 +94,9 @@ describe('TrackingGuardManager — registration', () => {
     expect(() => manager.register({ id: '', condition: ALWAYS_BLOCK })).toThrow(
       'Guard ID is required',
     );
-    expect(() => manager.register({ id: '   ', condition: ALWAYS_BLOCK })).toThrow(
-      'Guard ID is required',
-    );
+    expect(() =>
+      manager.register({ id: '   ', condition: ALWAYS_BLOCK }),
+    ).toThrow('Guard ID is required');
   });
 
   it('rejects a condition that is not a function', () => {
@@ -115,7 +122,9 @@ describe('TrackingGuardManager — evaluation', () => {
       description: 'internal hostname',
       condition: createDomainBlockGuard(['localhost']),
     });
-    const result = await manager.evaluate(contextFor({ hostname: 'localhost' }));
+    const result = await manager.evaluate(
+      contextFor({ hostname: 'localhost' }),
+    );
     expect(result).toEqual({
       blocked: true,
       guardId: 'domain-block',
@@ -130,13 +139,23 @@ describe('TrackingGuardManager — evaluation', () => {
   });
 
   it('blocks if any registered guard blocks, naming that guard', async () => {
-    manager.register({ id: 'domain-block', condition: createDomainBlockGuard(['localhost']) });
-    manager.register({ id: 'crawler-block', condition: createCrawlerBotBlockGuard() });
+    manager.register({
+      id: 'domain-block',
+      condition: createDomainBlockGuard(['localhost']),
+    });
+    manager.register({
+      id: 'crawler-block',
+      condition: createCrawlerBotBlockGuard(),
+    });
 
-    const byDomain = await manager.evaluate(contextFor({ hostname: 'localhost' }));
+    const byDomain = await manager.evaluate(
+      contextFor({ hostname: 'localhost' }),
+    );
     expect(byDomain.guardId).toBe('domain-block');
 
-    const byCrawler = await manager.evaluate(contextFor({ userAgent: 'Googlebot/2.1' }));
+    const byCrawler = await manager.evaluate(
+      contextFor({ userAgent: 'Googlebot/2.1' }),
+    );
     expect(byCrawler.guardId).toBe('crawler-block');
 
     const allowed = await manager.evaluate(contextFor());
@@ -240,7 +259,10 @@ describe('TrackingGuardManager — evaluation', () => {
     // `await guard.condition(context)` inside the try means a rejected promise
     // lands in the same catch as a synchronous throw. Asserting it because the
     // two are easy to conflate and only one is obvious from reading.
-    manager.register({ id: 'rejects', condition: () => Promise.reject(new Error('nope')) });
+    manager.register({
+      id: 'rejects',
+      condition: () => Promise.reject(new Error('nope')),
+    });
     manager.register({ id: 'fine', condition: NEVER_BLOCK });
     expect((await manager.evaluate(contextFor())).blocked).toBe(false);
   });

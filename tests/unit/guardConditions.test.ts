@@ -39,7 +39,8 @@ function contextFor(overrides: Partial<GuardContext> = {}): GuardContext {
     url: 'https://example.com/',
     hostname: 'example.com',
     pathname: '/',
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
     referrer: '',
     timestamp: 1_700_000_000_000,
     searchParams: new URLSearchParams(),
@@ -48,7 +49,11 @@ function contextFor(overrides: Partial<GuardContext> = {}): GuardContext {
 }
 
 describe('createDomainBlockGuard', () => {
-  const guard = createDomainBlockGuard(['localhost', '127.0.0.1', 'Staging.Example.COM']);
+  const guard = createDomainBlockGuard([
+    'localhost',
+    '127.0.0.1',
+    'Staging.Example.COM',
+  ]);
 
   it('blocks an exact hostname match', () => {
     expect(guard(contextFor({ hostname: 'localhost' }))).toBe(true);
@@ -57,7 +62,9 @@ describe('createDomainBlockGuard', () => {
 
   it('blocks a subdomain of a blocked domain', () => {
     expect(guard(contextFor({ hostname: 'test.localhost' }))).toBe(true);
-    expect(guard(contextFor({ hostname: 'a.b.staging.example.com' }))).toBe(true);
+    expect(guard(contextFor({ hostname: 'a.b.staging.example.com' }))).toBe(
+      true,
+    );
   });
 
   it('allows a hostname that is not in the list', () => {
@@ -79,7 +86,9 @@ describe('createDomainBlockGuard', () => {
   });
 
   it('allows everything when the block list is empty', () => {
-    expect(createDomainBlockGuard([])(contextFor({ hostname: 'localhost' }))).toBe(false);
+    expect(
+      createDomainBlockGuard([])(contextFor({ hostname: 'localhost' })),
+    ).toBe(false);
   });
 });
 
@@ -113,13 +122,21 @@ describe('createPathBlockGuard', () => {
 describe('createUrlPatternBlockGuard', () => {
   it('blocks when the pattern matches the full url', () => {
     const guard = createUrlPatternBlockGuard(/\/checkout\/(step-\d+)/);
-    expect(guard(contextFor({ url: 'https://example.com/checkout/step-2?x=1' }))).toBe(true);
-    expect(guard(contextFor({ url: 'https://example.com/checkout/' }))).toBe(false);
+    expect(
+      guard(contextFor({ url: 'https://example.com/checkout/step-2?x=1' })),
+    ).toBe(true);
+    expect(guard(contextFor({ url: 'https://example.com/checkout/' }))).toBe(
+      false,
+    );
   });
 
   it('tests the url, not the pathname — so query strings are matchable', () => {
     const guard = createUrlPatternBlockGuard(/[?&]preview=/);
-    expect(guard(contextFor({ url: 'https://example.com/p?preview=1', pathname: '/p' }))).toBe(true);
+    expect(
+      guard(
+        contextFor({ url: 'https://example.com/p?preview=1', pathname: '/p' }),
+      ),
+    ).toBe(true);
   });
 
   it('is not defeated by a stateful global regex', () => {
@@ -129,11 +146,10 @@ describe('createUrlPatternBlockGuard', () => {
     const guard = createUrlPatternBlockGuard(/example/g);
     const ctx = contextFor({ url: 'https://example.com/' });
     const results = [guard(ctx), guard(ctx), guard(ctx)];
-    expect(results, 'a /g pattern makes the guard alternate — do not pass one').toEqual([
-      true,
-      false,
-      true,
-    ]);
+    expect(
+      results,
+      'a /g pattern makes the guard alternate — do not pass one',
+    ).toEqual([true, false, true]);
   });
 });
 
@@ -141,8 +157,12 @@ describe('createUserAgentBlockGuard', () => {
   const guard = createUserAgentBlockGuard(['HeadlessChrome', 'PhantomJS']);
 
   it('blocks on a case-insensitive substring match', () => {
-    expect(guard(contextFor({ userAgent: 'Mozilla/5.0 HeadlessChrome/120.0.0.0' }))).toBe(true);
-    expect(guard(contextFor({ userAgent: 'mozilla/5.0 headlesschrome/120' }))).toBe(true);
+    expect(
+      guard(contextFor({ userAgent: 'Mozilla/5.0 HeadlessChrome/120.0.0.0' })),
+    ).toBe(true);
+    expect(
+      guard(contextFor({ userAgent: 'mozilla/5.0 headlesschrome/120' })),
+    ).toBe(true);
   });
 
   it('allows a user agent with no listed substring', () => {
@@ -153,23 +173,39 @@ describe('createUserAgentBlockGuard', () => {
 describe('createQueryParamBlockGuard', () => {
   it('blocks on mere presence when no value is given', () => {
     const guard = createQueryParamBlockGuard('notrack');
-    expect(guard(contextFor({ searchParams: new URLSearchParams('notrack=true') }))).toBe(true);
-    expect(guard(contextFor({ searchParams: new URLSearchParams('notrack=1') }))).toBe(true);
+    expect(
+      guard(contextFor({ searchParams: new URLSearchParams('notrack=true') })),
+    ).toBe(true);
+    expect(
+      guard(contextFor({ searchParams: new URLSearchParams('notrack=1') })),
+    ).toBe(true);
     // Present but empty still counts as present — `?notrack` is an opt-out.
-    expect(guard(contextFor({ searchParams: new URLSearchParams('notrack=') }))).toBe(true);
+    expect(
+      guard(contextFor({ searchParams: new URLSearchParams('notrack=') })),
+    ).toBe(true);
   });
 
   it('allows when the param is absent', () => {
     const guard = createQueryParamBlockGuard('notrack');
     expect(guard(contextFor())).toBe(false);
-    expect(guard(contextFor({ searchParams: new URLSearchParams('utm_source=test') }))).toBe(false);
+    expect(
+      guard(
+        contextFor({ searchParams: new URLSearchParams('utm_source=test') }),
+      ),
+    ).toBe(false);
   });
 
   it('blocks only on an exact value when one is given', () => {
     const guard = createQueryParamBlockGuard('mode', 'qa');
-    expect(guard(contextFor({ searchParams: new URLSearchParams('mode=qa') }))).toBe(true);
-    expect(guard(contextFor({ searchParams: new URLSearchParams('mode=prod') }))).toBe(false);
-    expect(guard(contextFor({ searchParams: new URLSearchParams('mode=QA') }))).toBe(false);
+    expect(
+      guard(contextFor({ searchParams: new URLSearchParams('mode=qa') })),
+    ).toBe(true);
+    expect(
+      guard(contextFor({ searchParams: new URLSearchParams('mode=prod') })),
+    ).toBe(false);
+    expect(
+      guard(contextFor({ searchParams: new URLSearchParams('mode=QA') })),
+    ).toBe(false);
     expect(guard(contextFor())).toBe(false);
   });
 });
@@ -276,7 +312,9 @@ describe('createTimeBlockGuard', () => {
     atHour(2);
     expect(guard(contextFor())).toBe(true);
     atHour(6);
-    expect(guard(contextFor()), 'endHour stays exclusive when wrapping').toBe(false);
+    expect(guard(contextFor()), 'endHour stays exclusive when wrapping').toBe(
+      false,
+    );
     atHour(12);
     expect(guard(contextFor())).toBe(false);
   });
@@ -295,10 +333,13 @@ describe('createTimeBlockGuard', () => {
 
 describe('createCustomGuard', () => {
   it('returns the condition unchanged', () => {
-    const condition = (ctx: GuardContext) => ctx.referrer.includes('internal.example.com');
+    const condition = (ctx: GuardContext) =>
+      ctx.referrer.includes('internal.example.com');
     const guard = createCustomGuard(condition);
     expect(guard).toBe(condition);
-    expect(guard(contextFor({ referrer: 'https://internal.example.com/x' }))).toBe(true);
+    expect(
+      guard(contextFor({ referrer: 'https://internal.example.com/x' })),
+    ).toBe(true);
     expect(guard(contextFor({ referrer: 'https://google.com/' }))).toBe(false);
   });
 });

@@ -162,11 +162,12 @@ export function isConsoleEnabled(level: LogLevel): boolean {
  */
 function writeToConsole(record: DiagnosticRecord): void {
   const line = `[${record.scope}] ${record.message}`;
-  const method = record.level === 'error'
-    ? console.error
-    : record.level === 'warn'
-      ? console.warn
-      : console.log;
+  const method =
+    record.level === 'error'
+      ? console.error
+      : record.level === 'warn'
+        ? console.warn
+        : console.log;
 
   // Only pass the second argument when there is one, so a message with no
   // context does not render a trailing `undefined`.
@@ -177,14 +178,24 @@ function writeToConsole(record: DiagnosticRecord): void {
   }
 }
 
-function emit(level: LogLevel, scope: string, message: string, detail?: unknown): void {
+function emit(
+  level: LogLevel,
+  scope: string,
+  message: string,
+  detail?: unknown,
+): void {
   const toConsole = RANK[level] <= RANK[consoleThreshold()];
   const toSink = !!sink && RANK[level] <= RANK[sinkThreshold()];
   if (!toConsole && !toSink) {
     return;
   }
 
-  const record: DiagnosticRecord = { level, scope, message, timestamp: Date.now() };
+  const record: DiagnosticRecord = {
+    level,
+    scope,
+    message,
+    timestamp: Date.now(),
+  };
   if (detail !== undefined) {
     record.detail = detail;
   }

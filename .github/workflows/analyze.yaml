@@ -5,7 +5,6 @@ on:
     branches:
       - main
 
-
 jobs:
   analyze:
     name: Sonar Analysis
@@ -14,7 +13,7 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
         with:
-          fetch-depth: 0  # Shallow clones should be disabled for a better relevancy of analysis
+          fetch-depth: 0 # Shallow clones should be disabled for a better relevancy of analysis
       - uses: SonarSource/sonarqube-scan-action@689fb39b34b9aa95ebc5f8f119343ddd51542402 # v4.2.2
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}

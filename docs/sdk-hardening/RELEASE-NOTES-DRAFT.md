@@ -33,7 +33,7 @@ your side. The size of the drop depends on your audience:
 - Expect **low single-digit percent** for a typical consumer site, and more for a
   privacy-conscious or developer audience.
 
-The drop is in *collected events*, not in your existing data — historical numbers
+The drop is in _collected events_, not in your existing data — historical numbers
 are unaffected, so a year-on-year comparison spanning the upgrade date will show a
 step, not a re-baselining.
 
@@ -63,7 +63,7 @@ justification.
 
 ## Smaller behaviour changes — check these if they touch your integration
 
-*(Drafted 2026-08-12, not yet approved.)*
+_(Drafted 2026-08-12, not yet approved.)_
 
 **`intempt:record` and `intempt:product` now carry the real event name.** If you
 listen for these browser events, `event.detail.eventName` used to be an empty
@@ -94,7 +94,7 @@ These are additive; none changes what you receive today.
 - **Consent now works across subdomains.** An opt-out recorded on
   `shop.example.com` is honoured on `www.example.com`, via a cookie at your
   registrable domain. Visitors who opted out under a previous version are carried
-  over automatically. The mechanism can only ever *widen* an opt-out, never
+  over automatically. The mechanism can only ever _widen_ an opt-out, never
   narrow one.
 - **Optional PII scrubbing**, off by default. Enable with `&pii_scrubbing=1`.
 - **Optional API host override** for data-residency requirements:

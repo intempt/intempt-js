@@ -1,5 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { configureLogger, resetLogger } from '../../src/shared/logger/logger.ts';
+import {
+  configureLogger,
+  resetLogger,
+} from '../../src/shared/logger/logger.ts';
 
 // The logger is module-level state, so a suite that reconfigures it must put it
 // back — otherwise a later file inherits this file's sink and threshold.
@@ -113,7 +116,10 @@ describe('choices engine', () => {
         const target = document.getElementById('t')!;
         mark(target, 'iwe1');
 
-        await handler.style({ iweId: 'iwe1', attributes: { style: 'color: blue' } } as any);
+        await handler.style({
+          iweId: 'iwe1',
+          attributes: { style: 'color: blue' },
+        } as any);
 
         expect(target.getAttribute('style')).toBe('color: blue');
         expect(target.style.fontWeight).toBe('');
@@ -126,7 +132,10 @@ describe('choices engine', () => {
         // page. Returning quietly is correct and is asserted so it stays.
         setBody('<p>hi</p>');
         await expect(
-          handler.style({ iweId: 'missing', attributes: { style: 'color: blue' } } as any),
+          handler.style({
+            iweId: 'missing',
+            attributes: { style: 'color: blue' },
+          } as any),
         ).resolves.toBeUndefined();
       });
 
@@ -134,7 +143,9 @@ describe('choices engine', () => {
         setBody('<p id="t" style="color: red">hi</p>');
         mark(document.getElementById('t')!, 'iwe1');
         await handler.style({ iweId: 'iwe1', attributes: {} } as any);
-        expect(document.getElementById('t')!.getAttribute('style')).toBe('color: red');
+        expect(document.getElementById('t')!.getAttribute('style')).toBe(
+          'color: red',
+        );
       });
     });
 
@@ -161,7 +172,10 @@ describe('choices engine', () => {
         setBody('<div id="p"><span id="first">a</span></div>');
         mark(document.getElementById('p')!, 'parentId');
 
-        await handler.insert({ html: '<b id="new">new</b>', parent: { _iweId: 'parentId' } } as any);
+        await handler.insert({
+          html: '<b id="new">new</b>',
+          parent: { _iweId: 'parentId' },
+        } as any);
 
         const parent = document.getElementById('p')!;
         expect(parent.children[1]!.id).toBe('new');
@@ -169,7 +183,10 @@ describe('choices engine', () => {
 
       it('does nothing when the parent is missing', async () => {
         setBody('<div>untouched</div>');
-        await handler.insert({ html: '<b>new</b>', parent: { _iweId: 'gone' } } as any);
+        await handler.insert({
+          html: '<b>new</b>',
+          parent: { _iweId: 'gone' },
+        } as any);
         expect(document.body.innerHTML).toBe('<div>untouched</div>');
       });
 
@@ -195,7 +212,10 @@ describe('choices engine', () => {
       it('does NOT wrap single-root HTML', async () => {
         setBody('<div id="p"></div>');
         mark(document.getElementById('p')!, 'parentId');
-        await handler.insert({ html: '<b id="solo">one</b>', parent: { _iweId: 'parentId' } } as any);
+        await handler.insert({
+          html: '<b id="solo">one</b>',
+          parent: { _iweId: 'parentId' },
+        } as any);
         expect(document.getElementById('p')!.children[0]!.id).toBe('solo');
       });
 
@@ -269,7 +289,9 @@ describe('choices engine', () => {
 
     describe('update', () => {
       it('inserts the replacement and removes the original', async () => {
-        setBody('<div id="p"><span id="ref">ref</span><span id="old">old</span></div>');
+        setBody(
+          '<div id="p"><span id="ref">ref</span><span id="old">old</span></div>',
+        );
         mark(document.getElementById('p')!, 'parentId');
         mark(document.getElementById('ref')!, 'refId');
         mark(document.getElementById('old')!, 'oldId');
@@ -306,7 +328,9 @@ describe('choices engine', () => {
 
     describe('remove', () => {
       it('removes the target element', () => {
-        setBody('<div><span id="t">gone</span><span id="keep">keep</span></div>');
+        setBody(
+          '<div><span id="t">gone</span><span id="keep">keep</span></div>',
+        );
         mark(document.getElementById('t')!, 'iwe1');
         handler.remove({ iweId: 'iwe1' } as any);
         expect(document.getElementById('t')).toBeNull();
@@ -354,7 +378,12 @@ describe('choices engine', () => {
 
       const mod = new ChoicesModule(config as any);
       applyChanges(mod, [
-        { type: 'remove', iweId: 'targetId', xPathSelector: '//span', xPathIndex: 0 },
+        {
+          type: 'remove',
+          iweId: 'targetId',
+          xPathSelector: '//span',
+          xPathIndex: 0,
+        },
       ]);
 
       expect(document.getElementById('t')).toBeNull();
@@ -375,7 +404,12 @@ describe('choices engine', () => {
 
       await applyChanges(mod, [
         { type: 'remove', iweId: 'targetId' },
-        { type: 'remove', iweId: 'aId', xPathSelector: '//span[1]', xPathIndex: 0 },
+        {
+          type: 'remove',
+          iweId: 'aId',
+          xPathSelector: '//span[1]',
+          xPathIndex: 0,
+        },
       ]);
 
       // The malformed change's target is untouched (never marked, never
@@ -392,7 +426,12 @@ describe('choices engine', () => {
       const mod = new ChoicesModule(config as any);
       expect(() =>
         applyChanges(mod, [
-          { type: 'teleport', iweId: 'x', xPathSelector: '//div', xPathIndex: 0 },
+          {
+            type: 'teleport',
+            iweId: 'x',
+            xPathSelector: '//div',
+            xPathIndex: 0,
+          },
         ]),
       ).not.toThrow();
       expect(document.getElementById('keep')).not.toBeNull();
@@ -404,7 +443,10 @@ describe('choices engine', () => {
       // Before the fix this held only by accident (see below); now the
       // `catch` genuinely observes the failure.
       const diagnostics: string[] = [];
-      configureLogger({ level: 'debug', sink: (r) => diagnostics.push(r.message) });
+      configureLogger({
+        level: 'debug',
+        sink: (r) => diagnostics.push(r.message),
+      });
 
       setBody('<span id="a">a</span><span id="b">b</span>');
       document.getElementById('a')!.setAttribute('aId', 'true');
@@ -421,15 +463,22 @@ describe('choices engine', () => {
           xPathSelector: '//span[1]',
           xPathIndex: 0,
         },
-        { type: 'remove', iweId: 'bId', xPathSelector: '//span[2]', xPathIndex: 0 },
+        {
+          type: 'remove',
+          iweId: 'bId',
+          xPathSelector: '//span[2]',
+          xPathIndex: 0,
+        },
       ]);
 
       expect(document.getElementById('b')).toBeNull();
       // The one signal that an experience failed now actually fires — before
       // the fix it never did, for any of style/update/insert.
-      expect(diagnostics.some((m) => m.includes('error applying change of type "style"'))).toBe(
-        true,
-      );
+      expect(
+        diagnostics.some((m) =>
+          m.includes('error applying change of type "style"'),
+        ),
+      ).toBe(true);
     });
 
     it('awaits async handlers so the try/catch can see their failures — fixes D-8', async () => {
@@ -464,7 +513,9 @@ describe('choices engine', () => {
         { type: 'style', iweId: 'aId', attributes: { style: 'color:blue' } },
       ]);
 
-      expect(document.getElementById('a')!.getAttribute('style')).toBe('color:blue');
+      expect(document.getElementById('a')!.getAttribute('style')).toBe(
+        'color:blue',
+      );
     });
 
     it('resolves nothing and mutates nothing for an empty change list', async () => {
@@ -559,14 +610,26 @@ describe('choices engine', () => {
       const mod = new ChoicesModule(config as any);
       const resolver = ({ xPathSelector }: any) =>
         document.getElementById(
-          xPathSelector === '//div' ? 'p' : xPathSelector === '//span[1]' ? 'r' : 't',
+          xPathSelector === '//div'
+            ? 'p'
+            : xPathSelector === '//span[1]'
+              ? 'r'
+              : 't',
         );
 
       (mod as any).markPointersFromChanges(
         [
           {
-            parent: { _xPathSelector: '//div', _xPathIndex: 0, _iweId: 'parentId' },
-            refNode: { _xPathSelector: '//span[1]', _xPathIndex: 0, _iweId: 'refId' },
+            parent: {
+              _xPathSelector: '//div',
+              _xPathIndex: 0,
+              _iweId: 'parentId',
+            },
+            refNode: {
+              _xPathSelector: '//span[1]',
+              _xPathIndex: 0,
+              _iweId: 'refId',
+            },
             xPathSelector: '//span[2]',
             xPathIndex: 0,
             iweId: 'targetId',
@@ -575,9 +638,13 @@ describe('choices engine', () => {
         resolver as any,
       );
 
-      expect(document.getElementById('p')!.getAttribute('parentId')).toBe('true');
+      expect(document.getElementById('p')!.getAttribute('parentId')).toBe(
+        'true',
+      );
       expect(document.getElementById('r')!.getAttribute('refId')).toBe('true');
-      expect(document.getElementById('t')!.getAttribute('targetId')).toBe('true');
+      expect(document.getElementById('t')!.getAttribute('targetId')).toBe(
+        'true',
+      );
     });
 
     it('skips (rather than aborts on) an iwe id that is not a legal attribute name — fixes D-7', () => {
@@ -598,15 +665,23 @@ describe('choices engine', () => {
       expect(() =>
         (mod as any).markPointersFromChanges(
           [
-            { xPathSelector: '//span[1]', xPathIndex: 0, iweId: 'not a valid name' },
+            {
+              xPathSelector: '//span[1]',
+              xPathIndex: 0,
+              iweId: 'not a valid name',
+            },
             { xPathSelector: '//span[2]', xPathIndex: 0, iweId: 'validId' },
           ],
           resolver,
         ),
       ).not.toThrow();
 
-      expect(document.getElementById('t')!.hasAttribute('not a valid name')).toBe(false);
-      expect(document.getElementById('u')!.getAttribute('validId')).toBe('true');
+      expect(
+        document.getElementById('t')!.hasAttribute('not a valid name'),
+      ).toBe(false);
+      expect(document.getElementById('u')!.getAttribute('validId')).toBe(
+        'true',
+      );
     });
 
     it('writes an attribute literally named "undefined" when a change has no iwe id', () => {
@@ -622,7 +697,9 @@ describe('choices engine', () => {
         vi.fn(() => document.getElementById('t')),
       );
 
-      expect(document.getElementById('t')!.getAttribute('undefined')).toBe('true');
+      expect(document.getElementById('t')!.getAttribute('undefined')).toBe(
+        'true',
+      );
     });
   });
 
@@ -631,7 +708,10 @@ describe('choices engine', () => {
     describe('choicesDataGuard', () => {
       it('flattens the changes of every choice into one list', () => {
         const out = ChoicesService.choicesDataGuard({
-          choices: [{ changes: [{ id: 1 }, { id: 2 }] }, { changes: [{ id: 3 }] }],
+          choices: [
+            { changes: [{ id: 1 }, { id: 2 }] },
+            { changes: [{ id: 3 }] },
+          ],
         } as any);
         expect(out).toEqual([{ id: 1 }, { id: 2 }, { id: 3 }]);
       });
@@ -667,7 +747,9 @@ describe('choices engine', () => {
         // every choice in the response, silently. Fixed with per-item
         // isolation: the malformed item is dropped, the valid ones still apply.
         expect(
-          ChoicesService.choicesDataGuard({ choices: [{ changes: [{ id: 1 }] }, {}] } as any),
+          ChoicesService.choicesDataGuard({
+            choices: [{ changes: [{ id: 1 }] }, {}],
+          } as any),
         ).toEqual([{ id: 1 }]);
       });
     });
@@ -687,7 +769,9 @@ describe('choices engine', () => {
         // and the outer `catch` that is supposed to recover with an empty
         // change list never runs. Fixed with an async IIFE, which returns a
         // real promise that rejects like any other.
-        vi.spyOn(ChoicesService, 'fetchChoices').mockResolvedValue({ choices: [] });
+        vi.spyOn(ChoicesService, 'fetchChoices').mockResolvedValue({
+          choices: [],
+        });
         const setSpy = vi
           .spyOn(localStorageCache, 'set')
           .mockImplementationOnce(() => {
@@ -703,7 +787,10 @@ describe('choices engine', () => {
             auth_config: { auth: { username: 'u', password: 'p' } } as any,
           }),
           new Promise((_resolve, reject) =>
-            setTimeout(() => reject(new Error('timed out — the throw was swallowed')), 200),
+            setTimeout(
+              () => reject(new Error('timed out — the throw was swallowed')),
+              200,
+            ),
           ),
         ]);
 
@@ -753,16 +840,21 @@ describe('choices engine', () => {
         // variant to phones, which is a visible layout break rather than a
         // reporting inaccuracy.
         const ua = (value: string) =>
-          Object.defineProperty(navigator, 'userAgent', { value, configurable: true });
+          Object.defineProperty(navigator, 'userAgent', {
+            value,
+            configurable: true,
+          });
 
         ua('Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X)');
         expect(
-          ChoicesService.getIntemptSessionVariables({ writeKey: 'u.p' } as any).device,
+          ChoicesService.getIntemptSessionVariables({ writeKey: 'u.p' } as any)
+            .device,
         ).toBe('MOBILE');
 
         ua('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7)');
         expect(
-          ChoicesService.getIntemptSessionVariables({ writeKey: 'u.p' } as any).device,
+          ChoicesService.getIntemptSessionVariables({ writeKey: 'u.p' } as any)
+            .device,
         ).toBe('DESKTOP');
       });
 
@@ -774,7 +866,10 @@ describe('choices engine', () => {
         // credential is reported" — and stops the assertion tracking the
         // transport, which is what made it break in the first place.
         const diagnostics: string[] = [];
-        configureLogger({ level: 'debug', sink: (r) => diagnostics.push(r.message) });
+        configureLogger({
+          level: 'debug',
+          sink: (r) => diagnostics.push(r.message),
+        });
         const out = await ChoicesService.getChoices({
           organization: 'acme',
           project: 'proj',
@@ -839,7 +934,10 @@ describe('choices engine', () => {
         setBody('<div id="p"></div>');
         expect(() =>
           ChoicesService.insertResultHandler({
-            content: { isInside: false, nextSibling: { xPathSelector: '//nope', xPathIndex: 0 } },
+            content: {
+              isInside: false,
+              nextSibling: { xPathSelector: '//nope', xPathIndex: 0 },
+            },
             parentElement: document.getElementById('p')!,
             elementToInsert: document.createElement('b'),
           }),
@@ -851,17 +949,22 @@ describe('choices engine', () => {
       it('resolves an element by xpath and index', () => {
         setBody('<ul><li id="a">a</li><li id="b">b</li></ul>');
         expect(
-          ChoicesService.elementGetterByXpath({ xPathSelector: '//li', xPathIndex: 1 })?.id,
+          ChoicesService.elementGetterByXpath({
+            xPathSelector: '//li',
+            xPathIndex: 1,
+          })?.id,
         ).toBe('b');
       });
 
       it('returns null for an index past the end rather than throwing', () => {
         setBody('<ul><li id="a">a</li></ul>');
         expect(
-          ChoicesService.elementGetterByXpath({ xPathSelector: '//li', xPathIndex: 5 }),
+          ChoicesService.elementGetterByXpath({
+            xPathSelector: '//li',
+            xPathIndex: 5,
+          }),
         ).toBeNull();
       });
     });
   });
-
 });

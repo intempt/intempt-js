@@ -16,14 +16,16 @@ describe('RequestBatcher', () => {
         batchSize: 5,
         batchFlushIntervalMs: 1000,
         batchRequestTimeoutMs: 5000,
-        batchAutostart: false // Don't auto-start for tests
+        batchAutostart: false, // Don't auto-start for tests
       },
       sendRequestFunc: async (data, options) => {
         sendRequestCalls.push({ data, options });
-        return sendRequestResponses.shift() || { httpStatusCode: 200, ok: true };
+        return (
+          sendRequestResponses.shift() || { httpStatusCode: 200, ok: true }
+        );
       },
       usePersistence: true,
-      queueStorage: new QueueStorage()
+      queueStorage: new QueueStorage(),
     });
   });
 
@@ -78,7 +80,7 @@ describe('RequestBatcher', () => {
     it('should retry on 500 error', async () => {
       sendRequestResponses = [
         { httpStatusCode: 500, ok: false },
-        { httpStatusCode: 200, ok: true }
+        { httpStatusCode: 200, ok: true },
       ];
 
       await batcher.enqueue({ event: 'test' });
@@ -95,7 +97,7 @@ describe('RequestBatcher', () => {
     it('should retry on 429 rate limit', async () => {
       sendRequestResponses = [
         { httpStatusCode: 429, ok: false, retryAfter: '1' },
-        { httpStatusCode: 200, ok: true }
+        { httpStatusCode: 200, ok: true },
       ];
 
       await batcher.enqueue({ event: 'test' });
@@ -110,7 +112,7 @@ describe('RequestBatcher', () => {
     it('should retry on timeout', async () => {
       sendRequestResponses = [
         { error: 'timeout', httpStatusCode: 0 },
-        { httpStatusCode: 200, ok: true }
+        { httpStatusCode: 200, ok: true },
       ];
 
       await batcher.enqueue({ event: 'test' });
@@ -127,7 +129,7 @@ describe('RequestBatcher', () => {
     it('should reduce batch size on 413 error', async () => {
       sendRequestResponses = [
         { httpStatusCode: 413, ok: false },
-        { httpStatusCode: 200, ok: true }
+        { httpStatusCode: 200, ok: true },
       ];
 
       // Enqueue 5 items
@@ -173,4 +175,3 @@ describe('RequestBatcher', () => {
     });
   });
 });
-

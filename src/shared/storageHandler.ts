@@ -2,41 +2,46 @@ import { SetCookieParams } from '../intemptJs/types/autoTracker.types.ts';
 import { LocalStorageCache } from '../intemptJs/types/intemptJs.types.ts';
 import { extractEtldPlusOne, isHostOnlyTarget } from './publicSuffix.ts';
 
-const appLocalCookie:{[key:string]:any}= {};
+const appLocalCookie: { [key: string]: any } = {};
 
-export const localIntemptSessionCookie = () => !!appLocalCookie['intempt_session']
-  ? JSON.parse(appLocalCookie['intempt_session'])
-  : null;
+export const localIntemptSessionCookie = () =>
+  !!appLocalCookie['intempt_session']
+    ? JSON.parse(appLocalCookie['intempt_session'])
+    : null;
 
-export const localIntemptPageSessionCookie = () => !!appLocalCookie['page_session']
-  ? JSON.parse(appLocalCookie['page_session'])
-  : null;
+export const localIntemptPageSessionCookie = () =>
+  !!appLocalCookie['page_session']
+    ? JSON.parse(appLocalCookie['page_session'])
+    : null;
 
-
-export function setCookie({name, value, path, expiration, domain = ''}:SetCookieParams){
-   const cookieValue = `${name}=${value};`;
-   const cookiePath = `path=${path};`;
-   const expires = expiration ?
-    `expires=${new Date(Date.now() + expiration).toUTCString()};`
-    :'';
-   // handleDomain() returns '' for hosts that cannot be domain-scoped (IPs,
-   // localhost). Resolve first, then decide — emitting `domain=;` would be a
-   // malformed attribute rather than an absent one.
-   const resolvedDomain = domain ? handleDomain(domain) : '';
-   const cookieDomain = resolvedDomain ? `domain=${resolvedDomain};` : '';
-   document.cookie = `${cookieValue}${expires}${cookiePath}${cookieDomain}`;
+export function setCookie({
+  name,
+  value,
+  path,
+  expiration,
+  domain = '',
+}: SetCookieParams) {
+  const cookieValue = `${name}=${value};`;
+  const cookiePath = `path=${path};`;
+  const expires = expiration
+    ? `expires=${new Date(Date.now() + expiration).toUTCString()};`
+    : '';
+  // handleDomain() returns '' for hosts that cannot be domain-scoped (IPs,
+  // localhost). Resolve first, then decide — emitting `domain=;` would be a
+  // malformed attribute rather than an absent one.
+  const resolvedDomain = domain ? handleDomain(domain) : '';
+  const cookieDomain = resolvedDomain ? `domain=${resolvedDomain};` : '';
+  document.cookie = `${cookieValue}${expires}${cookiePath}${cookieDomain}`;
 
   appLocalCookie[name] = value;
 
-  return {[name]: value}
+  return { [name]: value };
 }
 
-export function getCookie(name:string){
+export function getCookie(name: string) {
   const cookies = document.cookie.split(';');
 
-  const cookie = cookies.find(
-    cookie => cookie.trim().startsWith(name + '=')
-  );
+  const cookie = cookies.find((cookie) => cookie.trim().startsWith(name + '='));
 
   if (!cookie) return null;
 
@@ -62,7 +67,7 @@ export function getCookie(name:string){
  * host-only cookie. The old code returned `.localhost` / `.127.0.0.1` here,
  * which browsers reject outright — dropping the cookie instead of scoping it.
  */
-export function handleDomain(domain:string){
+export function handleDomain(domain: string) {
   if (isHostOnlyTarget(domain)) {
     return '';
   }
@@ -77,9 +82,9 @@ export const localStorageCache: LocalStorageCache = {
     const data = localStorage.getItem(key);
     return data ? JSON.parse(data) : null;
   },
-  set: (key: string, value: any): void => localStorage.setItem(key, JSON.stringify(value)),
+  set: (key: string, value: any): void =>
+    localStorage.setItem(key, JSON.stringify(value)),
   remove: (key: string): void => localStorage.removeItem(key),
   getAllKeys: (): string[] => Object.keys(localStorage),
-  clear: (): void => localStorage.clear()
+  clear: (): void => localStorage.clear(),
 };
-

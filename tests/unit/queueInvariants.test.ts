@@ -33,7 +33,10 @@ function rng(seed: number) {
 }
 
 function event(eventId: string) {
-  return { name: 'Fuzz Event', payload: [{ eventId, sessionId: 's', profileId: 'p' }] };
+  return {
+    name: 'Fuzz Event',
+    payload: [{ eventId, sessionId: 's', profileId: 'p' }],
+  };
 }
 
 interface RunResult {
@@ -119,24 +122,30 @@ describe('queue invariants under random interleavings', () => {
 
   const seeds = [1, 7, 42, 1337, 90210, 2026];
 
-  it.each(seeds)('never delivers the same event twice (seed %i)', async seed => {
-    const { delivered } = await runScenario(seed, 60);
+  it.each(seeds)(
+    'never delivers the same event twice (seed %i)',
+    async (seed) => {
+      const { delivered } = await runScenario(seed, 60);
 
-    const seen = new Set<string>();
-    const duplicates = delivered.filter(id => {
-      if (seen.has(id)) return true;
-      seen.add(id);
-      return false;
-    });
+      const seen = new Set<string>();
+      const duplicates = delivered.filter((id) => {
+        if (seen.has(id)) return true;
+        seen.add(id);
+        return false;
+      });
 
-    expect(duplicates, `seed ${seed} delivered duplicates: ${duplicates.join(', ')}`).toEqual([]);
-  });
+      expect(
+        duplicates,
+        `seed ${seed} delivered duplicates: ${duplicates.join(', ')}`,
+      ).toEqual([]);
+    },
+  );
 
-  it.each(seeds)('never loses an accepted event (seed %i)', async seed => {
+  it.each(seeds)('never loses an accepted event (seed %i)', async (seed) => {
     const { enqueued, delivered, stillQueued } = await runScenario(seed, 60);
 
     const accounted = new Set([...delivered, ...stillQueued]);
-    const lost = enqueued.filter(id => !accounted.has(id));
+    const lost = enqueued.filter((id) => !accounted.has(id));
 
     expect(lost, `seed ${seed} lost: ${lost.join(', ')}`).toEqual([]);
   });

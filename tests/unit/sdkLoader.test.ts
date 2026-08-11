@@ -44,9 +44,12 @@ class MockChoices {
   constructor(public config: Record<string, unknown>) {}
 }
 
-vi.mock('../../src/intemptJs/modules/autoTracker/autoTracker.module.ts', () => ({
-  AutoTrackerModule: MockAutoTracker,
-}));
+vi.mock(
+  '../../src/intemptJs/modules/autoTracker/autoTracker.module.ts',
+  () => ({
+    AutoTrackerModule: MockAutoTracker,
+  }),
+);
 
 vi.mock('../../src/intemptJs/modules/choices/choices.module.ts', () => ({
   ChoicesModule: MockChoices,
@@ -57,7 +60,8 @@ const { SDK } = await import('../../src/loaders/sdkLoader.ts');
 const CDN_LINK = 'https://cdn.example.com/v1/intempt.min.js';
 
 /** Every field required for `isValidConfig` to accept the config. */
-const REQUIRED_QUERY = 'project=proj-1&key=write-key-1&source=src-1&organization=acme';
+const REQUIRED_QUERY =
+  'project=proj-1&key=write-key-1&source=src-1&organization=acme';
 
 function appendScript(query: string): HTMLScriptElement {
   const script = document.createElement('script');
@@ -103,12 +107,14 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
     });
 
     it(
-      "logs the exact \"CAN'T FIND SCRIPT\" string, and no longer throws, when no script tag matches " +
+      'logs the exact "CAN\'T FIND SCRIPT" string, and no longer throws, when no script tag matches ' +
         'the CDN link (D-12) — the support signature stays, the uncaught throw into the host page does not',
       () => {
         // No script appended at all: `document.scripts` has nothing whose src
         // includes the CDN link.
-        const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+        const errorSpy = vi
+          .spyOn(console, 'error')
+          .mockImplementation(() => {});
 
         // getIntemptConfig() falls back to an all-empty config (organization:
         // '', sourceId: '', project: '', writeKey: ''), and IntemptJsGuard's
@@ -216,7 +222,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       expect(autoTrackerInstances[0]!.config.shopify).toBe(true);
     });
 
-    it('a bare/empty shopify value opts in, matching readBooleanParam\'s HTML-boolean-attribute semantics', () => {
+    it("a bare/empty shopify value opts in, matching readBooleanParam's HTML-boolean-attribute semantics", () => {
       // Under the old !!get() idiom this was the one case that read as
       // disabled (get() returns '' and !!'' is false). readBooleanParam
       // treats a present-but-empty value as an explicit opt-in instead,
@@ -276,9 +282,13 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
     });
 
     it('api_host is read as a plain string, not through the boolean parser', () => {
-      appendScript(`${REQUIRED_QUERY}&api_host=${encodeURIComponent('https://eu.ingest.example.com')}`);
+      appendScript(
+        `${REQUIRED_QUERY}&api_host=${encodeURIComponent('https://eu.ingest.example.com')}`,
+      );
       SDK.init();
-      expect(autoTrackerInstances[0]!.config.apiHost).toBe('https://eu.ingest.example.com');
+      expect(autoTrackerInstances[0]!.config.apiHost).toBe(
+        'https://eu.ingest.example.com',
+      );
     });
 
     it('api_host is undefined (so resolveIngestBaseUrl falls through to the build-time default) when absent', () => {
@@ -305,7 +315,10 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       // calls in `_queue` before the real bundle has loaded. `SDK.init()` must
       // drain that queue onto the freshly constructed real instance.
       const queue: { method: string; args: any[] }[] = [
-        { method: 'track', args: [{ eventTitle: 'queued-event', data: { x: 1 } }] },
+        {
+          method: 'track',
+          args: [{ eventTitle: 'queued-event', data: { x: 1 } }],
+        },
       ];
       (window as any).intempt = { _queue: queue };
 

@@ -33,12 +33,14 @@ export class PersistentStore {
   private initPromise: Promise<void> | null = null;
   private readonly reportError: (msg: string, err?: any) => void;
 
-  constructor(options: {
-    dbName?: string;
-    storeName?: string;
-    fallbackStorage?: Storage;
-    errorReporter?: (msg: string, err?: any) => void;
-  } = {}) {
+  constructor(
+    options: {
+      dbName?: string;
+      storeName?: string;
+      fallbackStorage?: Storage;
+      errorReporter?: (msg: string, err?: any) => void;
+    } = {},
+  ) {
     this.idb = new IndexedDbStore(options.dbName, options.storeName);
     this.fallback = new QueueStorage(options.fallbackStorage);
     this.reportError = options.errorReporter || (() => {});
@@ -61,14 +63,17 @@ export class PersistentStore {
         return;
       } catch (error) {
         // Expected on some platforms — report, do not throw.
-        this.reportError('IndexedDB unavailable, falling back to localStorage', error);
+        this.reportError(
+          'IndexedDB unavailable, falling back to localStorage',
+          error,
+        );
       }
 
       await this.fallback.init();
       this.driver = 'localstorage';
     })();
 
-    this.initPromise = this.initPromise.catch(error => {
+    this.initPromise = this.initPromise.catch((error) => {
       // Neither tier came up. Clear the cached promise so a later call can retry,
       // and let the caller degrade to memory.
       this.initPromise = null;
@@ -85,7 +90,10 @@ export class PersistentStore {
       try {
         return await this.idb.getItem(key);
       } catch (error) {
-        this.reportError('IndexedDB read failed, falling back to localStorage', error);
+        this.reportError(
+          'IndexedDB read failed, falling back to localStorage',
+          error,
+        );
         this.driver = 'localstorage';
       }
     }
@@ -102,7 +110,10 @@ export class PersistentStore {
         // A write that fails after a successful open usually means the origin's
         // storage was evicted or the DB was deleted underneath us. Falling back
         // keeps the events rather than dropping this batch.
-        this.reportError('IndexedDB write failed, falling back to localStorage', error);
+        this.reportError(
+          'IndexedDB write failed, falling back to localStorage',
+          error,
+        );
         this.driver = 'localstorage';
       }
     }
@@ -110,13 +121,19 @@ export class PersistentStore {
   }
 
   /** See `IndexedDbStore.entries` / `QueueStorage.entries`. */
-  async entries(prefix: string, limit?: number): Promise<Array<{ key: string; value: any }>> {
+  async entries(
+    prefix: string,
+    limit?: number,
+  ): Promise<Array<{ key: string; value: any }>> {
     await this.init();
     if (this.driver === 'indexeddb') {
       try {
         return await this.idb.entries(prefix, limit);
       } catch (error) {
-        this.reportError('IndexedDB scan failed, falling back to localStorage', error);
+        this.reportError(
+          'IndexedDB scan failed, falling back to localStorage',
+          error,
+        );
         this.driver = 'localstorage';
       }
     }
@@ -129,7 +146,10 @@ export class PersistentStore {
       try {
         return await this.idb.keys(prefix);
       } catch (error) {
-        this.reportError('IndexedDB key scan failed, falling back to localStorage', error);
+        this.reportError(
+          'IndexedDB key scan failed, falling back to localStorage',
+          error,
+        );
         this.driver = 'localstorage';
       }
     }
@@ -149,7 +169,10 @@ export class PersistentStore {
         await this.idb.removeItems(keys);
         return;
       } catch (error) {
-        this.reportError('IndexedDB batch delete failed, falling back to localStorage', error);
+        this.reportError(
+          'IndexedDB batch delete failed, falling back to localStorage',
+          error,
+        );
         this.driver = 'localstorage';
       }
     }
@@ -163,7 +186,10 @@ export class PersistentStore {
         await this.idb.removeItem(key);
         return;
       } catch (error) {
-        this.reportError('IndexedDB delete failed, falling back to localStorage', error);
+        this.reportError(
+          'IndexedDB delete failed, falling back to localStorage',
+          error,
+        );
         this.driver = 'localstorage';
       }
     }

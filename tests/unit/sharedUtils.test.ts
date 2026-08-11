@@ -1,8 +1,13 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { debounce, dispatchIntemptEvent, generateId } from '../../src/shared/shared.utils.ts';
+import {
+  debounce,
+  dispatchIntemptEvent,
+  generateId,
+} from '../../src/shared/shared.utils.ts';
 import { SDK_VERSION } from '../../src/shared/version.ts';
 
-const ID_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+const ID_ALPHABET =
+  'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
 
 describe('generateId', () => {
   it('produces unique ids across a tight loop', () => {
@@ -63,14 +68,18 @@ describe('generateId', () => {
       // the no-coverage siblings at 34 which belong to the OTHER loop below
       // but share the same shape). A wrong modulus or a skipped iteration
       // changes the produced string, not just whether code ran.
-      vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(((array: Uint8Array) => {
+      vi.spyOn(globalThis.crypto, 'getRandomValues').mockImplementation(((
+        array: Uint8Array,
+      ) => {
         for (let i = 0; i < array.length; i++) array[i] = i;
         return array;
       }) as typeof globalThis.crypto.getRandomValues);
 
       const id = generateId();
       const suffix = id.split('_')[2];
-      const expected = Array.from({ length: 10 }, (_, i) => ID_ALPHABET.charAt(i % ID_ALPHABET.length)).join('');
+      const expected = Array.from({ length: 10 }, (_, i) =>
+        ID_ALPHABET.charAt(i % ID_ALPHABET.length),
+      ).join('');
       expect(suffix).toBe(expected);
     });
   });
@@ -79,7 +88,10 @@ describe('generateId', () => {
     let originalCrypto: Crypto;
 
     afterEach(() => {
-      Object.defineProperty(globalThis, 'crypto', { value: originalCrypto, configurable: true });
+      Object.defineProperty(globalThis, 'crypto', {
+        value: originalCrypto,
+        configurable: true,
+      });
       vi.restoreAllMocks();
     });
 
@@ -91,7 +103,10 @@ describe('generateId', () => {
       // throw, or would skip the fallback and leave `id` short — this is the
       // one case that forces the fallback branch to actually run.
       originalCrypto = globalThis.crypto;
-      Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true });
+      Object.defineProperty(globalThis, 'crypto', {
+        value: undefined,
+        configurable: true,
+      });
 
       let id: string;
       expect(() => {
@@ -123,7 +138,10 @@ describe('generateId', () => {
       // (34:19, 34:31, 34:36) — a wrong index or a skipped/looping-backward
       // counter changes the produced string's length or content.
       originalCrypto = globalThis.crypto;
-      Object.defineProperty(globalThis, 'crypto', { value: undefined, configurable: true });
+      Object.defineProperty(globalThis, 'crypto', {
+        value: undefined,
+        configurable: true,
+      });
 
       let call = 0;
       vi.spyOn(Math, 'random').mockImplementation(() => {
@@ -134,7 +152,9 @@ describe('generateId', () => {
       });
 
       const suffix = generateId().split('_')[2];
-      const expected = Array.from({ length: 10 }, (_, i) => ID_ALPHABET.charAt(i % ID_ALPHABET.length)).join('');
+      const expected = Array.from({ length: 10 }, (_, i) =>
+        ID_ALPHABET.charAt(i % ID_ALPHABET.length),
+      ).join('');
       expect(suffix).toBe(expected);
       expect(call).toBe(10);
     });

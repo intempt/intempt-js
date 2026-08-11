@@ -164,7 +164,10 @@ describe('storage that throws — the hard rule', () => {
    * A throw here turns our compliance fix into the customer's broken banner, so
    * every one of these asserts *no propagation* rather than a return value.
    */
-  const originalCookie = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+  const originalCookie = Object.getOwnPropertyDescriptor(
+    Document.prototype,
+    'cookie',
+  );
 
   function breakCookies() {
     Object.defineProperty(document, 'cookie', {
@@ -186,12 +189,16 @@ describe('storage that throws — the hard rule', () => {
   });
 
   it('survives localStorage throwing, and keeps consent in the cookie', () => {
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('QuotaExceededError');
-    });
-    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
-      throw new Error('SecurityError');
-    });
+    const setItem = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+    const getItem = vi
+      .spyOn(Storage.prototype, 'getItem')
+      .mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
 
     expect(() => persistDoNotTrack(true)).not.toThrow();
     // Strictly better than before: with localStorage dead the old implementation
@@ -211,12 +218,16 @@ describe('storage that throws — the hard rule', () => {
 
   it('never throws when both stores are dead, and reports tracking allowed', () => {
     breakCookies();
-    const setItem = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('QuotaExceededError');
-    });
-    const getItem = vi.spyOn(Storage.prototype, 'getItem').mockImplementation(() => {
-      throw new Error('SecurityError');
-    });
+    const setItem = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+    const getItem = vi
+      .spyOn(Storage.prototype, 'getItem')
+      .mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
 
     expect(() => persistDoNotTrack(true)).not.toThrow();
     expect(() => loadDoNotTrack()).not.toThrow();
@@ -232,9 +243,11 @@ describe('storage that throws — the hard rule', () => {
 
   it('never throws from clearStoredConsent when both stores are dead', () => {
     breakCookies();
-    const removeItem = vi.spyOn(Storage.prototype, 'removeItem').mockImplementation(() => {
-      throw new Error('SecurityError');
-    });
+    const removeItem = vi
+      .spyOn(Storage.prototype, 'removeItem')
+      .mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
 
     expect(() => clearStoredConsent()).not.toThrow();
 
@@ -250,7 +263,10 @@ describe('storage that throws — the hard rule', () => {
 describe('the attributes written at the eTLD+1', () => {
   function captureCookieWrites(): { written: string[]; restore: () => void } {
     const written: string[] = [];
-    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      'cookie',
+    );
 
     Object.defineProperty(document, 'cookie', {
       configurable: true,
@@ -298,9 +314,11 @@ describe('the attributes written at the eTLD+1', () => {
       capture.restore();
     }
 
-    const expiries = capture.written.filter(w => w.includes('expires=Thu, 01 Jan 1970'));
+    const expiries = capture.written.filter((w) =>
+      w.includes('expires=Thu, 01 Jan 1970'),
+    );
     expect(expiries.length).toBeGreaterThanOrEqual(2);
-    expect(expiries.some(w => !w.includes('domain='))).toBe(true);
-    expect(expiries.some(w => w.includes('domain=.example.com'))).toBe(true);
+    expect(expiries.some((w) => !w.includes('domain='))).toBe(true);
+    expect(expiries.some((w) => w.includes('domain=.example.com'))).toBe(true);
   });
 });

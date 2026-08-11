@@ -23,7 +23,12 @@ describe('IntemptJsGuard', () => {
   });
 
   describe('isValidConfig', () => {
-    const valid = { organization: 'org', sourceId: 'src', project: 'proj', writeKey: 'u.p' };
+    const valid = {
+      organization: 'org',
+      sourceId: 'src',
+      project: 'proj',
+      writeKey: 'u.p',
+    };
 
     it('accepts a fully populated config', () => {
       expect(guard.isValidConfig(valid)).toBe(true);
@@ -49,7 +54,9 @@ describe('IntemptJsGuard', () => {
         expect(() => guard.isValidConfig(partial)).toThrow(
           'IntemptJs initialization failed: All config fields must be provided.',
         );
-        expect(() => guard.isValidConfig({ ...valid, [field]: undefined })).toThrow(
+        expect(() =>
+          guard.isValidConfig({ ...valid, [field]: undefined }),
+        ).toThrow(
           'IntemptJs initialization failed: All config fields must be provided.',
         );
       },
@@ -80,9 +87,9 @@ describe('IntemptJsGuard', () => {
     });
 
     it('rejects a missing action', () => {
-      expect(() => guard.isConsentValid({ action: undefined, x: 1 } as never)).toThrow(
-        'Consent parameters are invalid: action is required.',
-      );
+      expect(() =>
+        guard.isConsentValid({ action: undefined, x: 1 } as never),
+      ).toThrow('Consent parameters are invalid: action is required.');
     });
 
     it('rejects any other action value, including case variants', () => {
@@ -126,9 +133,14 @@ describe('IntemptJsGuard', () => {
     });
 
     it('rejects userAttributes with no eventTitle to attach them to', () => {
-      expect(
-        () => guard.isIdentifyValid({ userId: 'u1', userAttributes: { plan: 'pro' } } as never),
-      ).toThrow("Identify parameters are invalid: set 'eventTitle' to use 'userAttributes'.");
+      expect(() =>
+        guard.isIdentifyValid({
+          userId: 'u1',
+          userAttributes: { plan: 'pro' },
+        } as never),
+      ).toThrow(
+        "Identify parameters are invalid: set 'eventTitle' to use 'userAttributes'.",
+      );
     });
   });
 
@@ -158,17 +170,25 @@ describe('IntemptJsGuard', () => {
     });
 
     it('rejects accountAttributes with no eventTitle', () => {
-      expect(
-        () => guard.isGroupValid({ accountId: 'a1', accountAttributes: { tier: 'gold' } } as never),
-      ).toThrow("Group parameters are invalid: set 'eventTitle' to use 'accountAttributes'.");
+      expect(() =>
+        guard.isGroupValid({
+          accountId: 'a1',
+          accountAttributes: { tier: 'gold' },
+        } as never),
+      ).toThrow(
+        "Group parameters are invalid: set 'eventTitle' to use 'accountAttributes'.",
+      );
     });
   });
 
   describe('isTrackValid', () => {
     it('accepts an eventTitle with non-empty data', () => {
-      expect(guard.isTrackValid({ eventTitle: 'added to cart', data: { sku: 'x' } } as never)).toBe(
-        true,
-      );
+      expect(
+        guard.isTrackValid({
+          eventTitle: 'added to cart',
+          data: { sku: 'x' },
+        } as never),
+      ).toBe(true);
     });
 
     it.each([undefined, null, {}])('rejects %s params', (params) => {
@@ -184,9 +204,9 @@ describe('IntemptJsGuard', () => {
     });
 
     it.each([undefined, null, {}])('rejects %s data', (data) => {
-      expect(() => guard.isTrackValid({ eventTitle: 'x', data } as never)).toThrow(
-        "Track parameters are invalid: 'data' can't be empty.",
-      );
+      expect(() =>
+        guard.isTrackValid({ eventTitle: 'x', data } as never),
+      ).toThrow("Track parameters are invalid: 'data' can't be empty.");
     });
   });
 
@@ -210,7 +230,9 @@ describe('IntemptJsGuard', () => {
 
   describe('isAliasValid', () => {
     it('accepts both ids', () => {
-      expect(guard.isAliasValid({ userId: 'a', anotherUserId: 'b' } as never)).toBe(true);
+      expect(
+        guard.isAliasValid({ userId: 'a', anotherUserId: 'b' } as never),
+      ).toBe(true);
     });
 
     it.each([undefined, null, {}])('rejects %s params', (params) => {
@@ -251,9 +273,9 @@ describe('IntemptJsGuard', () => {
     ];
 
     it.each(FORBIDDEN)('track rejects "%s"', (title) => {
-      expect(() => guard.isTrackValid({ eventTitle: title, data: { a: 1 } } as never)).toThrow(
-        `The '${title}' event title is forbidden`,
-      );
+      expect(() =>
+        guard.isTrackValid({ eventTitle: title, data: { a: 1 } } as never),
+      ).toThrow(`The '${title}' event title is forbidden`);
     });
 
     it.each(FORBIDDEN)('record rejects "%s"', (title) => {
@@ -263,42 +285,53 @@ describe('IntemptJsGuard', () => {
     });
 
     it.each(FORBIDDEN)('identify rejects "%s"', (title) => {
-      expect(() => guard.isIdentifyValid({ userId: 'u1', eventTitle: title } as never)).toThrow(
-        `The '${title}' event title is forbidden`,
-      );
+      expect(() =>
+        guard.isIdentifyValid({ userId: 'u1', eventTitle: title } as never),
+      ).toThrow(`The '${title}' event title is forbidden`);
     });
 
     it.each(FORBIDDEN)('group rejects "%s"', (title) => {
-      expect(() => guard.isGroupValid({ accountId: 'a1', eventTitle: title } as never)).toThrow(
-        `The '${title}' event title is forbidden`,
-      );
+      expect(() =>
+        guard.isGroupValid({ accountId: 'a1', eventTitle: title } as never),
+      ).toThrow(`The '${title}' event title is forbidden`);
     });
 
-    it('matches case-insensitively but reports the caller\'s casing', () => {
-      expect(() => guard.isTrackValid({ eventTitle: 'View Page', data: { a: 1 } } as never)).toThrow(
-        "The 'View Page' event title is forbidden",
-      );
-      expect(() => guard.isTrackValid({ eventTitle: 'CLICK ON', data: { a: 1 } } as never)).toThrow(
-        "The 'CLICK ON' event title is forbidden",
-      );
+    it("matches case-insensitively but reports the caller's casing", () => {
+      expect(() =>
+        guard.isTrackValid({
+          eventTitle: 'View Page',
+          data: { a: 1 },
+        } as never),
+      ).toThrow("The 'View Page' event title is forbidden");
+      expect(() =>
+        guard.isTrackValid({ eventTitle: 'CLICK ON', data: { a: 1 } } as never),
+      ).toThrow("The 'CLICK ON' event title is forbidden");
     });
 
     it('does not reject a title that merely contains a forbidden name', () => {
       // Substring matching here would reject legitimate titles like
       // "user consent updated". The check is exact-match on the whole title.
-      expect(guard.isTrackValid({ eventTitle: 'consent banner shown', data: { a: 1 } } as never)).toBe(
-        true,
-      );
-      expect(guard.isTrackValid({ eventTitle: 'identify user', data: { a: 1 } } as never)).toBe(true);
+      expect(
+        guard.isTrackValid({
+          eventTitle: 'consent banner shown',
+          data: { a: 1 },
+        } as never),
+      ).toBe(true);
+      expect(
+        guard.isTrackValid({
+          eventTitle: 'identify user',
+          data: { a: 1 },
+        } as never),
+      ).toBe(true);
     });
 
     it('checks the forbidden list before requiring userId in identify', () => {
       // Order of checks is itself a contract: a caller passing a forbidden title
       // AND no userId should hear about the title, since that is the mistake
       // they are less likely to spot themselves.
-      expect(() => guard.isIdentifyValid({ eventTitle: 'identify' } as never)).toThrow(
-        "The 'identify' event title is forbidden",
-      );
+      expect(() =>
+        guard.isIdentifyValid({ eventTitle: 'identify' } as never),
+      ).toThrow("The 'identify' event title is forbidden");
     });
   });
 });

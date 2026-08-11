@@ -128,15 +128,13 @@ jobs:
       - name: ESLint
         run: npm run lint
 
-      # Advisory, not blocking, and this is deliberate rather than laziness.
-      # Measured 2026-08-11: 98 of 107 source files fail `prettier --check`,
-      # because .prettierrc was committed long ago and never enforced. The fix
-      # is a single repo-wide `npm run format` commit — but that touches nearly
-      # every file in src/ and tests/, so it would conflict with every in-flight
-      # branch in this programme. It wants to land on its own, when no other
-      # work is open, and at that point delete `continue-on-error` here.
-      - name: Prettier (advisory until the repo-wide reformat lands)
-        continue-on-error: true
+      # BLOCKING as of 2026-08-12. It was advisory because 98 of 107 source files
+      # failed `prettier --check` — `.prettierrc` was committed long ago and never
+      # enforced — and a gate that is red on arrival gets disabled. The repo-wide
+      # `npm run format` has now landed as its own commit (138 files), so the check
+      # passes from here and the flag is gone. If this step ever fails, run
+      # `npm run format`; do not re-add `continue-on-error`.
+      - name: Prettier
         run: npm run format:check
 
   build:

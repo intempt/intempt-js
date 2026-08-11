@@ -6,14 +6,14 @@ The SDK does not publish types — there is no module build to attach them to �
 declarations you maintain yourself. They are checked against the SDK source; see
 [`docs/TYPESCRIPT.md`](../../docs/TYPESCRIPT.md) for the prose version.
 
-| File | What it is |
-|---|---|
-| `types/intempt.d.ts` | The `window.intempt` surface. Copy this first. |
-| `types/intempt-events.d.ts` | `WindowEventMap` augmentation so `e.detail` is typed in `intempt:*` listeners. |
-| `analytics.ts` | A wrapper to put between your app and the global. This is the file worth copying. |
-| `usage.ts` | Call sites for the wrapper, plus the runtime traps that compile cleanly. |
-| `reservedTitles.ts` | Making the SDK's reserved event titles a compile error, and where that technique stops working. |
-| `tsconfig.json` | Standalone, so this directory type-checks on its own. |
+| File                        | What it is                                                                                      |
+| --------------------------- | ----------------------------------------------------------------------------------------------- |
+| `types/intempt.d.ts`        | The `window.intempt` surface. Copy this first.                                                  |
+| `types/intempt-events.d.ts` | `WindowEventMap` augmentation so `e.detail` is typed in `intempt:*` listeners.                  |
+| `analytics.ts`              | A wrapper to put between your app and the global. This is the file worth copying.               |
+| `usage.ts`                  | Call sites for the wrapper, plus the runtime traps that compile cleanly.                        |
+| `reservedTitles.ts`         | Making the SDK's reserved event titles a compile error, and where that technique stops working. |
+| `tsconfig.json`             | Standalone, so this directory type-checks on its own.                                           |
 
 ## Check it
 
@@ -38,7 +38,7 @@ directly from components:
    one that forgets throws in production.
 2. **Validation throws on your stack.** A reserved title or an empty `data` raises an
    `Error` inside your click handler. `analytics.ts` catches those for tracking calls, and
-   deliberately does *not* catch them for `optIn`/`optOut` — swallowing an error from a
+   deliberately does _not_ catch them for `optIn`/`optOut` — swallowing an error from a
    consent switch would leave you believing a visitor opted out when they did not.
 3. **It is a seam for tests.** Mock one module instead of a global.
 
@@ -51,7 +51,7 @@ compile and fail when they run:
   variable
 - `track({ eventTitle: 'x', data: {} })` — `data` must be non-empty
 - `identify({ userId: '' })` — `userId` must be truthy
-- `consent({ action: 'accept', validUntil: 0 })` — compiles *and* succeeds;
+- `consent({ action: 'accept', validUntil: 0 })` — compiles _and_ succeeds;
   `validUntil` is never validated
 
 `usage.ts` lists all four with the exact error each produces.

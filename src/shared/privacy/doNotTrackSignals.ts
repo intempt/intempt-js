@@ -39,7 +39,11 @@ export type DoNotTrackSignals = {
   readonly anySignal: boolean;
 };
 
-const NO_SIGNALS: DoNotTrackSignals = { dnt: false, gpc: false, anySignal: false };
+const NO_SIGNALS: DoNotTrackSignals = {
+  dnt: false,
+  gpc: false,
+  anySignal: false,
+};
 
 /**
  * Read DNT and GPC from the current browser.
@@ -51,7 +55,9 @@ const NO_SIGNALS: DoNotTrackSignals = { dnt: false, gpc: false, anySignal: false
  * preserves today's behaviour rather than silently dropping traffic on an
  * environment quirk.
  */
-export function detectDoNotTrackSignals(win?: Window & typeof globalThis): DoNotTrackSignals {
+export function detectDoNotTrackSignals(
+  win?: Window & typeof globalThis,
+): DoNotTrackSignals {
   try {
     const target = win ?? (typeof window !== 'undefined' ? window : undefined);
     if (!target) {

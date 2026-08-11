@@ -3,7 +3,7 @@
 > **Why this file exists.** Parked items were previously recorded scattered across
 > `CHECKPOINT.md` §0b, §2a, §2a-i and the foot of `FRONTEND.md`, which made "what is
 > not being worked, and why" impossible to answer without reading all of them. This
-> is the single list. **`CHECKPOINT.md` §0b remains the list of what *is* being
+> is the single list. **`CHECKPOINT.md` §0b remains the list of what _is_ being
 > worked** — if an item is in both files, §0b wins and this file is stale.
 >
 > **Every entry needs three things:** who or what unblocks it, what it costs to
@@ -14,18 +14,19 @@
 
 ## How to read the blocker column
 
-| Blocker | Meaning |
-|---|---|
-| **user** | A decision, not code. Nothing technical is in the way. |
-| **ingest** | Needs the backend/ingest team. `BACKEND.md` is the handover spec. |
-| **money** | Needs a paid account or service. |
-| **sequencing** | Only blocked by other work being in flight. |
+| Blocker        | Meaning                                                           |
+| -------------- | ----------------------------------------------------------------- |
+| **user**       | A decision, not code. Nothing technical is in the way.            |
+| **ingest**     | Needs the backend/ingest team. `BACKEND.md` is the handover spec. |
+| **money**      | Needs a paid account or service.                                  |
+| **sequencing** | Only blocked by other work being in flight.                       |
 
 ---
 
 ## 1. Parked by user decision — 2026-08-12
 
 ### 1.1 `FRONTEND.md` #1 — packaging · blocker: user
+
 `src/index.d.ts` as a hand-authored public contract, a module build exporting a
 pure `createIntempt(config)` with no import-time side effects, then the
 `main`/`module`/`exports`/`types`/`sideEffects` fields, plus `CHANGELOG.md` and
@@ -42,6 +43,7 @@ back to because there are no versioned artifacts at all).
 `NPM_TOKEN`, an `npm-publish` environment and a tag, none of which exist yet.
 
 ### 1.2 `FRONTEND.md` #9 — code-splitting · blocker: user
+
 Split so track-only customers stop downloading `choices/**` plus the web editor —
 **1,644 LOC they never execute**. Worth +1.2.
 
@@ -59,10 +61,11 @@ is **91,248 bytes either way**, because vite never included an unimported module
 the "1,644 LOC they never execute" figure below is **not** all payload — the part of
 it that is genuinely unimported was already free. **Before spending 2.5 days here,
 measure what `choices/**` and the web editor actually contribute to those 91.24 kB**;
-the honest saving is whatever is *imported but unused at runtime*, which is a smaller
+the honest saving is whatever is _imported but unused at runtime_, which is a smaller
 and harder number than the LOC count implies.
 
 ### 1.3 Handing `BACKEND.md` to the ingest team · blocker: user, then ingest
+
 Six items, spec written and ready. Was §0b decision #3.
 
 **Cost of parking: this is the tallest blocker in the programme.** Nothing below in
@@ -75,21 +78,21 @@ Six items, spec written and ready. Was §0b decision #3.
 Parked since 2026-08-11. All six are specified in `BACKEND.md`; the summary is
 there, not here. What they unblock on our side:
 
-| # | Item | Unblocks |
-|---|---|---|
-| 1 | Public, ingest-only project token | The `sendBeacon` transport leg (D7), so events survive a page the browser is tearing down. Also `FRONTEND.md` #10's last third, and dimension 4 (security), which **cannot exceed ~62 without it**. |
-| 2 | Status codes the retry logic can act on | Correct retry classification instead of inference. Dimension 2 caps at ~86 without it. |
-| 2a | Whether ingest ever sends `Retry-After` | Whether `autoTracker.module.ts:205`'s parse is live code or dead. If live, it needs jittering upward or every client returns in the same second. |
-| 3 | Idempotency on `eventId` | Lets us **delete** client-side dedupe complexity. |
-| 4 | Confirm `$lib_version` is accepted | Version stamping on payloads (Phase 1 task 2's deferred half). **Do not ship blind — a rejected payload is dropped events.** |
-| 5 | A server-controlled brake | The fourth and last load-shedding mechanism; the other three (jitter §3a, breaker §3b, bounded queue §3c) are done client-side. |
-| 6 | Regional ingest endpoints | A real `region: 'us' \| 'eu'` data-residency switch. Today it is `apiHost` only (D26). |
+| #   | Item                                    | Unblocks                                                                                                                                                                                            |
+| --- | --------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Public, ingest-only project token       | The `sendBeacon` transport leg (D7), so events survive a page the browser is tearing down. Also `FRONTEND.md` #10's last third, and dimension 4 (security), which **cannot exceed ~62 without it**. |
+| 2   | Status codes the retry logic can act on | Correct retry classification instead of inference. Dimension 2 caps at ~86 without it.                                                                                                              |
+| 2a  | Whether ingest ever sends `Retry-After` | Whether `autoTracker.module.ts:205`'s parse is live code or dead. If live, it needs jittering upward or every client returns in the same second.                                                    |
+| 3   | Idempotency on `eventId`                | Lets us **delete** client-side dedupe complexity.                                                                                                                                                   |
+| 4   | Confirm `$lib_version` is accepted      | Version stamping on payloads (Phase 1 task 2's deferred half). **Do not ship blind — a rejected payload is dropped events.**                                                                        |
+| 5   | A server-controlled brake               | The fourth and last load-shedding mechanism; the other three (jitter §3a, breaker §3b, bounded queue §3c) are done client-side.                                                                     |
+| 6   | Regional ingest endpoints               | A real `region: 'us' \| 'eu'` data-residency switch. Today it is `apiHost` only (D26).                                                                                                              |
 
 **The three worst defects in `DEFECTS.md` are in this queue**, because all three
 change the wire format:
 
 - **D-1 — no event carries a timestamp.** Ingest attributes every event to its
-  *delivery* moment, so anything queued across a retry, the 60s breaker window, or
+  _delivery_ moment, so anything queued across a retry, the 60s breaker window, or
   a reload is mis-timed, and intra-session ordering is not recoverable from the
   payload at all. **The most consequential finding in the register.**
 - **D-3 — every session event shares one `eventId`**, and the batcher dedupes on
@@ -101,6 +104,7 @@ change the wire format:
 ## 3. Blocked on money
 
 ### 3.1 Cross-browser WDIO / Sauce Labs tier · blocker: money
+
 `AUDIT.md` §3b File 2. Parked 2026-08-11.
 **Cost:** every browser claim in this repo is asserted in **jsdom and Electron
 only**. Safari and Firefox behaviour is inferred, never executed. The lookbehind
@@ -108,6 +112,7 @@ trap in §3h (a regex that would have taken the whole bundle down on Safari < 16
 is exactly the class of defect this tier catches and nothing else here does.
 
 ### 3.2 `browser-tests.yml` · blocker: money
+
 The workflow that would run 3.1.
 
 ---
@@ -115,9 +120,11 @@ The workflow that would run 3.1.
 ## 4. Blocked on sequencing
 
 ### 4.1 Changesets automation · blocker: sequencing (needs 1.1 first)
+
 Parked 2026-08-11. The manual half is inside 1.1.
 
 ### 4.2 Making the dev-dependency audit blocking · ✅ **DONE 2026-08-12**
+
 `ci.yml`'s `audit` job has a blocking half (`--omit=dev`, currently **0**
 advisories) and an advisory dev half at `--audit-level=high` (**4**: 1 high, 3
 moderate). The remaining high needs vite ≥ 6.4.3, and **every vite ≥ 6 excludes
@@ -132,6 +139,7 @@ survivors are transitive moderates with no available fix. The production half st
 `--audit-level=low`, holding the zero-runtime-dependency line.
 
 ### 4.3 Fixing `build.yaml`'s branch trigger · blocker: user
+
 Its trigger is `branches: ['*']`, and a single `*` does not match a ref containing
 `/`. **Every feature branch with a slash in its name has therefore been completely
 ungated for as long as that file has existed** — this branch included. `ci.yml`
@@ -148,7 +156,7 @@ reason: `install` resolves a fresh tree per run, which is what produced CI failu
 
 - **`region` enum for data residency** (D26) — shipped as `apiHost` only. Needs
   `BACKEND.md` item 6 before an enum would mean anything.
-- **SRI** (§3g-ii) — shipped as a *warning*, not a recommendation, because
+- **SRI** (§3g-ii) — shipped as a _warning_, not a recommendation, because
   `/v1/intempt.min.js` is mutable and a correct hash stops matching at the next
   release, at which point the browser refuses to run the SDK at all. Real fix is
   1.1.

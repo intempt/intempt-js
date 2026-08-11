@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { SdkMetrics } from '../../src/shared/logger/metrics.ts';
-import { configureLogger, DiagnosticRecord, resetLogger } from '../../src/shared/logger/logger.ts';
+import {
+  configureLogger,
+  DiagnosticRecord,
+  resetLogger,
+} from '../../src/shared/logger/logger.ts';
 import { RequestBatcher } from '../../src/shared/queue/requestBatcher.ts';
 import { QueueStorage } from '../../src/shared/storage/queueStorage.ts';
 import { RequestQueue } from '../../src/shared/queue/requestQueue.ts';
@@ -31,7 +35,10 @@ import { EnvConfig } from '../../src/shared/envConfig.ts';
 const KEY = '__unit_metrics_batcher__';
 
 function event(eventId: string) {
-  return { name: 'Test Event', payload: [{ eventId, sessionId: 's', profileId: 'p' }] };
+  return {
+    name: 'Test Event',
+    payload: [{ eventId, sessionId: 's', profileId: 'p' }],
+  };
 }
 
 describe('SdkMetrics', () => {
@@ -136,7 +143,10 @@ describe('SdkMetrics', () => {
       metrics.recordFlush(20);
       metrics.markFlushFailed();
 
-      expect(metrics.snapshot()).toMatchObject({ flushCount: 1, flushFailureCount: 1 });
+      expect(metrics.snapshot()).toMatchObject({
+        flushCount: 1,
+        flushFailureCount: 1,
+      });
     });
   });
 
@@ -169,7 +179,7 @@ describe('SdkMetrics', () => {
 
     it('emits each transition through the logger, at a level matching its severity', () => {
       const received: DiagnosticRecord[] = [];
-      configureLogger({ debug: true, sink: r => received.push(r) });
+      configureLogger({ debug: true, sink: (r) => received.push(r) });
       const metrics = new SdkMetrics('RequestBatcher');
 
       metrics.setBreakerState('open');
@@ -178,7 +188,7 @@ describe('SdkMetrics', () => {
       // "Stopped sending" is a warning; recovery is informational. And the scope
       // is the batcher's, so a telemetry backend groups it with the rest of the
       // delivery pipeline rather than under a separate "metrics" subsystem.
-      expect(received.map(r => [r.level, r.scope, r.message])).toEqual([
+      expect(received.map((r) => [r.level, r.scope, r.message])).toEqual([
         ['warn', 'RequestBatcher', 'circuit breaker closed -> open'],
         ['info', 'RequestBatcher', 'circuit breaker open -> closed'],
       ]);
@@ -186,7 +196,7 @@ describe('SdkMetrics', () => {
 
     it('does not log a no-op transition', () => {
       const received: DiagnosticRecord[] = [];
-      configureLogger({ debug: true, sink: r => received.push(r) });
+      configureLogger({ debug: true, sink: (r) => received.push(r) });
       const metrics = new SdkMetrics('Test');
 
       metrics.setBreakerState('closed');
@@ -263,13 +273,15 @@ describe('RequestBatcher metrics wiring', () => {
   });
 
   it('gives the queue cap drop counter a consumer at last', async () => {
-    const capped = makeBatcher({ libConfig: {
-      batchSize: 10,
-      batchFlushIntervalMs: 1000,
-      batchRequestTimeoutMs: 5000,
-      batchAutostart: false,
-      maxQueuedEvents: 2,
-    } });
+    const capped = makeBatcher({
+      libConfig: {
+        batchSize: 10,
+        batchFlushIntervalMs: 1000,
+        batchRequestTimeoutMs: 5000,
+        batchAutostart: false,
+        maxQueuedEvents: 2,
+      },
+    });
 
     for (let i = 0; i < 5; i++) {
       await capped.enqueue(event(`evt-drop-${i}`));
@@ -278,7 +290,9 @@ describe('RequestBatcher metrics wiring', () => {
     // The number the cap was built to produce. It existed with nowhere to go
     // until this snapshot; a non-zero value here is real, bounded data loss.
     expect(capped.getDroppedEventCount()).toBeGreaterThan(0);
-    expect(capped.getMetrics().droppedEvents).toBe(capped.getDroppedEventCount());
+    expect(capped.getMetrics().droppedEvents).toBe(
+      capped.getDroppedEventCount(),
+    );
   });
 
   it('records a completed send as one flush with a latency', async () => {
@@ -301,7 +315,10 @@ describe('RequestBatcher metrics wiring', () => {
 
     // A fast 503 is still a failure: latency alone cannot distinguish "ingest is
     // healthy" from "ingest is refusing everything quickly".
-    expect(batcher.getMetrics()).toMatchObject({ flushCount: 1, flushFailureCount: 1 });
+    expect(batcher.getMetrics()).toMatchObject({
+      flushCount: 1,
+      flushFailureCount: 1,
+    });
   });
 
   it('surfaces the breaker opening, which was previously untraceable', async () => {
@@ -345,10 +362,12 @@ describe('RequestBatcher metrics wiring', () => {
   it('reports batcher failures through the logger as well as the errorReporter', async () => {
     const reported: string[] = [];
     const received: DiagnosticRecord[] = [];
-    configureLogger({ debug: true, sink: r => received.push(r) });
+    configureLogger({ debug: true, sink: (r) => received.push(r) });
     vi.useFakeTimers();
 
-    const wired = makeBatcher({ errorReporter: (msg: string) => reported.push(msg) });
+    const wired = makeBatcher({
+      errorReporter: (msg: string) => reported.push(msg),
+    });
     (wired as any).sendRequest = async () => {
       throw new Error('transport exploded');
     };
@@ -359,7 +378,10 @@ describe('RequestBatcher metrics wiring', () => {
     // owner wired, the logger is the global one a customer can subscribe to. The
     // logger replaced only the console.error that used to sit alongside it.
     expect(reported.join(' ')).toContain('Error flushing request queue');
-    expect(received.filter(r => r.scope === 'RequestBatcher').map(r => r.message))
-      .toContain('Error flushing request queue');
+    expect(
+      received
+        .filter((r) => r.scope === 'RequestBatcher')
+        .map((r) => r.message),
+    ).toContain('Error flushing request queue');
   });
 });

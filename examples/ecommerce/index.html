@@ -1,206 +1,314 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Intempt SDK — commerce events</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Intempt SDK — commerce events</title>
 
-<!-- 1. Queue stub. See examples/basic-html/index.html for the annotated copy. -->
-<script>
-(function () {
-  if (window.intempt) return;
-  var queue = [], pending = [];
-  var methods = ['identify','group','track','record','alias','consent',
-                 'productAdd','productOrdered','productView','logOut',
-                 'optIn','optOut','isUserOptIn','recommendation'];
-  var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
-  methods.forEach(function (m) {
-    stub[m] = function () {
-      var args = [].slice.call(arguments);
-      if (m === 'recommendation') {
-        return new Promise(function (resolve, reject) {
-          pending.push({ resolve: resolve, reject: reject });
-          queue.push({ method: m, args: args });
+    <!-- 1. Queue stub. See examples/basic-html/index.html for the annotated copy. -->
+    <script>
+      (function () {
+        if (window.intempt) return;
+        var queue = [],
+          pending = [];
+        var methods = [
+          'identify',
+          'group',
+          'track',
+          'record',
+          'alias',
+          'consent',
+          'productAdd',
+          'productOrdered',
+          'productView',
+          'logOut',
+          'optIn',
+          'optOut',
+          'isUserOptIn',
+          'recommendation',
+        ];
+        var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
+        methods.forEach(function (m) {
+          stub[m] = function () {
+            var args = [].slice.call(arguments);
+            if (m === 'recommendation') {
+              return new Promise(function (resolve, reject) {
+                pending.push({ resolve: resolve, reject: reject });
+                queue.push({ method: m, args: args });
+              });
+            }
+            queue.push({ method: m, args: args });
+          };
         });
-      }
-      queue.push({ method: m, args: args });
-    };
-  });
-  window.intempt = stub;
-})();
-</script>
+        window.intempt = stub;
+      })();
+    </script>
 
-<!--
+    <!--
   2. The SDK. Replace all four parameters; the /v1/ segment is required.
 
   Note there is no &shopify=1 here. On a real Shopify store that parameter makes the SDK
   detect product views and add-to-cart on its own, and calling productView/productAdd
   yourself as well would double-count. Add it there; leave it off here.
 -->
-<script
-  async
-  src="https://cdn.intempt.com/v1/intempt.min.js?organization=YOUR_ORG&project=YOUR_PROJECT&source=YOUR_SOURCE_ID&key=YOUR_KEY">
-</script>
+    <script
+      async
+      src="https://cdn.intempt.com/v1/intempt.min.js?organization=YOUR_ORG&project=YOUR_PROJECT&source=YOUR_SOURCE_ID&key=YOUR_KEY"
+    ></script>
 
-<style>
-  :root { color-scheme: light dark; }
-  body { font: 16px/1.5 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
-  h1 { font-size: 1.4rem; }
-  h2 { font-size: 1.05rem; margin-top: 2rem; }
-  button { font: inherit; padding: .4rem .8rem; margin: 0 .4rem .4rem 0; cursor: pointer; }
-  code { font-family: ui-monospace, monospace; }
-  .product { border: 1px solid currentColor; border-radius: 4px; padding: .75rem 1rem; margin: .5rem 0; }
-  .product h3 { margin: 0 0 .25rem; font-size: 1rem; }
-  #cart, #log { border: 1px solid currentColor; border-radius: 4px; padding: .5rem .75rem; }
-  #log { max-height: 16rem; overflow: auto; font-family: ui-monospace, monospace;
-         font-size: .8rem; white-space: pre-wrap; }
-  table { border-collapse: collapse; margin: 1rem 0; }
-  td, th { border: 1px solid currentColor; padding: .3rem .6rem; text-align: left; font-size: .9rem; }
-</style>
-</head>
-<body>
-
-<h1>Commerce events</h1>
-
-<p>Three methods, three different argument shapes. That is history rather than design, so
-check the table before writing the call.</p>
-
-<table>
-  <tr><th>Call</th><th>Argument</th><th>Event title sent</th></tr>
-  <tr><td><code>productView(id)</code></td><td>a plain <strong>string</strong></td><td><code>Product viewed</code></td></tr>
-  <tr><td><code>productAdd(product)</code></td><td>one <strong>object</strong> <code>{ productId, quantity? }</code></td><td><code>Added to cart</code></td></tr>
-  <tr><td><code>productOrdered(products)</code></td><td>an <strong>array</strong> of those objects</td><td><code>Product ordered</code></td></tr>
-</table>
-
-<p>None of the three validate their arguments. A missing or misspelled
-<code>productId</code> is accepted and sent, so whatever you pass is what your reports will
-have to live with. Validate before you call.</p>
-
-<h2>Catalogue</h2>
-<div id="catalogue"></div>
-
-<h2>Cart</h2>
-<div id="cart">empty</div>
-<p>
-  <button id="checkout">Complete the order</button>
-  <button id="clear">Clear cart</button>
-</p>
-
-<h2>What the SDK sent</h2>
-<div id="log">(nothing yet)</div>
-
-<h2>Where identity fits</h2>
-<p>Commerce events attach to the current profile. To tie an order to a known customer, call
-<code>identify({ userId })</code> before the order event — at sign-in is the natural place,
-not at checkout. If you only learn the email at checkout, <code>identify</code> with your own
-stable customer ID and pass the email as a <code>userAttributes</code> field alongside an
-<code>eventTitle</code>.</p>
-
-<script>
-  var CATALOGUE = [
-    { productId: 'prod_123', name: 'Cast-iron pan',  price: 49.0 },
-    { productId: 'prod_456', name: 'Wooden spatula', price: 9.5 },
-    { productId: 'prod_789', name: 'Linen apron',    price: 28.0 }
-  ];
-
-  var cart = [];
-
-  var log = document.getElementById('log');
-  var lines = 0;
-  function write(text) {
-    if (lines === 0) log.textContent = '';
-    lines++;
-    log.textContent = lines + '. ' + text + '\n' + log.textContent;
-  }
-
-  window.addEventListener('intempt:product', function (e) {
-    write('intempt:product -> ' + e.detail.eventName);
-  });
-
-  // --- catalogue -----------------------------------------------------------
-  var catalogue = document.getElementById('catalogue');
-  CATALOGUE.forEach(function (p) {
-    var el = document.createElement('div');
-    el.className = 'product';
-    el.innerHTML =
-      '<h3>' + p.name + '</h3><p>' + p.price.toFixed(2) + '</p>' +
-      '<button data-view="' + p.productId + '">View</button>' +
-      '<button data-add="' + p.productId + '">Add to cart</button>';
-    catalogue.appendChild(el);
-  });
-
-  catalogue.addEventListener('click', function (e) {
-    var viewId = e.target.getAttribute && e.target.getAttribute('data-view');
-    var addId = e.target.getAttribute && e.target.getAttribute('data-add');
-
-    if (viewId) {
-      // A bare string, not an object. Passing { productId } here silently sends the wrong
-      // shape — nothing validates it.
-      window.intempt.productView(viewId);
-      write('productView("' + viewId + '")');
-    }
-
-    if (addId) {
-      var existing = cart.filter(function (i) { return i.productId === addId; })[0];
-      if (existing) existing.quantity += 1;
-      else cart.push({ productId: addId, quantity: 1 });
-
-      // One object. quantity is optional; sending it makes the reports usable.
-      window.intempt.productAdd({ productId: addId, quantity: 1 });
-      write('productAdd({ productId: "' + addId + '", quantity: 1 })');
-      renderCart();
-    }
-  });
-
-  // --- cart ----------------------------------------------------------------
-  function renderCart() {
-    var el = document.getElementById('cart');
-    if (cart.length === 0) { el.textContent = 'empty'; return; }
-    el.textContent = cart.map(function (i) {
-      return i.productId + ' x' + i.quantity;
-    }).join('  ·  ');
-  }
-
-  document.getElementById('checkout').onclick = function () {
-    if (cart.length === 0) { write('nothing in the cart'); return; }
-
-    // An array, in one call — not one call per line item. Sending them individually would
-    // report three separate orders.
-    window.intempt.productOrdered(cart.map(function (i) {
-      return { productId: i.productId, quantity: i.quantity };
-    }));
-    write('productOrdered([' + cart.length + ' line item(s)])');
-
-    // Order-level facts (total, currency, payment method) have no home on the commerce
-    // methods, which carry only productId and quantity. Send them as a normal event.
-    var total = cart.reduce(function (sum, i) {
-      var p = CATALOGUE.filter(function (c) { return c.productId === i.productId; })[0];
-      return sum + (p ? p.price * i.quantity : 0);
-    }, 0);
-
-    window.intempt.track({
-      eventTitle: 'Order Completed',
-      data: {
-        orderId: 'order_' + Date.now(),
-        total: Number(total.toFixed(2)),
-        currency: 'USD',
-        lineItems: cart.length
+    <style>
+      :root {
+        color-scheme: light dark;
       }
-    });
-    write('track({ eventTitle: "Order Completed", ... })');
+      body {
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+        max-width: 46rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      h1 {
+        font-size: 1.4rem;
+      }
+      h2 {
+        font-size: 1.05rem;
+        margin-top: 2rem;
+      }
+      button {
+        font: inherit;
+        padding: 0.4rem 0.8rem;
+        margin: 0 0.4rem 0.4rem 0;
+        cursor: pointer;
+      }
+      code {
+        font-family: ui-monospace, monospace;
+      }
+      .product {
+        border: 1px solid currentColor;
+        border-radius: 4px;
+        padding: 0.75rem 1rem;
+        margin: 0.5rem 0;
+      }
+      .product h3 {
+        margin: 0 0 0.25rem;
+        font-size: 1rem;
+      }
+      #cart,
+      #log {
+        border: 1px solid currentColor;
+        border-radius: 4px;
+        padding: 0.5rem 0.75rem;
+      }
+      #log {
+        max-height: 16rem;
+        overflow: auto;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        white-space: pre-wrap;
+      }
+      table {
+        border-collapse: collapse;
+        margin: 1rem 0;
+      }
+      td,
+      th {
+        border: 1px solid currentColor;
+        padding: 0.3rem 0.6rem;
+        text-align: left;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Commerce events</h1>
 
-    cart = [];
-    renderCart();
-  };
+    <p>
+      Three methods, three different argument shapes. That is history rather
+      than design, so check the table before writing the call.
+    </p>
 
-  document.getElementById('clear').onclick = function () {
-    cart = [];
-    renderCart();
-    write('cart cleared (no event — there is no productRemove method)');
-  };
+    <table>
+      <tr>
+        <th>Call</th>
+        <th>Argument</th>
+        <th>Event title sent</th>
+      </tr>
+      <tr>
+        <td><code>productView(id)</code></td>
+        <td>a plain <strong>string</strong></td>
+        <td><code>Product viewed</code></td>
+      </tr>
+      <tr>
+        <td><code>productAdd(product)</code></td>
+        <td>
+          one <strong>object</strong> <code>{ productId, quantity? }</code>
+        </td>
+        <td><code>Added to cart</code></td>
+      </tr>
+      <tr>
+        <td><code>productOrdered(products)</code></td>
+        <td>an <strong>array</strong> of those objects</td>
+        <td><code>Product ordered</code></td>
+      </tr>
+    </table>
 
-  renderCart();
-</script>
+    <p>
+      None of the three validate their arguments. A missing or misspelled
+      <code>productId</code> is accepted and sent, so whatever you pass is what
+      your reports will have to live with. Validate before you call.
+    </p>
 
-</body>
+    <h2>Catalogue</h2>
+    <div id="catalogue"></div>
+
+    <h2>Cart</h2>
+    <div id="cart">empty</div>
+    <p>
+      <button id="checkout">Complete the order</button>
+      <button id="clear">Clear cart</button>
+    </p>
+
+    <h2>What the SDK sent</h2>
+    <div id="log">(nothing yet)</div>
+
+    <h2>Where identity fits</h2>
+    <p>
+      Commerce events attach to the current profile. To tie an order to a known
+      customer, call <code>identify({ userId })</code> before the order event —
+      at sign-in is the natural place, not at checkout. If you only learn the
+      email at checkout, <code>identify</code> with your own stable customer ID
+      and pass the email as a <code>userAttributes</code> field alongside an
+      <code>eventTitle</code>.
+    </p>
+
+    <script>
+      var CATALOGUE = [
+        { productId: 'prod_123', name: 'Cast-iron pan', price: 49.0 },
+        { productId: 'prod_456', name: 'Wooden spatula', price: 9.5 },
+        { productId: 'prod_789', name: 'Linen apron', price: 28.0 },
+      ];
+
+      var cart = [];
+
+      var log = document.getElementById('log');
+      var lines = 0;
+      function write(text) {
+        if (lines === 0) log.textContent = '';
+        lines++;
+        log.textContent = lines + '. ' + text + '\n' + log.textContent;
+      }
+
+      window.addEventListener('intempt:product', function (e) {
+        write('intempt:product -> ' + e.detail.eventName);
+      });
+
+      // --- catalogue -----------------------------------------------------------
+      var catalogue = document.getElementById('catalogue');
+      CATALOGUE.forEach(function (p) {
+        var el = document.createElement('div');
+        el.className = 'product';
+        el.innerHTML =
+          '<h3>' +
+          p.name +
+          '</h3><p>' +
+          p.price.toFixed(2) +
+          '</p>' +
+          '<button data-view="' +
+          p.productId +
+          '">View</button>' +
+          '<button data-add="' +
+          p.productId +
+          '">Add to cart</button>';
+        catalogue.appendChild(el);
+      });
+
+      catalogue.addEventListener('click', function (e) {
+        var viewId =
+          e.target.getAttribute && e.target.getAttribute('data-view');
+        var addId = e.target.getAttribute && e.target.getAttribute('data-add');
+
+        if (viewId) {
+          // A bare string, not an object. Passing { productId } here silently sends the wrong
+          // shape — nothing validates it.
+          window.intempt.productView(viewId);
+          write('productView("' + viewId + '")');
+        }
+
+        if (addId) {
+          var existing = cart.filter(function (i) {
+            return i.productId === addId;
+          })[0];
+          if (existing) existing.quantity += 1;
+          else cart.push({ productId: addId, quantity: 1 });
+
+          // One object. quantity is optional; sending it makes the reports usable.
+          window.intempt.productAdd({ productId: addId, quantity: 1 });
+          write('productAdd({ productId: "' + addId + '", quantity: 1 })');
+          renderCart();
+        }
+      });
+
+      // --- cart ----------------------------------------------------------------
+      function renderCart() {
+        var el = document.getElementById('cart');
+        if (cart.length === 0) {
+          el.textContent = 'empty';
+          return;
+        }
+        el.textContent = cart
+          .map(function (i) {
+            return i.productId + ' x' + i.quantity;
+          })
+          .join('  ·  ');
+      }
+
+      document.getElementById('checkout').onclick = function () {
+        if (cart.length === 0) {
+          write('nothing in the cart');
+          return;
+        }
+
+        // An array, in one call — not one call per line item. Sending them individually would
+        // report three separate orders.
+        window.intempt.productOrdered(
+          cart.map(function (i) {
+            return { productId: i.productId, quantity: i.quantity };
+          }),
+        );
+        write('productOrdered([' + cart.length + ' line item(s)])');
+
+        // Order-level facts (total, currency, payment method) have no home on the commerce
+        // methods, which carry only productId and quantity. Send them as a normal event.
+        var total = cart.reduce(function (sum, i) {
+          var p = CATALOGUE.filter(function (c) {
+            return c.productId === i.productId;
+          })[0];
+          return sum + (p ? p.price * i.quantity : 0);
+        }, 0);
+
+        window.intempt.track({
+          eventTitle: 'Order Completed',
+          data: {
+            orderId: 'order_' + Date.now(),
+            total: Number(total.toFixed(2)),
+            currency: 'USD',
+            lineItems: cart.length,
+          },
+        });
+        write('track({ eventTitle: "Order Completed", ... })');
+
+        cart = [];
+        renderCart();
+      };
+
+      document.getElementById('clear').onclick = function () {
+        cart = [];
+        renderCart();
+        write('cart cleared (no event — there is no productRemove method)');
+      };
+
+      renderCart();
+    </script>
+  </body>
 </html>

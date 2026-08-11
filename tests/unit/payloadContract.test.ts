@@ -1,4 +1,12 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  afterAll,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from 'vitest';
 import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 
@@ -99,7 +107,9 @@ function trackBodyFor(call: Call, ...names: string[]) {
   // Parses the body here rather than calling `trackBody`, which is a const
   // declared inside the describe block and so is not in scope at module level.
   const body = JSON.parse(call.init.body as string);
-  const track = (body.track as any[]).filter((e: any) => names.includes(e.name));
+  const track = (body.track as any[]).filter((e: any) =>
+    names.includes(e.name),
+  );
   if (track.length === 0) {
     throw new Error(
       `No entry named ${names.join(' | ')} in the captured batch. ` +
@@ -268,7 +278,8 @@ describe('outbound payload contract', () => {
     // consent endpoint is not source-scoped, so it is matched on path alone —
     // and each test only ever makes one consent call.
     const mine = (c: Call) =>
-      c.url.includes(path) && (path.includes('consents') || c.url.includes(`/sources/${sourceId}/`));
+      c.url.includes(path) &&
+      (path.includes('consents') || c.url.includes(`/sources/${sourceId}/`));
 
     // `enqueue()` is async (it writes through to IndexedDB), so a flush issued
     // in the same tick as the calls under test can catch only the first event
@@ -318,12 +329,12 @@ describe('outbound payload contract', () => {
       // than the host, which is environment config.
       expect(call!.url).toBe(`/acme/projects/proj-1/sources/${sourceId}/track`);
       expect(call!.init.method).toBe('POST');
-      expect((call!.init.headers as Record<string, string>)['Content-Type']).toBe(
-        'application/json',
-      );
-      expect((call!.init.headers as Record<string, string>)['Authorization']).toBe(
-        `Basic ${btoa('wk-user:wk-pass')}`,
-      );
+      expect(
+        (call!.init.headers as Record<string, string>)['Content-Type'],
+      ).toBe('application/json');
+      expect(
+        (call!.init.headers as Record<string, string>)['Authorization'],
+      ).toBe(`Basic ${btoa('wk-user:wk-pass')}`);
       // keepalive is what lets an unload flush survive navigation. Losing it
       // means losing the last batch of every session.
       expect(call!.init.keepalive).toBe(true);
@@ -342,7 +353,10 @@ describe('outbound payload contract', () => {
     });
 
     it('records the track payload', async () => {
-      sdk.track({ eventTitle: 'Signup Clicked', data: { plan: 'pro', seats: 3 } } as any);
+      sdk.track({
+        eventTitle: 'Signup Clicked',
+        data: { plan: 'pro', seats: 3 },
+      } as any);
       const [call] = await flushAndCapture('/track');
       expectMatchesGolden('track', trackBodyFor(call!, 'Signup Clicked'));
     });
@@ -404,7 +418,10 @@ describe('outbound payload contract', () => {
         { productId: 'p2', price: 20 },
       ] as any);
       const [call] = await flushAndCapture('/track');
-      expectMatchesGolden('product-ordered', trackBodyFor(call!, 'Product ordered'));
+      expectMatchesGolden(
+        'product-ordered',
+        trackBodyFor(call!, 'Product ordered'),
+      );
     });
 
     it('records a mixed batch — several event types in one request', async () => {
@@ -466,7 +483,9 @@ describe('outbound payload contract', () => {
       // know to count events correctly.
       sdk.productOrdered([{ productId: 'p1' }, { productId: 'p2' }] as any);
       const [call] = await flushAndCapture('/track');
-      const event = trackBody(call!).track.find((e: any) => e.name === 'Product ordered');
+      const event = trackBody(call!).track.find(
+        (e: any) => e.name === 'Product ordered',
+      );
       expect(event).toBeDefined();
       expect(event.payload).toHaveLength(2);
       expect(event.payload[0]).not.toHaveProperty('name');
@@ -514,7 +533,11 @@ describe('outbound payload contract', () => {
       const events = bootstrapCalls
         .filter((c) => c.url.includes('/track'))
         .flatMap((c) => JSON.parse(c.init.body as string).track as any[])
-        .filter((e) => typeof e.name === 'string' && e.name.toLowerCase().includes('session'));
+        .filter(
+          (e) =>
+            typeof e.name === 'string' &&
+            e.name.toLowerCase().includes('session'),
+        );
 
       for (const event of events) {
         for (const entry of event.payload) {
@@ -542,9 +565,9 @@ describe('outbound payload contract', () => {
       expect(consentCalls).toHaveLength(1);
       const call = consentCalls[0]!;
       expect(call.url).toBe('/acme/projects/proj-1/consents/data');
-      expect((call.init.headers as Record<string, string>)['Authorization']).toBe(
-        `Basic ${btoa('wk-user:wk-pass')}`,
-      );
+      expect(
+        (call.init.headers as Record<string, string>)['Authorization'],
+      ).toBe(`Basic ${btoa('wk-user:wk-pass')}`);
 
       const body = JSON.parse(call.init.body as string);
       expect(body).not.toHaveProperty('track');

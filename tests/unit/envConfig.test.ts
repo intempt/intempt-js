@@ -74,23 +74,33 @@ describe('EnvConfig', () => {
   describe('getOpenerOrigins', () => {
     it('parses a JSON array', () => {
       EnvConfig.initFromValues({
-        VITE_OPENER_LINKS: JSON.stringify(['https://a.example.com/x', 'https://b.example.com']),
+        VITE_OPENER_LINKS: JSON.stringify([
+          'https://a.example.com/x',
+          'https://b.example.com',
+        ]),
       });
-      expect(EnvConfig.getOpenerOrigins()).toEqual(['https://a.example.com', 'https://b.example.com']);
+      expect(EnvConfig.getOpenerOrigins()).toEqual([
+        'https://a.example.com',
+        'https://b.example.com',
+      ]);
     });
 
     it('parses a comma-separated list', () => {
       EnvConfig.initFromValues({
         VITE_OPENER_LINKS: 'https://a.example.com, https://b.example.com',
       });
-      expect(EnvConfig.getOpenerOrigins()).toEqual(['https://a.example.com', 'https://b.example.com']);
+      expect(EnvConfig.getOpenerOrigins()).toEqual([
+        'https://a.example.com',
+        'https://b.example.com',
+      ]);
     });
 
     it('reduces each entry to its origin and de-duplicates', () => {
       // This list gates postMessage from the visual web editor, so a path or a
       // duplicate slipping through would widen what the SDK trusts.
       EnvConfig.initFromValues({
-        VITE_OPENER_LINKS: 'https://a.example.com/one,https://a.example.com/two',
+        VITE_OPENER_LINKS:
+          'https://a.example.com/one,https://a.example.com/two',
       });
       expect(EnvConfig.getOpenerOrigins()).toEqual(['https://a.example.com']);
     });
@@ -99,7 +109,9 @@ describe('EnvConfig', () => {
       EnvConfig.initFromValues({
         VITE_OPENER_LINKS: 'not-a-url,https://good.example.com',
       });
-      expect(EnvConfig.getOpenerOrigins()).toEqual(['https://good.example.com']);
+      expect(EnvConfig.getOpenerOrigins()).toEqual([
+        'https://good.example.com',
+      ]);
     });
 
     it('returns an empty list when unset', () => {

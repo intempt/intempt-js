@@ -133,7 +133,10 @@ export function persistDoNotTrack(value: boolean): void {
   // of the two succeeds the states must not disagree in the direction that
   // resurrects a stale opt-in, and the cookie is the authoritative reader, so
   // writing it first means a partial failure leaves the newer value winning.
-  writeConsentCookie(DO_NOT_TRACK_COOKIE, value ? COOKIE_OPTED_OUT : COOKIE_OPTED_IN);
+  writeConsentCookie(
+    DO_NOT_TRACK_COOKIE,
+    value ? COOKIE_OPTED_OUT : COOKIE_OPTED_IN,
+  );
   writeLocalStorageFlag(value);
 }
 

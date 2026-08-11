@@ -12,7 +12,10 @@ describe('opt-in safety — the most important property in this file', () => {
     // Redaction rewrites data irreversibly *before* it leaves the browser. There is
     // no server-side undo, so a customer who upgrades the SDK and finds their
     // `email` field replaced has lost that data permanently. It can never default on.
-    const payload = { email: 'someone@example.com', note: 'call +1 415 555 2671' };
+    const payload = {
+      email: 'someone@example.com',
+      note: 'call +1 415 555 2671',
+    };
 
     expect(createPiiScrubber()({ ...payload })).toEqual(payload);
   });
@@ -21,7 +24,9 @@ describe('opt-in safety — the most important property in this file', () => {
     'stays off for enabled = %o — only the boolean true turns it on',
     (enabled) => {
       const payload = { email: 'someone@example.com' };
-      expect(createPiiScrubber({ enabled: enabled as never })(payload)).toEqual(payload);
+      expect(createPiiScrubber({ enabled: enabled as never })(payload)).toEqual(
+        payload,
+      );
     },
   );
 
@@ -35,7 +40,9 @@ describe('opt-in safety — the most important property in this file', () => {
 
 describe('key-based redaction', () => {
   it('redacts a value by field name', () => {
-    expect(scrub({ email: 'someone@example.com' })).toEqual({ email: DEFAULT_REDACTION });
+    expect(scrub({ email: 'someone@example.com' })).toEqual({
+      email: DEFAULT_REDACTION,
+    });
   });
 
   it('matches field names case-insensitively', () => {
@@ -45,14 +52,19 @@ describe('key-based redaction', () => {
     });
   });
 
-  it.each(['password', 'ssn', 'cardNumber', 'cvv', 'apiKey', 'authorization', 'dob'])(
-    'redacts the sensitive field name %s',
-    (key) => {
-      expect(scrub({ [key]: 'sensitive' })).toEqual({ [key]: DEFAULT_REDACTION });
-    },
-  );
+  it.each([
+    'password',
+    'ssn',
+    'cardNumber',
+    'cvv',
+    'apiKey',
+    'authorization',
+    'dob',
+  ])('redacts the sensitive field name %s', (key) => {
+    expect(scrub({ [key]: 'sensitive' })).toEqual({ [key]: DEFAULT_REDACTION });
+  });
 
-  it('leaves the SDK\'s own identifiers alone, always', () => {
+  it("leaves the SDK's own identifiers alone, always", () => {
     // Redacting `profileId` would not protect the visitor — it would orphan the
     // event so ingest cannot attach it to anyone.
     const ids = {
@@ -71,9 +83,11 @@ describe('key-based redaction', () => {
 
   it('exempts identifiers even when the customer names them as sensitive', () => {
     expect(
-      createPiiScrubber({ enabled: true, additionalRedactKeys: ['profileId'] })({
-        profileId: 'prof_123',
-      }),
+      createPiiScrubber({ enabled: true, additionalRedactKeys: ['profileId'] })(
+        {
+          profileId: 'prof_123',
+        },
+      ),
     ).toEqual({ profileId: 'prof_123' });
   });
 
@@ -90,13 +104,21 @@ describe('key-based redaction', () => {
   });
 
   it('honours a custom redaction string', () => {
-    expect(createPiiScrubber({ enabled: true, redaction: '***' })({ email: 'a@b.com' })).toEqual({
+    expect(
+      createPiiScrubber({ enabled: true, redaction: '***' })({
+        email: 'a@b.com',
+      }),
+    ).toEqual({
       email: '***',
     });
   });
 
   it('lets redactKeys replace the defaults entirely', () => {
-    const custom = createPiiScrubber({ enabled: true, redactKeys: ['nickname'], patterns: [] });
+    const custom = createPiiScrubber({
+      enabled: true,
+      redactKeys: ['nickname'],
+      patterns: [],
+    });
 
     expect(custom({ nickname: 'ace', password: 'hunter2' })).toEqual({
       nickname: DEFAULT_REDACTION,
@@ -106,14 +128,18 @@ describe('key-based redaction', () => {
 
   it('lets exemptKeys protect a field the defaults would redact', () => {
     expect(
-      createPiiScrubber({ enabled: true, exemptKeys: ['token'] })({ token: 'keep-me' }),
+      createPiiScrubber({ enabled: true, exemptKeys: ['token'] })({
+        token: 'keep-me',
+      }),
     ).toEqual({ token: 'keep-me' });
   });
 });
 
 describe('pattern-based redaction — email', () => {
   it('redacts an address embedded in free text', () => {
-    expect(scrub({ note: 'write to sam.o-brien+tag@mail.example.co.uk today' })).toEqual({
+    expect(
+      scrub({ note: 'write to sam.o-brien+tag@mail.example.co.uk today' }),
+    ).toEqual({
       note: `write to ${DEFAULT_REDACTION} today`,
     });
   });
@@ -163,8 +189,12 @@ describe('pattern-based redaction — credit cards', () => {
     // and concatenated identifiers all look like cards. Without the checksum this
     // rule would destroy legitimate analytics data to catch a card that was never
     // there — do not "simplify" the rule by dropping `verify`.
-    expect(scrub({ orderId: '1234567890123456' })).toEqual({ orderId: '1234567890123456' });
-    expect(scrub({ note: 'ref 9999999999999999' })).toEqual({ note: 'ref 9999999999999999' });
+    expect(scrub({ orderId: '1234567890123456' })).toEqual({
+      orderId: '1234567890123456',
+    });
+    expect(scrub({ note: 'ref 9999999999999999' })).toEqual({
+      note: 'ref 9999999999999999',
+    });
   });
 
   it('does not slice a card-shaped window out of a longer identifier', () => {
@@ -200,8 +230,12 @@ describe('pattern-based redaction — phone numbers', () => {
     // That shape collides with order numbers, zip+4 and epoch seconds. Redacting
     // those is a bigger loss than missing an unformatted phone number — a
     // deliberate recall/precision trade, recorded here so it is not "fixed" blind.
-    expect(scrub({ orderNumber: '4155552671' })).toEqual({ orderNumber: '4155552671' });
-    expect(scrub({ note: 'order 12345678' })).toEqual({ note: 'order 12345678' });
+    expect(scrub({ orderNumber: '4155552671' })).toEqual({
+      orderNumber: '4155552671',
+    });
+    expect(scrub({ note: 'order 12345678' })).toEqual({
+      note: 'order 12345678',
+    });
   });
 
   it('leaves a short number and a year alone', () => {

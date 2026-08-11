@@ -68,7 +68,10 @@ describe('isLegitimateBrowser', () => {
       'Chrome iOS',
       'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/120.0.6099.119 Mobile/15E148 Safari/604.1',
     ],
-    ['legacy IE 10', 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)'],
+    [
+      'legacy IE 10',
+      'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)',
+    ],
   ];
 
   it.each(browsers)('recognises %s', (_name, ua) => {
@@ -76,13 +79,22 @@ describe('isLegitimateBrowser', () => {
   });
 
   const bots: Array<[string, string]> = [
-    ['Googlebot', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'],
-    ['Bingbot', 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)'],
+    [
+      'Googlebot',
+      'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+    ],
+    [
+      'Bingbot',
+      'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
+    ],
     [
       'Baiduspider',
       'Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)',
     ],
-    ['YandexBot', 'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)'],
+    [
+      'YandexBot',
+      'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)',
+    ],
     [
       'Yahoo! Slurp',
       'Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)',
@@ -109,7 +121,9 @@ describe('isLegitimateBrowser', () => {
     // like "SomeCrawler" has no word boundary before "crawler" and slips past.
     // The `compatible;\s*[a-z]+bot` pattern above covers the -bot suffix, but
     // there is no equivalent for -crawler.
-    expect(isLegitimateBrowser('Mozilla/5.0 (compatible; Some crawler/1.0)')).toBe(false);
+    expect(
+      isLegitimateBrowser('Mozilla/5.0 (compatible; Some crawler/1.0)'),
+    ).toBe(false);
     expect(
       isLegitimateBrowser('Mozilla/5.0 (compatible; SomeCrawler/1.0)'),
       'run-together -crawler is not caught here; the guard catches it later',
@@ -143,9 +157,12 @@ describe('isLikelyBot', () => {
     expect(isLikelyBot(ua)).toBe(true);
   });
 
-  it.each([CHROME_DESKTOP, FIREFOX_DESKTOP, SAFARI_DESKTOP])('does not flag %s', (ua) => {
-    expect(isLikelyBot(ua)).toBe(false);
-  });
+  it.each([CHROME_DESKTOP, FIREFOX_DESKTOP, SAFARI_DESKTOP])(
+    'does not flag %s',
+    (ua) => {
+      expect(isLikelyBot(ua)).toBe(false);
+    },
+  );
 
   it('disagrees with the guard, and is not the guard', () => {
     // isLikelyBot matches a bare 'bot' anywhere, so a full Chrome UA with the
@@ -159,24 +176,36 @@ describe('isLikelyBot', () => {
     // guard; it exists for callers who want the aggressive answer.
     const spoofy = `${CHROME_DESKTOP} bot`;
     expect(isLikelyBot(spoofy)).toBe(true);
-    expect(blocksUA(spoofy), 'the guard trusts the browser tokens and allows it').toBe(false);
+    expect(
+      blocksUA(spoofy),
+      'the guard trusts the browser tokens and allows it',
+    ).toBe(false);
   });
 });
 
 describe('createCrawlerBotBlockGuard', () => {
   describe('search engine crawlers', () => {
     it.each([
-      ['Googlebot', 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'],
+      [
+        'Googlebot',
+        'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
+      ],
       [
         'Googlebot Mobile',
         'Mozilla/5.0 (iPhone; CPU iPhone OS 10_3_1 like Mac OS X) AppleWebKit/602.1.50 (KHTML, like Gecko) Mobile/14E304 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)',
       ],
-      ['Bingbot', 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)'],
+      [
+        'Bingbot',
+        'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)',
+      ],
       [
         'Baiduspider',
         'Mozilla/5.0 (compatible; Baiduspider/2.0; +http://www.baidu.com/search/spider.html)',
       ],
-      ['YandexBot', 'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)'],
+      [
+        'YandexBot',
+        'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)',
+      ],
       [
         'Yahoo! Slurp',
         'Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)',
@@ -188,9 +217,15 @@ describe('createCrawlerBotBlockGuard', () => {
 
   describe('social media crawlers', () => {
     it.each([
-      ['Facebook external hit', 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)'],
+      [
+        'Facebook external hit',
+        'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)',
+      ],
       ['Twitterbot', 'Twitterbot/1.0'],
-      ['LinkedInBot', 'LinkedInBot/1.0 (compatible; Mozilla/5.0; +http://www.linkedin.com)'],
+      [
+        'LinkedInBot',
+        'LinkedInBot/1.0 (compatible; Mozilla/5.0; +http://www.linkedin.com)',
+      ],
       ['Pinterest', 'Pinterest/0.2 (+http://www.pinterest.com/bot.html)'],
     ])('blocks %s', (_name, ua) => {
       expect(blocksUA(ua)).toBe(true);
@@ -199,8 +234,14 @@ describe('createCrawlerBotBlockGuard', () => {
 
   describe('SEO and monitoring tools', () => {
     it.each([
-      ['AhrefsBot', 'Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)'],
-      ['SemrushBot', 'Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)'],
+      [
+        'AhrefsBot',
+        'Mozilla/5.0 (compatible; AhrefsBot/7.0; +http://ahrefs.com/robot/)',
+      ],
+      [
+        'SemrushBot',
+        'Mozilla/5.0 (compatible; SemrushBot/7~bl; +http://www.semrush.com/bot.html)',
+      ],
       ['Screaming Frog', 'Screaming Frog SEO Spider/14.0'],
       [
         'Chrome Lighthouse',
@@ -264,8 +305,14 @@ describe('createCrawlerBotBlockGuard', () => {
         'Safari iOS',
         'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
       ],
-      ['Firefox Android', 'Mozilla/5.0 (Android 13; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0'],
-      ['legacy IE 10', 'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)'],
+      [
+        'Firefox Android',
+        'Mozilla/5.0 (Android 13; Mobile; rv:121.0) Gecko/121.0 Firefox/121.0',
+      ],
+      [
+        'legacy IE 10',
+        'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)',
+      ],
       [
         'Chrome without a Safari token',
         'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/120.0.0.0',
@@ -288,13 +335,17 @@ describe('createCrawlerBotBlockGuard', () => {
       // The browser branch inspects what follows "compatible;": if it names no
       // OS or device, the agent is treated as suspicious. This is what catches
       // bots that mimic the IE-style UA without getting the details right.
-      expect(blocksUA('Mozilla/5.0 (compatible; SomethingElse/1.0)')).toBe(true);
+      expect(blocksUA('Mozilla/5.0 (compatible; SomethingElse/1.0)')).toBe(
+        true,
+      );
     });
 
     it('allows a real OS inside a compatible; block', () => {
-      expect(blocksUA('Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)')).toBe(
-        false,
-      );
+      expect(
+        blocksUA(
+          'Mozilla/5.0 (compatible; MSIE 10.0; Windows NT 6.1; Trident/6.0)',
+        ),
+      ).toBe(false);
     });
   });
 
@@ -323,7 +374,9 @@ describe('createCrawlerBotBlockGuard', () => {
       // botGuard.cy.ts recorded this twice and inconsistently: `it.skip` in one
       // place, and an assertion of `false` in the Multiple Bot Patterns table.
       // The table was right.
-      expect(blocksUA('Mozilla/5.0 (compatible; SuspiciousBot/1.0)')).toBe(false);
+      expect(blocksUA('Mozilla/5.0 (compatible; SuspiciousBot/1.0)')).toBe(
+        false,
+      );
     });
 
     it('does NOT block FakeBot, for the same reason', () => {
@@ -335,7 +388,9 @@ describe('createCrawlerBotBlockGuard', () => {
       // as a browser, reaches the browser branch, and passes its compatible;
       // check because "windows nt" looks like a real OS. Closing it needs a
       // positive browser-token requirement, not another denylist entry.
-      expect(blocksUA('Mozilla/5.0 (compatible; Harvester/1.0; Windows NT 10.0)')).toBe(false);
+      expect(
+        blocksUA('Mozilla/5.0 (compatible; Harvester/1.0; Windows NT 10.0)'),
+      ).toBe(false);
     });
   });
 });

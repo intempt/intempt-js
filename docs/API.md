@@ -35,34 +35,48 @@ install method.
 ```html
 <!-- 1. Queue stub — lets you call window.intempt.* before the SDK finishes loading -->
 <script>
-(function () {
-  if (window.intempt) return;
-  var queue = [], pending = [];
-  var methods = ['identify','group','track','record','alias','consent',
-                 'productAdd','productOrdered','productView','logOut',
-                 'optIn','optOut','isUserOptIn','recommendation'];
-  var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
-  methods.forEach(function (m) {
-    stub[m] = function () {
-      var args = [].slice.call(arguments);
-      if (m === 'recommendation') {
-        return new Promise(function (resolve, reject) {
-          pending.push({ resolve: resolve, reject: reject });
-          queue.push({ method: m, args: args });
-        });
-      }
-      queue.push({ method: m, args: args });
-    };
-  });
-  window.intempt = stub;
-})();
+  (function () {
+    if (window.intempt) return;
+    var queue = [],
+      pending = [];
+    var methods = [
+      'identify',
+      'group',
+      'track',
+      'record',
+      'alias',
+      'consent',
+      'productAdd',
+      'productOrdered',
+      'productView',
+      'logOut',
+      'optIn',
+      'optOut',
+      'isUserOptIn',
+      'recommendation',
+    ];
+    var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
+    methods.forEach(function (m) {
+      stub[m] = function () {
+        var args = [].slice.call(arguments);
+        if (m === 'recommendation') {
+          return new Promise(function (resolve, reject) {
+            pending.push({ resolve: resolve, reject: reject });
+            queue.push({ method: m, args: args });
+          });
+        }
+        queue.push({ method: m, args: args });
+      };
+    });
+    window.intempt = stub;
+  })();
 </script>
 
 <!-- 2. The SDK itself -->
 <script
   async
-  src="https://cdn.intempt.com/v1/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password">
-</script>
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password"
+></script>
 ```
 
 **The `/v1/` path segment is required.** The SDK locates its own `<script>` tag by
@@ -106,17 +120,17 @@ for that tag as a readiness signal.
 Configuration comes from the query string on the SDK's own `<script src>`. There is no
 runtime config object.
 
-| Parameter | Maps to | Required | Notes |
-|---|---|---|---|
-| `organization` | `organization` | yes | Organization identifier |
-| `project` | `project` | yes | Project identifier |
-| `source` | `sourceId` | yes | The source you are sending events to |
-| `key` | `writeKey` | yes | `username.password` form; split on the first `.` |
-| `shopify` | `shopify` | no | Enabled by **presence** — see below |
-| `magento` | `magento` | no | Enabled by **presence** — see below |
+| Parameter      | Maps to        | Required | Notes                                            |
+| -------------- | -------------- | -------- | ------------------------------------------------ |
+| `organization` | `organization` | yes      | Organization identifier                          |
+| `project`      | `project`      | yes      | Project identifier                               |
+| `source`       | `sourceId`     | yes      | The source you are sending events to             |
+| `key`          | `writeKey`     | yes      | `username.password` form; split on the first `.` |
+| `shopify`      | `shopify`      | no       | Enabled by **presence** — see below              |
+| `magento`      | `magento`      | no       | Enabled by **presence** — see below              |
 
 `shopify` and `magento` are read with `!!searchParams.get(...)`, so **any non-empty value
-turns them on**. `&shopify=0` and `&shopify=false` both *enable* Shopify tracking. The
+turns them on**. `&shopify=0` and `&shopify=false` both _enable_ Shopify tracking. The
 only way to disable either is to omit the parameter.
 
 If any of the four required parameters is absent from the URL it is read as the empty
@@ -164,16 +178,16 @@ window.intempt.identify({
   userId: 'user_123',
   eventTitle: 'User Registration',
   userAttributes: { email: 'user@example.com', plan: 'premium' },
-  data: { signupSource: 'homepage' }
+  data: { signupSource: 'homepage' },
 });
 ```
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `userId` | `string` | yes | Must be **truthy**. `''`, `0`, `null` and `undefined` are all rejected. |
-| `eventTitle` | `string` | no | Required if you pass `userAttributes`. Must not be a [reserved title](#reserved-event-titles). |
-| `userAttributes` | `object` | no | Profile attributes. Requires `eventTitle`. |
-| `data` | `object` | no | Event properties. Does **not** require `eventTitle`. |
+| Field            | Type     | Required | Notes                                                                                          |
+| ---------------- | -------- | -------- | ---------------------------------------------------------------------------------------------- |
+| `userId`         | `string` | yes      | Must be **truthy**. `''`, `0`, `null` and `undefined` are all rejected.                        |
+| `eventTitle`     | `string` | no       | Required if you pass `userAttributes`. Must not be a [reserved title](#reserved-event-titles). |
+| `userAttributes` | `object` | no       | Profile attributes. Requires `eventTitle`.                                                     |
+| `data`           | `object` | no       | Event properties. Does **not** require `eventTitle`.                                           |
 
 Checks, in order:
 
@@ -186,7 +200,7 @@ Checks, in order:
 4. `userAttributes` present without `eventTitle` →
    `Identify parameters are invalid: set 'eventTitle' to use 'userAttributes'.`
 
-Note that the reserved-title check runs *before* the `userId` check: a call with both a
+Note that the reserved-title check runs _before_ the `userId` check: a call with both a
 reserved title and no `userId` reports the title.
 
 ### `alias(params)`
@@ -198,10 +212,10 @@ signup and the authenticated ID issued after it.
 window.intempt.alias({ userId: 'anon_abc', anotherUserId: 'user_123' });
 ```
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `userId` | `string` | yes | Rejected only if `undefined` or `null`. An empty string is accepted. |
-| `anotherUserId` | `string` | yes | Same rule. |
+| Field           | Type     | Required | Notes                                                                |
+| --------------- | -------- | -------- | -------------------------------------------------------------------- |
+| `userId`        | `string` | yes      | Rejected only if `undefined` or `null`. An empty string is accepted. |
+| `anotherUserId` | `string` | yes      | Same rule.                                                           |
 
 Checks, in order:
 
@@ -221,15 +235,15 @@ Associates the visitor with an account, company or workspace.
 window.intempt.group({
   accountId: 'company_acme',
   eventTitle: 'Account Updated',
-  accountAttributes: { name: 'Acme Corp', plan: 'enterprise' }
+  accountAttributes: { name: 'Acme Corp', plan: 'enterprise' },
 });
 ```
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `accountId` | `string` | yes | Rejected only if `undefined` or `null`. **`''` and `0` are accepted** — see below. |
-| `eventTitle` | `string` | no | Required if you pass `accountAttributes`. Must not be reserved. |
-| `accountAttributes` | `object` | no | Account attributes. Requires `eventTitle`. |
+| Field               | Type     | Required | Notes                                                                              |
+| ------------------- | -------- | -------- | ---------------------------------------------------------------------------------- |
+| `accountId`         | `string` | yes      | Rejected only if `undefined` or `null`. **`''` and `0` are accepted** — see below. |
+| `eventTitle`        | `string` | no       | Required if you pass `accountAttributes`. Must not be reserved.                    |
+| `accountAttributes` | `object` | no       | Account attributes. Requires `eventTitle`.                                         |
 
 Checks, in order:
 
@@ -254,14 +268,14 @@ The general-purpose custom event. Both fields are mandatory.
 ```javascript
 window.intempt.track({
   eventTitle: 'Newsletter Signup',
-  data: { listId: 'weekly', source: 'footer' }
+  data: { listId: 'weekly', source: 'footer' },
 });
 ```
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `eventTitle` | `string` | yes | Rejected if `undefined` or `null`. Must not be reserved. |
-| `data` | `object` | yes | Must be a **non-empty** object. |
+| Field        | Type     | Required | Notes                                                    |
+| ------------ | -------- | -------- | -------------------------------------------------------- |
+| `eventTitle` | `string` | yes      | Rejected if `undefined` or `null`. Must not be reserved. |
+| `data`       | `object` | yes      | Must be a **non-empty** object.                          |
 
 Checks, in order:
 
@@ -283,18 +297,18 @@ window.intempt.record({
   eventTitle: 'Feature Used',
   userId: 'user_123',
   accountId: 'company_acme',
-  data: { feature: 'dashboard_export' }
+  data: { feature: 'dashboard_export' },
 });
 ```
 
-| Field | Type | Required |
-|---|---|---|
-| `eventTitle` | `string` | yes |
-| `accountId` | `string` | no |
-| `userId` | `string` | no |
-| `accountAttributes` | `object` | no |
-| `userAttributes` | `object` | no |
-| `data` | `object` | no |
+| Field               | Type     | Required |
+| ------------------- | -------- | -------- |
+| `eventTitle`        | `string` | yes      |
+| `accountId`         | `string` | no       |
+| `userId`            | `string` | no       |
+| `accountAttributes` | `object` | no       |
+| `userAttributes`    | `object` | no       |
+| `data`              | `object` | no       |
 
 Checks, in order:
 
@@ -321,9 +335,9 @@ Two separate mechanisms, easy to confuse:
 ### `optOut()`, `optIn()`, `isUserOptIn()`
 
 ```javascript
-window.intempt.optOut();       // stop collecting
-window.intempt.optIn();        // resume
-window.intempt.isUserOptIn();  // -> boolean; true by default
+window.intempt.optOut(); // stop collecting
+window.intempt.optIn(); // resume
+window.intempt.isUserOptIn(); // -> boolean; true by default
 ```
 
 Tracking is **on by default**. The opt-out flag is persisted to `localStorage` under
@@ -345,17 +359,17 @@ window.intempt.consent({
   action: 'accept',
   validUntil: Date.now() + 365 * 24 * 60 * 60 * 1000,
   email: 'user@example.com',
-  category: 'analytics'
+  category: 'analytics',
 });
 ```
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `action` | `'accept' \| 'reject'` | yes | **Case-sensitive.** `'Accept'` is rejected. |
-| `validUntil` | `number` | see below | Declared required in the type, but **not validated** at runtime. |
-| `email` | `string` | no | |
-| `message` | `string` | no | |
-| `category` | `string` | no | |
+| Field        | Type                   | Required  | Notes                                                            |
+| ------------ | ---------------------- | --------- | ---------------------------------------------------------------- |
+| `action`     | `'accept' \| 'reject'` | yes       | **Case-sensitive.** `'Accept'` is rejected.                      |
+| `validUntil` | `number`               | see below | Declared required in the type, but **not validated** at runtime. |
+| `email`      | `string`               | no        |                                                                  |
+| `message`    | `string`               | no        |                                                                  |
+| `category`   | `string`               | no        |                                                                  |
 
 Checks, in order:
 
@@ -381,17 +395,18 @@ and send. A malformed payload reaches ingest.
 
 ```javascript
 window.intempt.productAdd({ productId: 'prod_123', quantity: 2 });
-window.intempt.productView('prod_123');                      // a plain string
-window.intempt.productOrdered([                              // an array
+window.intempt.productView('prod_123'); // a plain string
+window.intempt.productOrdered([
+  // an array
   { productId: 'prod_123', quantity: 2 },
-  { productId: 'prod_456', quantity: 1 }
+  { productId: 'prod_456', quantity: 1 },
 ]);
 ```
 
-| Method | Argument | Event title sent |
-|---|---|---|
-| `productAdd(product)` | `{ productId, quantity? }` | `Added to cart` |
-| `productView(productId)` | `string` | `Product viewed` |
+| Method                     | Argument                          | Event title sent  |
+| -------------------------- | --------------------------------- | ----------------- |
+| `productAdd(product)`      | `{ productId, quantity? }`        | `Added to cart`   |
+| `productView(productId)`   | `string`                          | `Product viewed`  |
 | `productOrdered(products)` | `Array<{ productId, quantity? }>` | `Product ordered` |
 
 The argument shapes are inconsistent — one object, one bare string, one array. That is
@@ -430,15 +445,15 @@ opt-out flag.
 const items = await window.intempt.recommendation({
   id: 123,
   quantity: 10,
-  fields: ['productId', 'name', 'price', 'image']
+  fields: ['productId', 'name', 'price', 'image'],
 });
 ```
 
-| Field | Type | Required | Notes |
-|---|---|---|---|
-| `id` | `number` | yes | Feed ID |
-| `quantity` | `number` | yes | Sent as `limit` |
-| `fields` | `string[]` | yes | Fields to return per item |
+| Field      | Type       | Required | Notes                     |
+| ---------- | ---------- | -------- | ------------------------- |
+| `id`       | `number`   | yes      | Feed ID                   |
+| `quantity` | `number`   | yes      | Sent as `limit`           |
+| `fields`   | `string[]` | yes      | Fields to return per item |
 
 Nothing here is validated. The request also sends the current `profileId`, your
 `sourceId`, and the `productId` last seen in `localStorage`.
@@ -451,7 +466,11 @@ happens outside the SDK's `try`/`catch`. Handle both:
 ```javascript
 let items = null;
 try {
-  items = await window.intempt.recommendation({ id: 123, quantity: 10, fields: ['productId'] });
+  items = await window.intempt.recommendation({
+    id: 123,
+    quantity: 10,
+    fields: ['productId'],
+  });
 } catch {
   items = null;
 }
@@ -463,7 +482,7 @@ if (items) render(items);
 ## `VERSION`
 
 ```javascript
-window.intempt.VERSION          // e.g. '6.0.0'
+window.intempt.VERSION; // e.g. '6.0.0'
 ```
 
 The build-time SDK version, stamped from `package.json`. Useful in a bug report. It is
@@ -477,16 +496,16 @@ doubles as a readiness check.
 These titles are rejected, case-insensitively, on `track`, `record`, `identify` and
 `group`:
 
-| Reserved title | Why |
-|---|---|
-| `auto-track` | Marks events the SDK generated itself rather than ones you sent. |
-| `view page` | Emitted by the automatic page-view tracker. |
-| `leave page` | Emitted on page exit, and carries time-on-page. |
-| `change on` | Emitted on form-field changes. |
-| `click on` | Emitted on clicks. |
-| `submit on` | Emitted on form submits. |
-| `identify` | Reserved for the identity stream. |
-| `consent` | Reserved for the consent stream. |
+| Reserved title | Why                                                              |
+| -------------- | ---------------------------------------------------------------- |
+| `auto-track`   | Marks events the SDK generated itself rather than ones you sent. |
+| `view page`    | Emitted by the automatic page-view tracker.                      |
+| `leave page`   | Emitted on page exit, and carries time-on-page.                  |
+| `change on`    | Emitted on form-field changes.                                   |
+| `click on`     | Emitted on clicks.                                               |
+| `submit on`    | Emitted on form submits.                                         |
+| `identify`     | Reserved for the identity stream.                                |
+| `consent`      | Reserved for the consent stream.                                 |
 
 They are reserved because the platform routes and reports on them as its own primitives.
 An event you send under one of these names would be indistinguishable from an automatic
@@ -504,7 +523,7 @@ The error is:
 The '<the title you passed>' event title is forbidden
 ```
 
-Note the case asymmetry: `identify` and `group` only check the title *if you passed one*,
+Note the case asymmetry: `identify` and `group` only check the title _if you passed one_,
 since it is optional there. `track` and `record` always check.
 
 ---
@@ -514,21 +533,21 @@ since it is optional there. `track` and `record` always check.
 Every event the SDK sends is also dispatched as a `CustomEvent` on `window`, so you can
 mirror analytics into your own tooling without patching the SDK.
 
-| Event | `detail` | Fired by |
-|---|---|---|
-| `intempt:event` | `{ event }` — the full payload | **every** event, automatic and manual |
-| `intempt:track` | `{ eventName }` | `track()` |
-| `intempt:identify` | `{ eventName }` | `identify()` |
-| `intempt:group` | `{ eventName }` | `group()` |
-| `intempt:record` | `{ eventName }` | `record()` |
-| `intempt:alias` | `{ eventName }` | `alias()` |
-| `intempt:consent` | `{ eventName }` | `consent()` |
-| `intempt:product` | `{ eventName }` | `productAdd()`, `productView()`, `productOrdered()` |
-| `intempt:logOut` | `{ eventName: 'Log Out' }` | `logOut()` |
-| `intempt:page` | `{ eventName }` | automatic page view / page leave |
-| `intempt:session` | `{ eventName }` | automatic session start |
-| `intempt:html` | `{ eventName }` | automatic click / change / submit |
-| `intempt:shopify` | `{ eventName }` | Shopify tracker |
+| Event              | `detail`                       | Fired by                                            |
+| ------------------ | ------------------------------ | --------------------------------------------------- |
+| `intempt:event`    | `{ event }` — the full payload | **every** event, automatic and manual               |
+| `intempt:track`    | `{ eventName }`                | `track()`                                           |
+| `intempt:identify` | `{ eventName }`                | `identify()`                                        |
+| `intempt:group`    | `{ eventName }`                | `group()`                                           |
+| `intempt:record`   | `{ eventName }`                | `record()`                                          |
+| `intempt:alias`    | `{ eventName }`                | `alias()`                                           |
+| `intempt:consent`  | `{ eventName }`                | `consent()`                                         |
+| `intempt:product`  | `{ eventName }`                | `productAdd()`, `productView()`, `productOrdered()` |
+| `intempt:logOut`   | `{ eventName: 'Log Out' }`     | `logOut()`                                          |
+| `intempt:page`     | `{ eventName }`                | automatic page view / page leave                    |
+| `intempt:session`  | `{ eventName }`                | automatic session start                             |
+| `intempt:html`     | `{ eventName }`                | automatic click / change / submit                   |
+| `intempt:shopify`  | `{ eventName }`                | Shopify tracker                                     |
 
 ```javascript
 window.addEventListener('intempt:event', (e) => {
@@ -546,16 +565,16 @@ delivery.
 
 Stated up front so you do not find them after integrating.
 
-| Limitation | Detail |
-|---|---|
-| **CDN install only** | No module build, no `main`/`module`/`exports`, no published types. `import` does not work. |
-| **The `/v1/` path is load-bearing** | The SDK finds its own script tag by matching the full CDN URL. A different path means no configuration. |
-| **No public ID getters** | Profile, session and page IDs are attached internally. There is no `getProfileId()`. |
-| **Consent is origin-scoped** | `localStorage`, so opt-out does not cross subdomains. |
-| **`recommendation` ignores opt-out** | It calls the API regardless. Gate it yourself if needed. |
-| **Blocked on localhost** | Tracking is blocked on `localhost`, `*.localhost` and `127.0.0.1`, and for bot user agents. See [examples/README.md](../examples/README.md) for how to develop against this. |
-| **The write key is in the page** | It is a query parameter on a public script URL and is sent as an HTTP Basic credential. Treat it as a write-only public key, scope it to one source, and rotate it if it is used for anything else. |
-| **`shopify`/`magento` cannot be disabled by value** | `=0` and `=false` enable them. Omit the parameter. |
+| Limitation                                                   | Detail                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **CDN install only**                                         | No module build, no `main`/`module`/`exports`, no published types. `import` does not work.                                                                                                                                                                 |
+| **The `/v1/` path is load-bearing**                          | The SDK finds its own script tag by matching the full CDN URL. A different path means no configuration.                                                                                                                                                    |
+| **No public ID getters**                                     | Profile, session and page IDs are attached internally. There is no `getProfileId()`.                                                                                                                                                                       |
+| **Consent is origin-scoped**                                 | `localStorage`, so opt-out does not cross subdomains.                                                                                                                                                                                                      |
+| **`recommendation` ignores opt-out**                         | It calls the API regardless. Gate it yourself if needed.                                                                                                                                                                                                   |
+| **Blocked on localhost**                                     | Tracking is blocked on `localhost`, `*.localhost` and `127.0.0.1`, and for bot user agents. See [examples/README.md](../examples/README.md) for how to develop against this.                                                                               |
+| **The write key is in the page**                             | It is a query parameter on a public script URL and is sent as an HTTP Basic credential. Treat it as a write-only public key, scope it to one source, and rotate it if it is used for anything else.                                                        |
+| **`shopify`/`magento` cannot be disabled by value**          | `=0` and `=false` enable them. Omit the parameter.                                                                                                                                                                                                         |
 | **A bad config fails as silence, not as an error you catch** | The constructor throws inside the SDK's own async bootstrap, so `window.intempt` stays the queue stub. Your calls keep succeeding and queue forever; nothing is ever sent. Check the console for `IntemptJs initialization failed` or `CAN'T FIND SCRIPT`. |
 
 ### Hardening the embed

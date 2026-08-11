@@ -86,13 +86,14 @@ export class IndexedDbStore {
         resolve();
       };
 
-      request.onerror = () => reject(request.error || new Error('IndexedDB open failed'));
+      request.onerror = () =>
+        reject(request.error || new Error('IndexedDB open failed'));
       request.onblocked = () => reject(new Error('IndexedDB open blocked'));
     });
 
     // A failed init must not be cached as permanently failed-but-settled; drop it
     // so a later attempt can retry (e.g. after the blocking tab closes).
-    this.initPromise = this.initPromise.catch(error => {
+    this.initPromise = this.initPromise.catch((error) => {
       this.initPromise = null;
       throw error;
     });
@@ -105,12 +106,17 @@ export class IndexedDbStore {
     if (!this.db) {
       throw new Error('IndexedDB not initialized');
     }
-    return this.db.transaction(this.storeName, mode).objectStore(this.storeName);
+    return this.db
+      .transaction(this.storeName, mode)
+      .objectStore(this.storeName);
   }
 
-  private request<T>(makeRequest: (store: IDBObjectStore) => IDBRequest, mode: IDBTransactionMode): Promise<T> {
+  private request<T>(
+    makeRequest: (store: IDBObjectStore) => IDBRequest,
+    mode: IDBTransactionMode,
+  ): Promise<T> {
     return this.transaction(mode).then(
-      store =>
+      (store) =>
         new Promise<T>((resolve, reject) => {
           let req: IDBRequest;
           try {
@@ -120,26 +126,30 @@ export class IndexedDbStore {
             return;
           }
           req.onsuccess = () => resolve(req.result as T);
-          req.onerror = () => reject(req.error || new Error('IndexedDB request failed'));
+          req.onerror = () =>
+            reject(req.error || new Error('IndexedDB request failed'));
         }),
     );
   }
 
   async getItem(key: string): Promise<any> {
-    const value = await this.request<any>(store => store.get(key), 'readonly');
+    const value = await this.request<any>(
+      (store) => store.get(key),
+      'readonly',
+    );
     return value === undefined ? null : value;
   }
 
   async setItem(key: string, value: any): Promise<void> {
-    await this.request<void>(store => store.put(value, key), 'readwrite');
+    await this.request<void>((store) => store.put(value, key), 'readwrite');
   }
 
   async removeItem(key: string): Promise<void> {
-    await this.request<void>(store => store.delete(key), 'readwrite');
+    await this.request<void>((store) => store.delete(key), 'readwrite');
   }
 
   async clear(): Promise<void> {
-    await this.request<void>(store => store.clear(), 'readwrite');
+    await this.request<void>((store) => store.clear(), 'readwrite');
   }
 
   /**
@@ -158,8 +168,10 @@ export class IndexedDbStore {
     await new Promise<void>((resolve, reject) => {
       const tx = store.transaction;
       tx.oncomplete = () => resolve();
-      tx.onerror = () => reject(tx.error || new Error('IndexedDB batch delete failed'));
-      tx.onabort = () => reject(tx.error || new Error('IndexedDB batch delete aborted'));
+      tx.onerror = () =>
+        reject(tx.error || new Error('IndexedDB batch delete failed'));
+      tx.onabort = () =>
+        reject(tx.error || new Error('IndexedDB batch delete aborted'));
 
       for (const key of keys) {
         store.delete(key);
@@ -175,7 +187,10 @@ export class IndexedDbStore {
    * to read one batch. `\uffff` is the standard upper sentinel for a string
    * prefix range in IndexedDB.
    */
-  async entries(prefix: string, limit?: number): Promise<Array<{ key: string; value: any }>> {
+  async entries(
+    prefix: string,
+    limit?: number,
+  ): Promise<Array<{ key: string; value: any }>> {
     const store = await this.transaction('readonly');
     const range = IDBKeyRange.bound(prefix, `${prefix}\uffff`);
 
@@ -192,14 +207,18 @@ export class IndexedDbStore {
         out.push({ key: String(cursor.key), value: cursor.value });
         cursor.continue();
       };
-      request.onerror = () => reject(request.error || new Error('IndexedDB cursor failed'));
+      request.onerror = () =>
+        reject(request.error || new Error('IndexedDB cursor failed'));
     });
   }
 
   /** Keys under `prefix`, in FIFO order. */
   async keys(prefix: string): Promise<string[]> {
     const range = IDBKeyRange.bound(prefix, `${prefix}\uffff`);
-    const keys = await this.request<IDBValidKey[]>(store => store.getAllKeys(range), 'readonly');
+    const keys = await this.request<IDBValidKey[]>(
+      (store) => store.getAllKeys(range),
+      'readonly',
+    );
     return (keys || []).map(String);
   }
 

@@ -1,7 +1,9 @@
 import { defineConfig } from 'vitest/config';
 import { readFileSync } from 'node:fs';
 
-const { version } = JSON.parse(readFileSync('./package.json', 'utf-8')) as { version: string };
+const { version } = JSON.parse(readFileSync('./package.json', 'utf-8')) as {
+  version: string;
+};
 
 /**
  * Tier 1 of the two-tier test split (Phase 2 of the hardening programme).

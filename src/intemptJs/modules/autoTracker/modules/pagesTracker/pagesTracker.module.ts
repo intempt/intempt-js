@@ -1,17 +1,23 @@
-import { dispatchIntemptEvent, generateId } from '../../../../../shared/shared.utils.ts';
+import {
+  dispatchIntemptEvent,
+  generateId,
+} from '../../../../../shared/shared.utils.ts';
 import {
   getCookie,
   localIntemptPageSessionCookie,
   setCookie,
 } from '../../../../../shared/storageHandler.ts';
 
-
 import { createLogger } from '../../../../../shared/logger/logger.ts';
 
 const log = createLogger('PagesTracker');
 
 type PageSessionCookie = { page_session: string } | null;
-type ParsedPageSessionCookie = { id: string, current_page: string, previous_page: string };
+type ParsedPageSessionCookie = {
+  id: string;
+  current_page: string;
+  previous_page: string;
+};
 
 export class PageTrackerModule {
   private readonly idType = 'pag';
@@ -23,14 +29,25 @@ export class PageTrackerModule {
 
   constructor() {}
 
-  private _safeParse<T>(s: string): T | null { try { return JSON.parse(s) as T; } catch { return null; } }
+  private _safeParse<T>(s: string): T | null {
+    try {
+      return JSON.parse(s) as T;
+    } catch {
+      return null;
+    }
+  }
 
-
-  refresh(){
+  refresh() {
     this.setPageSession();
   }
 
-  private readonly safeStart = () => { try { this.start(); } catch (e) { log.error('failed to start page tracking', e); } };
+  private readonly safeStart = () => {
+    try {
+      this.start();
+    } catch (e) {
+      log.error('failed to start page tracking', e);
+    }
+  };
 
   // 'locationchange' is the single funnel every navigation source (popstate,
   // pushState, replaceState — see _patchHistoryForSpa) routes through. `end()`
@@ -96,13 +113,11 @@ export class PageTrackerModule {
     window.addEventListener('hashchange', fire);
   }
 
-
-  start(){
+  start() {
     const href = window.location.href;
     if (this._started && this._lastStartUrl === href) return;
     this._started = true;
     this._lastStartUrl = href;
-
 
     this.setPageSession();
     const currentEventName = 'View Page';
@@ -114,11 +129,11 @@ export class PageTrackerModule {
       title: document.title,
       windowWidth: window.innerWidth,
       pageId: this.getId(),
-      previousPage
+      previousPage,
     });
   }
 
-  end(){
+  end() {
     const currentEventName = 'Leave Page';
     const startTime = this.getPageSessionStartTime();
     const previousPage = this.getPreviousPage();
@@ -130,7 +145,7 @@ export class PageTrackerModule {
       windowWidth: window.innerWidth,
       pageId: this.getId(),
       duration: new Date().getTime() - startTime,
-      previousPage
+      previousPage,
     });
   }
 
@@ -159,13 +174,13 @@ export class PageTrackerModule {
         return pageSessionId ?? '';
       }
     }
-    
+
     // Cookie doesn't exist (not an error) - try local storage first
     const local = localIntemptPageSessionCookie();
     if (local?.id) {
       return local.id;
     }
-    
+
     // No cookie and no local storage - create new session
     const newCookie = this.setPageSession() as PageSessionCookie;
     if (newCookie) {
@@ -179,16 +194,15 @@ export class PageTrackerModule {
     return pageSessionId ?? '';
   }
 
-  get cookieKeys(){
+  get cookieKeys() {
     return this.keys;
   }
 
-
-  private setPageSession(){
+  private setPageSession() {
     const cookie = getCookie(this.pageSession) as PageSessionCookie;
     const newPage = window.location.href;
 
-    if(!cookie){
+    if (!cookie) {
       return setCookie({
         name: this.pageSession,
         value: JSON.stringify({
@@ -201,8 +215,10 @@ export class PageTrackerModule {
       });
     }
 
-    try{
-      const { current_page } = JSON.parse(cookie[this.pageSession]) as ParsedPageSessionCookie;
+    try {
+      const { current_page } = JSON.parse(
+        cookie[this.pageSession],
+      ) as ParsedPageSessionCookie;
 
       return setCookie({
         name: this.pageSession,
@@ -214,24 +230,25 @@ export class PageTrackerModule {
         }),
         path: '/',
       });
+    } catch (e: unknown) {
+      log.error('failed to set page session cookie', e);
+      return null;
     }
-    catch(e: unknown){
-      log.error('failed to set page session cookie', e)
-      return null
-    }
-
   }
 
-  private getPageSessionStartTime(){
+  private getPageSessionStartTime() {
     const cookie = getCookie(this.pageSession) as PageSessionCookie;
-    const parsed = cookie ? this._safeParse<{ startTime?: number }>(cookie[this.pageSession]) : null;
+    const parsed = cookie
+      ? this._safeParse<{ startTime?: number }>(cookie[this.pageSession])
+      : null;
     return parsed?.startTime ?? Date.now();
   }
 
-  private getPreviousPage(){
+  private getPreviousPage() {
     const cookie = getCookie(this.pageSession) as PageSessionCookie;
-    const parsed = cookie ? this._safeParse<ParsedPageSessionCookie>(cookie[this.pageSession]) : null;
+    const parsed = cookie
+      ? this._safeParse<ParsedPageSessionCookie>(cookie[this.pageSession])
+      : null;
     return parsed?.previous_page ?? '';
   }
-
 }

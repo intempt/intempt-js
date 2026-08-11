@@ -3,13 +3,13 @@
 Runnable pages, each one a single self-contained HTML file with the real install snippet in
 it. Nothing is bundled or built.
 
-| Example | Shows |
-|---|---|
-| [`basic-html/`](basic-html/index.html) | The install snippet, `identify`, `track`, and a live log of everything the SDK sends |
-| [`consent-banner/`](consent-banner/index.html) | `optIn`/`optOut` versus `consent`, and the order the two have to happen in |
-| [`spa/`](spa/index.html) | Automatic page views across a `pushState` router — how little you have to write |
-| [`ecommerce/`](ecommerce/index.html) | `productView`, `productAdd`, `productOrdered` |
-| [`typescript/`](typescript/) | Declarations for `window.intempt`, a typed wrapper, and the compile-time traps. Type-checks under `strict` |
+| Example                                        | Shows                                                                                                      |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| [`basic-html/`](basic-html/index.html)         | The install snippet, `identify`, `track`, and a live log of everything the SDK sends                       |
+| [`consent-banner/`](consent-banner/index.html) | `optIn`/`optOut` versus `consent`, and the order the two have to happen in                                 |
+| [`spa/`](spa/index.html)                       | Automatic page views across a `pushState` router — how little you have to write                            |
+| [`ecommerce/`](ecommerce/index.html)           | `productView`, `productAdd`, `productOrdered`                                                              |
+| [`typescript/`](typescript/)                   | Declarations for `window.intempt`, a typed wrapper, and the compile-time traps. Type-checks under `strict` |
 
 ---
 

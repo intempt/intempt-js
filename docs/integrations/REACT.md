@@ -22,33 +22,47 @@ page.
 <head>
   <!-- Queue stub: buffers window.intempt.* calls until the SDK arrives -->
   <script>
-  (function () {
-    if (window.intempt) return;
-    var queue = [], pending = [];
-    var methods = ['identify','group','track','record','alias','consent',
-                   'productAdd','productOrdered','productView','logOut',
-                   'optIn','optOut','isUserOptIn','recommendation'];
-    var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
-    methods.forEach(function (m) {
-      stub[m] = function () {
-        var args = [].slice.call(arguments);
-        if (m === 'recommendation') {
-          return new Promise(function (resolve, reject) {
-            pending.push({ resolve: resolve, reject: reject });
-            queue.push({ method: m, args: args });
-          });
-        }
-        queue.push({ method: m, args: args });
-      };
-    });
-    window.intempt = stub;
-  })();
+    (function () {
+      if (window.intempt) return;
+      var queue = [],
+        pending = [];
+      var methods = [
+        'identify',
+        'group',
+        'track',
+        'record',
+        'alias',
+        'consent',
+        'productAdd',
+        'productOrdered',
+        'productView',
+        'logOut',
+        'optIn',
+        'optOut',
+        'isUserOptIn',
+        'recommendation',
+      ];
+      var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
+      methods.forEach(function (m) {
+        stub[m] = function () {
+          var args = [].slice.call(arguments);
+          if (m === 'recommendation') {
+            return new Promise(function (resolve, reject) {
+              pending.push({ resolve: resolve, reject: reject });
+              queue.push({ method: m, args: args });
+            });
+          }
+          queue.push({ method: m, args: args });
+        };
+      });
+      window.intempt = stub;
+    })();
   </script>
 
   <script
     async
-    src="https://cdn.intempt.com/v1/intempt.min.js?organization=YOUR_ORG&project=YOUR_PROJECT&source=YOUR_SOURCE_ID&key=YOUR_KEY">
-  </script>
+    src="https://cdn.intempt.com/v1/intempt.min.js?organization=YOUR_ORG&project=YOUR_PROJECT&source=YOUR_SOURCE_ID&key=YOUR_KEY"
+  ></script>
 </head>
 ```
 
@@ -102,7 +116,7 @@ Two exceptions:
   ```
 
 - **`replaceState` for query-param syncing emits a spurious exit.** A `replaceState` to a URL
-  that has not changed produces a *Leave Page* with no matching *View Page*. If you keep
+  that has not changed produces a _Leave Page_ with no matching _View Page_. If you keep
   filter state in the query string with `navigate(url, { replace: true })` on every keystroke,
   you will generate a stream of them. Debounce it, or keep that state out of the URL.
 
@@ -124,7 +138,7 @@ export function useIntemptIdentity(user: { id: string; email: string } | null) {
       // userAttributes require an eventTitle — omitting it throws.
       userAttributes: { email: user.email },
     });
-  }, [user?.id]);           // keyed on the id, so a re-rendered user object is not a re-identify
+  }, [user?.id]); // keyed on the id, so a re-rendered user object is not a re-identify
 }
 ```
 
@@ -156,7 +170,9 @@ export function useConsent() {
     analytics.whenReady().then((ready) => {
       if (!cancelled) setOptedIn(ready ? analytics.isOptedIn() : undefined);
     });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   function accept() {
@@ -186,7 +202,11 @@ import * as analytics from './analytics';
 
 export function ExportButton({ rows }: { rows: number }) {
   return (
-    <button onClick={() => analytics.track('Dashboard Exported', { format: 'csv', rows })}>
+    <button
+      onClick={() =>
+        analytics.track('Dashboard Exported', { format: 'csv', rows })
+      }
+    >
       Export
     </button>
   );
@@ -195,7 +215,7 @@ export function ExportButton({ rows }: { rows: number }) {
 
 You do not need to track the click itself — the SDK captures clicks, form changes and submits
 automatically, with the element's tag, id, classes, visible text and selector path. Use
-`track` for the *meaning* of an action, not its occurrence.
+`track` for the _meaning_ of an action, not its occurrence.
 
 To keep sensitive on-screen text out of those automatic events, add `doNotCapture`:
 

@@ -5,9 +5,9 @@ import { SDK } from './loaders/sdkLoader.ts';
 import { WEB_EDITOR } from './loaders/webEditorLoader.ts';
 import { TrackingGuardManager } from './guard/trackingGuard.manager.ts';
 import { shouldBlockTracking } from './guard/trackingGuard.checker.ts';
-import { 
-  createDomainBlockGuard, 
-  createCrawlerBotBlockGuard 
+import {
+  createDomainBlockGuard,
+  createCrawlerBotBlockGuard,
 } from './guard/trackingGuard.conditions.ts';
 
 import { createLogger } from './shared/logger/logger.ts';
@@ -25,7 +25,7 @@ function setupDefaultGuards() {
     name: 'Block Localhost',
     description: 'Prevent tracking on localhost',
     condition: createDomainBlockGuard(['localhost', '127.0.0.1']),
-    enabled: true
+    enabled: true,
   });
 
   // Block crawler/bot user agents
@@ -34,7 +34,7 @@ function setupDefaultGuards() {
     name: 'Block Crawler/Bot User Agents',
     description: 'Prevent tracking from crawlers, bots, and automated tools',
     condition: createCrawlerBotBlockGuard(),
-    enabled: true
+    enabled: true,
   });
 }
 
@@ -69,14 +69,16 @@ if (typeof window !== 'undefined') {
 (async () => {
   const qs = new URLSearchParams(location.search);
   const openerOrigin = (qs.get('openerOrigin') || '').replace(/\/+$/, '');
-  const channel      = qs.get('channel') || '';
+  const channel = qs.get('channel') || '';
   const cameFromOpener = Boolean(openerOrigin && channel);
 
-  log.debug(`environment ${EnvConfig.getEnv()}, version ${SDK_VERSION}`, { cameFromOpener });
+  log.debug(`environment ${EnvConfig.getEnv()}, version ${SDK_VERSION}`, {
+    cameFromOpener,
+  });
 
   // Check guard conditions before initializing
   const blocked = await shouldBlockTracking(guardManager);
-  
+
   if (blocked) {
     log.info('tracking blocked by guard conditions');
     return; // Exit early, don't initialize SDK
@@ -89,5 +91,3 @@ if (typeof window !== 'undefined') {
     SDK.init();
   }
 })();
-
-

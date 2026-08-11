@@ -202,7 +202,7 @@ export class RequestBatcher {
       queueStorage: options.queueStorage,
       sharedLockStorage: options.sharedLockStorage,
       maxQueuedEvents: options.libConfig.maxQueuedEvents,
-      errorReporter: this.reportError.bind(this)
+      errorReporter: this.reportError.bind(this),
     });
   }
 
@@ -303,7 +303,7 @@ export class RequestBatcher {
           const ids = JSON.parse(stored);
           // Trim on load too: an older build may have persisted more than the cap.
           this.sentEventIds = new Set(
-            Array.isArray(ids) ? ids.slice(-MAX_SENT_EVENT_IDS) : []
+            Array.isArray(ids) ? ids.slice(-MAX_SENT_EVENT_IDS) : [],
           );
         }
       }
@@ -389,7 +389,10 @@ export class RequestBatcher {
    * weight, so retaining it was a pure leak: one Map entry per event ever sent,
    * for the life of the tab.
    */
-  private recordDeliveryAttempts(itemIds: string[], removalSucceeded: boolean): void {
+  private recordDeliveryAttempts(
+    itemIds: string[],
+    removalSucceeded: boolean,
+  ): void {
     if (removalSucceeded) {
       for (const id of itemIds) {
         this.itemIdsSentSuccessfully.delete(id);
@@ -422,7 +425,7 @@ export class RequestBatcher {
    */
   private extractEventIds(payload: any): string[] {
     const eventIds: string[] = [];
-    
+
     if (payload && Array.isArray(payload.payload)) {
       for (const item of payload.payload) {
         if (item && item.eventId && typeof item.eventId === 'string') {
@@ -430,7 +433,7 @@ export class RequestBatcher {
         }
       }
     }
-    
+
     return eventIds;
   }
 
@@ -482,7 +485,7 @@ export class RequestBatcher {
         const eventIds = this.extractEventIds(payload);
 
         // Filter out items that have already been sent (by eventId)
-        const alreadySent = eventIds.some(id => this.sentEventIds.has(id));
+        const alreadySent = eventIds.some((id) => this.sentEventIds.has(id));
         if (alreadySent) {
           // Skipping is not enough: the item stays at the head of the queue and
           // fillBatch hands it back on every future flush, so the queue head is
@@ -502,12 +505,15 @@ export class RequestBatcher {
           // Deduplication check (by queue item ID)
           const itemId = item.id;
           const timesSent = this.itemIdsSentSuccessfully.get(itemId) || 0;
-          
+
           if (timesSent > 5) {
-            this.reportError('[dupe] item ID sent too many times, not sending', {
-              item,
-              timesSent
-            });
+            this.reportError(
+              '[dupe] item ID sent too many times, not sending',
+              {
+                item,
+                timesSent,
+              },
+            );
             continue;
           }
 
@@ -540,7 +546,7 @@ export class RequestBatcher {
         method: 'POST',
         timeout_ms: timeoutMS,
         keepalive: true,
-        unloading: options.unloading || false
+        unloading: options.unloading || false,
       };
 
       const response = await this.sendRequest(dataForRequest, requestOptions);
@@ -553,15 +559,14 @@ export class RequestBatcher {
       const evicted = new Set(alreadySentItemIds);
       await this.handleResponse(
         response,
-        batch.map(item => item.id).filter(id => !evicted.has(id)),
+        batch.map((item) => item.id).filter((id) => !evicted.has(id)),
         attemptSecondaryFlush,
         currentBatchSize,
         startTime,
         timeoutMS,
         options.unloading || false,
-        eventIdsInBatch
+        eventIdsInBatch,
       );
-
     } catch (error) {
       this.metrics.recordFlush(Date.now() - startTime, true);
       this.reportError('Error flushing request queue', error);
@@ -585,7 +590,7 @@ export class RequestBatcher {
     startTime: number,
     timeoutMS: number,
     unloading: boolean,
-    eventIdsInBatch: string[] = []
+    eventIdsInBatch: string[] = [],
   ): Promise<void> {
     this.requestInProgress = false;
 
@@ -620,7 +625,10 @@ export class RequestBatcher {
       }
 
       // Check for timeout
-      if (response?.error === 'timeout' && Date.now() - startTime >= timeoutMS) {
+      if (
+        response?.error === 'timeout' &&
+        Date.now() - startTime >= timeoutMS
+      ) {
         this.reportError('Network timeout; retrying');
         this.unmarkEventIdsSent(eventIdsInBatch);
         await this.flush();
@@ -656,7 +664,7 @@ export class RequestBatcher {
         // not inherit an unrelated random draw.
         let ceilingMS = Math.min(
           MAX_RETRY_INTERVAL_MS,
-          (this.retryCeilingMS || this.libConfig.batchFlushIntervalMs) * 2
+          (this.retryCeilingMS || this.libConfig.batchFlushIntervalMs) * 2,
         );
         let retryMS = fullJitter(ceilingMS);
 
@@ -689,7 +697,7 @@ export class RequestBatcher {
           this.metrics.setBreakerState('open');
           this.reportError(
             `${this.consecutiveSendFailures} consecutive failures; ` +
-              `circuit breaker open for ${openMS} ms`
+              `circuit breaker open for ${openMS} ms`,
           );
           // Schedule the half-open probe for when the window expires. Events
           // keep queueing meanwhile; only sending stops.
@@ -706,8 +714,14 @@ export class RequestBatcher {
       if (response?.httpStatusCode === 413) {
         if (itemIds.length > 1) {
           const halvedBatchSize = Math.max(1, Math.floor(currentBatchSize / 2));
-          this.batchSize = Math.min(this.batchSize, halvedBatchSize, itemIds.length - 1);
-          this.reportError(`413 response; reducing batch size to ${this.batchSize}`);
+          this.batchSize = Math.min(
+            this.batchSize,
+            halvedBatchSize,
+            itemIds.length - 1,
+          );
+          this.reportError(
+            `413 response; reducing batch size to ${this.batchSize}`,
+          );
           // These items stay queued to be re-sent in smaller batches.
           this.unmarkEventIdsSent(eventIdsInBatch);
           this.resetFlush();
@@ -742,7 +756,9 @@ export class RequestBatcher {
         }
       } else {
         if (++this.consecutiveRemovalFailures > 5) {
-          this.reportError('Too many queue failures; disabling batching system.');
+          this.reportError(
+            'Too many queue failures; disabling batching system.',
+          );
           this.stop();
         } else {
           this.resetFlush();
@@ -796,4 +812,3 @@ export class RequestBatcher {
     }
   }
 }
-

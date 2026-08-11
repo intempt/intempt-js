@@ -23,34 +23,48 @@ There's no constructor — your account settings go in the SDK URL's query param
 ```html
 <!-- 1. Queue stub -->
 <script>
-(function () {
-  if (window.intempt) return;
-  var queue = [], pending = [];
-  var methods = ['identify','group','track','record','alias','consent',
-                 'productAdd','productOrdered','productView','logOut',
-                 'optIn','optOut','isUserOptIn','recommendation'];
-  var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
-  methods.forEach(function (m) {
-    stub[m] = function () {
-      var args = [].slice.call(arguments);
-      if (m === 'recommendation') {
-        return new Promise(function (resolve, reject) {
-          pending.push({ resolve: resolve, reject: reject });
-          queue.push({ method: m, args: args });
-        });
-      }
-      queue.push({ method: m, args: args });
-    };
-  });
-  window.intempt = stub;
-})();
+  (function () {
+    if (window.intempt) return;
+    var queue = [],
+      pending = [];
+    var methods = [
+      'identify',
+      'group',
+      'track',
+      'record',
+      'alias',
+      'consent',
+      'productAdd',
+      'productOrdered',
+      'productView',
+      'logOut',
+      'optIn',
+      'optOut',
+      'isUserOptIn',
+      'recommendation',
+    ];
+    var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
+    methods.forEach(function (m) {
+      stub[m] = function () {
+        var args = [].slice.call(arguments);
+        if (m === 'recommendation') {
+          return new Promise(function (resolve, reject) {
+            pending.push({ resolve: resolve, reject: reject });
+            queue.push({ method: m, args: args });
+          });
+        }
+        queue.push({ method: m, args: args });
+      };
+    });
+    window.intempt = stub;
+  })();
 </script>
 
 <!-- 2. Load the SDK asynchronously -->
 <script
   async
-  src="https://cdn.intempt.com/v1/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password">
-</script>
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password"
+></script>
 ```
 
 > **The `/v1/` path segment is required.** The SDK reads its configuration from the query
@@ -61,14 +75,14 @@ There's no constructor — your account settings go in the SDK URL's query param
 > upgrading an older snippet, check this first: see the
 > [migration guide](docs/MIGRATION.md#1-add-v1-to-the-script-url).
 
-| Parameter | What it is |
-|-----------|------------|
-| `organization` | Your organization identifier |
-| `project` | Your project identifier |
-| `source` | Source ID (`sourceId`) you're sending data to |
-| `key` | Your API key, in `username.password` form |
-| `shopify` | Shopify tracking — add `&shopify=1` to enable, omit to disable |
-| `magento` | Magento product detection — add `&magento=1` to enable, omit to disable |
+| Parameter      | What it is                                                              |
+| -------------- | ----------------------------------------------------------------------- |
+| `organization` | Your organization identifier                                            |
+| `project`      | Your project identifier                                                 |
+| `source`       | Source ID (`sourceId`) you're sending data to                           |
+| `key`          | Your API key, in `username.password` form                               |
+| `shopify`      | Shopify tracking — add `&shopify=1` to enable, omit to disable          |
+| `magento`      | Magento product detection — add `&magento=1` to enable, omit to disable |
 
 > **`shopify` / `magento` are enabled by presence.** Including the parameter with any
 > non-empty value turns it on; to disable, leave it out entirely. Note that `&shopify=0`
@@ -105,13 +119,13 @@ img-src     'self' data: https://cdn.intempt.com;
 style-src   'self' 'unsafe-inline';
 ```
 
-| Directive | Why the SDK needs it |
-|---|---|
-| `script-src https://cdn.intempt.com` | Where the SDK bundle is served from. Also the origin of the visual web editor, which the SDK loads on demand. |
-| `connect-src https://api.intempt.com` | Event ingest and the recommendations API. |
-| `connect-src https://ipapi.co` | Geo/IP enrichment. **If you don't want this call, block this origin** — the SDK degrades to sending events without geo fields rather than failing. |
-| `img-src data:` | Inline image data used by rendered experiences. |
-| `style-src 'unsafe-inline'` | **Only if you use experiences/recommendations that restyle the page.** If you use the SDK for event tracking alone, drop it. |
+| Directive                             | Why the SDK needs it                                                                                                                               |
+| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `script-src https://cdn.intempt.com`  | Where the SDK bundle is served from. Also the origin of the visual web editor, which the SDK loads on demand.                                      |
+| `connect-src https://api.intempt.com` | Event ingest and the recommendations API.                                                                                                          |
+| `connect-src https://ipapi.co`        | Geo/IP enrichment. **If you don't want this call, block this origin** — the SDK degrades to sending events without geo fields rather than failing. |
+| `img-src data:`                       | Inline image data used by rendered experiences.                                                                                                    |
+| `style-src 'unsafe-inline'`           | **Only if you use experiences/recommendations that restyle the page.** If you use the SDK for event tracking alone, drop it.                       |
 
 Two practical notes:
 
@@ -140,8 +154,8 @@ curl -s https://cdn.intempt.com/v1/intempt.min.js \
   async
   crossorigin="anonymous"
   integrity="sha384-<the hash from above>"
-  src="https://cdn.intempt.com/v1/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password">
-</script>
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password"
+></script>
 ```
 
 > **⚠️ Today this will break your site at our next release, and you should know that
@@ -214,7 +228,7 @@ window.intempt.identify({
   userId: 'user_123',
   eventTitle: 'User Registration',
   userAttributes: { email: 'user@example.com', plan: 'premium' },
-  data: { signupSource: 'homepage' }
+  data: { signupSource: 'homepage' },
 });
 ```
 
@@ -229,8 +243,8 @@ To associate the user with a company/account, use `group`:
 ```javascript
 window.intempt.group({
   accountId: 'company_acme',
-  eventTitle: 'Account Updated',         // required when sending accountAttributes
-  accountAttributes: { name: 'Acme Corp', plan: 'enterprise' }
+  eventTitle: 'Account Updated', // required when sending accountAttributes
+  accountAttributes: { name: 'Acme Corp', plan: 'enterprise' },
 });
 ```
 
@@ -243,7 +257,7 @@ Use `track` for things your users do. `data` is required and can't be empty:
 ```javascript
 window.intempt.track({
   eventTitle: 'Newsletter Signup',
-  data: { listId: 'weekly', source: 'footer' }
+  data: { listId: 'weekly', source: 'footer' },
 });
 ```
 
@@ -255,7 +269,7 @@ window.intempt.record({
   eventTitle: 'Feature Used',
   userId: 'user_123',
   accountId: 'company_acme',
-  data: { feature: 'dashboard_export' }
+  data: { feature: 'dashboard_export' },
 });
 ```
 
@@ -277,7 +291,7 @@ window.intempt.productView('prod_123');
 // Completed order  (takes an array)
 window.intempt.productOrdered([
   { productId: 'prod_123', quantity: 2 },
-  { productId: 'prod_456', quantity: 1 }
+  { productId: 'prod_456', quantity: 1 },
 ]);
 ```
 
@@ -291,9 +305,9 @@ automatically.
 Tracking is **on by default**. Let users turn it off (and back on):
 
 ```javascript
-window.intempt.optOut();          // stop all tracking
-window.intempt.optIn();           // resume
-window.intempt.isUserOptIn();     // -> true / false
+window.intempt.optOut(); // stop all tracking
+window.intempt.optIn(); // resume
+window.intempt.isUserOptIn(); // -> true / false
 ```
 
 While opted out, every tracking call (automatic and manual) quietly does nothing. The flag is
@@ -305,10 +319,10 @@ Record an explicit consent decision for GDPR/CCPA flows:
 
 ```javascript
 window.intempt.consent({
-  action: 'accept',                                   // or 'reject'  (case-sensitive)
+  action: 'accept', // or 'reject'  (case-sensitive)
   validUntil: Date.now() + 365 * 24 * 60 * 60 * 1000, // e.g. 1 year
   email: 'user@example.com',
-  category: 'analytics'
+  category: 'analytics',
 });
 ```
 
@@ -318,11 +332,11 @@ window.intempt.consent({
 > out first:
 >
 > ```javascript
-> window.intempt.consent({ action: 'reject', validUntil: expiry });  // record it
-> window.intempt.optOut();                                           // then stop collecting
+> window.intempt.consent({ action: 'reject', validUntil: expiry }); // record it
+> window.intempt.optOut(); // then stop collecting
 > ```
 >
-> The mirror applies on re-consent: call `optIn()` *before*
+> The mirror applies on re-consent: call `optIn()` _before_
 > `consent({ action: 'accept' })`, or the acceptance is never recorded.
 
 A runnable version of both flows is in
@@ -345,12 +359,12 @@ Two details worth knowing:
 
 ### Re-asking after a policy change
 
-`optOut()` records a refusal and `optIn()` records consent. To go back to *"never
-asked"* — so your banner shows again — clear the decision:
+`optOut()` records a refusal and `optIn()` records consent. To go back to _"never
+asked"_ — so your banner shows again — clear the decision:
 
 ```javascript
-window.intempt.clearConsent();            // forget the stored decision entirely
-window.intempt.hasExplicitlyOptedIn();    // -> true only after an explicit optIn()
+window.intempt.clearConsent(); // forget the stored decision entirely
+window.intempt.hasExplicitlyOptedIn(); // -> true only after an explicit optIn()
 ```
 
 `hasExplicitlyOptedIn()` is **not** the inverse of `isUserOptIn()`. Tracking is on by
@@ -369,7 +383,10 @@ If you run your own consent management platform and its explicit, logged consent
 should take precedence, add `&ignore_dnt=1` to the SDK script URL:
 
 ```html
-<script async src="https://cdn.intempt.com/v1/intempt.min.js?organization=…&ignore_dnt=1"></script>
+<script
+  async
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=…&ignore_dnt=1"
+></script>
 ```
 
 > This switch disables **GPC as well as DNT**. Setting it moves the obligation to
@@ -387,7 +404,10 @@ payloads only:
   timestamps are not mistaken for cards.
 
 ```html
-<script async src="https://cdn.intempt.com/v1/intempt.min.js?organization=…&pii_scrubbing=1"></script>
+<script
+  async
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=…&pii_scrubbing=1"
+></script>
 ```
 
 > **This is irreversible and it is not retroactive.** Redaction happens in the browser
@@ -407,7 +427,10 @@ element's on-screen text, while PII scrubbing filters every outbound payload.
 Point ingest at a specific host with `&api_host=`:
 
 ```html
-<script async src="https://cdn.intempt.com/v1/intempt.min.js?organization=…&api_host=https%3A%2F%2Fapi.eu.intempt.com%2Fv1"></script>
+<script
+  async
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=…&api_host=https%3A%2F%2Fapi.eu.intempt.com%2Fv1"
+></script>
 ```
 
 Must be an absolute `https` URL including any version path. An invalid or non-https
@@ -435,9 +458,9 @@ body is not JSON (a proxy error page, an empty `401`) **rejects**.
 let items = null;
 try {
   items = await window.intempt.recommendation({
-    id: 123,                                  // feed ID
+    id: 123, // feed ID
     quantity: 10,
-    fields: ['productId', 'name', 'price', 'image']
+    fields: ['productId', 'name', 'price', 'image'],
   });
 } catch {
   items = null;
@@ -556,10 +579,10 @@ meanwhile, and sending resumes on its own.
 
 ## Where to go next
 
-| | |
-|---|---|
-| [**API reference**](docs/API.md) | Every method, every validation rule, the exact error strings, and the full list of limitations |
-| [**examples/**](examples/) | Runnable pages — [basic](examples/basic-html/index.html), [consent](examples/consent-banner/index.html), [SPA routing](examples/spa/index.html), [commerce](examples/ecommerce/index.html), [TypeScript](examples/typescript/) |
-| [**TypeScript quickstart**](docs/TYPESCRIPT.md) | Declarations for `window.intempt`, a typed wrapper, and the traps types can't catch |
-| [**Migration guide**](docs/MIGRATION.md) | Upgrading an older integration, with a checklist |
-| **Frameworks** | [React](docs/integrations/REACT.md) · [Next.js](docs/integrations/NEXTJS.md) · [Vue](docs/integrations/VUE.md) |
+|                                                 |                                                                                                                                                                                                                                |
+| ----------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [**API reference**](docs/API.md)                | Every method, every validation rule, the exact error strings, and the full list of limitations                                                                                                                                 |
+| [**examples/**](examples/)                      | Runnable pages — [basic](examples/basic-html/index.html), [consent](examples/consent-banner/index.html), [SPA routing](examples/spa/index.html), [commerce](examples/ecommerce/index.html), [TypeScript](examples/typescript/) |
+| [**TypeScript quickstart**](docs/TYPESCRIPT.md) | Declarations for `window.intempt`, a typed wrapper, and the traps types can't catch                                                                                                                                            |
+| [**Migration guide**](docs/MIGRATION.md)        | Upgrading an older integration, with a checklist                                                                                                                                                                               |
+| **Frameworks**                                  | [React](docs/integrations/REACT.md) · [Next.js](docs/integrations/NEXTJS.md) · [Vue](docs/integrations/VUE.md)                                                                                                                 |

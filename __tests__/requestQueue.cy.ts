@@ -9,7 +9,7 @@ describe('RequestQueue', () => {
     localStorage.removeItem(storageKey);
     queue = new RequestQueue(storageKey, {
       usePersistence: true,
-      queueStorage: new QueueStorage()
+      queueStorage: new QueueStorage(),
     });
   });
 
@@ -29,7 +29,7 @@ describe('RequestQueue', () => {
       const items = [
         { event: 'test1', data: { id: 1 } },
         { event: 'test2', data: { id: 2 } },
-        { event: 'test3', data: { id: 3 } }
+        { event: 'test3', data: { id: 3 } },
       ];
 
       for (const item of items) {
@@ -66,7 +66,7 @@ describe('RequestQueue', () => {
       const orphanedItem = {
         id: 'orphan_123',
         flushAfter: Date.now() - 1000, // Expired
-        payload: { event: 'orphaned' }
+        payload: { event: 'orphaned' },
       };
       localStorage.setItem(storageKey, JSON.stringify([orphanedItem]));
 
@@ -80,9 +80,9 @@ describe('RequestQueue', () => {
     it('should remove items by ID', async () => {
       await queue.enqueue({ event: 'test1' }, 5000);
       await queue.enqueue({ event: 'test2' }, 5000);
-      
+
       const batch = await queue.fillBatch(10);
-      const ids = batch.map(item => item.id);
+      const ids = batch.map((item) => item.id);
 
       const result = await queue.removeItemsByID(ids);
       expect(result).to.be.true;
@@ -100,11 +100,11 @@ describe('RequestQueue', () => {
   describe('Persistence', () => {
     it('should persist items across queue instances', async () => {
       await queue.enqueue({ event: 'persistent' }, 5000);
-      
+
       // Create new queue instance
       const newQueue = new RequestQueue(storageKey, {
         usePersistence: true,
-        queueStorage: new QueueStorage()
+        queueStorage: new QueueStorage(),
       });
 
       const batch = await newQueue.fillBatch(10);
@@ -114,7 +114,7 @@ describe('RequestQueue', () => {
 
     it('should work without persistence', async () => {
       const memoryQueue = new RequestQueue(storageKey, {
-        usePersistence: false
+        usePersistence: false,
       });
 
       await memoryQueue.enqueue({ event: 'memory' }, 5000);
@@ -135,4 +135,3 @@ describe('RequestQueue', () => {
     });
   });
 });
-

@@ -2,54 +2,52 @@ import { Modification } from '../../../types/choices.types.ts';
 
 export class WebEditorModificationHandler {
   style = async (change: Modification) => {
-    const {iweId, attributes } = change;
+    const { iweId, attributes } = change;
     const targetEl = this.elementGetterByIweId(iweId);
 
     const { style } = attributes;
-    if(!targetEl || !style) return;
+    if (!targetEl || !style) return;
 
     targetEl.setAttribute('style', style);
-  }
+  };
 
-  update = async (change: Modification)=> {
-    const {html,  parent, refNode,  iweId} = change;
+  update = async (change: Modification) => {
+    const { html, parent, refNode, iweId } = change;
     const parentEl = this.elementGetterByIweId(parent?._iweId);
     const refEl = this.elementGetterByIweId(refNode?._iweId);
     const targetEl = this.elementGetterByIweId(iweId);
 
-    if(!parentEl || !targetEl) return;
+    if (!parentEl || !targetEl) return;
 
     const { fragment } = this.htmlToFragment(html);
     parentEl.insertBefore(fragment, refEl);
-    targetEl.remove()
-  }
+    targetEl.remove();
+  };
 
   insert = async (change: Modification) => {
+    const { html, parent, refNode, blockId, iweId, js } = change;
+    const parentEl = this.elementGetterByIweId(parent?._iweId);
+    const refEl = this.elementGetterByIweId(refNode?._iweId);
 
-      const {html, parent, refNode, blockId, iweId, js } = change;
-      const parentEl = this.elementGetterByIweId(parent?._iweId);
-      const refEl = this.elementGetterByIweId(refNode?._iweId);
+    if (!parentEl) return;
+    const { fragment } = this.htmlToFragment(html);
+    parentEl.insertBefore(fragment, refEl);
+    if (blockId === 'base') {
+      const targetEl = this.elementGetterByIweId(iweId);
+      targetEl?.remove();
+    }
 
-      if(!parentEl) return;
-      const {fragment} = this.htmlToFragment(html)
-      parentEl.insertBefore( fragment, refEl);
-      if(blockId === 'base'){
-        const targetEl = this.elementGetterByIweId(iweId);
-        targetEl?.remove()
-      }
-
-      if (js && js.trim()) {
-        this.appendInlineScriptAfter(js);
-      }
-
-  }
+    if (js && js.trim()) {
+      this.appendInlineScriptAfter(js);
+    }
+  };
 
   remove = (change: Modification) => {
-    const {iweId} = change;
+    const { iweId } = change;
     const targetEl = this.elementGetterByIweId(iweId);
-    if(!targetEl) return;
+    if (!targetEl) return;
     targetEl.remove();
-  }
+  };
 
   private appendInlineScriptAfter(code: string, nonce?: string) {
     const s = document.createElement('script');
@@ -62,8 +60,8 @@ export class WebEditorModificationHandler {
     setTimeout(() => s.remove(), 40);
   }
 
-  private elementGetterByIweId(key?:string):HTMLElement | null {
-    if(!key) return null;
+  private elementGetterByIweId(key?: string): HTMLElement | null {
+    if (!key) return null;
 
     const selector = `[${key}="true"]`;
 
@@ -73,25 +71,39 @@ export class WebEditorModificationHandler {
   private htmlToFragment(
     html: string,
     opts?: {
-      wrapperTag?: string
-      wrapperAttrs?: Record<string, string | number | boolean | null | undefined>
+      wrapperTag?: string;
+      wrapperAttrs?: Record<
+        string,
+        string | number | boolean | null | undefined
+      >;
       /** Remove purely-whitespace text nodes at fragment root before counting elements */
-      trimWhitespace?: boolean
-    }
-  ): { fragment: DocumentFragment; rootEl: HTMLElement | null; wrapped: boolean } {
-    const { wrapperTag = 'div', wrapperAttrs = { 'data-iwe-block': '1' }, trimWhitespace = false } = opts || {}
+      trimWhitespace?: boolean;
+    },
+  ): {
+    fragment: DocumentFragment;
+    rootEl: HTMLElement | null;
+    wrapped: boolean;
+  } {
+    const {
+      wrapperTag = 'div',
+      wrapperAttrs = { 'data-iwe-block': '1' },
+      trimWhitespace = false,
+    } = opts || {};
 
-    const range = document.createRange()
-    let fragment = range.createContextualFragment(html)
+    const range = document.createRange();
+    let fragment = range.createContextualFragment(html);
 
     if (trimWhitespace) {
       // remove whitespace-only text nodes at root
       for (const n of Array.from(fragment.childNodes)) {
-        if (n.nodeType === Node.TEXT_NODE && !/\S/.test(n.textContent || '')) fragment.removeChild(n)
+        if (n.nodeType === Node.TEXT_NODE && !/\S/.test(n.textContent || ''))
+          fragment.removeChild(n);
       }
     }
 
-    const elementChildren = Array.from(fragment.childNodes).filter(n => n.nodeType === Node.ELEMENT_NODE) as HTMLElement[]
+    const elementChildren = Array.from(fragment.childNodes).filter(
+      (n) => n.nodeType === Node.ELEMENT_NODE,
+    ) as HTMLElement[];
 
     // 0 or 1 element child -> no wrap
     if (elementChildren.length <= 1) {
@@ -99,23 +111,23 @@ export class WebEditorModificationHandler {
         fragment,
         rootEl: elementChildren[0] ?? null,
         wrapped: false,
-      }
+      };
     }
 
     // >1 element children -> wrap all nodes
-    const wrapper = document.createElement(wrapperTag)
+    const wrapper = document.createElement(wrapperTag);
     for (const [k, v] of Object.entries(wrapperAttrs)) {
-      if (v != null) wrapper.setAttribute(k, String(v))
+      if (v != null) wrapper.setAttribute(k, String(v));
     }
-    while (fragment.firstChild) wrapper.appendChild(fragment.firstChild)
+    while (fragment.firstChild) wrapper.appendChild(fragment.firstChild);
 
-    const df = document.createDocumentFragment()
-    df.appendChild(wrapper)
+    const df = document.createDocumentFragment();
+    df.appendChild(wrapper);
 
     return {
       fragment: df,
       rootEl: wrapper,
       wrapped: true,
-    }
+    };
   }
 }

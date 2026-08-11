@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { extractEtldPlusOne, isHostOnlyTarget } from '../../src/shared/publicSuffix.ts';
-import { handleDomain, setCookie, getCookie } from '../../src/shared/storageHandler.ts';
+import {
+  extractEtldPlusOne,
+  isHostOnlyTarget,
+} from '../../src/shared/publicSuffix.ts';
+import {
+  handleDomain,
+  setCookie,
+  getCookie,
+} from '../../src/shared/storageHandler.ts';
 
 /**
  * Cover for the `psl` removal (152 KB raw, ~60% of the old bundle, one call site).
@@ -36,12 +43,16 @@ describe('extractEtldPlusOne', () => {
     expect(extractEtldPlusOne('acme.myshopify.com')).toBe('acme.myshopify.com');
     expect(extractEtldPlusOne('example.github.io')).toBe('example.github.io');
     expect(extractEtldPlusOne('example.vercel.app')).toBe('example.vercel.app');
-    expect(extractEtldPlusOne('example.herokuapp.com')).toBe('example.herokuapp.com');
+    expect(extractEtldPlusOne('example.herokuapp.com')).toBe(
+      'example.herokuapp.com',
+    );
     expect(extractEtldPlusOne('example.pages.dev')).toBe('example.pages.dev');
   });
 
   it('resolves a sub-subdomain of a private suffix to the customer domain', () => {
-    expect(extractEtldPlusOne('checkout.acme.myshopify.com')).toBe('acme.myshopify.com');
+    expect(extractEtldPlusOne('checkout.acme.myshopify.com')).toBe(
+      'acme.myshopify.com',
+    );
   });
 
   it('normalises case and a trailing root dot', () => {
@@ -58,7 +69,9 @@ describe('extractEtldPlusOne', () => {
   it('tolerates empty and malformed input without throwing', () => {
     expect(extractEtldPlusOne('')).toBe('');
     expect(extractEtldPlusOne('...')).toBe('');
-    expect(() => extractEtldPlusOne(undefined as unknown as string)).not.toThrow();
+    expect(() =>
+      extractEtldPlusOne(undefined as unknown as string),
+    ).not.toThrow();
   });
 });
 
@@ -113,7 +126,10 @@ describe('setCookie / getCookie', () => {
     // would emit `domain=;` once handleDomain started returning '' — a
     // malformed attribute rather than an absent one.
     const written: string[] = [];
-    const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+    const descriptor = Object.getOwnPropertyDescriptor(
+      Document.prototype,
+      'cookie',
+    );
     Object.defineProperty(document, 'cookie', {
       configurable: true,
       set(value: string) {
@@ -125,7 +141,12 @@ describe('setCookie / getCookie', () => {
     });
 
     try {
-      setCookie({ name: 'unit_hostonly', value: '1', path: '/', domain: 'localhost' });
+      setCookie({
+        name: 'unit_hostonly',
+        value: '1',
+        path: '/',
+        domain: 'localhost',
+      });
     } finally {
       if (descriptor) {
         Object.defineProperty(document, 'cookie', descriptor);

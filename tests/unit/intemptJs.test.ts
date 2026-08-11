@@ -50,9 +50,12 @@ class MockChoices {
   }
 }
 
-vi.mock('../../src/intemptJs/modules/autoTracker/autoTracker.module.ts', () => ({
-  AutoTrackerModule: MockAutoTracker,
-}));
+vi.mock(
+  '../../src/intemptJs/modules/autoTracker/autoTracker.module.ts',
+  () => ({
+    AutoTrackerModule: MockAutoTracker,
+  }),
+);
 
 vi.mock('../../src/intemptJs/modules/choices/choices.module.ts', () => ({
   ChoicesModule: MockChoices,
@@ -78,13 +81,17 @@ const CONFIG = {
 function captureDispatches(names: string[]) {
   const seen: Array<{ name: string; detail: any }> = [];
   const listeners = names.map((name) => {
-    const listener = (ev: Event) => seen.push({ name, detail: (ev as CustomEvent).detail });
+    const listener = (ev: Event) =>
+      seen.push({ name, detail: (ev as CustomEvent).detail });
     document.addEventListener(name, listener);
     return { name, listener };
   });
   return {
     seen,
-    stop: () => listeners.forEach(({ name, listener }) => document.removeEventListener(name, listener)),
+    stop: () =>
+      listeners.forEach(({ name, listener }) =>
+        document.removeEventListener(name, listener),
+      ),
   };
 }
 
@@ -116,7 +123,8 @@ describe('IntemptJs — the public API class', () => {
   });
 
   const tracker = () => autoTrackerInstances[0]!;
-  const dispatched = (name: string) => capture.seen.filter((e) => e.name === name);
+  const dispatched = (name: string) =>
+    capture.seen.filter((e) => e.name === name);
   /** The model handed to the transport by the most recent `intempt:event`. */
   const lastModel = () => dispatched('intempt:event').at(-1)!.detail.event;
 
@@ -137,7 +145,9 @@ describe('IntemptJs — the public API class', () => {
       const original = { ...CONFIG };
       const instance = new IntemptJs(original);
       (original as any).sourceId = 'mutated';
-      expect(autoTrackerInstances.at(-1)!.config).toMatchObject({ sourceId: 'src-1' });
+      expect(autoTrackerInstances.at(-1)!.config).toMatchObject({
+        sourceId: 'src-1',
+      });
       expect(instance).toBeDefined();
     });
 
@@ -190,13 +200,19 @@ describe('IntemptJs — the public API class', () => {
     });
 
     it.each([
-      ['track', () => sdk.track({ eventTitle: 'Clicked', data: { a: 1 } } as any)],
+      [
+        'track',
+        () => sdk.track({ eventTitle: 'Clicked', data: { a: 1 } } as any),
+      ],
       ['identify', () => sdk.identify({ userId: 'u1' } as any)],
       ['group', () => sdk.group({ accountId: 'a1' } as any)],
       ['record', () => sdk.record({ eventTitle: 'Rec', userId: 'u1' } as any)],
       ['alias', () => sdk.alias({ userId: 'u1', anotherUserId: 'u2' } as any)],
       ['productAdd', () => sdk.productAdd({ productId: 'p1' } as any)],
-      ['productOrdered', () => sdk.productOrdered([{ productId: 'p1' } as any])],
+      [
+        'productOrdered',
+        () => sdk.productOrdered([{ productId: 'p1' } as any]),
+      ],
       ['productView', () => sdk.productView('p1')],
       ['logOut', () => sdk.logOut()],
     ])('%s emits nothing once the user has opted out', (_name, call) => {
@@ -238,7 +254,9 @@ describe('IntemptJs — the public API class', () => {
       // call that will actually be sent.
       sdk.track({ eventTitle: 'Signup Clicked', data: { plan: 'pro' } } as any);
       expect(dispatchedNames()).toEqual(['intempt:track', 'intempt:event']);
-      expect(dispatched('intempt:track')[0]!.detail).toEqual({ eventName: 'Signup Clicked' });
+      expect(dispatched('intempt:track')[0]!.detail).toEqual({
+        eventName: 'Signup Clicked',
+      });
     });
 
     it('re-reads the ids on every call rather than caching them at construction', () => {
@@ -261,7 +279,9 @@ describe('IntemptJs — the public API class', () => {
       // events collapse into one — silent under-counting.
       sdk.track({ eventTitle: 'A', data: { n: 1 } } as any);
       sdk.track({ eventTitle: 'A', data: { n: 1 } } as any);
-      const ids = dispatched('intempt:event').map((e) => e.detail.event.payload[0].eventId);
+      const ids = dispatched('intempt:event').map(
+        (e) => e.detail.event.payload[0].eventId,
+      );
       expect(new Set(ids).size).toBe(2);
     });
   });
@@ -294,7 +314,9 @@ describe('IntemptJs — the public API class', () => {
       // event rather than an identify.
       sdk.identify({ userId: 'user-9' } as any);
       expect(lastModel().name).toBe('Identify');
-      expect(dispatched('intempt:identify')[0]!.detail).toEqual({ eventName: 'Identify' });
+      expect(dispatched('intempt:identify')[0]!.detail).toEqual({
+        eventName: 'Identify',
+      });
     });
 
     it('honours a caller-supplied eventTitle', () => {
@@ -353,7 +375,9 @@ describe('IntemptJs — the public API class', () => {
     it('is always named "Identify"', () => {
       sdk.alias({ userId: 'u-new', anotherUserId: 'u-old' } as any);
       expect(lastModel().name).toBe('Identify');
-      expect(dispatched('intempt:alias')[0]!.detail).toEqual({ eventName: 'Identify' });
+      expect(dispatched('intempt:alias')[0]!.detail).toEqual({
+        eventName: 'Identify',
+      });
     });
   });
 
@@ -394,7 +418,9 @@ describe('IntemptJs — the public API class', () => {
       // that reaches ingest. It is still customer-visible: a listener that
       // worked around the empty string now sees a real name. Release-noted.
       sdk.record({ eventTitle: 'Order', userId: 'u1' } as any);
-      expect(dispatched('intempt:record')[0]!.detail).toEqual({ eventName: 'Order' });
+      expect(dispatched('intempt:record')[0]!.detail).toEqual({
+        eventName: 'Order',
+      });
       // `_name` now agrees with the model's own name, which was always correct.
       expect(lastModel().name).toBe('Order');
     });
@@ -431,7 +457,9 @@ describe('IntemptJs — the public API class', () => {
 
     it('announces "consent" as its event name', () => {
       sdk.consent({ action: 'reject', validUntil: 1 } as any);
-      expect(dispatched('intempt:consent')[0]!.detail).toEqual({ eventName: 'consent' });
+      expect(dispatched('intempt:consent')[0]!.detail).toEqual({
+        eventName: 'consent',
+      });
     });
 
     it('is NOT gated on opt-out, fixed (D-5): a refusal is still recorded', () => {
@@ -458,7 +486,11 @@ describe('IntemptJs — the public API class', () => {
       expect(lastModel()).not.toHaveProperty('pageId');
       expect(tracker().getPageId).not.toHaveBeenCalled();
       // Still a complete consent record — dropping the dead read cost nothing.
-      expect(lastModel()).toMatchObject({ type: 'consent', action: 'accept', profileId: 'profile-1' });
+      expect(lastModel()).toMatchObject({
+        type: 'consent',
+        action: 'accept',
+        profileId: 'profile-1',
+      });
     });
   });
 
@@ -476,12 +508,20 @@ describe('IntemptJs — the public API class', () => {
       // An order of N lines must arrive as N attributable events. Collapsing them
       // into one, or reusing an eventId across them, silently loses revenue rows
       // to the batcher's dedupe.
-      sdk.productOrdered([{ productId: 'p1' }, { productId: 'p2' }, { productId: 'p3' }] as any);
+      sdk.productOrdered([
+        { productId: 'p1' },
+        { productId: 'p2' },
+        { productId: 'p3' },
+      ] as any);
       const model = lastModel();
       expect(model.name).toBe('Product ordered');
       expect(model.payload).toHaveLength(3);
       expect(new Set(model.payload.map((p: any) => p.eventId)).size).toBe(3);
-      expect(model.payload.map((p: any) => p.data.productId)).toEqual(['p1', 'p2', 'p3']);
+      expect(model.payload.map((p: any) => p.data.productId)).toEqual([
+        'p1',
+        'p2',
+        'p3',
+      ]);
     });
 
     it('productOrdered with an empty array still emits an event with no payload', () => {
@@ -515,13 +555,19 @@ describe('IntemptJs — the public API class', () => {
       // — a single case would not catch a helper whose title never reached the
       // model.
       sdk.productAdd({ productId: 'p1' } as any);
-      expect(dispatched('intempt:product').at(-1)!.detail).toEqual({ eventName: 'Added to cart' });
+      expect(dispatched('intempt:product').at(-1)!.detail).toEqual({
+        eventName: 'Added to cart',
+      });
 
       sdk.productView('p-42');
-      expect(dispatched('intempt:product').at(-1)!.detail).toEqual({ eventName: 'Product viewed' });
+      expect(dispatched('intempt:product').at(-1)!.detail).toEqual({
+        eventName: 'Product viewed',
+      });
 
       sdk.productOrdered([{ productId: 'p1' }] as any);
-      expect(dispatched('intempt:product').at(-1)!.detail).toEqual({ eventName: 'Product ordered' });
+      expect(dispatched('intempt:product').at(-1)!.detail).toEqual({
+        eventName: 'Product ordered',
+      });
     });
   });
 
@@ -531,7 +577,9 @@ describe('IntemptJs — the public API class', () => {
       // and their events merge — a privacy incident, not just bad data.
       sdk.logOut();
       expect(tracker().refresh).toHaveBeenCalledTimes(1);
-      expect(dispatched('intempt:logOut')[0]!.detail).toEqual({ eventName: 'Log Out' });
+      expect(dispatched('intempt:logOut')[0]!.detail).toEqual({
+        eventName: 'Log Out',
+      });
     });
 
     it('does not emit an intempt:event, so nothing is queued for it', () => {
@@ -550,10 +598,17 @@ describe('IntemptJs — the public API class', () => {
       const fetchSpy = vi.fn(async () => okResponse({ items: [1] }));
       vi.stubGlobal('fetch', fetchSpy);
 
-      const result = await sdk.recommendation({ id: 'feed-7', quantity: 5, fields: ['a'] } as any);
+      const result = await sdk.recommendation({
+        id: 'feed-7',
+        quantity: 5,
+        fields: ['a'],
+      } as any);
 
       expect(result).toEqual({ items: [1] });
-      const [url, init] = fetchSpy.mock.calls[0] as unknown as [string, RequestInit];
+      const [url, init] = fetchSpy.mock.calls[0] as unknown as [
+        string,
+        RequestInit,
+      ];
       expect(url).toContain('/acme/projects/proj-1/feeds/feed-7/data');
       expect((init.headers as Record<string, string>).Authorization).toBe(
         `Basic ${btoa('user:pass')}`,
@@ -590,7 +645,11 @@ describe('IntemptJs — the public API class', () => {
       const fetchSpy = vi.fn(async () => okResponse({}));
       vi.stubGlobal('fetch', fetchSpy);
       sdk.optOut();
-      const result = await sdk.recommendation({ id: 'feed-7', quantity: 1, fields: [] } as any);
+      const result = await sdk.recommendation({
+        id: 'feed-7',
+        quantity: 1,
+        fields: [],
+      } as any);
       expect(fetchSpy).not.toHaveBeenCalled();
       expect(result).toBeNull();
     });
@@ -636,7 +695,9 @@ describe('IntemptJs — the public API class', () => {
             sourceId: 'src-1',
             project: 'proj-1',
           } as any),
-      ).toThrow('IntemptJs initialization failed: All config fields must be provided.');
+      ).toThrow(
+        'IntemptJs initialization failed: All config fields must be provided.',
+      );
     });
 
     it('documents what WOULD happen if _autoTracker were ever undefined', () => {
@@ -645,7 +706,9 @@ describe('IntemptJs — the public API class', () => {
       // show *why* the §4 note was written: the methods genuinely have no guard,
       // so if any future refactor introduces an early return in the
       // constructor, this is the failure mode it produces.
-      const bare = Object.create(IntemptJs.prototype) as InstanceType<typeof IntemptJs>;
+      const bare = Object.create(IntemptJs.prototype) as InstanceType<
+        typeof IntemptJs
+      >;
       expect(() => bare.optIn()).toThrow(TypeError);
       expect(() => bare.optOut()).toThrow(TypeError);
       expect(() => bare.isUserOptIn()).toThrow(TypeError);

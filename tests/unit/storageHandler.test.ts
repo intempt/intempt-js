@@ -23,7 +23,10 @@ import {
  */
 function stubCookie(readValue: string) {
   const written: string[] = [];
-  const descriptor = Object.getOwnPropertyDescriptor(Document.prototype, 'cookie');
+  const descriptor = Object.getOwnPropertyDescriptor(
+    Document.prototype,
+    'cookie',
+  );
   Object.defineProperty(document, 'cookie', {
     configurable: true,
     set(value: string) {
@@ -171,7 +174,11 @@ describe('local in-memory cookie mirrors', () => {
     // would make a present value read as absent.
     const stub = stubCookie('');
     try {
-      setCookie({ name: 'intempt_session', value: JSON.stringify({ sid: 1 }), path: '/' });
+      setCookie({
+        name: 'intempt_session',
+        value: JSON.stringify({ sid: 1 }),
+        path: '/',
+      });
       expect(localIntemptSessionCookie()).toEqual({ sid: 1 });
     } finally {
       stub.restore();
@@ -181,7 +188,11 @@ describe('local in-memory cookie mirrors', () => {
   it('returns the parsed page-session cookie once one has been set', () => {
     const stub = stubCookie('');
     try {
-      setCookie({ name: 'page_session', value: JSON.stringify({ pid: 2 }), path: '/' });
+      setCookie({
+        name: 'page_session',
+        value: JSON.stringify({ pid: 2 }),
+        path: '/',
+      });
       expect(localIntemptPageSessionCookie()).toEqual({ pid: 2 });
     } finally {
       stub.restore();

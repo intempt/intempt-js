@@ -13,7 +13,10 @@ describe('IndexedDbStore', () => {
   let store: IndexedDbStore;
 
   beforeEach(async () => {
-    store = new IndexedDbStore(`unit_${Math.floor(performance.now() * 1000)}`, 'kv');
+    store = new IndexedDbStore(
+      `unit_${Math.floor(performance.now() * 1000)}`,
+      'kv',
+    );
   });
 
   it('reports support in this environment', () => {
@@ -52,7 +55,11 @@ describe('IndexedDbStore', () => {
   });
 
   it('removes many keys in one transaction', async () => {
-    await Promise.all([store.setItem('a', 1), store.setItem('b', 2), store.setItem('c', 3)]);
+    await Promise.all([
+      store.setItem('a', 1),
+      store.setItem('b', 2),
+      store.setItem('c', 3),
+    ]);
 
     await store.removeItems(['a', 'c']);
 
@@ -193,21 +200,25 @@ describe('IndexedDbStore', () => {
     // A value that cannot be structured-cloned makes `put` throw synchronously,
     // which is the path that must surface as a rejection rather than an
     // uncaught throw out of the promise executor.
-    await expect(store.setItem('k', () => {})).rejects.toThrow(/could not be cloned/);
+    await expect(store.setItem('k', () => {})).rejects.toThrow(
+      /could not be cloned/,
+    );
   });
 
   it('rejects when the database went away after init resolved', async () => {
     await store.init();
     (store as any).db = null;
 
-    await expect(store.getItem('k')).rejects.toThrow('IndexedDB not initialized');
+    await expect(store.getItem('k')).rejects.toThrow(
+      'IndexedDB not initialized',
+    );
   });
 
   it('rejects init when open fails, carrying the underlying error', async () => {
     // A real failure mode: the origin already holds a newer schema, e.g. after a
     // downgrade of the SDK.
     const dbName = `unit_version_${Math.floor(performance.now() * 1000)}`;
-    await new Promise<void>(resolve => {
+    await new Promise<void>((resolve) => {
       const request = indexedDB.open(dbName, 2);
       request.onupgradeneeded = () => request.result.createObjectStore('kv');
       request.onsuccess = () => {
@@ -216,7 +227,9 @@ describe('IndexedDbStore', () => {
       };
     });
 
-    await expect(new IndexedDbStore(dbName, 'kv').init()).rejects.toThrow(/lower version/);
+    await expect(new IndexedDbStore(dbName, 'kv').init()).rejects.toThrow(
+      /lower version/,
+    );
   });
 
   it('closes when another tab upgrades the schema, and then cannot re-open', async () => {
@@ -231,7 +244,7 @@ describe('IndexedDbStore', () => {
     await store.setItem('k', 1);
     const dbName = (store as any).dbName;
 
-    await new Promise<void>(resolve => {
+    await new Promise<void>((resolve) => {
       const request = indexedDB.open(dbName, 2);
       request.onsuccess = () => {
         request.result.close();
@@ -249,11 +262,14 @@ describe('IndexedDbStore', () => {
     // The companion to the test above: the failure is contained, not fatal.
     const dbName = `unit_vc_demote_${Math.floor(performance.now() * 1000)}`;
     const reported: string[] = [];
-    const outer = new PersistentStore({ dbName, errorReporter: m => reported.push(m) });
+    const outer = new PersistentStore({
+      dbName,
+      errorReporter: (m) => reported.push(m),
+    });
     await outer.setItem('k', 'before');
     expect(outer.getDriver()).toBe('indexeddb');
 
-    await new Promise<void>(resolve => {
+    await new Promise<void>((resolve) => {
       const request = indexedDB.open(dbName, 2);
       request.onsuccess = () => {
         request.result.close();
@@ -282,7 +298,9 @@ describe('IndexedDbStore', () => {
   });
 
   it('tolerates close() before anything opened', () => {
-    expect(() => new IndexedDbStore('unit_never_opened', 'kv').close()).not.toThrow();
+    expect(() =>
+      new IndexedDbStore('unit_never_opened', 'kv').close(),
+    ).not.toThrow();
   });
 });
 
@@ -307,9 +325,13 @@ describe('PersistentStore', () => {
 
   it('falls back to localStorage when IndexedDB will not open', async () => {
     const reported: string[] = [];
-    vi.spyOn(IndexedDbStore.prototype, 'init').mockRejectedValue(new Error('no idb'));
+    vi.spyOn(IndexedDbStore.prototype, 'init').mockRejectedValue(
+      new Error('no idb'),
+    );
 
-    const store = new PersistentStore({ errorReporter: m => reported.push(m) });
+    const store = new PersistentStore({
+      errorReporter: (m) => reported.push(m),
+    });
     await store.setItem('k', 'v');
 
     expect(store.getDriver()).toBe('localstorage');
@@ -320,11 +342,15 @@ describe('PersistentStore', () => {
   it('falls back mid-flight when a write fails after a successful open', async () => {
     // Storage evicted, or the database deleted underneath us. Dropping the batch
     // here would lose events that localStorage could still have held.
-    const store = new PersistentStore({ dbName: `unit_midflight_${Date.now()}` });
+    const store = new PersistentStore({
+      dbName: `unit_midflight_${Date.now()}`,
+    });
     await store.init();
     expect(store.getDriver()).toBe('indexeddb');
 
-    vi.spyOn(IndexedDbStore.prototype, 'setItem').mockRejectedValue(new Error('evicted'));
+    vi.spyOn(IndexedDbStore.prototype, 'setItem').mockRejectedValue(
+      new Error('evicted'),
+    );
     await store.setItem('k', 'survived');
 
     expect(store.getDriver()).toBe('localstorage');
@@ -332,12 +358,16 @@ describe('PersistentStore', () => {
   });
 
   it('rejects when neither tier is available, so the queue can go in-memory', async () => {
-    vi.spyOn(IndexedDbStore.prototype, 'init').mockRejectedValue(new Error('no idb'));
+    vi.spyOn(IndexedDbStore.prototype, 'init').mockRejectedValue(
+      new Error('no idb'),
+    );
     vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
       throw new Error('SecurityError');
     });
 
-    await expect(new PersistentStore().init()).rejects.toThrow('localStorage not available');
+    await expect(new PersistentStore().init()).rejects.toThrow(
+      'localStorage not available',
+    );
   });
 
   it('drops into RequestQueue with no queue-side changes', async () => {
@@ -353,11 +383,13 @@ describe('PersistentStore', () => {
     await queue.enqueue({ event: 'b' }, 1000);
 
     const batch = await queue.fillBatch(10);
-    expect(batch.map(i => i.payload.event)).toEqual(['a', 'b']);
+    expect(batch.map((i) => i.payload.event)).toEqual(['a', 'b']);
     expect(store.getDriver()).toBe('indexeddb');
 
     await queue.removeItemsByID([batch[0].id]);
-    expect((await queue.fillBatch(10)).map(i => i.payload.event)).toEqual(['b']);
+    expect((await queue.fillBatch(10)).map((i) => i.payload.event)).toEqual([
+      'b',
+    ]);
   });
 
   it('reports no driver before init has run', () => {
@@ -384,10 +416,14 @@ describe('PersistentStore', () => {
     // A rejected init must not be cached as settled: the blocking condition may
     // be gone by the next call, and the alternative is a tab stuck in memory-only
     // mode for its whole lifetime.
-    const idbInit = vi.spyOn(IndexedDbStore.prototype, 'init').mockRejectedValue(new Error('no idb'));
-    const lsSet = vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-      throw new Error('SecurityError');
-    });
+    const idbInit = vi
+      .spyOn(IndexedDbStore.prototype, 'init')
+      .mockRejectedValue(new Error('no idb'));
+    const lsSet = vi
+      .spyOn(Storage.prototype, 'setItem')
+      .mockImplementation(() => {
+        throw new Error('SecurityError');
+      });
     const store = new PersistentStore();
 
     await expect(store.init()).rejects.toThrow('localStorage not available');
@@ -408,11 +444,31 @@ describe('PersistentStore', () => {
       message: string;
       call: (s: PersistentStore) => Promise<any>;
     }> = [
-      { method: 'getItem', message: 'IndexedDB read failed', call: s => s.getItem('k') },
-      { method: 'entries', message: 'IndexedDB scan failed', call: s => s.entries('q_') },
-      { method: 'keys', message: 'IndexedDB key scan failed', call: s => s.keys('q_') },
-      { method: 'removeItems', message: 'IndexedDB batch delete failed', call: s => s.removeItems(['k']) },
-      { method: 'removeItem', message: 'IndexedDB delete failed', call: s => s.removeItem('k') },
+      {
+        method: 'getItem',
+        message: 'IndexedDB read failed',
+        call: (s) => s.getItem('k'),
+      },
+      {
+        method: 'entries',
+        message: 'IndexedDB scan failed',
+        call: (s) => s.entries('q_'),
+      },
+      {
+        method: 'keys',
+        message: 'IndexedDB key scan failed',
+        call: (s) => s.keys('q_'),
+      },
+      {
+        method: 'removeItems',
+        message: 'IndexedDB batch delete failed',
+        call: (s) => s.removeItems(['k']),
+      },
+      {
+        method: 'removeItem',
+        message: 'IndexedDB delete failed',
+        call: (s) => s.removeItem('k'),
+      },
     ];
 
     for (const { method, message, call } of cases) {
@@ -420,12 +476,14 @@ describe('PersistentStore', () => {
         const reported: string[] = [];
         const store = new PersistentStore({
           dbName: `unit_fb_${method}_${Date.now()}`,
-          errorReporter: m => reported.push(m),
+          errorReporter: (m) => reported.push(m),
         });
         await store.init();
         expect(store.getDriver()).toBe('indexeddb');
 
-        vi.spyOn(IndexedDbStore.prototype, method as any).mockRejectedValue(new Error('boom'));
+        vi.spyOn(IndexedDbStore.prototype, method as any).mockRejectedValue(
+          new Error('boom'),
+        );
         await call(store);
 
         expect(reported.join(' ')).toContain(message);
@@ -440,7 +498,9 @@ describe('PersistentStore', () => {
     const store = new PersistentStore({ dbName: `unit_oneway_${Date.now()}` });
     await store.init();
 
-    const idbGet = vi.spyOn(IndexedDbStore.prototype, 'getItem').mockRejectedValue(new Error('gone'));
+    const idbGet = vi
+      .spyOn(IndexedDbStore.prototype, 'getItem')
+      .mockRejectedValue(new Error('gone'));
     await store.getItem('k');
     expect(store.getDriver()).toBe('localstorage');
     expect(idbGet).toHaveBeenCalledTimes(1);
@@ -451,7 +511,9 @@ describe('PersistentStore', () => {
   });
 
   it('delegates entries, keys and removals to the localStorage tier verbatim', async () => {
-    vi.spyOn(IndexedDbStore.prototype, 'init').mockRejectedValue(new Error('no idb'));
+    vi.spyOn(IndexedDbStore.prototype, 'init').mockRejectedValue(
+      new Error('no idb'),
+    );
     const store = new PersistentStore();
     await store.setItem('q_b', 2);
     await store.setItem('q_a', 1);
@@ -507,6 +569,8 @@ describe('PersistentStore', () => {
       queueStorage: new PersistentStore({ dbName }) as any,
     });
 
-    expect((await second.fillBatch(10)).map(i => i.payload.event)).toEqual(['survives']);
+    expect((await second.fillBatch(10)).map((i) => i.payload.event)).toEqual([
+      'survives',
+    ]);
   });
 });

@@ -11,8 +11,12 @@ import {
  * debug — and the injection point exists in the source for exactly this reason
  * (Mixpanel's original carries the same `options.window` seam).
  */
-function fakeWindow(navigatorProps: Record<string, unknown>, windowProps: Record<string, unknown> = {}) {
-  return { navigator: navigatorProps, ...windowProps } as unknown as Window & typeof globalThis;
+function fakeWindow(
+  navigatorProps: Record<string, unknown>,
+  windowProps: Record<string, unknown> = {},
+) {
+  return { navigator: navigatorProps, ...windowProps } as unknown as Window &
+    typeof globalThis;
 }
 
 describe('DNT detection', () => {
@@ -30,7 +34,9 @@ describe('DNT detection', () => {
     [true, 'the boolean form'],
     ['yes', 'the legacy IE form'],
   ])('treats navigator.doNotTrack = %o as on (%s)', (value, _why) => {
-    expect(detectDoNotTrackSignals(fakeWindow({ doNotTrack: value })).dnt).toBe(true);
+    expect(detectDoNotTrackSignals(fakeWindow({ doNotTrack: value })).dnt).toBe(
+      true,
+    );
   });
 
   it.each([
@@ -40,21 +46,29 @@ describe('DNT detection', () => {
     [undefined, 'absent'],
     ['no', 'not an accepted truthy form'],
   ])('treats navigator.doNotTrack = %o as off (%s)', (value, _why) => {
-    expect(detectDoNotTrackSignals(fakeWindow({ doNotTrack: value })).dnt).toBe(false);
+    expect(detectDoNotTrackSignals(fakeWindow({ doNotTrack: value })).dnt).toBe(
+      false,
+    );
   });
 
   it('reads the legacy navigator.msDoNotTrack', () => {
-    expect(detectDoNotTrackSignals(fakeWindow({ msDoNotTrack: '1' })).dnt).toBe(true);
+    expect(detectDoNotTrackSignals(fakeWindow({ msDoNotTrack: '1' })).dnt).toBe(
+      true,
+    );
   });
 
   it('reads window.doNotTrack, where old Safari put it', () => {
-    expect(detectDoNotTrackSignals(fakeWindow({}, { doNotTrack: '1' })).dnt).toBe(true);
+    expect(
+      detectDoNotTrackSignals(fakeWindow({}, { doNotTrack: '1' })).dnt,
+    ).toBe(true);
   });
 });
 
 describe('GPC detection', () => {
   it('reports GPC when navigator.globalPrivacyControl is true', () => {
-    const signals = detectDoNotTrackSignals(fakeWindow({ globalPrivacyControl: true }));
+    const signals = detectDoNotTrackSignals(
+      fakeWindow({ globalPrivacyControl: true }),
+    );
 
     expect(signals.gpc).toBe(true);
     // GPC is reported separately from DNT so a diagnostic can name which one
@@ -67,14 +81,19 @@ describe('GPC detection', () => {
   it.each([false, undefined, null, 0])(
     'reports no GPC for globalPrivacyControl = %o',
     (value) => {
-      expect(detectDoNotTrackSignals(fakeWindow({ globalPrivacyControl: value })).gpc).toBe(false);
+      expect(
+        detectDoNotTrackSignals(fakeWindow({ globalPrivacyControl: value }))
+          .gpc,
+      ).toBe(false);
     },
   );
 
   it('does not accept the string "1" for GPC', () => {
     // GPC is specified as a boolean. Accepting a string would be inventing a wire
     // format no browser sends.
-    expect(detectDoNotTrackSignals(fakeWindow({ globalPrivacyControl: '1' })).gpc).toBe(false);
+    expect(
+      detectDoNotTrackSignals(fakeWindow({ globalPrivacyControl: '1' })).gpc,
+    ).toBe(false);
   });
 
   it('reports both when both are set', () => {
@@ -92,7 +111,9 @@ describe('signal detection never throws', () => {
   });
 
   it('reports no signal when navigator is missing', () => {
-    expect(detectDoNotTrackSignals({} as Window & typeof globalThis).anySignal).toBe(false);
+    expect(
+      detectDoNotTrackSignals({} as Window & typeof globalThis).anySignal,
+    ).toBe(false);
   });
 
   it('reports no signal when a property read throws', () => {
@@ -112,32 +133,50 @@ describe('signal detection never throws', () => {
 
 describe('ignore_dnt', () => {
   it('suppresses tracking when DNT is on and ignore_dnt is unset', () => {
-    expect(shouldSuppressForBrowserSignal(undefined, fakeWindow({ doNotTrack: '1' }))).toBe(true);
+    expect(
+      shouldSuppressForBrowserSignal(
+        undefined,
+        fakeWindow({ doNotTrack: '1' }),
+      ),
+    ).toBe(true);
   });
 
   it('suppresses tracking when GPC is on and ignore_dnt is unset', () => {
     expect(
-      shouldSuppressForBrowserSignal(undefined, fakeWindow({ globalPrivacyControl: true })),
+      shouldSuppressForBrowserSignal(
+        undefined,
+        fakeWindow({ globalPrivacyControl: true }),
+      ),
     ).toBe(true);
   });
 
   it('does not suppress when neither signal is present', () => {
-    expect(shouldSuppressForBrowserSignal(undefined, fakeWindow({}))).toBe(false);
+    expect(shouldSuppressForBrowserSignal(undefined, fakeWindow({}))).toBe(
+      false,
+    );
     expect(shouldSuppressForBrowserSignal(false, fakeWindow({}))).toBe(false);
   });
 
   it('overrides DNT when ignore_dnt is true', () => {
-    expect(shouldSuppressForBrowserSignal(true, fakeWindow({ doNotTrack: '1' }))).toBe(false);
+    expect(
+      shouldSuppressForBrowserSignal(true, fakeWindow({ doNotTrack: '1' })),
+    ).toBe(false);
   });
 
   it('overrides GPC as well as DNT — one switch covers both', () => {
     // Stated as an assertion because it is the surprising half of the option: a
     // customer setting `ignore_dnt` also takes on the CCPA obligation for GPC.
     expect(
-      shouldSuppressForBrowserSignal(true, fakeWindow({ globalPrivacyControl: true })),
+      shouldSuppressForBrowserSignal(
+        true,
+        fakeWindow({ globalPrivacyControl: true }),
+      ),
     ).toBe(false);
     expect(
-      shouldSuppressForBrowserSignal(true, fakeWindow({ doNotTrack: '1', globalPrivacyControl: true })),
+      shouldSuppressForBrowserSignal(
+        true,
+        fakeWindow({ doNotTrack: '1', globalPrivacyControl: true }),
+      ),
     ).toBe(false);
   });
 });

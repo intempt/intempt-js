@@ -15,7 +15,7 @@ a commercially mature browser analytics SDK.
 
 **Why:** it is the closest mature comparator, Apache-2.0 (so we can inherit code,
 not just ideas), and already checked out locally at `/home/beso/mixpanel-js`. A
-score against an abstract rubric would not tell us *what to copy*.
+score against an abstract rubric would not tell us _what to copy_.
 
 **Caveat, recorded deliberately:** the two products are **not** the same scope,
 and the rubric measures engineering quality, **not feature parity**:
@@ -35,7 +35,7 @@ Neither is a superset. Any footprint comparison must be core-to-core.
 
 **Why:** the repo is already on vite, so vitest adds no new toolchain. Mixpanel's
 mocha + `babel-core@6.7.2` + browserify stack is legacy and would be a step
-backwards. What we *do* inherit from them is the harder-won part: the jsdom setup
+backwards. What we _do_ inherit from them is the harder-won part: the jsdom setup
 and, critically, deterministic fake-timer control (`tests/unit/jsdom-setup.js`) —
 that is what makes batcher/backoff tests non-flaky.
 
@@ -64,11 +64,11 @@ bundle. It is not. See D4 for the actual cause.
 
 **Why — measured:**
 
-| Bundle | Raw | brotli |
-|---|---|---|
-| `intempt.min.js` (monolith) | 252 KB | 54 KB |
-| `mixpanel.min.js` (core only) | 101 KB | 29 KB |
-| `mixpanel-recorder.min.js` (on-demand) | 333 KB | 61 KB |
+| Bundle                                 | Raw    | brotli |
+| -------------------------------------- | ------ | ------ |
+| `intempt.min.js` (monolith)            | 252 KB | 54 KB  |
+| `mixpanel.min.js` (core only)          | 101 KB | 29 KB  |
+| `mixpanel-recorder.min.js` (on-demand) | 333 KB | 61 KB  |
 
 `psl` is **152 KB raw / 9,353 rule literals ≈ 60% of the bundle**, imported once
 (`src/shared/storageHandler.ts:3`) for one function (`handleDomain`, :48–63).
@@ -173,7 +173,7 @@ rollout order.
 
 **Why:** the shipped bundle already logged `version: 'v6.0'`, so customers and
 support tickets reference a 6.x SDK. Publishing a `1.0.0` package that is
-*newer* than the `v6.0` in the field would make every future incident report
+_newer_ than the `v6.0` in the field would make every future incident report
 ambiguous about which artifact is meant. Semver continuity with what the field
 already believes is worth more than a clean `1.0.0`.
 
@@ -218,7 +218,7 @@ tolerated (or names the field they want). Then stamp it.
 
 ---
 
-## D13 — On unload, dequeue only on a *definite* success
+## D13 — On unload, dequeue only on a _definite_ success
 
 **Decided:** the `unloading: true` branch of `handleResponse` removes the batch
 from the queue only when the response is an `ok`/2xx. Anything ambiguous — no
@@ -226,7 +226,7 @@ response object, `error` set, status 0 or 5xx — leaves the batch queued for th
 next page load.
 
 **Why:** `fetch(..., {keepalive: true})` fired from `beforeunload`/`pagehide`/
-`visibilitychange` frequently *does* resolve before the page goes away, so
+`visibilitychange` frequently _does_ resolve before the page goes away, so
 returning unconditionally without dequeuing discarded information we actually
 had, and left delivered events in the queue. But the converse error is worse:
 dequeuing on a guess loses events permanently, while retaining a delivered batch
@@ -248,7 +248,7 @@ sends. A skipped item stays at the head of the queue, so `fillBatch` returns it
 on every subsequent flush — the queue head is permanently blocked and each flush
 burns part of its batch on garbage. Then, because `sentEventIds` is capped, the
 item's eventId eventually ages out of the window and the item becomes eligible
-again — and *is* re-sent. It can never legitimately be sent, so it must go.
+again — and _is_ re-sent. It can never legitimately be sent, so it must go.
 
 ---
 
@@ -288,7 +288,7 @@ before Phase 4 has to assess it. The cost was one function at one call site.
 **The failure mode is bounded, which is what makes the trade acceptable:** a
 wrong answer scopes a cookie one label too wide or too narrow. It cannot leak a
 cookie to another registrant, because a browser rejects a `domain` that is not a
-suffix of the current host, and our fallback is always *narrower* (the full
+suffix of the current host, and our fallback is always _narrower_ (the full
 hostname), never wider. Mixpanel makes the same trade in `src/utils.js`.
 
 **How it was verified, and why that step is not optional:** a parity harness ran
@@ -296,7 +296,7 @@ the old `psl`-backed `handleDomain` against the new one over 58 hostnames. It
 caught a regression that reasoning alone had missed — **private suffixes**
 (`github.io`, `vercel.app`, `herokuapp.com`, `appspot.com`, `blogspot.com`, and
 **`myshopify.com`**, which matters because this SDK ships a Shopify tracker)
-collapse to a *public* suffix under a naive last-two-labels rule, and a browser
+collapse to a _public_ suffix under a naive last-two-labels rule, and a browser
 rejects that cookie outright instead of mis-scoping it. Those suffixes now have
 explicit entries.
 
@@ -348,7 +348,7 @@ undoes it when we learn the batch was not accepted. The mark stands only when th
 outcome is genuinely unknown (unloading, no response at all).
 
 **Why:** pre-marking exists so a page dying mid-flight cannot produce duplicates.
-Without rollback it also condemns every *failed* batch: those ids stay marked, so
+Without rollback it also condemns every _failed_ batch: those ids stay marked, so
 the items are filtered as already-sent on each later flush and then evicted by
 D14 — silent loss. Rolling back on a definite failure keeps the duplicate
 protection for the case it was designed for while removing the loss.
@@ -365,13 +365,13 @@ window, not an oversight.
 (`<base36-ts>_<ms>_<10 chars>`), real randomness in the suffix.
 
 **Why — measured:** the old generator filled 8 of its 10 "random" characters with
-a *shuffle of the timestamp's own base-36 digits*. Two ids minted in the same
+a _shuffle of the timestamp's own base-36 digits_. Two ids minted in the same
 millisecond therefore differed only by a permutation of identical characters plus
 two random ones — a few thousand possibilities. A 5,000-iteration loop collides
 reliably.
 
 These ids identify **profiles and sessions**. A collision does not lose data, it
-*merges two visitors' data*, which is worse: it is silent, it corrupts analytics
+_merges two visitors' data_, which is worse: it is silent, it corrupts analytics
 and any downstream personalisation, and it is unfalsifiable after the fact. At
 the 1M events/sec operating point, same-millisecond id generation across the
 fleet is continuous rather than a rare coincidence.
@@ -404,7 +404,7 @@ bar; raising thresholds alone blocks the port.
 
 **Why:** the array layout made every enqueue a read-modify-write of the entire
 pending queue — serialising N events to append the (N+1)th. That is O(N) CPU per
-event on the *customer's* main thread and quadratic over a burst, and it degrades
+event on the _customer's_ main thread and quadratic over a burst, and it degrades
 precisely when the queue is deepest, i.e. during an ingest incident.
 
 Two consequences matter more than the speed:
@@ -455,14 +455,14 @@ eTLD+1 is the only client-side store a browser will share across subdomains.
 **Why localStorage is kept rather than replaced** — two independent reasons,
 either sufficient on its own:
 
-1. Every visitor who opted out *before* this change has their opt-out in
+1. Every visitor who opted out _before_ this change has their opt-out in
    localStorage only. Removing the read would silently re-enrol all of them —
    reintroducing, as the fix, the exact defect the module exists to prevent.
 2. Tracker-blocking extensions commonly block cookies while permitting
    localStorage. Two stores means one of them surviving is enough.
 
 **Also decided: a localStorage-only opt-out is upgraded to a cookie on read.**
-That is what closes D15 for the *existing* population rather than only for future
+That is what closes D15 for the _existing_ population rather than only for future
 opt-outs. It is a write inside a read, which is normally worth avoiding; the
 alternative is that pre-existing opt-outs stay origin-scoped forever. The upgrade
 **only ever widens an opt-out** — it never promotes an opt-in — so the direction
@@ -513,7 +513,7 @@ setting into storage as if it were a visitor decision, and would let `optIn()`
 override a legally binding signal.
 
 **Diagnostic notice fires once per page, not once per call** — Mixpanel warns on
-every `hasOptedOut`, which for us is per *event*.
+every `hasOptedOut`, which for us is per _event_.
 
 **Would change our mind:** nothing on GPC. If DNT is ever formally withdrawn, the
 DNT half could become opt-in.
@@ -525,7 +525,7 @@ DNT half could become opt-in.
 **Decided:** `piiScrubbing` defaults **off**. Enabled, it redacts sensitive field
 names and email / formatted-phone / Luhn-verified card shapes in event payloads.
 
-**Why opt-in and never a default:** redaction happens in the browser *before*
+**Why opt-in and never a default:** redaction happens in the browser _before_
 transmission, so there is no server-side undo. A customer who upgrades and finds
 their `email` field replaced has lost that data permanently. A silently-enabled
 scrubber would be a data-destroying change delivered by a version bump on a
@@ -543,7 +543,7 @@ false positive here is silent, permanent data loss.
 
 **Consent records bypass the scrubber entirely.** `_eventPoolHandler` routes
 `type: 'consent'` to its own sender before the scrub point. The email in a consent
-record *is* the proof of consent — redacting it destroys the artifact.
+record _is_ the proof of consent — redacting it destroys the artifact.
 
 **Failure posture: on an internal error the payload is sent unmodified** and the
 failure reported. A scrubber that throws on the send path does not leak data, it
@@ -552,7 +552,7 @@ defence-in-depth layer the customer opted into.
 
 **No lookbehind in any pattern.** `(?<!…)` is a **parse-time** SyntaxError on
 Safari before 16.4, and a regex literal is parsed when the bundle loads — one
-lookbehind would take the *entire SDK* down on those browsers rather than degrading
+lookbehind would take the _entire SDK_ down on those browsers rather than degrading
 the scrubber. Leading boundaries are capture groups instead
 (`PiiPattern.sensitiveGroup`).
 
@@ -581,7 +581,7 @@ can silently fail open is not a residency switch.
 endpoint exists, needs no SDK release to adopt one, and cannot misrepresent the
 destination because the customer names it.
 
-**Validation fails *back*, not hard.** A non-https or unparseable value is ignored
+**Validation fails _back_, not hard.** A non-https or unparseable value is ignored
 in favour of the build-time default. That is safe specifically here because the
 fallback introduces **no new destination** — data continues to the host already in
 use. Honouring a typo'd host instead would 404 or mixed-content-block 100% of

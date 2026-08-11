@@ -7,7 +7,10 @@ const SENT_IDS_KEY = `${KEY}_sent_event_ids`;
 
 /** Payload shape the batcher's extractEventIds() understands. */
 function event(eventId: string) {
-  return { name: 'Test Event', payload: [{ eventId, sessionId: 's', profileId: 'p' }] };
+  return {
+    name: 'Test Event',
+    payload: [{ eventId, sessionId: 's', profileId: 'p' }],
+  };
 }
 
 describe('RequestBatcher', () => {
@@ -63,7 +66,8 @@ describe('RequestBatcher', () => {
 
       await batcher.flush();
 
-      const counters: Map<string, number> = (batcher as any).itemIdsSentSuccessfully;
+      const counters: Map<string, number> = (batcher as any)
+        .itemIdsSentSuccessfully;
       expect(counters.size).toBe(1);
       expect([...counters.values()][0]).toBe(1);
     });
@@ -84,7 +88,9 @@ describe('RequestBatcher', () => {
     });
 
     it('caps the in-memory sent-event-id set', async () => {
-      (batcher as any).markEventIdsSent(Array.from({ length: 1500 }, (_, i) => `bulk-${i}`));
+      (batcher as any).markEventIdsSent(
+        Array.from({ length: 1500 }, (_, i) => `bulk-${i}`),
+      );
 
       const sent: Set<string> = (batcher as any).sentEventIds;
       expect(sent.size).toBe(1000);
@@ -93,7 +99,8 @@ describe('RequestBatcher', () => {
     });
 
     it('caps the attempt map even under a pathological removal-failure loop', async () => {
-      const counters: Map<string, number> = (batcher as any).itemIdsSentSuccessfully;
+      const counters: Map<string, number> = (batcher as any)
+        .itemIdsSentSuccessfully;
       (batcher as any).recordDeliveryAttempts(
         Array.from({ length: 1500 }, (_, i) => `id-${i}`),
         false,
@@ -106,7 +113,9 @@ describe('RequestBatcher', () => {
         SENT_IDS_KEY,
         JSON.stringify(Array.from({ length: 1500 }, (_, i) => `stored-${i}`)),
       );
-      expect(((makeBatcher() as any).sentEventIds as Set<string>).size).toBe(1000);
+      expect(((makeBatcher() as any).sentEventIds as Set<string>).size).toBe(
+        1000,
+      );
     });
 
     it('survives a corrupt persisted set', () => {
@@ -130,15 +139,18 @@ describe('RequestBatcher', () => {
       ['a timeout', { error: 'timeout', httpStatusCode: 0 }],
       ['a 500', { httpStatusCode: 500, ok: false }],
       ['no response at all', undefined],
-    ])('keeps the batch queued when the outcome is %s', async (_label, response) => {
-      await batcher.enqueue(event('evt-unload-unknown'));
-      defaultResponse = response;
+    ])(
+      'keeps the batch queued when the outcome is %s',
+      async (_label, response) => {
+        await batcher.enqueue(event('evt-unload-unknown'));
+        defaultResponse = response;
 
-      await batcher.flush({ unloading: true });
+        await batcher.flush({ unloading: true });
 
-      // Losing events is worse than a possible duplicate, so ambiguity retains.
-      expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(1);
-    });
+        // Losing events is worse than a possible duplicate, so ambiguity retains.
+        expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(1);
+      },
+    );
 
     it('marks event ids as sent before the request leaves', async () => {
       await batcher.enqueue(event('evt-premark'));
@@ -154,7 +166,9 @@ describe('RequestBatcher', () => {
 
       // The page can die mid-request; the mark has to be durable before then.
       expect(sentIdsDuringRequest).toContain('evt-premark');
-      expect(JSON.parse(localStorage.getItem(SENT_IDS_KEY) as string)).toContain('evt-premark');
+      expect(
+        JSON.parse(localStorage.getItem(SENT_IDS_KEY) as string),
+      ).toContain('evt-premark');
     });
   });
 
@@ -576,7 +590,15 @@ describe('RequestBatcher', () => {
       // return undefined) kept the suite green. That matters because this
       // accessor is the entire deliverable of the bounded queue (§3c) — a
       // silently-undefined count puts us back to unmeasured loss.
-      const capped = makeBatcher({ libConfig: { batchSize: 10, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false, maxQueuedEvents: 3 } });
+      const capped = makeBatcher({
+        libConfig: {
+          batchSize: 10,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 5000,
+          batchAutostart: false,
+          maxQueuedEvents: 3,
+        },
+      });
 
       expect(capped.getDroppedEventCount()).toBe(0);
 
@@ -585,9 +607,13 @@ describe('RequestBatcher', () => {
       }
 
       const dropped = capped.getDroppedEventCount();
-      expect(dropped, 'three events over a cap of three must be counted').toBe(3);
+      expect(dropped, 'three events over a cap of three must be counted').toBe(
+        3,
+      );
       expect(dropped).toBe((capped as any).queue.getDroppedEventCount());
-      expect(typeof dropped, 'must be a number, never undefined').toBe('number');
+      expect(typeof dropped, 'must be a number, never undefined').toBe(
+        'number',
+      );
     });
 
     it('start() clears the stopped flag, so scheduled flushes resume', async () => {
@@ -606,9 +632,10 @@ describe('RequestBatcher', () => {
       const before = sendCalls.length;
       await vi.advanceTimersByTimeAsync(5_000);
 
-      expect(sendCalls.length, 'the schedule must be live again after start()').toBeGreaterThan(
-        before,
-      );
+      expect(
+        sendCalls.length,
+        'the schedule must be live again after start()',
+      ).toBeGreaterThan(before);
     });
 
     it('start() resets the consecutive-removal-failure count', async () => {
@@ -627,7 +654,9 @@ describe('RequestBatcher', () => {
       await batcher.clear();
 
       await batcher.flush();
-      expect(sendCalls, 'a cleared queue has nothing to deliver').toHaveLength(0);
+      expect(sendCalls, 'a cleared queue has nothing to deliver').toHaveLength(
+        0,
+      );
     });
 
     it('treats a breaker window that has just expired as closed', async () => {
@@ -642,7 +671,10 @@ describe('RequestBatcher', () => {
 
       await batcher.flush();
 
-      expect(sendCalls, 'at exactly the expiry instant the breaker is closed').toHaveLength(1);
+      expect(
+        sendCalls,
+        'at exactly the expiry instant the breaker is closed',
+      ).toHaveLength(1);
     });
 
     it('still blocks a send one millisecond before the window expires', async () => {
@@ -655,7 +687,10 @@ describe('RequestBatcher', () => {
 
       await batcher.flush();
 
-      expect(sendCalls, 'the breaker is still open for one more millisecond').toHaveLength(0);
+      expect(
+        sendCalls,
+        'the breaker is still open for one more millisecond',
+      ).toHaveLength(0);
     });
   });
 
@@ -713,13 +748,15 @@ describe('RequestBatcher', () => {
       const b = makeBatcher();
       await b.enqueue(event('evt-retry'));
       responses = [response];
-      const sched = vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+      const sched = vi
+        .spyOn(b as any, 'scheduleFlush')
+        .mockImplementation(() => {});
 
       await b.flush();
 
       return {
         sentIds: (b as any).sentEventIds as Set<string>,
-        scheduled: sched.mock.calls.map(c => c[0] as number),
+        scheduled: sched.mock.calls.map((c) => c[0] as number),
         queued: await (b as any).queue.fillBatch(10),
       };
     }
@@ -730,42 +767,60 @@ describe('RequestBatcher', () => {
       ['a 429', { httpStatusCode: 429 }],
       ['a zero status', { httpStatusCode: 0 }],
       ['a negative status', { httpStatusCode: -1 }],
-      ['a transport error while apparently online', { error: 'network', httpStatusCode: 200 }],
+      [
+        'a transport error while apparently online',
+        { error: 'network', httpStatusCode: 200 },
+      ],
       ['a missing response object', undefined],
-    ])('retries after %s without dropping the batch', async (_name, response) => {
-      const { sentIds, scheduled, queued } = await attempt(response);
+    ])(
+      'retries after %s without dropping the batch',
+      async (_name, response) => {
+        const { sentIds, scheduled, queued } = await attempt(response);
 
-      expect(queued, 'the events must still be queued').toHaveLength(1);
-      expect(
-        sentIds.has('evt-retry'),
-        'the pre-send mark must be released or the retry evicts the event as a duplicate',
-      ).toBe(false);
-      expect(scheduled, 'a backoff must be scheduled').toHaveLength(1);
-      expect(scheduled[0]).toBeGreaterThanOrEqual(0);
-    });
+        expect(queued, 'the events must still be queued').toHaveLength(1);
+        expect(
+          sentIds.has('evt-retry'),
+          'the pre-send mark must be released or the retry evicts the event as a duplicate',
+        ).toBe(false);
+        expect(scheduled, 'a backoff must be scheduled').toHaveLength(1);
+        expect(scheduled[0]).toBeGreaterThanOrEqual(0);
+      },
+    );
 
     it('honours Retry-After exactly, without jitter', async () => {
       // `retryMS = ceilingMS` on this path — the one deliberately unjittered
       // branch in the batcher. See BACKEND.md §2a for why it is still open.
-      const { scheduled } = await attempt({ httpStatusCode: 429, retryAfter: '30' });
+      const { scheduled } = await attempt({
+        httpStatusCode: 429,
+        retryAfter: '30',
+      });
       expect(scheduled[0]).toBe(30_000);
     });
 
     it('caps Retry-After at the ten-minute ceiling', async () => {
-      const { scheduled } = await attempt({ httpStatusCode: 429, retryAfter: '86400' });
+      const { scheduled } = await attempt({
+        httpStatusCode: 429,
+        retryAfter: '86400',
+      });
       expect(scheduled[0]).toBe(10 * 60 * 1000);
     });
 
     it('ignores an unparseable Retry-After and falls back to jittered backoff', async () => {
       // `if (retryAfterMS)` — parseInt('soon') is NaN, which must not become the
       // delay. A NaN timeout fires immediately, i.e. it would hammer ingest.
-      const { scheduled } = await attempt({ httpStatusCode: 429, retryAfter: 'soon' });
+      const { scheduled } = await attempt({
+        httpStatusCode: 429,
+        retryAfter: 'soon',
+      });
       expect(Number.isNaN(scheduled[0])).toBe(false);
       expect(scheduled[0]).toBeLessThanOrEqual(2_000);
     });
 
     it('ignores a zero Retry-After for the same reason', async () => {
-      const { scheduled } = await attempt({ httpStatusCode: 429, retryAfter: '0' });
+      const { scheduled } = await attempt({
+        httpStatusCode: 429,
+        retryAfter: '0',
+      });
       expect(scheduled[0]).toBeGreaterThanOrEqual(0);
       expect(scheduled[0]).toBeLessThanOrEqual(2_000);
     });
@@ -799,8 +854,10 @@ describe('RequestBatcher', () => {
 
       expect((b as any).batchSize).toBeLessThan(before);
       expect((b as any).batchSize).toBeGreaterThanOrEqual(1);
-      expect(await (b as any).queue.fillBatch(10), 'nothing is dropped on a multi-event 413')
-        .toHaveLength(4);
+      expect(
+        await (b as any).queue.fillBatch(10),
+        'nothing is dropped on a multi-event 413',
+      ).toHaveLength(4);
     });
 
     it('never reduces the batch size below one', async () => {
@@ -848,7 +905,10 @@ describe('RequestBatcher', () => {
         await b.flush();
       }
 
-      expect((b as any).stopped, 'the batcher must give up rather than loop').toBe(true);
+      expect(
+        (b as any).stopped,
+        'the batcher must give up rather than loop',
+      ).toBe(true);
       expect(reported.join(' ')).toContain('disabling batching system');
     });
   });
@@ -866,7 +926,9 @@ describe('RequestBatcher', () => {
       // Set iteration is insertion order, so the eviction loop must drop from the
       // front. Dropping the newest instead would let a *just-sent* event be
       // re-sent, which is the duplicate this structure exists to prevent.
-      (batcher as any).markEventIdsSent(Array.from({ length: 1100 }, (_, i) => `id-${i}`));
+      (batcher as any).markEventIdsSent(
+        Array.from({ length: 1100 }, (_, i) => `id-${i}`),
+      );
 
       const sent: Set<string> = (batcher as any).sentEventIds;
       expect(sent.size).toBe(1000);
@@ -877,9 +939,13 @@ describe('RequestBatcher', () => {
     });
 
     it('does not trim while at or below the cap', async () => {
-      (batcher as any).markEventIdsSent(Array.from({ length: 1000 }, (_, i) => `id-${i}`));
+      (batcher as any).markEventIdsSent(
+        Array.from({ length: 1000 }, (_, i) => `id-${i}`),
+      );
       expect(((batcher as any).sentEventIds as Set<string>).size).toBe(1000);
-      expect(((batcher as any).sentEventIds as Set<string>).has('id-0')).toBe(true);
+      expect(((batcher as any).sentEventIds as Set<string>).has('id-0')).toBe(
+        true,
+      );
     });
 
     it('persists the marks so a reload cannot re-send them', async () => {
@@ -894,7 +960,9 @@ describe('RequestBatcher', () => {
     it('reloads persisted marks into a fresh instance', async () => {
       localStorage.setItem(SENT_IDS_KEY, JSON.stringify(['from-storage']));
       const fresh = makeBatcher();
-      expect(((fresh as any).sentEventIds as Set<string>).has('from-storage')).toBe(true);
+      expect(
+        ((fresh as any).sentEventIds as Set<string>).has('from-storage'),
+      ).toBe(true);
     });
 
     it('trims an over-sized persisted set on load', async () => {
@@ -924,7 +992,9 @@ describe('RequestBatcher', () => {
     it('reports unparseable storage instead of throwing at construction', async () => {
       localStorage.setItem(SENT_IDS_KEY, '{not json');
       const reported: string[] = [];
-      const fresh = makeBatcher({ errorReporter: (m: string) => reported.push(m) });
+      const fresh = makeBatcher({
+        errorReporter: (m: string) => reported.push(m),
+      });
 
       expect(((fresh as any).sentEventIds as Set<string>).size).toBe(0);
       expect(reported.join(' ')).toContain('Error loading sent event IDs');
@@ -941,7 +1011,9 @@ describe('RequestBatcher', () => {
       expect(sent.has('keep-me')).toBe(true);
       // Kills the missing saveSentEventIds() call: without the write, a reload
       // resurrects the rolled-back mark and the event is filtered as a duplicate.
-      expect(JSON.parse(localStorage.getItem(SENT_IDS_KEY) as string)).toEqual(['keep-me']);
+      expect(JSON.parse(localStorage.getItem(SENT_IDS_KEY) as string)).toEqual([
+        'keep-me',
+      ]);
     });
 
     it('skips the storage write entirely for an empty rollback', async () => {
@@ -956,20 +1028,28 @@ describe('RequestBatcher', () => {
 
   describe('per-item delivery counters', () => {
     it('deletes counters when removal succeeded', async () => {
-      const counters: Map<string, number> = (batcher as any).itemIdsSentSuccessfully;
+      const counters: Map<string, number> = (batcher as any)
+        .itemIdsSentSuccessfully;
       counters.set('a', 2);
       counters.set('b', 1);
 
       (batcher as any).recordDeliveryAttempts(['a'], true);
 
-      expect(counters.has('a'), 'a delivered-and-removed item needs no counter').toBe(false);
+      expect(
+        counters.has('a'),
+        'a delivered-and-removed item needs no counter',
+      ).toBe(false);
       expect(counters.has('b')).toBe(true);
     });
 
     it('increments from zero when removal failed', async () => {
       (batcher as any).recordDeliveryAttempts(['x'], false);
       (batcher as any).recordDeliveryAttempts(['x'], false);
-      expect(((batcher as any).itemIdsSentSuccessfully as Map<string, number>).get('x')).toBe(2);
+      expect(
+        ((batcher as any).itemIdsSentSuccessfully as Map<string, number>).get(
+          'x',
+        ),
+      ).toBe(2);
     });
 
     it('caps the counter map, evicting the oldest entries', async () => {
@@ -979,7 +1059,8 @@ describe('RequestBatcher', () => {
       const ids = Array.from({ length: 1100 }, (_, i) => `item-${i}`);
       (batcher as any).recordDeliveryAttempts(ids, false);
 
-      const counters: Map<string, number> = (batcher as any).itemIdsSentSuccessfully;
+      const counters: Map<string, number> = (batcher as any)
+        .itemIdsSentSuccessfully;
       expect(counters.size).toBe(1000);
       expect(counters.has('item-0')).toBe(false);
       expect(counters.has('item-1099')).toBe(true);
@@ -1011,7 +1092,13 @@ describe('RequestBatcher', () => {
       // and then never match on the next flush — the event becomes unsendable.
       expect(
         (batcher as any).extractEventIds({
-          payload: [null, {}, { eventId: 42 }, { eventId: '' }, { eventId: 'good' }],
+          payload: [
+            null,
+            {},
+            { eventId: 42 },
+            { eventId: '' },
+            { eventId: 'good' },
+          ],
         }),
       ).toEqual(['good']);
     });
@@ -1033,14 +1120,18 @@ describe('RequestBatcher', () => {
     it('resetFlush schedules within ±10% of the configured interval', () => {
       // The steady-state band from §3a. Asserting the band, not a value: full
       // jitter here would halve effective throughput and make batches erratic.
-      const sched = vi.spyOn(batcher as any, 'scheduleFlush').mockImplementation(() => {});
+      const sched = vi
+        .spyOn(batcher as any, 'scheduleFlush')
+        .mockImplementation(() => {});
 
       for (let i = 0; i < 40; i++) (batcher as any).resetFlush();
 
-      const delays = sched.mock.calls.map(c => c[0] as number);
+      const delays = sched.mock.calls.map((c) => c[0] as number);
       expect(Math.min(...delays)).toBeGreaterThanOrEqual(900);
       expect(Math.max(...delays)).toBeLessThanOrEqual(1100);
-      expect(new Set(delays).size, 'and it must actually vary').toBeGreaterThan(1);
+      expect(new Set(delays).size, 'and it must actually vary').toBeGreaterThan(
+        1,
+      );
     });
 
     it('resetBatchSize restores the configured size after a 413 shrank it', () => {
@@ -1055,7 +1146,10 @@ describe('RequestBatcher', () => {
       // (see §3a: a low draw cannot start a second flush).
       (batcher as any).requestInProgress = true;
       return batcher.flush().then(() => {
-        expect(sendCalls, 'no send while one is already in flight').toHaveLength(0);
+        expect(
+          sendCalls,
+          'no send while one is already in flight',
+        ).toHaveLength(0);
       });
     });
   });
@@ -1088,7 +1182,12 @@ describe('RequestBatcher', () => {
       expect((stoppedByDefault as any).stopped).toBe(true);
 
       const autostarted = makeBatcher({
-        libConfig: { batchSize: 10, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: true },
+        libConfig: {
+          batchSize: 10,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 5000,
+          batchAutostart: true,
+        },
       });
       expect((autostarted as any).stopped).toBe(false);
     });
@@ -1131,7 +1230,9 @@ describe('RequestBatcher', () => {
   describe('sent-event-id persistence — guard boundaries', () => {
     it('does not trim at exactly the cap, only past it', () => {
       // Kills the EqualityOperator mutant `size > MAX_SENT_EVENT_IDS` → `>=`.
-      (batcher as any).markEventIdsSent(Array.from({ length: 1000 }, (_, i) => `id-${i}`));
+      (batcher as any).markEventIdsSent(
+        Array.from({ length: 1000 }, (_, i) => `id-${i}`),
+      );
       const sent: Set<string> = (batcher as any).sentEventIds;
       expect(sent.size).toBe(1000);
       expect(sent.has('id-0'), 'nothing evicted exactly at the cap').toBe(true);
@@ -1147,7 +1248,9 @@ describe('RequestBatcher', () => {
 
       (batcher as any).saveSentEventIds();
 
-      const persisted = JSON.parse(localStorage.getItem(SENT_IDS_KEY) as string);
+      const persisted = JSON.parse(
+        localStorage.getItem(SENT_IDS_KEY) as string,
+      );
       expect(persisted).toHaveLength(1000);
       expect(persisted).not.toContain('raw-0');
       expect(persisted).toContain('raw-1199');
@@ -1159,15 +1262,22 @@ describe('RequestBatcher', () => {
       // loadSentEventIds and saveSentEventIds — forcing either guard to
       // `true` unconditionally would attempt the storage call even when it
       // is unavailable.
-      const originalDescriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
-      Object.defineProperty(window, 'localStorage', { value: undefined, configurable: true });
+      const originalDescriptor = Object.getOwnPropertyDescriptor(
+        window,
+        'localStorage',
+      );
+      Object.defineProperty(window, 'localStorage', {
+        value: undefined,
+        configurable: true,
+      });
       try {
         expect(() => makeBatcher()).not.toThrow();
         const b = makeBatcher();
         (b as any).markEventIdsSent(['x']);
         expect(() => (b as any).saveSentEventIds()).not.toThrow();
       } finally {
-        if (originalDescriptor) Object.defineProperty(window, 'localStorage', originalDescriptor);
+        if (originalDescriptor)
+          Object.defineProperty(window, 'localStorage', originalDescriptor);
       }
     });
   });
@@ -1184,7 +1294,10 @@ describe('RequestBatcher', () => {
       await batcher.flush();
 
       expect(sendCalls).toHaveLength(0);
-      expect((batcher as any).requestInProgress, 'must be left exactly as found').toBe(true);
+      expect(
+        (batcher as any).requestInProgress,
+        'must be left exactly as found',
+      ).toBe(true);
     });
 
     it('flips requestInProgress to true for the duration of a send', async () => {
@@ -1254,12 +1367,14 @@ describe('RequestBatcher', () => {
       // through the hook once before that tab died; running it again would
       // double-apply whatever transformation it does.
       const hookCalls: any[] = [];
-      const b = makeBatcher({ beforeSendHook: (p: any) => (hookCalls.push(p), p) });
+      const b = makeBatcher({
+        beforeSendHook: (p: any) => (hookCalls.push(p), p),
+      });
       await b.enqueue(event('evt-orphan-hook'));
       const [item] = await (b as any).queue.fillBatch(10);
       (item as any).orphaned = true;
       vi.spyOn(b as any, 'queue', 'get').mockReturnValue({
-        ...((b as any).queue),
+        ...(b as any).queue,
         fillBatch: async () => [item],
         removeItemsByID: async () => true,
         getDroppedEventCount: () => 0,
@@ -1272,7 +1387,9 @@ describe('RequestBatcher', () => {
 
     it('does call beforeSendHook for an ordinary (non-orphaned) item', async () => {
       const hookCalls: any[] = [];
-      const b = makeBatcher({ beforeSendHook: (p: any) => (hookCalls.push(p), p) });
+      const b = makeBatcher({
+        beforeSendHook: (p: any) => (hookCalls.push(p), p),
+      });
       await b.enqueue(event('evt-normal-hook'));
 
       await b.flush();
@@ -1299,7 +1416,10 @@ describe('RequestBatcher', () => {
 
       await batcher.flush();
 
-      expect(sendCalls, 'the item is dropped as already-sent, not resent').toHaveLength(0);
+      expect(
+        sendCalls,
+        'the item is dropped as already-sent, not resent',
+      ).toHaveLength(0);
     });
   });
 
@@ -1312,12 +1432,16 @@ describe('RequestBatcher', () => {
       const [item] = await (b as any).queue.fillBatch(10);
       (b as any).itemIdsSentSuccessfully.set(item.id, 6);
       const reported: any[] = [];
-      (b as any).errorReporter = (m: string, ctx: any) => reported.push({ m, ctx });
+      (b as any).errorReporter = (m: string, ctx: any) =>
+        reported.push({ m, ctx });
 
       await b.flush();
 
-      expect(sendCalls, 'must not send an item stuck past the dupe limit').toHaveLength(0);
-      const dupe = reported.find(r => r.m.includes('[dupe]'));
+      expect(
+        sendCalls,
+        'must not send an item stuck past the dupe limit',
+      ).toHaveLength(0);
+      const dupe = reported.find((r) => r.m.includes('[dupe]'));
       expect(dupe, 'the message must name the dupe').toBeTruthy();
       expect(dupe.ctx.timesSent).toBe(6);
       expect(dupe.ctx.item.id).toBe(item.id);
@@ -1386,7 +1510,10 @@ describe('RequestBatcher', () => {
 
       await batcher.flush({ unloading: true });
 
-      expect((batcher as any).sentEventIds.has('evt-unload-nomark'), 'mark must stand').toBe(true);
+      expect(
+        (batcher as any).sentEventIds.has('evt-unload-nomark'),
+        'mark must stand',
+      ).toBe(true);
     });
 
     it('releases the pre-send mark when the response is a definite non-success', async () => {
@@ -1395,7 +1522,9 @@ describe('RequestBatcher', () => {
 
       await batcher.flush({ unloading: true });
 
-      expect((batcher as any).sentEventIds.has('evt-unload-mark-release')).toBe(false);
+      expect((batcher as any).sentEventIds.has('evt-unload-mark-release')).toBe(
+        false,
+      );
     });
   });
 
@@ -1405,7 +1534,12 @@ describe('RequestBatcher', () => {
       // ArithmeticOperator mutants on `response?.error === 'timeout' &&
       // Date.now() - startTime >= timeoutMS`.
       const b = makeBatcher({
-        libConfig: { batchSize: 10, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 100, batchAutostart: false },
+        libConfig: {
+          batchSize: 10,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 100,
+          batchAutostart: false,
+        },
       });
       await b.enqueue(event('evt-timeout'));
       // Monotonically increasing rather than a two-value branch: `flush()`
@@ -1428,11 +1562,18 @@ describe('RequestBatcher', () => {
 
     it('does not take the immediate-retry path before the timeout has elapsed', async () => {
       const b = makeBatcher({
-        libConfig: { batchSize: 10, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 100000, batchAutostart: false },
+        libConfig: {
+          batchSize: 10,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 100000,
+          batchAutostart: false,
+        },
       });
       await b.enqueue(event('evt-timeout-early'));
       responses = [{ error: 'timeout' }];
-      const sched = vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
+      const sched = vi
+        .spyOn(b as any, 'scheduleFlush')
+        .mockImplementation(() => {});
 
       await b.flush();
 
@@ -1459,7 +1600,12 @@ describe('RequestBatcher', () => {
       // `attemptSecondaryFlush` and the surrounding LogicalOperator/
       // BlockStatement mutants, from the "off" side.
       const b = makeBatcher({
-        libConfig: { batchSize: 5, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false },
+        libConfig: {
+          batchSize: 5,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 5000,
+          batchAutostart: false,
+        },
       });
       await b.enqueue(event('evt-chain-1'));
       await b.enqueue(event('evt-chain-2'));
@@ -1476,7 +1622,12 @@ describe('RequestBatcher', () => {
       // The same scenario, flag on: `resetFlush()` is taken instead, so
       // fillBatch is not called a second time.
       const b = makeBatcher({
-        libConfig: { batchSize: 5, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false },
+        libConfig: {
+          batchSize: 5,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 5000,
+          batchAutostart: false,
+        },
         flushOnlyOnInterval: true,
       });
       await b.enqueue(event('evt-interval-1'));
@@ -1485,7 +1636,10 @@ describe('RequestBatcher', () => {
 
       await b.flush();
 
-      expect(fillBatchSpy, 'must wait for the next scheduled interval instead').toHaveBeenCalledTimes(1);
+      expect(
+        fillBatchSpy,
+        'must wait for the next scheduled interval instead',
+      ).toHaveBeenCalledTimes(1);
     });
   });
 
@@ -1496,7 +1650,12 @@ describe('RequestBatcher', () => {
       // batch means the queue is drained; chaining again would be a wasted
       // round trip against an empty queue.
       const b = makeBatcher({
-        libConfig: { batchSize: 5, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false },
+        libConfig: {
+          batchSize: 5,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 5000,
+          batchAutostart: false,
+        },
         flushOnlyOnInterval: true,
       });
       await b.enqueue(event('evt-short-batch'));
@@ -1521,7 +1680,12 @@ describe('RequestBatcher', () => {
       // fetched batch's length, so it has to be set explicitly here to make
       // it (rather than `itemIds.length - 1`) the binding term.
       const b = makeBatcher({
-        libConfig: { batchSize: 8, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false },
+        libConfig: {
+          batchSize: 8,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 5000,
+          batchAutostart: false,
+        },
       });
       for (let i = 0; i < 8; i++) await b.enqueue(event(`evt-halve-${i}`));
       responses = [{ httpStatusCode: 413 }];
@@ -1536,7 +1700,12 @@ describe('RequestBatcher', () => {
     it('halves the currentBatchSize, not double it', async () => {
       // Kills the ArithmeticOperator mutant `currentBatchSize / 2` → `* 2`.
       const b = makeBatcher({
-        libConfig: { batchSize: 6, batchFlushIntervalMs: 1000, batchRequestTimeoutMs: 5000, batchAutostart: false },
+        libConfig: {
+          batchSize: 6,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 5000,
+          batchAutostart: false,
+        },
       });
       for (let i = 0; i < 6; i++) await b.enqueue(event(`evt-halve2-${i}`));
       responses = [{ httpStatusCode: 413 }];
@@ -1576,7 +1745,9 @@ describe('RequestBatcher', () => {
 
       await b.flush();
 
-      expect(reported.join(' ')).toContain(`reducing batch size to ${(b as any).batchSize}`);
+      expect(reported.join(' ')).toContain(
+        `reducing batch size to ${(b as any).batchSize}`,
+      );
     });
   });
 
@@ -1609,8 +1780,12 @@ describe('RequestBatcher', () => {
         await b.flush();
       }
 
-      const tripMsg = reported.find(m => m.includes('circuit breaker open for'));
-      expect(tripMsg).toMatch(/^5 consecutive failures; circuit breaker open for \d+ ms$/);
+      const tripMsg = reported.find((m) =>
+        m.includes('circuit breaker open for'),
+      );
+      expect(tripMsg).toMatch(
+        /^5 consecutive failures; circuit breaker open for \d+ ms$/,
+      );
     });
   });
 
@@ -1636,7 +1811,9 @@ describe('RequestBatcher', () => {
       await b.flush();
 
       expect((b as any).consecutiveRemovalFailures).toBe(5);
-      expect((b as any).stopped, 'five is not yet "more than five"').toBe(false);
+      expect((b as any).stopped, 'five is not yet "more than five"').toBe(
+        false,
+      );
     });
 
     it('schedules another flush attempt on a removal failure under the limit', async () => {
@@ -1686,7 +1863,8 @@ describe('RequestBatcher', () => {
       let sawHalfOpen = false;
       const withHook = makeBatcher({
         sendRequestFunc: async () => {
-          sawHalfOpen = (withHook as any).getMetrics().breakerState === 'half-open';
+          sawHalfOpen =
+            (withHook as any).getMetrics().breakerState === 'half-open';
           return { httpStatusCode: 200, ok: true };
         },
       });

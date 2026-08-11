@@ -1,160 +1,232 @@
 <!doctype html>
 <html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Intempt SDK — single-page app routing</title>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Intempt SDK — single-page app routing</title>
 
-<!-- 1. Queue stub. See examples/basic-html/index.html for the annotated copy. -->
-<script>
-(function () {
-  if (window.intempt) return;
-  var queue = [], pending = [];
-  var methods = ['identify','group','track','record','alias','consent',
-                 'productAdd','productOrdered','productView','logOut',
-                 'optIn','optOut','isUserOptIn','recommendation'];
-  var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
-  methods.forEach(function (m) {
-    stub[m] = function () {
-      var args = [].slice.call(arguments);
-      if (m === 'recommendation') {
-        return new Promise(function (resolve, reject) {
-          pending.push({ resolve: resolve, reject: reject });
-          queue.push({ method: m, args: args });
+    <!-- 1. Queue stub. See examples/basic-html/index.html for the annotated copy. -->
+    <script>
+      (function () {
+        if (window.intempt) return;
+        var queue = [],
+          pending = [];
+        var methods = [
+          'identify',
+          'group',
+          'track',
+          'record',
+          'alias',
+          'consent',
+          'productAdd',
+          'productOrdered',
+          'productView',
+          'logOut',
+          'optIn',
+          'optOut',
+          'isUserOptIn',
+          'recommendation',
+        ];
+        var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
+        methods.forEach(function (m) {
+          stub[m] = function () {
+            var args = [].slice.call(arguments);
+            if (m === 'recommendation') {
+              return new Promise(function (resolve, reject) {
+                pending.push({ resolve: resolve, reject: reject });
+                queue.push({ method: m, args: args });
+              });
+            }
+            queue.push({ method: m, args: args });
+          };
         });
+        window.intempt = stub;
+      })();
+    </script>
+
+    <!-- 2. The SDK. Replace all four parameters. The /v1/ segment is required. -->
+    <script
+      async
+      src="https://cdn.intempt.com/v1/intempt.min.js?organization=YOUR_ORG&project=YOUR_PROJECT&source=YOUR_SOURCE_ID&key=YOUR_KEY"
+    ></script>
+
+    <style>
+      :root {
+        color-scheme: light dark;
       }
-      queue.push({ method: m, args: args });
-    };
-  });
-  window.intempt = stub;
-})();
-</script>
+      body {
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+        max-width: 46rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      h1 {
+        font-size: 1.4rem;
+      }
+      h2 {
+        font-size: 1.05rem;
+        margin-top: 2rem;
+      }
+      nav a {
+        margin-right: 1rem;
+      }
+      code {
+        font-family: ui-monospace, monospace;
+      }
+      #view {
+        border: 1px solid currentColor;
+        border-radius: 4px;
+        padding: 1rem;
+        margin: 1rem 0;
+      }
+      #log {
+        border: 1px solid currentColor;
+        border-radius: 4px;
+        padding: 0.5rem 0.75rem;
+        max-height: 18rem;
+        overflow: auto;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        white-space: pre-wrap;
+      }
+      button {
+        font: inherit;
+        padding: 0.4rem 0.8rem;
+        margin: 0 0.4rem 0.4rem 0;
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Single-page app routing</h1>
 
-<!-- 2. The SDK. Replace all four parameters. The /v1/ segment is required. -->
-<script
-  async
-  src="https://cdn.intempt.com/v1/intempt.min.js?organization=YOUR_ORG&project=YOUR_PROJECT&source=YOUR_SOURCE_ID&key=YOUR_KEY">
-</script>
+    <p>
+      The point of this example is how little code it takes:
+      <strong>the SDK tracks SPA route changes on its own</strong>. It patches
+      <code>history.pushState</code> and <code>history.replaceState</code> and
+      listens for <code>popstate</code>, so each navigation emits a
+      <em>Leave Page</em> for the old route and a <em>View Page</em> for the new
+      one. The router below contains no analytics calls at all — every page
+      event in the log came from the SDK.
+    </p>
 
-<style>
-  :root { color-scheme: light dark; }
-  body { font: 16px/1.5 system-ui, sans-serif; max-width: 46rem; margin: 2rem auto; padding: 0 1rem; }
-  h1 { font-size: 1.4rem; }
-  h2 { font-size: 1.05rem; margin-top: 2rem; }
-  nav a { margin-right: 1rem; }
-  code { font-family: ui-monospace, monospace; }
-  #view { border: 1px solid currentColor; border-radius: 4px; padding: 1rem; margin: 1rem 0; }
-  #log { border: 1px solid currentColor; border-radius: 4px; padding: .5rem .75rem;
-         max-height: 18rem; overflow: auto; font-family: ui-monospace, monospace;
-         font-size: .8rem; white-space: pre-wrap; }
-  button { font: inherit; padding: .4rem .8rem; margin: 0 .4rem .4rem 0; cursor: pointer; }
-</style>
-</head>
-<body>
+    <p>
+      <small
+        >Serve this with a static file server and navigate using the links, not
+        the address bar: <code>python3 -m http.server</code> has no rewrite
+        rule, so reloading on <code>/pricing</code> returns a 404.</small
+      >
+    </p>
 
-<h1>Single-page app routing</h1>
+    <nav>
+      <a href="/" data-route="/">Home</a>
+      <a href="/pricing" data-route="/pricing">Pricing</a>
+      <a href="/docs" data-route="/docs">Docs</a>
+      <a href="/docs?section=api" data-route="/docs?section=api"
+        >Docs (with a query)</a
+      >
+    </nav>
 
-<p>The point of this example is how little code it takes: <strong>the SDK tracks SPA route
-changes on its own</strong>. It patches <code>history.pushState</code> and
-<code>history.replaceState</code> and listens for <code>popstate</code>, so each navigation
-emits a <em>Leave Page</em> for the old route and a <em>View Page</em> for the new one. The
-router below contains no analytics calls at all — every page event in the log came from the
-SDK.</p>
+    <div id="view">…</div>
 
-<p><small>Serve this with a static file server and navigate using the links, not the address
-bar: <code>python3 -m http.server</code> has no rewrite rule, so reloading on
-<code>/pricing</code> returns a 404.</small></p>
+    <p>
+      <button id="back">history.back()</button>
+      <button id="replace">replaceState to the same URL</button>
+    </p>
 
-<nav>
-  <a href="/" data-route="/">Home</a>
-  <a href="/pricing" data-route="/pricing">Pricing</a>
-  <a href="/docs" data-route="/docs">Docs</a>
-  <a href="/docs?section=api" data-route="/docs?section=api">Docs (with a query)</a>
-</nav>
+    <h2>Page events, straight from the SDK</h2>
+    <div id="log">(nothing yet)</div>
 
-<div id="view">…</div>
+    <h2>Three things to know before you rely on this</h2>
 
-<p>
-  <button id="back">history.back()</button>
-  <button id="replace">replaceState to the same URL</button>
-</p>
+    <ul>
+      <li>
+        <strong>Hash-only routers are not tracked.</strong> The SDK hooks the
+        History API and <code>popstate</code>; it does not listen for
+        <code>hashchange</code>. If your router navigates by assigning
+        <code>location.hash</code>, no page view is emitted. Either move the
+        router to <code>pushState</code>, or call
+        <code>track({ eventTitle: 'Route Changed', data: { path } })</code>
+        yourself on each navigation.
+      </li>
+      <li>
+        <strong
+          >A <code>replaceState</code> that does not change the URL still emits
+          a <em>Leave Page</em>.</strong
+        >
+        Press the button above and watch: you get an exit event with no matching
+        view. Routers that use <code>replaceState</code> to sync query
+        parameters or scroll state will inflate your exit counts. Prefer
+        <code>pushState</code> for real navigations and keep
+        <code>replaceState</code> for genuine URL corrections.
+      </li>
+      <li>
+        <strong>Back/forward can log the exit twice.</strong> A
+        <code>popstate</code> navigation currently produces two
+        <em>Leave Page</em> events and one <em>View Page</em>. Deduplicate on
+        the platform side if exit counts matter to you.
+      </li>
+    </ul>
 
-<h2>Page events, straight from the SDK</h2>
-<div id="log">(nothing yet)</div>
+    <h2>What you still call yourself</h2>
 
-<h2>Three things to know before you rely on this</h2>
+    <p>
+      Route changes are automatic; identity is not. Call
+      <code>identify()</code> once you know who the visitor is, and again after
+      a full reload — a client-side route change keeps the profile, but a reload
+      starts from what is in storage.
+    </p>
 
-<ul>
-  <li><strong>Hash-only routers are not tracked.</strong> The SDK hooks the History API and
-    <code>popstate</code>; it does not listen for <code>hashchange</code>. If your router
-    navigates by assigning <code>location.hash</code>, no page view is emitted. Either move
-    the router to <code>pushState</code>, or call
-    <code>track({ eventTitle: 'Route Changed', data: { path } })</code> yourself on each
-    navigation.</li>
-  <li><strong>A <code>replaceState</code> that does not change the URL still emits a
-    <em>Leave Page</em>.</strong> Press the button above and watch: you get an exit event
-    with no matching view. Routers that use <code>replaceState</code> to sync query
-    parameters or scroll state will inflate your exit counts. Prefer
-    <code>pushState</code> for real navigations and keep <code>replaceState</code> for
-    genuine URL corrections.</li>
-  <li><strong>Back/forward can log the exit twice.</strong> A <code>popstate</code>
-    navigation currently produces two <em>Leave Page</em> events and one
-    <em>View Page</em>. Deduplicate on the platform side if exit counts matter to you.</li>
-</ul>
+    <script>
+      var log = document.getElementById('log');
+      var lines = 0;
+      function write(text) {
+        if (lines === 0) log.textContent = '';
+        lines++;
+        log.textContent = lines + '. ' + text + '\n' + log.textContent;
+      }
 
-<h2>What you still call yourself</h2>
+      // Page views and exits arrive here. Nothing in the router below dispatches these.
+      window.addEventListener('intempt:page', function (e) {
+        write(e.detail.eventName + '  ' + location.pathname + location.search);
+      });
 
-<p>Route changes are automatic; identity is not. Call <code>identify()</code> once you know
-who the visitor is, and again after a full reload — a client-side route change keeps the
-profile, but a reload starts from what is in storage.</p>
+      // --- a router with no analytics in it ------------------------------------
+      var views = {
+        '/': '<h2>Home</h2><p>Navigating with pushState. No tracking code here.</p>',
+        '/pricing': '<h2>Pricing</h2><p>Still no tracking code.</p>',
+        '/docs': '<h2>Docs</h2><p>Nor here.</p>',
+      };
 
-<script>
-  var log = document.getElementById('log');
-  var lines = 0;
-  function write(text) {
-    if (lines === 0) log.textContent = '';
-    lines++;
-    log.textContent = lines + '. ' + text + '\n' + log.textContent;
-  }
+      function render() {
+        var path = location.pathname;
+        document.getElementById('view').innerHTML =
+          views[path] || '<h2>Not found</h2><p>' + path + '</p>';
+      }
 
-  // Page views and exits arrive here. Nothing in the router below dispatches these.
-  window.addEventListener('intempt:page', function (e) {
-    write(e.detail.eventName + '  ' + location.pathname + location.search);
-  });
+      document.querySelectorAll('nav a').forEach(function (a) {
+        a.addEventListener('click', function (e) {
+          e.preventDefault();
+          history.pushState(null, '', a.getAttribute('data-route'));
+          render();
+        });
+      });
 
-  // --- a router with no analytics in it ------------------------------------
-  var views = {
-    '/':        '<h2>Home</h2><p>Navigating with pushState. No tracking code here.</p>',
-    '/pricing': '<h2>Pricing</h2><p>Still no tracking code.</p>',
-    '/docs':    '<h2>Docs</h2><p>Nor here.</p>'
-  };
+      window.addEventListener('popstate', render);
 
-  function render() {
-    var path = location.pathname;
-    document.getElementById('view').innerHTML =
-      views[path] || '<h2>Not found</h2><p>' + path + '</p>';
-  }
+      document.getElementById('back').onclick = function () {
+        history.back();
+      };
 
-  document.querySelectorAll('nav a').forEach(function (a) {
-    a.addEventListener('click', function (e) {
-      e.preventDefault();
-      history.pushState(null, '', a.getAttribute('data-route'));
+      document.getElementById('replace').onclick = function () {
+        // Same URL in, same URL out. The SDK still emits Leave Page; the matching View Page is
+        // suppressed because the URL did not change.
+        history.replaceState(null, '', location.pathname + location.search);
+      };
+
       render();
-    });
-  });
-
-  window.addEventListener('popstate', render);
-
-  document.getElementById('back').onclick = function () { history.back(); };
-
-  document.getElementById('replace').onclick = function () {
-    // Same URL in, same URL out. The SDK still emits Leave Page; the matching View Page is
-    // suppressed because the URL did not change.
-    history.replaceState(null, '', location.pathname + location.search);
-  };
-
-  render();
-</script>
-
-</body>
+    </script>
+  </body>
 </html>
