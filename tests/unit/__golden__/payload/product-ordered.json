@@ -1,0 +1,63 @@
+{
+  "track": [
+    {
+      "name": "Product ordered",
+      "type": "product",
+      "payload": [
+        {
+          "eventId": "<eventId>",
+          "profileId": "<profileId>",
+          "sessionId": "<sessionId>",
+          "pageId": "<pageId>",
+          "data": {
+            "productId": "p1",
+            "price": 10
+          }
+        },
+        {
+          "eventId": "<eventId>",
+          "profileId": "<profileId>",
+          "sessionId": "<sessionId>",
+          "pageId": "<pageId>",
+          "data": {
+            "productId": "p2",
+            "price": 20
+          }
+        }
+      ]
+    },
+    {
+      "name": "Session start",
+      "payload": [
+        {
+          "eventId": "<eventId>",
+          "sessionId": "<sessionId>",
+          "profileId": "<profileId>",
+          "userAttributes": {
+            "deviceType": "Mobile",
+            "referrer": "direct",
+            "fullReferrer": "direct",
+            "landingPage": "http://localhost:3000",
+            "browser": "Unknown/0.0.0.0",
+            "platform": "Linux",
+            "ipAddress": "",
+            "country": "",
+            "region": "",
+            "city": "",
+            "utmCampaign": "",
+            "utmContent": "",
+            "utmMedium": "",
+            "utmSource": "",
+            "utmTerm": ""
+          },
+          "data": {
+            "sessionStartEventName": "",
+            "landingPageQuery": "",
+            "landingPageHash": "",
+            "source": "web"
+          }
+        }
+      ]
+    }
+  ]
+}
