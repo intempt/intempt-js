@@ -77,12 +77,25 @@ describe('RequestQueue', () => {
       const queue = makeQueue();
       await queue.enqueue({ n: 1 }, 1000);
 
-      const stored = JSON.parse(localStorage.getItem(KEY) as string);
-      stored[0].flushAfter = Date.now() - 1;
-      localStorage.setItem(KEY, JSON.stringify(stored));
+      // One record per event now, so age the record in place under its own key.
+      const storage = new QueueStorage();
+      const [entry] = await storage.entries(`${KEY}:i:`);
+      await storage.setItem(entry.key, { ...entry.value, flushAfter: Date.now() - 1 });
 
       const batch = await makeQueue().fillBatch(10);
       expect(batch[0].orphaned).toBe(true);
+    });
+
+    it('returns events in FIFO order even when enqueued inside one millisecond', async () => {
+      // Keys sort chronologically and a sequence number breaks ties; without it
+      // a burst would come back in arbitrary order.
+      const queue = makeQueue();
+      for (let i = 0; i < 20; i++) {
+        await queue.enqueue({ n: i }, 1000);
+      }
+
+      const batch = await makeQueue().fillBatch(20);
+      expect(batch.map(i => i.payload.n)).toEqual(Array.from({ length: 20 }, (_, i) => i));
     });
 
     it('returns an empty batch for an empty queue', async () => {
@@ -110,7 +123,21 @@ describe('RequestQueue', () => {
       expect(await queue.removeItemsByID([batch[0].id])).toBe(true);
 
       expect((await queue.fillBatch(10)).map(i => i.payload.n)).toEqual([2]);
-      expect(JSON.parse(localStorage.getItem(KEY) as string)).toHaveLength(1);
+      // One record per event: exactly one key should remain under the prefix.
+      expect(await new QueueStorage().keys(`${KEY}:i:`)).toHaveLength(1);
+    });
+
+    it('removes items queued by another tab, whose keys are not in memory', async () => {
+      const other = makeQueue();
+      await other.enqueue({ n: 1 }, 1000);
+
+      // Fresh instance: memQueue is empty, so the key must be resolved from
+      // storage rather than assumed to be known locally.
+      const queue = makeQueue();
+      const batch = await queue.fillBatch(10);
+      expect(await queue.removeItemsByID([batch[0].id])).toBe(true);
+
+      expect(await new QueueStorage().keys(`${KEY}:i:`)).toHaveLength(0);
     });
 
     it('is a no-op for unknown ids', async () => {
@@ -121,16 +148,66 @@ describe('RequestQueue', () => {
       expect(await queue.fillBatch(10)).toHaveLength(1);
     });
 
-    it('reports false when the write fails, so the batcher can back off', async () => {
+    it('reports false when the delete fails, so the batcher can back off', async () => {
       const queue = makeQueue();
       await queue.enqueue({ n: 1 }, 1000);
       const batch = await queue.fillBatch(10);
 
-      vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
-        throw new Error('QuotaExceededError');
-      });
+      // Removal no longer writes the queue back, so a failing setItem is no
+      // longer the failure mode — a failing delete is.
+      vi.spyOn(QueueStorage.prototype, 'removeItems').mockRejectedValue(new Error('delete failed'));
 
       expect(await queue.removeItemsByID([batch[0].id])).toBe(false);
+    });
+
+    it('does not rewrite the queue to remove one item', async () => {
+      const queue = makeQueue();
+      for (let i = 0; i < 5; i++) {
+        await queue.enqueue({ n: i }, 1000);
+      }
+      const batch = await queue.fillBatch(10);
+
+      const setItem = vi.spyOn(QueueStorage.prototype, 'setItem');
+      await queue.removeItemsByID([batch[0].id]);
+
+      // The array layout rewrote every remaining event on every removal. That
+      // O(N) write is the thing this layout exists to delete.
+      expect(setItem).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('legacy migration', () => {
+    it('imports events written by the old single-array layout', async () => {
+      // Customers have events sitting in this format at upgrade time. Dropping
+      // them would be silent data loss on deploy, so this is not optional.
+      const legacy = [
+        { id: 'old-1', flushAfter: Date.now() + 10_000, payload: { n: 1 } },
+        { id: 'old-2', flushAfter: Date.now() + 10_000, payload: { n: 2 } },
+      ];
+      localStorage.setItem(KEY, JSON.stringify(legacy));
+
+      const batch = await makeQueue().fillBatch(10);
+
+      expect(batch.map(i => i.payload.n)).toEqual([1, 2]);
+      // The legacy key is removed so the import cannot run twice and duplicate.
+      expect(localStorage.getItem(KEY)).toBeNull();
+    });
+
+    it('leaves new-format events alone when no legacy data exists', async () => {
+      const queue = makeQueue();
+      await queue.enqueue({ n: 1 }, 1000);
+
+      expect((await makeQueue().fillBatch(10)).map(i => i.payload.n)).toEqual([1]);
+    });
+
+    it('ignores malformed legacy entries rather than failing the import', async () => {
+      localStorage.setItem(
+        KEY,
+        JSON.stringify([null, { no: 'id' }, { id: 'ok', flushAfter: Date.now() + 10_000, payload: { n: 7 } }]),
+      );
+
+      const batch = await makeQueue().fillBatch(10);
+      expect(batch.map(i => i.payload.n)).toEqual([7]);
     });
   });
 

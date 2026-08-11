@@ -11,9 +11,10 @@ const QUEUE_KEY = '__intempt_queue_test-source__';
  * test was asserting an implementation detail.
  */
 function readQueue(): Promise<any[]> {
+  // One record per event under a key prefix, not one array under QUEUE_KEY.
   return new PersistentStore({ dbName: 'intempt_test-source' })
-    .getItem(QUEUE_KEY)
-    .then(value => (Array.isArray(value) ? value : []));
+    .entries(`${QUEUE_KEY}:i:`)
+    .then(entries => entries.map(e => e.value));
 }
 
 describe('AutoTrackerModule - Batcher Integration', () => {

@@ -13,7 +13,7 @@
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
 | **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB persistence tier with localStorage fallback**. Unit 123 / Cypress 213, all passing. Bundle 76.56 kB / 21.76 kB gzip. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. Unit 129 / Cypress 213, all passing. Bundle 79.46 kB / 22.53 kB gzip. |
 
 ---
 
@@ -102,8 +102,11 @@ Recorded so they are not re-litigated:
 
 Remaining work that needs nothing from anyone else:
 
-1. Load shedding, client-side three of four — **jitter on backoff** (highest
-   value, cheapest), circuit breaker, bounded queue with an explicit drop policy.
+1. **Load shedding, client-side three of four — this is the next action.**
+   **Jitter on backoff** first: cheapest and highest value, because a million
+   clients currently retry in lockstep and amplify any ingest incident. Then a
+   circuit breaker, then a bounded queue with an explicit drop policy (today the
+   queue grows until quota fails, and quota failure is silent).
 2. Rest of Phase 2 — port the guard suites into the unit tier, golden-file
    contract tests on the payload shape, `ci.yml` so the tiers gate merges.
 3. Cross-subdomain consent cookie (the D15 limitation).
@@ -282,17 +285,55 @@ every write pay the failed-open cost); if a write fails *after* a successful
 open, fall back mid-flight rather than dropping the batch; if neither tier comes
 up, reject so `RequestQueue` degrades to its in-memory queue.
 
-**Not done yet — the follow-up that matters:** this still stores the whole queue
-array under one key, so a write is O(queue depth) in CPU even though it is no
-longer synchronous. **Splitting the queue into one record per event is where the
-real throughput win is**, and it is what `IndexedDbStore.removeItems()` (already
-written and tested — a transactional multi-delete) exists for. That change does
-require `RequestQueue` to change.
+**Follow-up done — per-event records.** `RequestQueue` now stores one record per
+event under `<storageKey>:i:<paddedTs>_<seq>_<id>`, replacing the single JSON
+array. See §6c.
 
 Two Cypress assertions in `autoTrackerBatcher.cy.ts` were rewritten as part of
 this: they read `localStorage` directly, so they failed the moment the tier
 landed. The behaviour was right and the test was asserting an implementation
 detail — they now read through `PersistentStore`.
+
+## 6c. Phase 3 — per-event queue records ✅
+
+`RequestQueue` stores **one record per event**, key
+`<storageKey>:i:<paddedTimestamp>_<seq>_<id>`, instead of one JSON array.
+
+**Why:** the array layout made every enqueue and every removal a read-modify-write
+of the whole pending queue — serialise N events to append the (N+1)th. O(N) CPU
+per event on the customer's main thread, quadratic over a burst, and worst
+exactly when the queue is deepest. Now an enqueue is one O(1) write and a batch
+read costs one batch rather than one queue.
+
+**Three properties fall out of the layout, and two matter more than the speed:**
+
+- **Cross-tab writes stop conflicting.** Appends carry unique keys, removals
+  target keys, so two tabs can no longer clobber each other by writing back a
+  stale array. **`SharedLock` is therefore off the enqueue/remove hot path** —
+  retained only for the one-time legacy migration, where a whole-array rewrite
+  genuinely does race. That also removes the lock's 50 ms polling from every
+  enqueue.
+- **A corrupt record costs one event, not the queue.** Readers skip unparseable
+  entries; under the array layout one bad write made the whole queue unreadable.
+- Key order is FIFO order. The timestamp is zero-padded so string comparison is
+  correct, and a per-instance sequence breaks ties inside one millisecond —
+  without it a burst comes back in arbitrary order. There is a test for this.
+
+**Migration — do not remove it casually.** Customers have events sitting in the
+old array format right now, so `migrateLegacyQueue()` imports them on first read
+and deletes the legacy key (so the import cannot run twice and duplicate). It
+runs under the shared lock, tolerates malformed entries, and a failed migration
+is reported but never blocks new events. Three tests cover it.
+
+`removeItemsByID` resolves keys from memory when it can and falls back to a
+storage key scan for items queued by *another tab*, which are not in this page's
+`memQueue`.
+
+**Test-suite note for the next session:** several Cypress and unit assertions
+read the queue's storage layout directly and had to be rewritten twice now — once
+for the IndexedDB tier, once for per-event records. They assert implementation,
+not behaviour. If they break again, prefer rewriting them to go through
+`PersistentStore`/`RequestQueue` rather than reaching into storage.
 
 ## 6. Invariants — do not violate without asking
 
@@ -320,7 +361,7 @@ detail — they now read through `PersistentStore`.
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
 | 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (105 tests, gate enforced); guard-suite port, contract tests and WDIO tier 2 remain |
-| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ⬜ **next** |
+| 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ⬜ **next** |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | ⬜ |
 

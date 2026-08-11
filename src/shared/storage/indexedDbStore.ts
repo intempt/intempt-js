@@ -167,6 +167,42 @@ export class IndexedDbStore {
     });
   }
 
+  /**
+   * Every entry whose key starts with `prefix`, in key order, up to `limit`.
+   *
+   * Uses a cursor over a bounded key range rather than `getAll()`, so a queue
+   * with 100k pending events still costs one batch's worth of deserialisation
+   * to read one batch. `\uffff` is the standard upper sentinel for a string
+   * prefix range in IndexedDB.
+   */
+  async entries(prefix: string, limit?: number): Promise<Array<{ key: string; value: any }>> {
+    const store = await this.transaction('readonly');
+    const range = IDBKeyRange.bound(prefix, `${prefix}\uffff`);
+
+    return new Promise((resolve, reject) => {
+      const out: Array<{ key: string; value: any }> = [];
+      const request = store.openCursor(range);
+
+      request.onsuccess = () => {
+        const cursor = request.result;
+        if (!cursor || (typeof limit === 'number' && out.length >= limit)) {
+          resolve(out);
+          return;
+        }
+        out.push({ key: String(cursor.key), value: cursor.value });
+        cursor.continue();
+      };
+      request.onerror = () => reject(request.error || new Error('IndexedDB cursor failed'));
+    });
+  }
+
+  /** Keys under `prefix`, in FIFO order. */
+  async keys(prefix: string): Promise<string[]> {
+    const range = IDBKeyRange.bound(prefix, `${prefix}\uffff`);
+    const keys = await this.request<IDBValidKey[]>(store => store.getAllKeys(range), 'readonly');
+    return (keys || []).map(String);
+  }
+
   close(): void {
     this.db?.close();
     this.db = null;

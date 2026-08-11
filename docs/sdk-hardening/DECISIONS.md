@@ -394,3 +394,46 @@ event-survival logic lives, so that is where the gate is pointed first.
 **Rule:** when the guard suites are ported, widen `coverage.include` and raise the
 thresholds **in the same commit**. Widening the scope alone silently lowers the
 bar; raising thresholds alone blocks the port.
+
+---
+
+## D21 — One storage record per event, not one array
+
+**Decided:** `RequestQueue` stores each event under its own key
+(`<storageKey>:i:<paddedTimestamp>_<seq>_<id>`).
+
+**Why:** the array layout made every enqueue a read-modify-write of the entire
+pending queue — serialising N events to append the (N+1)th. That is O(N) CPU per
+event on the *customer's* main thread and quadratic over a burst, and it degrades
+precisely when the queue is deepest, i.e. during an ingest incident.
+
+Two consequences matter more than the speed:
+
+1. **Cross-tab writes no longer conflict.** Unique-key appends and key-targeted
+   removals cannot clobber each other, so `SharedLock` comes off the hot path
+   (and with it, its 50 ms acquisition polling on every enqueue). The lock is
+   kept only for the legacy migration, which is a genuine whole-array race.
+2. **Corruption is contained.** One unparseable record costs one event; under the
+   array layout it made the entire queue unreadable.
+
+**Would change our mind:** nothing. The array layout has no remaining advantage.
+
+---
+
+## D22 — Migrate the legacy queue on first read, then delete the legacy key
+
+**Decided:** on first storage read, import any old single-array queue into
+per-event records and remove the legacy key.
+
+**Why:** customers have events in the old format at the moment they receive the
+new bundle. Without the import, upgrading would silently discard them — data loss
+caused by a deploy, which is the worst kind because nobody looks for it. Deleting
+the legacy key afterwards is what stops the import running twice and duplicating.
+
+It runs under `SharedLock` (a whole-array rewrite across tabs is exactly what
+races), tolerates malformed entries, and a failure is reported but never blocks
+new events — a broken migration must not become a broken SDK.
+
+**Retention:** keep this until we can show the legacy key is gone from the field.
+Given the mutable CDN path and no rollback artifact, assume old bundles persist
+far longer than expected.

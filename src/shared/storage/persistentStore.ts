@@ -22,11 +22,9 @@ import { QueueStorage } from './queueStorage.ts';
  *    `RequestQueue` already degrades to an in-memory queue. Events then survive
  *    only until the tab closes, which is the honest ceiling in that environment.
  *
- * What this does NOT yet do: per-event records. Reads and writes still move the
- * whole queue array under one key, so a write is O(queue depth) in CPU even
- * though it is no longer synchronous. Splitting the queue into one record per
- * event is the follow-up; it needs `RequestQueue` to change, and it is where the
- * transactional `removeItems()` on the IndexedDB tier gets used.
+ * `entries`/`keys`/`removeItems` exist for the queue's per-event records: one
+ * record per event, read a bounded batch at a time, removed by key. That is what
+ * makes an enqueue O(1) instead of a rewrite of the whole pending queue.
  */
 export class PersistentStore {
   private readonly idb: IndexedDbStore;
@@ -109,6 +107,53 @@ export class PersistentStore {
       }
     }
     return this.fallback.setItem(key, value);
+  }
+
+  /** See `IndexedDbStore.entries` / `QueueStorage.entries`. */
+  async entries(prefix: string, limit?: number): Promise<Array<{ key: string; value: any }>> {
+    await this.init();
+    if (this.driver === 'indexeddb') {
+      try {
+        return await this.idb.entries(prefix, limit);
+      } catch (error) {
+        this.reportError('IndexedDB scan failed, falling back to localStorage', error);
+        this.driver = 'localstorage';
+      }
+    }
+    return this.fallback.entries(prefix, limit);
+  }
+
+  async keys(prefix: string): Promise<string[]> {
+    await this.init();
+    if (this.driver === 'indexeddb') {
+      try {
+        return await this.idb.keys(prefix);
+      } catch (error) {
+        this.reportError('IndexedDB key scan failed, falling back to localStorage', error);
+        this.driver = 'localstorage';
+      }
+    }
+    return this.fallback.keys(prefix);
+  }
+
+  /**
+   * Remove several keys.
+   *
+   * Atomic on the IndexedDB tier (one transaction), best-effort on the
+   * localStorage tier, which has no transactions.
+   */
+  async removeItems(keys: string[]): Promise<void> {
+    await this.init();
+    if (this.driver === 'indexeddb') {
+      try {
+        await this.idb.removeItems(keys);
+        return;
+      } catch (error) {
+        this.reportError('IndexedDB batch delete failed, falling back to localStorage', error);
+        this.driver = 'localstorage';
+      }
+    }
+    return this.fallback.removeItems(keys);
   }
 
   async removeItem(key: string): Promise<void> {
