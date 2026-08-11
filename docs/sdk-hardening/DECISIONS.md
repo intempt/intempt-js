@@ -215,3 +215,60 @@ observability is not worth risking the ingest path on an assumption.
 
 **Unblocks when:** the ingest team confirms unknown top-level payload fields are
 tolerated (or names the field they want). Then stamp it.
+
+---
+
+## D13 — On unload, dequeue only on a *definite* success
+
+**Decided:** the `unloading: true` branch of `handleResponse` removes the batch
+from the queue only when the response is an `ok`/2xx. Anything ambiguous — no
+response object, `error` set, status 0 or 5xx — leaves the batch queued for the
+next page load.
+
+**Why:** `fetch(..., {keepalive: true})` fired from `beforeunload`/`pagehide`/
+`visibilitychange` frequently *does* resolve before the page goes away, so
+returning unconditionally without dequeuing discarded information we actually
+had, and left delivered events in the queue. But the converse error is worse:
+dequeuing on a guess loses events permanently, while retaining a delivered batch
+costs at most a duplicate that `sentEventIds` usually catches. The asymmetry
+decides the default.
+
+**Would change our mind:** server-side idempotency on an event ID. With that,
+dequeuing optimistically becomes free and this can be simplified.
+
+---
+
+## D14 — Already-sent queue items are evicted, not skipped
+
+**Decided:** an item filtered by the `alreadySent` eventId check is removed from
+the queue in the same flush.
+
+**Why:** skipping alone was the real mechanism behind the reported duplicate
+sends. A skipped item stays at the head of the queue, so `fillBatch` returns it
+on every subsequent flush — the queue head is permanently blocked and each flush
+burns part of its batch on garbage. Then, because `sentEventIds` is capped, the
+item's eventId eventually ages out of the window and the item becomes eligible
+again — and *is* re-sent. It can never legitimately be sent, so it must go.
+
+---
+
+## D15 — Persist opt-out in `localStorage`, accepting origin scope for now
+
+**Decided:** `src/shared/consentState.ts` stores the do-not-track flag in
+`localStorage` under `intempt_do_not_track`.
+
+**Why:** it matches where the rest of the SDK's client state already lives, so it
+adds no new storage surface, and it fixes the compliance defect immediately —
+consent has to outlive the page that captured it.
+
+**Known limitation, accepted deliberately:** `localStorage` is origin-scoped, so
+an opt-out on `www.example.com` does not carry to `shop.example.com`. The correct
+fix is a cookie written at the eTLD+1, which needs the `psl`-free eTLD+1 helper
+(Phase 3) and belongs with the `gdpr-utils` port (Phase 4). Shipping the
+origin-scoped version now is strictly better than an in-memory flag; it is not
+the end state.
+
+**Also decided:** storage failures are swallowed, never thrown. `optOut()` is
+called from consent-banner click handlers, and in Safari private mode or at full
+quota a throw there could break the host page's banner — turning our compliance
+fix into their outage. The in-memory flag still holds for the current page.

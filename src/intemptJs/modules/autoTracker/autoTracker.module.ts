@@ -16,6 +16,7 @@ import { ProductModel } from '../../models/product.model.ts';
 import { RequestBatcher } from '../../../shared/queue/requestBatcher.ts';
 import { QueueStorage } from '../../../shared/storage/queueStorage.ts';
 import { EnvConfig } from '../../../shared/envConfig.ts';
+import { loadDoNotTrack, persistDoNotTrack } from '../../../shared/consentState.ts';
 
 
 export class AutoTrackerModule {
@@ -26,7 +27,7 @@ export class AutoTrackerModule {
   private readonly _htmlTrackerModule = new HtmlTrackerModule();
   private readonly _shopifyTrackerModule: ShopifyTrackerModule | undefined ;
 
-  private _doNotTrack: boolean = false;
+  private _doNotTrack: boolean = loadDoNotTrack();
 
   private readonly _api: string;
 
@@ -80,6 +81,7 @@ export class AutoTrackerModule {
 
   set doNotTrack(value: boolean){
     this._doNotTrack = value
+    persistDoNotTrack(value)
   }
 
   isUserOptIn(): boolean{

@@ -23,6 +23,17 @@ export interface RequestBatcherOptions {
 const MAX_RETRY_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
 
 /**
+ * Hard caps on the two client-side dedupe structures.
+ *
+ * Both are unbounded-growth hazards on a long-lived tab (a dashboard left open
+ * for days, or any single-page app), which is exactly the highest-volume
+ * customer. The caps are backstops — the primary control is pruning entries the
+ * moment they can no longer influence a decision.
+ */
+const MAX_TRACKED_ITEM_IDS = 1000;
+const MAX_SENT_EVENT_IDS = 1000;
+
+/**
  * Manages batching, flushing, and retrying of tracking requests
  */
 export class RequestBatcher {
@@ -119,7 +130,10 @@ export class RequestBatcher {
         const stored = localStorage.getItem(this.sentEventIdsKey);
         if (stored) {
           const ids = JSON.parse(stored);
-          this.sentEventIds = new Set(ids);
+          // Trim on load too: an older build may have persisted more than the cap.
+          this.sentEventIds = new Set(
+            Array.isArray(ids) ? ids.slice(-MAX_SENT_EVENT_IDS) : []
+          );
         }
       }
     } catch (error) {
@@ -128,19 +142,82 @@ export class RequestBatcher {
   }
 
   /**
-   * Save sent event IDs to localStorage
-   * Keeps only last 1000 to prevent localStorage bloat
+   * Record event IDs as sent, keeping the in-memory Set bounded.
+   *
+   * Persistence was already capped at MAX_SENT_EVENT_IDS, but the in-memory Set
+   * was not — so a long-lived tab grew it without limit while only ever writing
+   * the tail. Trimming here keeps memory and storage describing the same set,
+   * which also means a reload cannot resurrect an ID that memory had dropped.
+   *
+   * Set iteration order is insertion order, so the oldest IDs go first.
+   */
+  private markEventIdsSent(eventIds: string[]): void {
+    for (const eventId of eventIds) {
+      this.sentEventIds.add(eventId);
+    }
+
+    if (this.sentEventIds.size > MAX_SENT_EVENT_IDS) {
+      const overflow = this.sentEventIds.size - MAX_SENT_EVENT_IDS;
+      const iterator = this.sentEventIds.values();
+      for (let i = 0; i < overflow; i++) {
+        const oldest = iterator.next().value;
+        if (oldest !== undefined) {
+          this.sentEventIds.delete(oldest);
+        }
+      }
+    }
+  }
+
+  /**
+   * Save sent event IDs to localStorage.
+   * The Set is already capped by markEventIdsSent; the slice is a belt-and-braces
+   * guard for IDs loaded by an older build.
    */
   private saveSentEventIds(): void {
     try {
       if (typeof window !== 'undefined' && window.localStorage) {
-        const ids = Array.from(this.sentEventIds);
-        // Keep only last 1000 to prevent localStorage bloat
-        const toSave = ids.slice(-1000);
+        const toSave = Array.from(this.sentEventIds).slice(-MAX_SENT_EVENT_IDS);
         localStorage.setItem(this.sentEventIdsKey, JSON.stringify(toSave));
       }
     } catch (error) {
       this.reportError('Error saving sent event IDs', error);
+    }
+  }
+
+  /**
+   * Record a delivery attempt per queue item ID, and drop the entries that can
+   * no longer matter.
+   *
+   * This counter exists only to detect an item being sent more than 5 times,
+   * which can only happen if it is still in the queue — i.e. if removal FAILED.
+   * When removal succeeds the item is gone for good and its counter is dead
+   * weight, so retaining it was a pure leak: one Map entry per event ever sent,
+   * for the life of the tab.
+   */
+  private recordDeliveryAttempts(itemIds: string[], removalSucceeded: boolean): void {
+    if (removalSucceeded) {
+      for (const id of itemIds) {
+        this.itemIdsSentSuccessfully.delete(id);
+      }
+      return;
+    }
+
+    for (const id of itemIds) {
+      const current = this.itemIdsSentSuccessfully.get(id) || 0;
+      this.itemIdsSentSuccessfully.set(id, current + 1);
+    }
+
+    // Backstop: a pathological removal-failure loop across many distinct items
+    // must not grow the Map without bound either. Map preserves insertion order.
+    if (this.itemIdsSentSuccessfully.size > MAX_TRACKED_ITEM_IDS) {
+      const overflow = this.itemIdsSentSuccessfully.size - MAX_TRACKED_ITEM_IDS;
+      const iterator = this.itemIdsSentSuccessfully.keys();
+      for (let i = 0; i < overflow; i++) {
+        const oldest = iterator.next().value;
+        if (oldest !== undefined) {
+          this.itemIdsSentSuccessfully.delete(oldest);
+        }
+      }
     }
   }
 
@@ -178,21 +255,28 @@ export class RequestBatcher {
       const dataForRequest: any[] = [];
       const transformedItems: Map<string, any> = new Map();
       const eventIdsInBatch: string[] = []; // Track eventIds in this batch
+      const alreadySentItemIds: string[] = []; // Queue items to evict, not just skip
 
       // Process batch items
       for (const item of batch) {
         let payload = item.payload;
-        
+
         // Extract eventIds from payload to check if already sent
         const eventIds = this.extractEventIds(payload);
-        
+
         // Filter out items that have already been sent (by eventId)
         const alreadySent = eventIds.some(id => this.sentEventIds.has(id));
         if (alreadySent) {
-          // Skip this item - it was already sent
+          // Skipping is not enough: the item stays at the head of the queue and
+          // fillBatch hands it back on every future flush, so the queue head is
+          // permanently blocked and each flush burns part of its batch on
+          // garbage. Worse, if its eventId later ages out of the capped
+          // sentEventIds window, the item becomes eligible again and IS resent.
+          // It can never legitimately be sent, so evict it.
+          alreadySentItemIds.push(item.id);
           continue;
         }
-        
+
         if (this.beforeSendHook && !item.orphaned) {
           payload = this.beforeSendHook(payload);
         }
@@ -216,6 +300,11 @@ export class RequestBatcher {
         }
       }
 
+      // Evict items that can never be sent, whether or not this flush has work.
+      if (alreadySentItemIds.length > 0) {
+        await this.removeItemsFromQueue(alreadySentItemIds);
+      }
+
       if (dataForRequest.length === 0) {
         this.requestInProgress = false;
         this.resetFlush();
@@ -224,9 +313,7 @@ export class RequestBatcher {
 
       // CRITICAL: Mark eventIds as sent BEFORE sending request
       // This prevents duplicates even if request is canceled during navigation
-      for (const eventId of eventIdsInBatch) {
-        this.sentEventIds.add(eventId);
-      }
+      this.markEventIdsSent(eventIdsInBatch);
       this.saveSentEventIds(); // Persist immediately
 
       // Send request
@@ -242,9 +329,13 @@ export class RequestBatcher {
       const response = await this.sendRequest(dataForRequest, requestOptions);
       
       // Handle response
+      // The already-sent items were just evicted above, so they must not be
+      // counted in this batch's outcome (a 413 halving decision, for instance,
+      // should reflect what was actually sent).
+      const evicted = new Set(alreadySentItemIds);
       await this.handleResponse(
         response,
-        batch.map(item => item.id),
+        batch.map(item => item.id).filter(id => !evicted.has(id)),
         attemptSecondaryFlush,
         currentBatchSize,
         startTime,
@@ -272,8 +363,22 @@ export class RequestBatcher {
 
     try {
       if (unloading) {
-        // On unload, just update storage - don't remove items yet
-        // They'll be sent on next page load
+        // The request was fired with keepalive from a beforeunload/pagehide/
+        // visibilitychange handler, so it often DOES resolve before the page
+        // goes away. Previously this branch returned unconditionally without
+        // dequeuing, so a confirmed-delivered batch stayed in the queue; on the
+        // next page load those items were either re-sent (duplicates — any
+        // payload with no eventId has no dedupe protection at all, and the
+        // in-memory attempt counter starts empty on a fresh page) or skipped
+        // forever without ever being removed.
+        //
+        // If we got a definite success back, remove them. If the response never
+        // arrived or is inconclusive, keep the old behaviour and leave them
+        // queued for the next load — that is the safe direction.
+        if (this.isDefiniteSuccess(response)) {
+          const succeeded = await this.removeItemsFromQueue(itemIds);
+          this.recordDeliveryAttempts(itemIds, succeeded);
+        }
         this.resetFlush();
         return;
       }
@@ -322,15 +427,10 @@ export class RequestBatcher {
 
       // Success - remove items from queue
       const succeeded = await this.removeItemsFromQueue(itemIds);
-      
+      this.recordDeliveryAttempts(itemIds, succeeded);
+
       if (succeeded) {
         this.consecutiveRemovalFailures = 0;
-        
-        // Track sent items for deduplication
-        for (const id of itemIds) {
-          const current = this.itemIdsSentSuccessfully.get(id) || 0;
-          this.itemIdsSentSuccessfully.set(id, current + 1);
-        }
 
         if (this.flushOnlyOnInterval && !attemptSecondaryFlush) {
           this.resetFlush();
@@ -350,6 +450,24 @@ export class RequestBatcher {
       this.reportError('Error handling API response', error);
       this.resetFlush();
     }
+  }
+
+  /**
+   * True only when the server definitely accepted the batch.
+   *
+   * Used on the unload path, where dequeuing on a guess would lose events.
+   * Anything ambiguous — no response object, a network/timeout error, a 0 or 5xx
+   * status — is treated as "unknown", and the batch stays queued for next load.
+   */
+  private isDefiniteSuccess(response: any): boolean {
+    if (!response || response.error) {
+      return false;
+    }
+    if (response.ok === true) {
+      return true;
+    }
+    const status = response.httpStatusCode;
+    return typeof status === 'number' && status >= 200 && status < 300;
   }
 
   private async removeItemsFromQueue(itemIds: string[]): Promise<boolean> {

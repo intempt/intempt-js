@@ -13,7 +13,7 @@
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
 | **Phase** | **Phase 0 complete** (audit). **Phase 1 in progress** — tasks 1–2 done. |
-| **Code changed so far** | `package.json` metadata; version single-sourced (`src/shared/version.ts`, vite `define`, `Intempt.VERSION`). |
+| **Code changed so far** | `package.json` metadata; version single-sourced (`src/shared/version.ts`, vite `define`, `Intempt.VERSION`); **all three live defects in §4 fixed**, with 12 new regression specs. |
 
 ---
 
@@ -88,22 +88,43 @@ Task status (full detail in `AUDIT.md` §2, Phase 1):
 
 ## 3. Next concrete action
 
-Phase 1, task 3: hand-author `src/index.d.ts` as the public contract.
+**Packaging is paused at the user's instruction (2026-08-11).** Phase 1 tasks 3–5
+(`index.d.ts`, changelog/changesets, module build) are **deferred, not dropped**;
+tasks 1–2 already landed and the test suite is green with them.
 
-Two open items carried forward, both recorded above: get ingest-team confirmation
-for `$lib_version`, and add the deferred `package.json` entry fields as part of
-task 5.
+Next: **drop `psl`** (§5 below) — the highest effort-to-impact item in the plan,
+~15 lines in `src/shared/storageHandler.ts`, and it also produces the eTLD+1
+helper that Phase 4's cross-subdomain consent cookie needs.
 
-## 4. Three live defects — fix regardless of phase order
+Open items carried forward:
 
-These are real bugs found during the audit, not roadmap items. Each is small and
-well-localised.
+- Get ingest-team confirmation before stamping `$lib_version` on payloads (D12).
+- The deferred `package.json` entry fields land with Phase 1 task 5 (D11).
 
-| # | Defect | Location | Symptom |
-|---|---|---|---|
-| 1 | `itemIdsSentSuccessfully` map is never pruned | `src/shared/queue/requestBatcher.ts` (declared ~line 42) | **Memory leak** on any long-lived tab; surfaces first in highest-volume customers |
-| 2 | `handleResponse` returns before `removeItemsFromQueue` when `unloading: true` | `src/shared/queue/requestBatcher.ts` (~line 262) | **Duplicate event sends** on next page load |
-| 3 | `optIn`/`optOut` set an in-memory flag only (`_autoTracker.doNotTrack`) | `src/intemptJs/intemptJs.ts` (~lines 55–75) | **Opt-out resets on reload** — a compliance defect, not a feature gap |
+## 4. Three live defects — ✅ all three fixed
+
+Real bugs found during the audit, fixed out of phase order because all three were
+customer-visible today. Covered by `__tests__/batcherDedupeLifecycle.cy.ts`
+(12 specs). Full suite after the fix: **15 specs, 225 tests, all passing.**
+
+| # | Defect | Fix |
+|---|---|---|
+| 1 | `itemIdsSentSuccessfully` never pruned → memory leak on long-lived tabs | `recordDeliveryAttempts()` now **deletes** an item's counter when its queue removal succeeds — the counter only ever mattered for items still in the queue, i.e. whose removal *failed*, so retaining the rest was pure leak. Hard cap `MAX_TRACKED_ITEM_IDS = 1000` as a backstop. **Also fixed the same class of bug in `sentEventIds`**: persistence was capped at 1000 but the in-memory `Set` was not, so it grew without bound while only the tail was ever written. `markEventIdsSent()` caps it, and an over-sized persisted set is trimmed on load. |
+| 2 | `handleResponse` returned before `removeItemsFromQueue` when `unloading: true` → duplicate sends | On unload, if `isDefiniteSuccess(response)` (an `ok`/2xx, never an error or 0/5xx), the batch is now dequeued. Inconclusive outcomes keep the old retain-for-next-load behaviour — losing events is worse than a possible duplicate. **Second, deeper cause fixed:** items skipped by the `alreadySent` check were only `continue`d, so they sat at the head of the queue forever, burning part of every future batch, and became re-sendable once their eventId aged out of the capped window. They are now **evicted**. |
+| 3 | `optIn`/`optOut` set an in-memory flag only → opt-out reset on reload | New `src/shared/consentState.ts` (`loadDoNotTrack` / `persistDoNotTrack`). `AutoTrackerModule._doNotTrack` initialises from storage; the setter persists. Opt-**in** writes too, so consent is not a one-way door. Storage errors are swallowed — `optOut()` must never throw back into a consent banner's click handler. |
+
+### Carried-forward caveats from these fixes
+
+- **Consent is origin-scoped.** `localStorage`, matching the rest of the SDK's
+  client state, so an opt-out on `www.example.com` does **not** carry to
+  `shop.example.com`. Cross-subdomain consent needs a cookie at the eTLD+1 —
+  that lands with the `gdpr-utils` port (Phase 4), which will also want the
+  `psl`-free eTLD+1 helper from Phase 3.
+- **Newly observed, not fixed (out of scope):** `IntemptJs.optIn()`/`optOut()`
+  dereference `this._autoTracker`, which is left `undefined` when the constructor
+  bails on an invalid config (`intemptJs.ts:36`). Calling either on a
+  misconfigured instance throws. One-line guard; deliberately not bundled into a
+  consent-persistence commit.
 
 ## 5. Highest effort-to-impact item in the whole plan
 
