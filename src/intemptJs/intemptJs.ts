@@ -277,9 +277,17 @@ export class IntemptJs extends IntemptJsGuard {
    * @param { ConsentParams } params
    * @required params { action: 'accept' | 'reject', validUntil: number }
    * @return void
+   *
+   * Deliberately NOT gated on `isUserOptIn()` (D-5). Every other public method
+   * skips work while opted out because that work is *tracking* — this one is
+   * *recording a consent decision*, which is an audit record a regulator can
+   * ask for. `optOut()` then `consent({action:'reject'})` must still produce
+   * that record; gating it on the opt-out flag would silently discard the very
+   * evidence of the refusal, and the reverse call order would break
+   * re-consent. The record survives regardless of tracking state; only its
+   * own shape validation (`isConsentValid`) can stop it.
    * */
   consent(params: ConsentParams):void {
-    if (!this.isUserOptIn()) return;
     if (!this.isConsentValid(params)) return;
 
     const profileId = this._autoTracker.getProfileId();

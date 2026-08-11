@@ -434,6 +434,19 @@ describe('IntemptJs — the public API class', () => {
       expect(dispatched('intempt:consent')[0]!.detail).toEqual({ eventName: 'consent' });
     });
 
+    it('is NOT gated on opt-out, fixed (D-5): a refusal is still recorded', () => {
+      // FIX (D-5): consent() used to share the `isUserOptIn()` guard with every
+      // tracking method, so `optOut()` followed by `consent({action:'reject'})`
+      // silently discarded the very record of the refusal — a GDPR audit-trail
+      // hazard, and USAGE.md had to document a required call order to work
+      // around it. Recording a consent decision is an audit act, not tracking,
+      // so it must always succeed regardless of opt-out state.
+      sdk.optOut();
+      sdk.consent({ action: 'reject', validUntil: 1 } as any);
+      expect(lastModel()).toMatchObject({ type: 'consent', action: 'reject' });
+      expect(dispatched('intempt:consent')).toHaveLength(1);
+    });
+
     it('drops the pageId it computes — a defect, asserted not fixed', () => {
       // DEFECT (intemptJs.ts:213 + consent.model.ts): `consent()` reads
       // `getPageId()` and passes it into `ConsentModel`, but the model declares
