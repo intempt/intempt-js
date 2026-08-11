@@ -2,6 +2,10 @@ import { IntemptConfig } from '../intemptJs/types/intemptJs.types.ts'
 import { IntemptJs } from '../intemptJs/intemptJs.ts'
 import { EnvConfig } from '../shared/envConfig.ts'
 
+import { createLogger } from '../shared/logger/logger.ts';
+
+const log = createLogger('Intempt');
+
 type QueuedCall = {
   method: string
   args: any[]
@@ -14,6 +18,18 @@ function getIntemptConfig(): IntemptConfig {
 
   const intemptScript = Array.from(scripts).find((s) => s.src.includes(cdnLink))
   if (!intemptScript) {
+    // Deliberately a raw, unconditional console.error and NOT routed through the
+    // logger.
+    //
+    // Everything else in the SDK is silent in production by default, which is
+    // the right default — except here. This branch means the bundle could not
+    // find its own <script> tag, so it has no write key, no source id and no
+    // config at all: nothing will ever be tracked, and the logger cannot have
+    // been configured (`debug: true` arrives *with* the config we just failed to
+    // read), so a levelled call would be swallowed in exactly the case where the
+    // message is the only diagnostic that exists. It is also the known signature
+    // of the mutable `/v1` CDN path coupling, and support has told customers to
+    // look for this exact string. Changing it would break that.
     console.error("CAN'T FIND SCRIPT")
     return {
       project: '',
@@ -112,15 +128,11 @@ function removeStubScriptTag(): void {
     if (stubScript && stubScript.parentNode) {
       stubScript.parentNode.removeChild(stubScript)
       
-      if (!EnvConfig.isProduction()) {
-        console.log('[Intempt] Removed stub script tag')
-      }
+      log.debug('removed stub script tag')
     }
   } catch (error) {
     // Silently fail - removal is optional cleanup
-    if (!EnvConfig.isProduction()) {
-      console.warn('[Intempt] Failed to remove stub script tag:', error)
-    }
+    log.warn('failed to remove stub script tag', error)
   }
 }
 
@@ -138,17 +150,13 @@ function replayQueuedCalls(
 ): void {
   if (!queue || queue.length === 0) return
 
-  if (!EnvConfig.isProduction()) {
-    console.log(`[Intempt] Replaying ${queue.length} queued calls from stub`)
-  }
+  log.debug(`replaying ${queue.length} queued calls from stub`)
 
   for (const call of queue) {
     try {
       const fn = (realIntempt as any)[call.method]
       if (typeof fn !== 'function') {
-        if (!EnvConfig.isProduction()) {
-          console.warn(`[Intempt] Method ${call.method} not found on IntemptJs instance`)
-        }
+        log.warn(`method ${call.method} not found on IntemptJs instance`)
         continue
       }
 
@@ -162,8 +170,8 @@ function replayQueuedCalls(
         if (pendingPromises && call.method === 'recommendation') {
           if (pendingPromises.length > 0) {
             promiseInfo = pendingPromises.shift() // FIFO
-          } else if (!EnvConfig.isProduction()) {
-            console.warn('[Intempt] No pending promise found for recommendation call')
+          } else {
+            log.warn('no pending promise found for recommendation call')
           }
         }
 
@@ -172,17 +180,17 @@ function replayQueuedCalls(
             .then((data: any) => promiseInfo.resolve(data))
             .catch((err: any) => {
               if (promiseInfo.reject) promiseInfo.reject(err)
-              else console.error(`[Intempt] Error in async queued call ${call.method}:`, err)
+              else log.error(`error in async queued call ${call.method}`, err)
             })
         } else {
           // No promise to resolve, just handle errors
           result.catch((err: any) => {
-            console.error(`[Intempt] Error in async queued call ${call.method}:`, err)
+            log.error(`error in async queued call ${call.method}`, err)
           })
         }
       }
     } catch (error) {
-      console.error(`[Intempt] Error replaying queued call ${call.method}:`, error)
+      log.error(`error replaying queued call ${call.method}`, error)
     }
   }
 
@@ -217,9 +225,7 @@ function initSDK() {
     removeStubScriptTag()
   }
 
-  if (!EnvConfig.isProduction()) {
-    console.log('Intempt SDK initialized', (window as any).intempt)
-  }
+  log.info('SDK initialized', (window as any).intempt)
 }
 
 export const SDK = {

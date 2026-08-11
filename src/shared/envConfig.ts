@@ -57,6 +57,11 @@ class EnvConfigManager {
     }
 
     if (!viteEnv) {
+      // Stays a raw console.warn: the logger gates itself on
+      // EnvConfig.isProduction(), so importing it here would make the logger and
+      // its own configuration source mutually dependent — and this line fires
+      // *during* that initialisation, when the environment it would consult is
+      // precisely what is missing.
       console.warn('[EnvConfig] import.meta.env not available, using defaults');
       this.instance = { ...this.DEFAULT_CONFIG };
       return;

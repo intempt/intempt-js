@@ -19,6 +19,11 @@ import { EnvConfig } from '../../../shared/envConfig.ts';
 import { loadDoNotTrack, persistDoNotTrack } from '../../../shared/consentState.ts';
 
 
+import { createLogger } from '../../../shared/logger/logger.ts';
+import { MetricsSnapshot } from '../../../shared/logger/metrics.ts';
+
+const log = createLogger('AutoTracker');
+
 export class AutoTrackerModule {
   private readonly _config:IntemptConfig;
   private readonly _profileTrackerModule = new ProfileTrackerModule();
@@ -56,7 +61,7 @@ export class AutoTrackerModule {
     try {
       this._pagesTrackerModule.start();
     } catch (e) {
-      console.error(e);
+      log.error('page tracker failed to start', e);
     }
 
     this._trackShopify();
@@ -105,6 +110,14 @@ export class AutoTrackerModule {
     return this._pagesTrackerModule.getId();
   }
 
+  /**
+   * Delivery-pipeline metrics, or `null` when the batcher never initialised.
+   * Surfaced on the public API as `intempt.getDiagnostics()`.
+   */
+  getDiagnostics(): MetricsSnapshot | null {
+    return this._requestBatcher ? this._requestBatcher.getMetrics() : null;
+  }
+
   private _initializeBatcher(): void {
     try {
       const storageKey = `__intempt_queue_${this._config.sourceId}__`;
@@ -118,11 +131,11 @@ export class AutoTrackerModule {
           batchAutostart: true
         },
         sendRequestFunc: this._sendBatchRequest.bind(this),
-        errorReporter: (msg, err) => {
-          if (!EnvConfig.isProduction()) {
-            console.error('[AutoTracker]', msg, err);
-          }
-        },
+        // No errorReporter here on purpose: RequestBatcher.reportError now
+        // writes every one of these through the structured logger under its own
+        // `[RequestBatcher]` scope, so wiring a second callback that only did
+        // `console.error` would print each failure twice. The hook itself
+        // remains available for callers that want a *programmatic* consumer.
         usePersistence: true,
         // IndexedDB tier with a localStorage fallback. localStorage is
         // synchronous, so every queue write blocked the host page's main
@@ -131,11 +144,9 @@ export class AutoTrackerModule {
         // so the queue is unaware of which tier it is on.
         queueStorage: new PersistentStore({
           dbName: `intempt_${this._config.sourceId}`,
-          errorReporter: (msg, err) => {
-            if (!EnvConfig.isProduction()) {
-              console.error('[AutoTracker]', msg, err);
-            }
-          },
+          // PersistentStore has no logger of its own, so this is where its
+          // storage-tier failures (quota, blocked IndexedDB) become visible.
+          errorReporter: (msg, err) => log.error(msg, err),
         })
       });
 
@@ -165,9 +176,7 @@ export class AutoTrackerModule {
       }
 
     } catch (error) {
-      if (!EnvConfig.isProduction()) {
-        console.error('[AutoTracker] Failed to initialize batcher, falling back to simple queue', error);
-      }
+      log.error('failed to initialize batcher, falling back to simple queue', error);
       this._batcherInitialized = false;
     }
   }
@@ -409,7 +418,7 @@ export class AutoTrackerModule {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
     } catch (error) {
-      console.error('Error sending track event data:', error);
+      log.error('error sending track event data', error);
 
     }
 
@@ -449,7 +458,7 @@ export class AutoTrackerModule {
       }
 
     } catch (error) {
-      console.log('[_sendTrackEventData ] ERROR:', error);
+      log.error('_sendTrackEventData failed', error);
 
     }
 

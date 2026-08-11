@@ -2,6 +2,10 @@ import { ChoicesConfig } from '../choices.config.ts';
 import { ChoicesService } from '../choices.service.ts';
 
 
+import { createLogger } from '../../../../shared/logger/logger.ts';
+
+const log = createLogger('ModificationHandler');
+
 export class ModificationHandler {
   style:  (change: any) => (void);
   delete: (change: any) => (void);
@@ -33,7 +37,7 @@ export class ModificationHandler {
     const tempElement = document.createElement('div');
     tempElement.innerHTML = modification.clone.html;
     if (!tempElement.children.length) {
-      console.warn('No valid children in tempElement, HTML may be malformed:', modification.clone.html);
+      log.warn('no valid children in tempElement, HTML may be malformed', modification.clone.html);
       return;
     }
     else{
@@ -62,7 +66,7 @@ export class ModificationHandler {
             }
           }
           else {
-            console.warn('No CSS mapping found for iwe_id:', iweId);
+            log.warn('no CSS mapping found for iwe_id', iweId);
           }
 
         }
@@ -71,7 +75,7 @@ export class ModificationHandler {
       const [clonedElement] = tempElement.children;
 
       if (!clonedElement) {
-        console.warn('Cloned element is undefined. Possible issue with HTML:', tempElement.innerHTML);
+        log.warn('cloned element is undefined; possible issue with HTML', tempElement.innerHTML);
         return;
       }
 

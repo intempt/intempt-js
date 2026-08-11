@@ -3,6 +3,10 @@ import { EnvConfig } from '../shared/envConfig.ts';
 
 
 
+import { createLogger } from '../shared/logger/logger.ts';
+
+const log = createLogger('WebEditor');
+
 class WebEditor {
   private readonly CHANNEL: string;
   private readonly CHANNEL_KEY: string = 'channel';
@@ -121,7 +125,7 @@ class WebEditor {
       ])
     }
     catch (e) {
-      console.warn('Failed to write session or mount editor', e);
+      log.warn('failed to write session or mount editor', e);
       reply({ type: 'ACK', ok: false, error: 'init_failed', channel: this.CHANNEL });
       return;
     }
@@ -135,7 +139,7 @@ class WebEditor {
       if ((this._readyAcked || tries++ >= maxTries) && this._readyInterval) {
         clearInterval(this._readyInterval);
         if (!this._readyAcked) {
-          console.warn(`[intempt] READY not acknowledged after ${maxTries} tries, giving up`);
+          log.warn(`READY not acknowledged after ${maxTries} tries, giving up`);
         }
         return;
       }
@@ -148,9 +152,9 @@ class WebEditor {
             origin
           );
         }
-        if (this.ALLOWED_ORIGINS.length > 0) console.log('[intempt] READY sent');
+        if (this.ALLOWED_ORIGINS.length > 0) log.debug('READY sent');
       } catch (e) {
-        console.warn('postReady failed', e);
+        log.warn('postReady failed', e);
       }
     }, 200)
   }
@@ -176,7 +180,7 @@ class WebEditor {
       return;
     }
     catch (e) {
-      console.warn('[intempt] CSS fetch failed or CORS blocked; falling back to <link> in shadow', e);
+      log.warn('CSS fetch failed or CORS blocked; falling back to <link> in shadow', e);
     }
 
     // Fallback: <link rel="stylesheet"> inside shadow (works in modern Chromium/Firefox)
@@ -201,7 +205,7 @@ class WebEditor {
       }
 
       this.__INTEMPT_EDITOR_MOUNTED = true;
-      console.log('[intempt] editor mounted');
+      log.debug('editor mounted');
   }
 }
 

@@ -1,4 +1,6 @@
 
+import { DiagnosticSink, LogThreshold } from '../../shared/logger/logger.ts';
+
 export type LocalStorageCache = {
   get: (key: string) => any;
   set: (key: string, value: any) => any;
@@ -24,6 +26,33 @@ export type IntemptConfig = {
   writeKey: string;
   shopify: boolean;
   magento: boolean;
+  /**
+   * Verbose diagnostics, including in a production bundle.
+   *
+   * The support switch. Every diagnostic in the SDK used to be gated on the build
+   * environment, so the production bundle every customer runs printed nothing and
+   * there was no way to change that without shipping them a staging build. Set
+   * this and the console gets `debug` and above.
+   */
+  debug?: boolean;
+  /**
+   * Explicit console threshold, overriding both `debug` and the environment
+   * default. Use `'silent'` to quiet a development build, or `'warn'` to see only
+   * real problems in production.
+   */
+  logLevel?: LogThreshold;
+  /**
+   * Receive SDK diagnostics for forwarding to your own telemetry (Sentry,
+   * Datadog, a custom endpoint).
+   *
+   * Called synchronously with a structured record. Defaults to `warn` and above,
+   * independently of `logLevel`, because a sink exists to catch problems in
+   * production — where the console is silent. Raise it with `debug: true`.
+   *
+   * Exceptions thrown by this callback are swallowed: a broken sink must not
+   * become an unhandled error on your page.
+   */
+  onDiagnostic?: DiagnosticSink;
 }
 
 export type IntemptVariables = {

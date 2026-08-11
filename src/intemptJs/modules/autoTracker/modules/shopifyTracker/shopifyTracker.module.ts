@@ -3,11 +3,15 @@ import { IntemptEventListenerName, IntemptEventName } from '../../../../types/co
 import { IntemptShopifyAutoTrackedEventNames } from '../../../../types/autoTracker.types.ts';
 
 
+import { createLogger } from '../../../../../shared/logger/logger.ts';
+
+const log = createLogger('ShopifyTracker');
+
 export class ShopifyTrackerModule {
   track() {
     const meta = window.meta ?? window.Shopify?.meta;
 
-    if (!meta) return console.warn('Intempt: meta not found');
+    if (!meta) return log.warn('meta not found');
     else if (meta.page?.pageType && meta.page?.pageType === 'product') {
       const id = meta.product?.id;
 
@@ -61,7 +65,7 @@ export class ShopifyTrackerModule {
       }
     }
 
-    console.warn('Intempt: Add to cart button not found');
+    log.warn('add to cart button not found');
     return null;
   }
 

@@ -21,6 +21,8 @@ import { ProductModel } from './models/product.model.ts';
 import { IntemptEventListenerName, IntemptEventName } from './types/constants.types.ts';
 import { EnvConfig } from '../shared/envConfig.ts';
 import { SDK_VERSION } from '../shared/version.ts';
+import { configureLogger } from '../shared/logger/logger.ts';
+import { MetricsSnapshot } from '../shared/logger/metrics.ts';
 
 
 export class IntemptJs extends IntemptJsGuard {
@@ -39,6 +41,15 @@ export class IntemptJs extends IntemptJsGuard {
     super();
     this._config = { ...config};
 
+    // Before validation on purpose: `isValidConfig` throws on a bad config, and a
+    // customer debugging that throw wants the SDK's own diagnostics to already be
+    // on when it happens.
+    configureLogger({
+      debug: config.debug,
+      level: config.logLevel,
+      sink: config.onDiagnostic,
+    });
+
     if(!this.isValidConfig(config)) return;
 
     this._autoTracker = new AutoTrackerModule(this._config, this._api);
@@ -54,6 +65,19 @@ export class IntemptJs extends IntemptJsGuard {
     void this._choices.init();
   }
 
+
+  /**
+   * Current state of the delivery pipeline: queue depth, flush latency, events
+   * dropped by the queue cap, and circuit-breaker state.
+   *
+   * Readable from the browser console on a customer's own page, which is the
+   * point — it answers "are my events arriving?" with numbers instead of a guess.
+   * `null` when the batcher failed to initialise (the SDK then falls back to a
+   * simple queue with no metrics of its own).
+   */
+  getDiagnostics(): MetricsSnapshot | null {
+    return this._autoTracker ? this._autoTracker.getDiagnostics() : null;
+  }
 
   /**
    * Allow tracking
