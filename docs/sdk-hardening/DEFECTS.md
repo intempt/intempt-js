@@ -12,6 +12,12 @@
 > **Status key:** `asserted` = a test pins today's behaviour, so a fix will show up
 > as a failing test to update deliberately. `open` = observed, no test.
 > `fixed` = corrected, listed for the record.
+>
+> **2026-08-12: THIRTEEN defects were fixed in one day** by nine parallel lanes —
+> D-2, D-4, D-5, D-6, D-7, D-8, D-9, D-10, D-11, D-12, D-17, D-22, D-23, plus D-27
+> which was found and fixed the same day. See `CHECKPOINT.md` §3n and §3o.
+> **What remains is mostly the wire-format group** (D-1, D-3, D-15), which is blocked
+> on the ingest team, plus D-13/14/16/18/19/20/21/24/25/26.
 
 ---
 
@@ -26,7 +32,7 @@ recoverable from the payload at all.
 as `$lib_version` (`BACKEND.md` item 4) because it changes the wire format.
 Golden fixtures in `tests/unit/__golden__/payload/` record the current shape.
 
-### D-2. A second `IntemptJs` instance duplicates every event · `asserted`
+### D-2. A second `IntemptJs` instance duplicates every event · `fixed` 2026-08-12 — teardown + static `_activeInstance`; a second instance disposes the first ("last instance wins"). Needs a release-note line: it silently stops a first instance.
 `AutoTrackerModule` subscribes to `document` with **no teardown**, so a second
 instance double-sends. A fresh instance per test produced **14 consent POSTs for
 one `consent()` call**. Real-world triggers: two copies of the snippet on a page,
@@ -37,22 +43,22 @@ Every session event in a visit shares one id, and the batcher **dedupes on
 eventId** (§4 defect 1). Session events after the first are therefore droppable
 by design.
 
-### D-4. `recommendation()` has no opt-out check · `asserted`
+### D-4. `recommendation()` has no opt-out check · `fixed` 2026-08-12 — `recommendation()` is now gated on opt-out.
 `intemptJs.ts:302`. The only public method where `optOut()` fails to stop an
 identifier leaving the page. Privacy exposure, not just a data bug.
 
-### D-5. `consent()` is gated on the opt-out flag · `asserted`
+### D-5. `consent()` is gated on the opt-out flag · `fixed` 2026-08-12 — recording a consent decision is an audit record, not tracking, so it survives `optOut()`. Only `isConsentValid` can stop it.
 `optOut()` then `consent({action:'reject'})` **silently discards the record of the
 refusal** — a GDPR audit-trail hazard. The reverse order breaks re-consent.
 Documented as a required call order in `USAGE.md` (opt-out *after* recording), but
 the ordering trap is still there.
 
-### D-6. One malformed choice discards every choice · `asserted`
+### D-6. One malformed choice discards every choice · `fixed` 2026-08-12 — per-item isolation; one malformed choice no longer discards the rest.
 `choices.service.ts:31`, `choicesDataGuard` does `acc.push(...item.changes)`
 unguarded. A single bad entry in the response means the visitor gets **no**
 experiences.
 
-### D-7. `markPointersFromChanges` takes down the whole batch · `asserted`
+### D-7. `markPointersFromChanges` takes down the whole batch · `fixed` 2026-08-12 — same isolation in the pointer-marking pass.
 Runs at `choices.module.ts:40`, **outside** the per-change `try/catch` at 53–62,
 so any throw means no experiences render at all. Three ways to throw:
 - a change with no `xPathSelector` → `document.evaluate(undefined)`
@@ -60,24 +66,24 @@ so any throw means no experiences render at all. Three ways to throw:
 - only the first id per element is marked (`:89–102`), so a container referenced
   by two changes silently skips the second
 
-### D-8. `style`/`update`/`insert` are async and never awaited · `asserted`
+### D-8. `style`/`update`/`insert` are async and never awaited · `fixed` 2026-08-12 — async handlers are awaited, so failures reach the try/catch.
 `choices.module.ts:52–62`. The synchronous `catch` cannot see their failures, so
 the "Error applying change of type" diagnostic **never fires for 3 of the 4 live
 types**, and failures surface as unhandled rejections in the customer's page.
 
-### D-9. `pagesTracker` — `popstate` fires the exit twice · `open`
+### D-9. `pagesTracker` — `popstate` fires the exit twice · `fixed` 2026-08-12 — `popstate` no longer fires the exit twice.
 `init()` registers a `popstate` listener (`:45`) that does `end(); safeStart()`,
 and `_patchHistoryForSpa()` registers another (`:67`) that dispatches
 `locationchange`, handled at `:50` with `end(); safeStart()` again. `start()`
 dedupes on identical href; **`end()` does not.** Every back/forward navigation
 emits **two `Leave Page` events and one `View Page`**.
 
-### D-10. `pagesTracker` — `replaceState` to an unchanged URL emits an orphan exit · `open`
+### D-10. `pagesTracker` — `replaceState` to an unchanged URL emits an orphan exit · `fixed` 2026-08-12 — a no-op `replaceState` no longer emits an orphan exit.
 Same asymmetry. Frameworks that `replaceState` to sync query params (Next.js,
 `router.replace`, `navigate(…, {replace:true})`) produce a stream of exit events
 with no matching views — inflating exit counts and corrupting time-on-page.
 
-### D-11. No `hashchange` listener · `open`
+### D-11. No `hashchange` listener · `fixed` 2026-08-12 — a `hashchange` listener was added, so hash-routed SPAs are tracked.
 Hash-only routers emit **no page views at all**.
 
 ---
@@ -108,7 +114,7 @@ All 7 manual models set one. Ingest cannot classify on `type`.
 ### D-16. `consent()` computes a `pageId` and throws it away · `asserted`
 `intemptJs.ts:213` passes it to a model with no such field.
 
-### D-17. `?shopify=false` and `?shopify=0` both **enable** Shopify tracking · `open`
+### D-17. `?shopify=false` and `?shopify=0` both **enable** Shopify tracking · `fixed` 2026-08-12 — `shopify`/`magento` use the real boolean parser, so `?shopify=false` disables.
 Read via `!!searchParams.get()`, so any present value is true. Pre-existing; the
 new privacy switches deliberately did **not** inherit this pattern.
 
@@ -126,10 +132,19 @@ Assigned during module evaluation, but the guard decision resolves in microtasks
 immediately after, so no later `<script>` can affect it. Either document it as
 internal or make the bootstrap await a hook.
 
-### D-22. `choices.service.ts:164` — `async` function as a Promise executor · `open`
+### D-22. `choices.service.ts:164` — `async` function as a Promise executor · `fixed` 2026-08-12 — the `async` Promise executor no longer swallows throws.
 A throw inside is swallowed instead of rejecting. Surfaced by ESLint.
 
 ---
+
+### D-27. `apiHost` treats an empty query value as a value · `fixed` 2026-08-12
+`src/loaders/sdkLoader.ts:72-89` used `?? undefined` for `apiHost` while the four
+required fields use `?? ''`. So `?api_host=` with an **empty** value arrived as `''`
+rather than `undefined`, and `resolveIngestBaseUrl` received an empty string instead
+of falling through to the build-time default — a data-residency option that
+misbehaves precisely when someone clears it. Found by the lane that raised
+`sdkLoader.ts` from 9.67% to ~71% coverage, which is the argument for that coverage
+work in one sentence. Fixed so an empty value is treated as absent.
 
 ## Severity 3 — dead code, hygiene, test-only
 

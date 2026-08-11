@@ -214,34 +214,33 @@ jobs:
       - name: Audit production dependencies (blocking)
         run: npm audit --omit=dev --audit-level=low
 
-      # Advisory, because it cannot pass today and the reason is structural, not
-      # neglect. The dev-dependency upgrades in this lane took the tree from 19
-      # advisories (8 high, 4 critical) to 4 (3 moderate, 1 high) — cypress
-      # 13→15, vitest 2→4, @vitest/coverage-v8 2→4, @rollup/plugin-terser
-      # 0.4→1.0, plus the non-breaking fixes.
+      # BLOCKING as of 2026-08-12. It was advisory for one reason: the last
+      # remaining high was `vite`, whose fix needed vite >= 6.4.3, and every
+      # vite from 6 onward declares `engines: node ^20.19.0 || >=22.12.0` —
+      # excluding Node 21.x, the version build.yaml deployed on. That made the
+      # advisory structurally unfixable rather than neglected, and a gate that
+      # cannot pass gets disabled, so it reported instead of failing.
       #
-      # The 1 remaining high is `vite`, and it is BLOCKED, not skipped: the fix
-      # is vite >= 6.4.3, and every vite from 6 onward declares
-      # `engines: node ^20.19.0 || >=22.12.0` — which EXCLUDES Node 21.x, the
-      # version build.yaml deploys on. Upgrading vite therefore requires moving
-      # the deploy off Node 21 first, and build.yaml is invariant §6.2. The
-      # three vite advisories are all `vite dev` server issues (path traversal,
-      # server.fs.deny bypass, launch-editor NTLM on Windows) and this repo
-      # ships `vite build` output, so none is reachable in CI or in a customer
-      # bundle.
+      # The user approved moving the deploy to Node 22, vite went 5.4.21 →
+      # 6.4.3, and the tree is now 2 moderate / 0 high (from 19 with 8 high and
+      # 4 critical when this programme started). So the reason for the exemption
+      # is gone and this fails a merge again.
       #
-      # Flip this to blocking (and drop --audit-level to high) once the Node
-      # bump lands. Do not "fix" it by pinning around build.yaml.
-      - name: Audit dev dependencies (advisory — vite is blocked on Node 21)
-        continue-on-error: true
+      # Kept at --audit-level=high rather than low: the two survivors are
+      # transitive moderates with no available fix, and the production half
+      # above already holds the zero-runtime-dependency line at --audit-level=low.
+      # Do not "fix" a future advisory by pinning around build.yaml.
+      - name: Audit dev dependencies (blocking)
         run: npm audit --audit-level=high
 
   mutation:
     name: Mutation score
     # Pull requests only, same reasoning as e2e below: the run takes ~3.5 min,
     # and mutation score answers a question that only matters when a change is
-    # about to merge -- "would any test have noticed this?". `break: 73` in
-    # stryker.conf.json fails the job on a regression below that.
+    # about to merge -- "would any test have noticed this?". `break` in
+    # stryker.conf.json fails the job on a regression below it; it is a ratchet
+    # raised only to just under a measured score, and it reached 85 on
+    # 2026-08-12 when the score hit 86.57%.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:

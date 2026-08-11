@@ -117,18 +117,19 @@ The workflow that would run 3.1.
 ### 4.1 Changesets automation · blocker: sequencing (needs 1.1 first)
 Parked 2026-08-11. The manual half is inside 1.1.
 
-### 4.2 Making the dev-dependency audit blocking · blocker: **UNBLOCKED 2026-08-12**
+### 4.2 Making the dev-dependency audit blocking · ✅ **DONE 2026-08-12**
 `ci.yml`'s `audit` job has a blocking half (`--omit=dev`, currently **0**
 advisories) and an advisory dev half at `--audit-level=high` (**4**: 1 high, 3
 moderate). The remaining high needs vite ≥ 6.4.3, and **every vite ≥ 6 excludes
 Node 21** (`engines: ^20.19.0 || >=22.12.0`) — the version `build.yaml` used to deploy
 on. **Decision #1 landed and the deploy is now Node 22**, so the vite upgrade is
 possible and this item is ready to work; it is listed here only until it is done.
-**Cost of parking: nil in exposure, real in signal.** All three vite advisories are
-`vite dev` server issues and this repo ships `vite build` output, so nothing is
-reachable by a customer. But the job stays advisory, which means it cannot fail the
-day something genuinely exploitable lands. **Do not work around `build.yaml` to
-close this** — fix the Node version, then make the second half blocking.
+**Closed.** vite went **5.4.21 → 6.4.3**, the tree is now **2 moderate / 0 high**
+(from 19 with 8 high and 4 critical at the start of the programme), and `ci.yml`'s
+dev-dependency audit is **blocking** at `--audit-level=high` with the
+`continue-on-error` removed. Verified: `npm audit --audit-level=high` exits 0. The two
+survivors are transitive moderates with no available fix. The production half stays at
+`--audit-level=low`, holding the zero-runtime-dependency line.
 
 ### 4.3 Fixing `build.yaml`'s branch trigger · blocker: user
 Its trigger is `branches: ['*']`, and a single `*` does not match a ref containing

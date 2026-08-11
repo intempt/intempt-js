@@ -70,8 +70,12 @@ export default defineConfig({
       //   guard suites ported, scope widened .. 90 / 87 / 87 / 90
       //     measured then: 92.57 statements/lines, 89.64 branches, 88.88 functions
       //   storage mutation batch (§3f-ii) ..... 93 / 88 / 94 / 94
-      //     measured now: 95.55 statements, 90.83 branches, 96.88 functions,
-      //     96.35 lines, over 821 tests.
+      //     measured then: 95.55 / 90.83 / 96.88 / 96.35 over 821 tests, when the
+      //     scope was still the three Phase-2 directories.
+      //   scope widened to all of src/ (§3m) ... 70 / 64 / 72 / 71 global
+      //   nine-lane merge (§3n, §3o) .......... 75 / 68 / 75 / 75 global
+      //     measured now: 76.82 statements, 70.63 branches, 77.31 functions,
+      //     77.77 lines, over 930 tests across 31 files.
       //
       // Note vitest 4 counts statements differently from vitest 2, so figures
       // recorded before the supply-chain upgrade (§3g-i) are not comparable with
@@ -85,10 +89,10 @@ export default defineConfig({
       thresholds: {
         // Whole-repo floor. Measured 2026-08-12 across all of src/: 72.5
         // statements / 66.05 branches / 74.4 functions / 73.77 lines.
-        lines: 71,
-        branches: 64,
-        functions: 72,
-        statements: 70,
+        lines: 75,
+        branches: 68,
+        functions: 75,
+        statements: 75,
 
         // The queue/storage/privacy core. Measured 96.03 / 91.49 / 96.88 / 96.86.
         'src/shared/**/*.ts': {
