@@ -249,14 +249,31 @@ describe('outbound payload contract', () => {
     // and split one logical batch across two requests. Letting the writes settle
     // first is what makes a multi-event golden a single deterministic request —
     // and it mirrors reality, where events are seconds apart, not microseconds.
-    await new Promise((r) => setTimeout(r, 5));
+    // 20ms, not 5, and the poll below uses real delays rather than setTimeout(0).
+    // This raced on GitHub's Node 22 runner: 5ms plus twenty zero-delay ticks was
+    // not enough for the IndexedDB writes to settle, so no request was ever made,
+    // `flushAndCapture` returned [], and the caller crashed on `call.init` with
+    // "Cannot read properties of undefined" — a message that says nothing about
+    // the actual cause. Passed locally and on Node 24; only 22 was slow enough.
+    await new Promise((r) => setTimeout(r, 20));
 
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 60; i++) {
       window.dispatchEvent(new Event('beforeunload'));
-      await new Promise((r) => setTimeout(r, 0));
+      await new Promise((r) => setTimeout(r, 2));
       if (calls.some(mine)) break;
     }
-    return calls.filter(mine);
+
+    const matched = calls.filter(mine);
+    if (matched.length === 0) {
+      // Fail with the real reason rather than letting the caller dereference
+      // undefined. If this ever fires, the flush genuinely did not happen — do
+      // not "fix" it by raising the timeout again without checking why.
+      throw new Error(
+        `flushAndCapture('${path}') captured no request for source ${sourceId}. ` +
+          `Seen: ${calls.map((c) => c.url).join(', ') || '(none)'}`,
+      );
+    }
+    return matched;
   }
 
   const trackBody = (call: Call) => JSON.parse(call.init.body as string);
