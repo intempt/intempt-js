@@ -1,5 +1,5 @@
 import { PageTrackerModule } from '../src/intemptJs/modules/autoTracker/modules/pagesTracker/pagesTracker.module.ts';
-import { clearCookies, setCookie, getCookie } from './support/testHelpers.ts';
+import { clearCookies, setCookie } from './support/testHelpers.ts';
 
 // Shared by the "Navigation defects" suites below: the browser tab (and its
 // `window`/`history`) persists across every `it` in this spec file, so a
@@ -56,16 +56,16 @@ describe('PageTrackerModule', () => {
     it('should retrieve page session start time from cookie', () => {
       // Access private method via type assertion
       const startTime = (pageTracker as any).getPageSessionStartTime();
-      expect(startTime).to.not.be.null;
-      expect(startTime).to.not.be.undefined;
+      expect(startTime).to.not.equal(null);
+      expect(startTime).to.not.equal(undefined);
       expect(startTime).to.be.a('number').and.to.be.above(0);
     });
 
     it('should retrieve previous page from cookie', () => {
       // Access private method via type assertion
       const previousPage = (pageTracker as any).getPreviousPage();
-      expect(previousPage).to.not.be.null;
-      expect(previousPage).to.not.be.undefined;
+      expect(previousPage).to.not.equal(null);
+      expect(previousPage).to.not.equal(undefined);
       expect(previousPage).to.be.a('string');
     });
   });
@@ -83,7 +83,7 @@ describe('PageTrackerModule', () => {
       } else {
         // If empty, try once more - it should work now
         const retryId = pageTracker.getId();
-        expect(retryId).to.not.be.empty;
+        expect(retryId.length).to.be.greaterThan(0);
         expect(retryId).to.match(/^pag/);
       }
     });
@@ -197,7 +197,7 @@ describe('PageTrackerModule', () => {
   describe('Page Session Management', () => {
     it('should update previous page when navigating', () => {
       // Use cy.window() to properly handle location changes
-      cy.window().then((win) => {
+      cy.window().then(() => {
         // Set up first page by setting cookie manually
         const firstPage = 'https://example.com/page1';
         const firstPageData = {
@@ -207,9 +207,7 @@ describe('PageTrackerModule', () => {
           previous_page: ''
         };
         setCookie('page_session', JSON.stringify(firstPageData));
-        
-        // Now simulate navigation to second page
-        const secondPage = 'https://example.com/page2';
+
         // The start() method will update the cookie
         pageTracker.start();
         
@@ -233,13 +231,12 @@ describe('PageTrackerModule', () => {
     });
 
     it('should refresh page session on refresh()', () => {
-      const initialId = pageTracker.getId();
       pageTracker.refresh();
-      
+
       // After refresh, a new page session should be created
       // The ID might change or the session might be updated
       const afterRefreshId = pageTracker.getId();
-      expect(afterRefreshId).to.not.be.empty;
+      expect(afterRefreshId.length).to.be.greaterThan(0);
     });
   });
 
