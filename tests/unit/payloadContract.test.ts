@@ -157,22 +157,19 @@ const CONFIG = {
 };
 
 /**
- * **Exactly one SDK instance per file, and that is a finding, not test plumbing.**
+ * One shared SDK instance per file (constructed once in `beforeAll`), so the
+ * auto-tracked bootstrap events (session start, page view) are drained once
+ * and every other test's golden is deterministic regardless of run order.
  *
- * `AutoTrackerModule` subscribes to `intempt:event` on `document` and to
- * `beforeunload` on `window`, and the SDK exposes no teardown, so an instance
- * lives until the page does. Constructing a second one means **both** listeners
- * receive every subsequent event: the event is enqueued into two queues and
- * consent is POSTed twice. Building a fresh instance per test in this file
- * produced 14 duplicate consent requests for a single `consent()` call, which is
- * what forced this structure.
- *
- * For a customer that is a real duplicate-delivery bug — two snippet copies on
- * one page, or a SPA re-running init on route change, multiplies every event by
- * the number of instances. The batcher's eventId dedupe does not help, because
- * each instance has its own queue and its own `sentEventIds` set. Recorded here
- * rather than fixed: the fix is an init guard on `window.intempt`, which is a
- * behaviour change to the public bootstrap.
+ * This used to also be load-bearing for a bug (D-2, see
+ * `docs/sdk-hardening/DEFECTS.md`): `AutoTrackerModule` subscribed to
+ * `document`/`window` with no teardown, so a second instance's listeners
+ * stacked on top of the first's and every event — including a `consent()`
+ * call — was sent once per live instance (14 duplicate consent POSTs for one
+ * call, in the original repro). That is now fixed: constructing a new
+ * `AutoTrackerModule` disposes whichever instance was previously active, so a
+ * second instantiation is safe rather than merely avoided. See the dedicated
+ * regression test at the bottom of this file.
  */
 let sourceSeq = 0;
 
@@ -552,6 +549,34 @@ describe('outbound payload contract', () => {
       const body = JSON.parse(call.init.body as string);
       expect(body).not.toHaveProperty('track');
       expectMatchesGolden('consent', body);
+    });
+
+    /**
+     * D-2 regression test. Must run last in this file: constructing a second
+     * `IntemptJs` disposes whichever instance is currently active (see
+     * `autoTracker.module.ts`'s `activeInstance` guard), so `sdk` — the
+     * instance shared by every earlier test in this file via `beforeAll` — is
+     * retired the moment this test runs, and no later test may depend on it.
+     *
+     * Before the fix, a second instance's `document` listeners stacked on top
+     * of the first instance's instead of replacing them, so a single
+     * `consent()` call produced one POST per live instance (14 duplicates in
+     * the original repro). This asserts exactly one.
+     */
+    it('a second instance does not duplicate a consent call from an earlier instance (D-2)', async () => {
+      const secondSourceId = `src-${++sourceSeq}`;
+      const sdk2 = new IntemptJs({ ...CONFIG, sourceId: secondSourceId });
+
+      sdk2.consent({
+        action: 'accept',
+        validUntil: 1893456000000,
+        email: 'a@b.c',
+        message: 'Accepted terms',
+        category: 'marketing',
+      } as any);
+
+      const consentCalls = await flushAndCapture('/consents/data');
+      expect(consentCalls).toHaveLength(1);
     });
   });
 });
