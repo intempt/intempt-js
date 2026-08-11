@@ -12,6 +12,7 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
+| **Next action** | **§3 — jitter on retry backoff. The user has open design questions on it; ask before building.** |
 | **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**. |
 | **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. Unit 129 / Cypress 213, all passing. Bundle 79.46 kB / 22.53 kB gzip. |
 
@@ -112,42 +113,100 @@ Remaining work that needs nothing from anyone else:
 3. Cross-subdomain consent cookie (the D15 limitation).
 4. Phase 4 client-side leftovers — structured logger, killing `any`.
 
-## 3. Next concrete action
+## 3. Next concrete action — jitter on retry backoff
 
-**Packaging is paused at the user's instruction (2026-08-11).** Phase 1 tasks 3–5
-(`index.d.ts`, changelog/changesets, module build) are **deferred, not dropped**;
-tasks 1–2 already landed and the test suite is green with them.
+> **The user has open questions about this item (as of 2026-08-11) and wants to
+> discuss the design before it is built. Do not start implementing it in a fresh
+> session without checking in first — ask what they decided.** Everything needed
+> to have that conversation is below.
 
-`psl` is dropped (§5) — that was the next item and it is done, along with all
-three live defects in §4.
+### The problem
 
-**Phase 2, tier 1 is done** — see §6a. What remains of Phase 2:
+`RequestBatcher` backoff is currently **deterministic**:
+`src/shared/queue/requestBatcher.ts`, the retryable branch of `handleResponse` —
+`retryMS = this.flushInterval * 2`, capped at `MAX_RETRY_INTERVAL_MS` (10 min),
+overridden by `Retry-After` when the server sends one.
 
-1. **Port the guard suites into the unit tier.** `src/guard/**` and
-   `src/intemptJs/guards/**` are covered only by Cypress today, and are
-   deliberately excluded from the coverage gate (`vitest.config.ts` says why).
-   Move them, then widen `coverage.include` and raise the thresholds **in the
-   same commit** — never one without the other.
-2. **Contract tests**: golden-file snapshots of every outbound payload shape, so
-   a refactor cannot silently change the wire format ingest depends on.
-   (`AUDIT.md` §2, Phase 2.)
-3. **Tier 2 — WDIO release gate** across the 6 real-browser targets (D6). Needs a
-   Sauce Labs or BrowserStack account, so it is blocked on an account, not on
-   engineering.
-4. **CI**: none of this runs automatically yet. `ci.yml` is Phase 5 step 2 in the
-   rollout order, but the unit tier is worth far less until something enforces
-   it — consider pulling it forward.
+Deterministic backoff means every client that failed at the same moment retries
+at the same moment, and again at the same doubled moment after that. At 1–10M
+concurrent sessions that is a synchronised retry wave: the SDK converts a brief
+ingest wobble into a self-reinforcing thundering herd, and the herd stays in
+phase because every client is running the same doubling schedule. **The SDK's job
+during an incident is to not amplify it** — this is the cheapest item in the
+whole programme that moves that needle.
+
+### The proposed change (small — roughly 5 lines plus tests)
+
+Apply **full jitter**: `sleep = random(0, min(cap, base * 2^attempt))`, the AWS
+Architecture Blog formulation, rather than `sleep = backoff` or
+`backoff/2 + random(0, backoff/2)` ("equal jitter"). Full jitter gives the widest
+spread and the lowest expected contention; its only cost is that an individual
+client sometimes retries sooner than a strict exponential would.
+
+### Decisions to make — these are the user's questions to answer
+
+1. **Full jitter vs equal jitter.** Full spreads best; equal guarantees a minimum
+   wait so a client cannot hammer immediately after a failure. Recommendation:
+   full jitter, because minimum-wait is already provided by the fact that a flush
+   cannot start while `requestInProgress` is true.
+2. **Does jitter apply to `Retry-After`?** The server named a specific time. My
+   position: **honour `Retry-After` as a floor and jitter only *upward*** (e.g.
+   `retryAfter + random(0, retryAfter * 0.2)`), because otherwise every client
+   told "come back in 30s" returns in the same 30th second — the exact herd we
+   are trying to break, just server-scheduled. This is the one genuinely
+   debatable point.
+3. **Jitter the normal flush interval too, or only retries?** Retries are the
+   incident path and clearly need it. Jittering the steady-state 5s flush
+   interval also de-syncs clients that loaded together (e.g. after a CDN purge),
+   at the cost of slightly less predictable batching.
+4. **Where does the randomness come from?** `Math.random` is fine here — this is
+   load spreading, not security. Note `generateId` deliberately uses
+   `crypto.getRandomValues` (D19) for a different reason; do not "make them
+   consistent".
+
+### Test plan
+
+`tests/unit/requestBatcher.test.ts` already has `schedules a backoff instead of
+hammering ingest on a 500`, `honours Retry-After over its own backoff`, and
+`caps backoff at ten minutes` — **all three will need updating**, since they
+currently assert exact `flushInterval` values that jitter makes non-deterministic.
+Stub `Math.random` to pin it, and add a test asserting the spread is actually
+wide (e.g. 100 samples do not collapse to one value).
+
+### After jitter, in order
+
+1. **Circuit breaker** — after N consecutive failures, stop for a long window
+   rather than probing every interval.
+2. **Bounded queue with an explicit drop policy** — today the queue grows until
+   quota fails, and quota failure is **silent**. A cap plus a deliberate policy
+   (drop oldest, count the drops, report the count) turns silent loss into a
+   measurable number.
+3. The fourth load-shedding item — a server-controlled brake — is **backlogged**,
+   it needs backend work. See `BACKEND.md` §5.
+
+### Other unblocked work, if the user redirects
+
+- Port the guard suites into the unit tier. `src/guard/**` and
+  `src/intemptJs/guards/**` are Cypress-only today and deliberately excluded from
+  the coverage gate (`vitest.config.ts` says why). Move them, then widen
+  `coverage.include` and raise the thresholds **in the same commit** (D20).
+- Golden-file contract tests on the outbound payload shape.
+- `ci.yml`, so both tiers actually gate merges — nothing runs automatically today,
+  which is the weakest link in everything built so far.
+- Cross-subdomain consent cookie (the D15 limitation).
 
 Open items carried forward:
 
 - Get ingest-team confirmation before stamping `$lib_version` on payloads (D12).
 - The deferred `package.json` entry fields land with Phase 1 task 5 (D11).
+- Everything in `BACKEND.md` is blocked on the backend team, by user decision.
 
 ## 4. Three live defects — ✅ all three fixed
 
 Real bugs found during the audit, fixed out of phase order because all three were
-customer-visible today. Covered by `__tests__/batcherDedupeLifecycle.cy.ts`
-(12 specs). Full suite now: **16 specs, 235 tests, all passing.**
+customer-visible today. Covered by `tests/unit/requestBatcher.test.ts` — the
+original `__tests__/batcherDedupeLifecycle.cy.ts` was **migrated into the unit
+tier and deleted**, so do not go looking for it.
 
 | # | Defect | Fix |
 |---|---|---|
