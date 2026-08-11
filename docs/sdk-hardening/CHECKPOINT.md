@@ -11,9 +11,9 @@
 | **Branch** | `beso/sdk-enterprise-hardening` — **pushed**, upstream set, `ci.yml` green |
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Last updated** | 2026-08-11 |
-| **Next action** | **§0b is the ordered TODO list — start there.** Short version: mutation testing to the user-set 85% floor (currently 77.58%), then `FRONTEND.md` #1 packaging / #6 code health / #9 code-split. **Four items need a human decision before code, listed at the top of §0b.** |
+| **Next action** | **§0b is the ordered TODO list — start there.** Short version: mutation testing to the user-set 85% floor (currently **80.31%**, +112 detections to go — pools listed at the foot of §3f), then `FRONTEND.md` #1 packaging / #6 code health / #9 code-split. **Four items need a human decision before code, listed at the top of §0b.** |
 | **Score** | **~78 / 100** (audit baseline 40, Mixpanel comparator 85). Front-end-only ceiling ~85 — see `FRONTEND.md`. |
-| **Tests** | Unit **794** · Cypress **122** · mutation **77.58%** (floor 75) · coverage 93.12 / 89.92 / 95.33 / 93.90 · bundle **91.25 kB / 26.64 kB gzip** |
+| **Tests** | Unit **821** · Cypress **122** · mutation **80.31%** (floor 80) · coverage 93.12 / 89.92 / 95.33 / 93.90 · bundle **91.24 kB / 26.67 kB gzip** · ESLint 0 errors / 279 warnings (ratchet 279) |
 | **Phase** | 0 ✅ · 1 ⏸ parked (packaging) · 2 ✅ tier-1 + CI gate + guard port + mutation · 3 ✅ except transports ⏸ (BE) and code-split (⬜, now cheap — see D-23) · 4 🟡 privacy ✅ §3h, client-side security ✅ §3g-ii, observability ✅ §3i, credential ⏸ (BE), `any` ⬜ · 5 🟡 CI breadth ✅ §3g, release/changesets ⬜ |
 | **Landed, by section** | §3a jitter · §3b circuit breaker · §3c bounded queue · §3d `ci.yml` · §3e guard-suite port · §3f mutation testing · §3g CI breadth + supply chain · §3h privacy & consent · §3i logger & metrics · §3j docs & DX · §3k public-API / payload-contract / choices tests · §4 three live defects · §5 `psl` dropped · §6a unit tier · §6b IndexedDB · §6c per-event records |
 | **Known defects** | **~30, documented and deliberately unfixed — `DEFECTS.md`.** Severity-1: no event carries a timestamp; a second instance duplicates every event; session events share one `eventId`. |
@@ -96,10 +96,12 @@ without asking anyone, unless marked ⏸.
 
 ### Code work, in order
 
-1. **Mutation testing to the user-set 85% floor.** At **77.58%**, floor ratcheted
-   to 75. Needs ~90–110 more tests. Worklist and measured kill rate: §3f-i.
-   Next files: rest of `requestBatcher.ts` (flush/enqueue body), `storage/**`
-   (64.09%), `requestQueue.ts` internals, `shared.utils.ts`, `storageHandler.ts`.
+1. **Mutation testing to the user-set 85% floor.** At **80.31%**, floor ratcheted
+   to 80. `storage/**` is done (§3f-ii). Needs **+112 detections**; at the measured
+   2.4/test on no-coverage pools and 1.4/test on survived-only pools, that is
+   ~50–80 tests. Next: `requestBatcher.ts` (110 undetected), `requestQueue.ts` (66),
+   `consentCookie.ts` (45), `shared.utils.ts` (24, and the lowest-scoring file in
+   the repo at 47.83%). Worklist and rate history: §3f-i, §3f-ii.
 2. **Re-baseline the coverage thresholds** in `vitest.config.ts` (D20). Measured
    93.12 / 89.92 / 95.33 / 93.90 against gates of 90/87/87/90. **Note vitest 4
    counts statements differently from vitest 2, so pre-merge numbers in this file
@@ -617,15 +619,59 @@ duration). Progress:
 | `requestQueue.ts` | 30 | 73.76% | 54.96 → **72.73%** |
 | `requestBatcher.ts` response classification | 34 | 75.12% | 58.74 → 65.57% |
 | `requestBatcher.ts` dedupe/scheduling internals | 23 | **75.94%** | 65.57 → **69.67%** |
+| five-lane merge (logger + privacy arrived with tests) | — | 77.54% | — |
+| `storage/**` — see §3f-ii | 27 | **80.31%** | 64.09 → **84.52%** |
 
-`break` is now **73** (was 65). Raise it with each batch; never ahead of the work.
+`break` is now **80** (was 75). Raise it with each batch; never ahead of the work.
 
-**Remaining to 85%** (as of 75.94%): 325 survived + 117 no-coverage = 442 undetected.
-Detected 1395 of 1837; 85% needs 1561, i.e. **+166**. Next files in order:
-`requestBatcher.ts` 94 survivors (the enqueue/flush body, lines 409–560),
-`indexedDbStore.ts` 56, `requestQueue.ts` 58 (enqueue/cap internals),
-`persistentStore.ts` 39, `shared.utils.ts` 24, `storageHandler.ts` 23,
-`browserDetection.ts` 19.
+**Remaining to 85%** (as of 80.31%): 381 survived + 88 no-coverage = 469 undetected
+of 2382 mutants. Detected 1913; 85% needs 2025, i.e. **+112**. Next pools, largest
+first: `requestBatcher.ts` 110 (95 survived + 15 no-cov — the enqueue/flush body),
+`requestQueue.ts` 66, `consentCookie.ts` 45, `indexedDbStore.ts` 33,
+`trackingGuard.conditions.ts` 32, `shared.utils.ts` 24 (**47.83%, the lowest file
+in the repo**), `browserDetection.ts` 19, `consentState.ts` 18,
+`storageHandler.ts` 14.
+
+### 3f-ii. The storage batch — 27 tests, +2.77 points, 2.4 kills per test
+
+**The rate beat the §3f-i projection (1.4–1.9/test) because this batch went at the
+no-coverage column, not the survived column.** §3f-i's own note said the cheap
+bulk wins were gone *in `requestBatcher.ts`*; that did not generalise —
+`storage/**` still had 53 of its 116 undetected mutants with no coverage at all.
+**Pick the next file by its no-cov count, not its total.**
+
+| File | Before | After |
+|---|---|---|
+| `persistentStore.ts` | 48.68% | **94.74%** |
+| `indexedDbStore.ts` | 56.59% | 74.42% |
+| `queueStorage.ts` | 76.27% | 89.83% |
+| `storage/**` | 64.09% | **84.52%** |
+
+`queueStorage.ts` rose without a single test naming it — the `PersistentStore`
+fallback-tier tests exercise it as the delegate, which is how it should be tested
+anyway.
+
+What was actually missing: `PersistentStore`'s `entries`/`keys`/`removeItems`/
+`removeItem` had **no test at any level**, so all four catch-and-demote branches
+were dead to the suite (one parameterised case per method now, asserting the
+distinct report string — the fallback is written out per method, not shared, so a
+shared test would not have caught a wrong one). On `IndexedDbStore`: the cursor
+prefix range, the `>= limit` boundary at limit 0, `close()`, `onversionchange`,
+the open-failure reject, and the synchronous-throw path in `request()`.
+
+**One finding, now asserted in two tests.** `indexedDbStore.ts:79` says the next
+call re-opens after another tab's `onversionchange`. It does not: the store is
+pinned to `DB_VERSION = 1`, so once a newer bundle raises the version, **every
+later open from this bundle fails with `VersionError` and the IndexedDB tier is
+gone for the life of the page.** Contained, not data loss — `PersistentStore`
+demotes to localStorage and events keep flowing, which the companion test asserts
+end-to-end — but the source comment overstates recovery. Do not "fix" the comment
+by making the store re-open at whatever version it finds; that would silently
+adopt a schema this bundle does not know.
+
+**Also in this commit: `--max-warnings` 323 → 279.** Measured 279 with 0 warnings
+from the new file, i.e. the ratchet had drifted 44 points loose since §3g pinned
+it. Per §3g's own rule, lower it to the measurement whenever it has slack.
 
 Earlier figure, kept for the rate history: 338 survived + 119 no-coverage = 457 undetected. Detected is
 1380 of 1837; 85% needs 1561, i.e. **+181 detections**. At the observed rate

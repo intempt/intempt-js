@@ -49,7 +49,7 @@
     "test:coverage": "vitest run --coverage",
     "test:mutation": "stryker run",
     "test:e2e": "cypress run",
-    "lint": "eslint . --max-warnings=323",
+    "lint": "eslint . --max-warnings=279",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
