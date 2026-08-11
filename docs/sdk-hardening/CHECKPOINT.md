@@ -1449,6 +1449,38 @@ Four lanes are running against `e71a356` in **hand-built, HEAD-verified worktree
 6. `BACKLOG.md` **4.2 can close** — vite 6 landed, so `ci.yml`'s dev-dep audit half
    can go from advisory to blocking at `--audit-level=high`.
 
+### Wave-2 results as they landed (F and G were still running at handoff)
+
+- **Lane I ✅ verified and committed** — 3 fix commits: **D-17** (`shopify`/`magento`
+  now use the real boolean parser, so `?shopify=false` disables), **D-27** (empty
+  `?api_host=` falls back to the default), **D-12** (a misconfigured SDK reports
+  through the logger instead of throwing into the host page). Lint 13 before and 13
+  after on its files — nothing added. Bundle +118 B. Branch `lane-i-loader`.
+- **Lane H ✅ committed (`1f4c93b`) but IT BREAKS THE SIZE GATE.** The
+  `fetch(keepalive)` → XHR fallback costs **+697 B**, taking the bundle to
+  **93,245 B against the 93 kB raw limit** — `npm run size` says *"Package size limit
+  has exceeded by 245 B"*. gzip 27.14/27.2 and brotli 23.58/23.6 still pass, but only
+  barely. **Merging H therefore REQUIRES raising `.size-limit.json`, which is a
+  loosening and needs the user's decision.** Unit 924/924 (27 files), lint 0,
+  `sendBeacon` correctly left out of scope, `requestBatcher.ts` untouched.
+- **Lane H also parked mid-task on its own mutation run, as Lane B did** — two of nine
+  lanes, both on `npm run test:mutation`, the only gate slow enough to tempt
+  backgrounding. **Next time: forbid backgrounding outright, or do not ask a lane to
+  run mutation and measure it yourself at merge.**
+
+### A scope gap found while checking H's claim — worth acting on
+
+H offered "mutation unchanged at 86.57%" as evidence its new code is tested. **It is
+not evidence.** `stryker.conf.json` mutates only `src/shared/**`, `src/guard/**` and
+`src/intemptJs/guards/**`, so **`autoTracker.transport.ts` is not mutated at all** —
+and neither is any of `src/intemptJs/modules/**` or `src/loaders/**`. An unchanged
+score across a change to unmutated code is a tautology, not a result.
+
+Consider widening `stryker.conf.json`'s `mutate` the way `coverage.include` was
+widened in §3m — measure first, then set `break` just under. Expect the headline score
+to fall, exactly as coverage fell 96% → 72.5% when it stopped describing only the
+best-tested third of the SDK. That drop would be honest.
+
 **Nothing is pushed. There are ~13 local commits and CI has never seen any of it.**
 The user's own open items: check live host sites for the `/v1`-less URL, approve
 `npm install` → `npm ci` and the `branches: ['*']` fix in `build.yaml`, push and open
