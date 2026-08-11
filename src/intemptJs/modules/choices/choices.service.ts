@@ -32,17 +32,28 @@ export const ChoicesService = {
     const { choices} = data;
 
     return choices.reduce((acc, item:{changes:Choice[], mergedChanges:MergedChoices[]}) => {
-      acc.push(...item.changes);
-      // if (item && Array.isArray(item.mergedChanges) && item.mergedChanges.length > 0) {
-      //   acc.push(...item.mergedChanges);
-      // }
-      // else if (item && !item.mergedChanges && Array.isArray(item.changes) && item.changes.length > 0) {
-      //   const activeChanges = item.changes.filter((change: Choice) => change.active);
-      //   acc.push(...activeChanges);
-      // }
-      // else {
-      //   console.log("Either 'changes' or 'mergedChanges' in an item of data is null, undefined, or empty.");
-      // }
+      // D-6: one malformed choice (e.g. missing/non-array `changes`) must not
+      // discard every other choice in the response — the visitor still gets
+      // whatever DID parse. Isolated per item rather than per field.
+      try {
+        if (item && Array.isArray(item.changes)) {
+          acc.push(...item.changes);
+        } else {
+          log.warn('a choice item has no `changes` array — skipping that choice', item);
+        }
+        // if (item && Array.isArray(item.mergedChanges) && item.mergedChanges.length > 0) {
+        //   acc.push(...item.mergedChanges);
+        // }
+        // else if (item && !item.mergedChanges && Array.isArray(item.changes) && item.changes.length > 0) {
+        //   const activeChanges = item.changes.filter((change: Choice) => change.active);
+        //   acc.push(...activeChanges);
+        // }
+        // else {
+        //   console.log("Either 'changes' or 'mergedChanges' in an item of data is null, undefined, or empty.");
+        // }
+      } catch (error) {
+        log.warn('failed to process a choice item — skipping that choice', { item, error });
+      }
 
       return acc;
     }, [])

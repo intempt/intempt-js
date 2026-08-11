@@ -649,16 +649,16 @@ describe('choices engine', () => {
         expect(out).toEqual([{ id: 1 }]);
       });
 
-      it('throws when a choice has no `changes` array — a defect, asserted', () => {
-        // DEFECT (choices.service.ts:31): the guard validates the outer envelope
-        // but then does `acc.push(...item.changes)` unconditionally, so a choice
-        // object missing `changes` throws out of `choicesDataGuard`. It is called
-        // inside `setChangesData`'s try/catch, which recovers by caching an empty
-        // change list — so the visible effect is that ONE malformed choice
-        // discards **every** choice in the response, silently.
-        expect(() =>
+      it('skips a malformed choice and keeps the others — fixes D-6', () => {
+        // Was (choices.service.ts:31): `acc.push(...item.changes)` unconditional,
+        // so a choice object missing `changes` threw out of `choicesDataGuard`.
+        // It is called inside `setChangesData`'s try/catch, which recovers by
+        // caching an EMPTY change list — so one malformed choice discarded
+        // every choice in the response, silently. Fixed with per-item
+        // isolation: the malformed item is dropped, the valid ones still apply.
+        expect(
           ChoicesService.choicesDataGuard({ choices: [{ changes: [{ id: 1 }] }, {}] } as any),
-        ).toThrow();
+        ).toEqual([{ id: 1 }]);
       });
     });
 
