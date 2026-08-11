@@ -13,7 +13,7 @@
 | **Last updated** | 2026-08-11 |
 | **Next action** | **§0b is the ordered TODO list — start there.** Short version: mutation testing to the user-set 85% floor (currently **80.31%**, +112 detections to go — pools listed at the foot of §3f), then `FRONTEND.md` #1 packaging / #6 code health / #9 code-split. **Four items need a human decision before code, listed at the top of §0b.** |
 | **Score** | **~78 / 100** (audit baseline 40, Mixpanel comparator 85). Front-end-only ceiling ~85 — see `FRONTEND.md`. |
-| **Tests** | Unit **821** · Cypress **122** · mutation **80.31%** (floor 80) · coverage 93.12 / 89.92 / 95.33 / 93.90 · bundle **91.24 kB / 26.67 kB gzip** · ESLint 0 errors / 279 warnings (ratchet 279) |
+| **Tests** | Unit **821** · Cypress **122** · mutation **80.31%** (floor 80) · coverage 95.55 / 90.83 / 96.88 / 96.35 (gates 93/88/94/94) · bundle **91.24 kB / 26.67 kB gzip** · ESLint 0 errors / 279 warnings (ratchet 279) |
 | **Phase** | 0 ✅ · 1 ⏸ parked (packaging) · 2 ✅ tier-1 + CI gate + guard port + mutation · 3 ✅ except transports ⏸ (BE) and code-split (⬜, now cheap — see D-23) · 4 🟡 privacy ✅ §3h, client-side security ✅ §3g-ii, observability ✅ §3i, credential ⏸ (BE), `any` ⬜ · 5 🟡 CI breadth ✅ §3g, release/changesets ⬜ |
 | **Landed, by section** | §3a jitter · §3b circuit breaker · §3c bounded queue · §3d `ci.yml` · §3e guard-suite port · §3f mutation testing · §3g CI breadth + supply chain · §3h privacy & consent · §3i logger & metrics · §3j docs & DX · §3k public-API / payload-contract / choices tests · §4 three live defects · §5 `psl` dropped · §6a unit tier · §6b IndexedDB · §6c per-event records |
 | **Known defects** | **~30, documented and deliberately unfixed — `DEFECTS.md`.** Severity-1: no event carries a timestamp; a second instance duplicates every event; session events share one `eventId`. |
@@ -102,14 +102,19 @@ without asking anyone, unless marked ⏸.
    ~50–80 tests. Next: `requestBatcher.ts` (110 undetected), `requestQueue.ts` (66),
    `consentCookie.ts` (45), `shared.utils.ts` (24, and the lowest-scoring file in
    the repo at 47.83%). Worklist and rate history: §3f-i, §3f-ii.
-2. **Re-baseline the coverage thresholds** in `vitest.config.ts` (D20). Measured
-   93.12 / 89.92 / 95.33 / 93.90 against gates of 90/87/87/90. **Note vitest 4
-   counts statements differently from vitest 2, so pre-merge numbers in this file
-   are not comparable** — re-measure, do not interpolate.
+2. ~~**Re-baseline the coverage thresholds** in `vitest.config.ts` (D20).~~ ✅ done.
+   Measured **95.55 / 90.83 / 96.88 / 96.35** over 821 tests (the storage batch
+   lifted it from 93.12 / 89.92 / 95.33 / 93.90); gates moved 90/87/87/90 →
+   **93 / 88 / 94 / 94** per D20's ~2-under rule. Branches is deliberately the
+   loosest — it moves most on an unrelated refactor. History now lives in the
+   comment above the `thresholds` block; **re-measure rather than interpolate,
+   because vitest 4 counts statements differently from vitest 2.**
 3. **`FRONTEND.md` #1 packaging** (+3.6) — `index.d.ts`, module build, changesets.
 4. **`FRONTEND.md` #6 code health** (+1.7) — 61 `any`, split `autoTracker.module.ts`,
-   dedupe the id triplet. Then lower `--max-warnings` from 323 and flip
-   `no-explicit-any` / `no-console` to `error`.
+   dedupe the id triplet. Then lower `--max-warnings` (**now 279**, was 323) and
+   flip `no-explicit-any` / `no-console` to `error`. **Do not add the
+   `optIn`/`optOut` guard this item once listed — DEFECTS D-24 shows its premise
+   was wrong and the branch is unreachable.**
 5. **`FRONTEND.md` #9 code-splitting** (+1.2) — now cheaper: **D-23 says
    `ModificationHandler.ts` (459 LOC) is dead code, so delete beats split.** The
    bundle grew 81.8 → 91.25 kB in the five-lane merge, so this has teeth.

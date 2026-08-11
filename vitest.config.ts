@@ -53,17 +53,28 @@ export default defineConfig({
       // Raised with the include-list widening above, per D20 — never widen scope
       // without also moving these, or the effective bar silently drops.
       //
-      // Measured at the commit that ported the guard suites: statements/lines
-      // 92.57%, branches 89.64%, functions 88.88%. Thresholds sit ~2 points
-      // under, which is tight enough to catch a real regression and loose enough
-      // that a small refactor does not fail CI on noise.
+      // Thresholds sit ~2 points under the measured score: tight enough to catch a
+      // real regression, loose enough that a small refactor does not fail CI on
+      // noise. Re-measure and move them whenever the gap opens up — a gate 7
+      // points below reality is not a gate.
       //
-      // Previous values, when the scope was `src/shared/**` alone: 85/75/85/85.
+      // History (measure, then set; never interpolate):
+      //   `src/shared/**` only ................ 85 / 75 / 85 / 85
+      //   guard suites ported, scope widened .. 90 / 87 / 87 / 90
+      //     measured then: 92.57 statements/lines, 89.64 branches, 88.88 functions
+      //   storage mutation batch (§3f-ii) ..... 93 / 88 / 94 / 94
+      //     measured now: 95.55 statements, 90.83 branches, 96.88 functions,
+      //     96.35 lines, over 821 tests.
+      //
+      // Note vitest 4 counts statements differently from vitest 2, so figures
+      // recorded before the supply-chain upgrade (§3g-i) are not comparable with
+      // these. Branches is deliberately the loosest of the four — it is the metric
+      // that moves most on an unrelated refactor.
       thresholds: {
-        lines: 90,
-        branches: 87,
-        functions: 87,
-        statements: 90,
+        lines: 94,
+        branches: 88,
+        functions: 94,
+        statements: 93,
       },
     },
   },
