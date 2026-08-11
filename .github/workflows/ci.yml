@@ -2,16 +2,22 @@
 #
 # Why this exists alongside build.yaml: build.yaml's `Build-and-Test` job runs
 # only on *push*, only on non-main/non-staging refs, and only runs Cypress +
-# build. So (a) the 147-test vitest tier and its coverage gate ran nowhere, and
+# build. So (a) the 444-test vitest tier and its coverage gate ran nowhere, and
 # (b) a pull request into `staging` or `main` was gated by nothing at all.
 #
 # build.yaml is deliberately NOT modified — it is the live deploy path to the
 # mutable /v1 CDN URL (docs/sdk-hardening/CHECKPOINT.md §6, invariant 2).
 #
 # Scope discipline, so this file stays a gate and not a wish list: every job
-# here runs a script that already exists and already passes. Lint, prettier,
-# size-limit and `npm audit` jobs from the AUDIT.md §3b draft are deliberately
-# left out — see the note at the bottom of this file.
+# here runs a script that already exists and already passes locally on this
+# branch. Nothing is added speculatively — see the note at the bottom for what
+# is still deliberately absent and why.
+#
+# Every action is pinned to a full commit SHA with the tag in a trailing
+# comment. A mutable tag like `@v4` is a supply-chain hole: whoever controls the
+# tag controls what runs with this repo's `GITHUB_TOKEN`. Update a pin by
+# resolving the new tag to its SHA (`gh api repos/<owner>/<repo>/git/ref/tags/<tag>`)
+# and changing both the SHA and the comment together.
 name: CI
 
 on:
@@ -41,8 +47,8 @@ jobs:
         # practice and catches accidental use of newer Node built-ins.
         node-version: [20.x, 21.x]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: ${{ matrix.node-version }}
           cache: npm
@@ -55,18 +61,53 @@ jobs:
 
       - name: Upload coverage
         if: matrix.node-version == '21.x' && (success() || failure())
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: coverage
           path: coverage/
           retention-days: 14
 
+  static:
+    name: Lint & format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 21.x
+          cache: npm
+      - run: npm ci
+
+      # `npm run lint` is `eslint . --max-warnings=323`. Two things are load-
+      # bearing about that number:
+      #
+      #  * 0 errors is the hard gate. eslint.config.js only promotes a rule to
+      #    'error' once the repo measures zero for it, so this cannot go red on
+      #    arrival — which is the failure mode that gets a new gate deleted.
+      #  * 323 is the exact warning count measured on this branch, so the cap is
+      #    a RATCHET: the 61 `any`s and 54 `console.*` calls cannot grow, but
+      #    they also do not block today. Lower this number as FRONTEND.md #2
+      #    (structured logging) and #6 (code health) remove them. Never raise it.
+      - name: ESLint
+        run: npm run lint
+
+      # Advisory, not blocking, and this is deliberate rather than laziness.
+      # Measured 2026-08-11: 98 of 107 source files fail `prettier --check`,
+      # because .prettierrc was committed long ago and never enforced. The fix
+      # is a single repo-wide `npm run format` commit — but that touches nearly
+      # every file in src/ and tests/, so it would conflict with every in-flight
+      # branch in this programme. It wants to land on its own, when no other
+      # work is open, and at that point delete `continue-on-error` here.
+      - name: Prettier (advisory until the repo-wide reformat lands)
+        continue-on-error: true
+        run: npm run format:check
+
   build:
     name: Typecheck & build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 21.x
           cache: npm
@@ -80,23 +121,81 @@ jobs:
       - name: Check reserved words in bundle
         run: node scripts/checkReservedWords.js
 
-      - uses: actions/upload-artifact@v4
+      # No credential may be baked into the artifact. This matters more here
+      # than in most repos: build.yaml overwrites ONE mutable CDN path
+      # (/v1/intempt.min.js) that every customer loads, with no previous
+      # artifact to roll back to. Calibrated against the real bundle — see the
+      # header of the script for the two things in it that look like secrets and
+      # are not.
+      - name: Scan bundle for credentials
+        run: npm run scan:secrets
+
+      # Runs in this job because it needs the built artifact, and building twice
+      # would double the slowest step. Limits in .size-limit.json are pinned
+      # ~2% over the measured 23.06 kB gzip / 20.11 kB brotli / 81.81 kB raw;
+      # ratchet them DOWN as the bundle shrinks.
+      - name: Size budget
+        run: npm run size
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dist
           path: dist/
           retention-days: 14
 
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 21.x
+          cache: npm
+      - run: npm ci
+
+      # THE BLOCKING GATE, and the important one. The SDK has zero runtime
+      # dependencies (`psl` was dropped in CHECKPOINT §5), so this is currently
+      # "0 advisories out of 0 packages" — which is exactly the property worth
+      # defending. --audit-level=low means the day someone adds a runtime
+      # dependency with any known advisory, this fails. Nothing that reaches a
+      # customer's page is allowed to carry one.
+      - name: Audit production dependencies (blocking)
+        run: npm audit --omit=dev --audit-level=low
+
+      # Advisory, because it cannot pass today and the reason is structural, not
+      # neglect. The dev-dependency upgrades in this lane took the tree from 19
+      # advisories (8 high, 4 critical) to 4 (3 moderate, 1 high) — cypress
+      # 13→15, vitest 2→4, @vitest/coverage-v8 2→4, @rollup/plugin-terser
+      # 0.4→1.0, plus the non-breaking fixes.
+      #
+      # The 1 remaining high is `vite`, and it is BLOCKED, not skipped: the fix
+      # is vite >= 6.4.3, and every vite from 6 onward declares
+      # `engines: node ^20.19.0 || >=22.12.0` — which EXCLUDES Node 21.x, the
+      # version build.yaml deploys on. Upgrading vite therefore requires moving
+      # the deploy off Node 21 first, and build.yaml is invariant §6.2. The
+      # three vite advisories are all `vite dev` server issues (path traversal,
+      # server.fs.deny bypass, launch-editor NTLM on Windows) and this repo
+      # ships `vite build` output, so none is reachable in CI or in a customer
+      # bundle.
+      #
+      # Flip this to blocking (and drop --audit-level to high) once the Node
+      # bump lands. Do not "fix" it by pinning around build.yaml.
+      - name: Audit dev dependencies (advisory — vite is blocked on Node 21)
+        continue-on-error: true
+        run: npm audit --audit-level=high
+
   mutation:
     name: Mutation score
     # Pull requests only, same reasoning as e2e below: the run takes ~3.5 min,
     # and mutation score answers a question that only matters when a change is
-    # about to merge -- "would any test have noticed this?". `break: 65` in
+    # about to merge -- "would any test have noticed this?". `break: 73` in
     # stryker.conf.json fails the job on a regression below that.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 21.x
           cache: npm
@@ -105,7 +204,7 @@ jobs:
 
       - name: Upload mutation report
         if: success() || failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mutation-report
           path: reports/mutation/
@@ -116,20 +215,20 @@ jobs:
     name: Cypress e2e
     # Pull requests only, on purpose. build.yaml already runs the Cypress
     # suite on every branch push, so running it here on push too would pay for
-    # the same 213 assertions twice. The gap it does not cover is the PR into
+    # the same 122 assertions twice. The gap it does not cover is the PR into
     # staging/main — that is exactly what this job closes.
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 21.x
           cache: npm
       # Cache the Cypress binary separately: `cache: npm` covers ~/.npm but the
       # browser binary lives in ~/.cache/Cypress and is the slow part of install.
       - name: Cache Cypress binary
-        uses: actions/cache@v4
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ~/.cache/Cypress
           key: cypress-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
@@ -138,7 +237,7 @@ jobs:
 
       - name: Upload failure screenshots
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: cypress-screenshots
           path: cypress/screenshots/
@@ -149,16 +248,15 @@ jobs:
 # Deliberately absent, with reasons — do not add these back without doing the
 # prerequisite work first, or the gate goes red on arrival and gets disabled:
 #
-# * Lint / prettier: there is no `lint` script, no ESLint config and no
-#   prettier config in this repo. Adding the job before the tooling means a job
-#   that fails on `npm run lint: command not found`.
-# * Size budget: needs `.size-limit.json` pinned at current sizes
-#   (81.74 kB / 23.08 kB gzip as of 2026-08-11) before it can ratchet.
-# * `npm audit --audit-level=high`: measured 2026-08-11 — 19 advisories
-#   (8 high, 4 critical), *all* of them in devDependencies (cypress, vite,
-#   vitest, rollup, @rollup/plugin-terser). The SDK has zero runtime
-#   dependencies, so none of them reach a customer bundle, and every fix is a
-#   breaking major bump. This belongs to Phase 4 (supply chain) with the
-#   dependency upgrades, not to a merge gate today.
 # * Cross-browser (WDIO/Sauce) tier: AUDIT.md §3b File 2, needs a Sauce account.
+#   This is the one remaining cap on dimension 1 that is a budget decision
+#   rather than engineering work (FRONTEND.md, "The ceiling").
+# * Type-aware ESLint (`recommendedTypeChecked`): would duplicate the `tsc` run
+#   in the build job at a cost of minutes. See eslint.config.js for the detail.
+# * Main-thread budget assertions (init < 10 ms, per-track < 0.1 ms):
+#   FRONTEND.md #9, needs a benchmark harness that does not exist yet.
+#
+# Resolved since the previous revision of this file, for the record:
+# lint/prettier now exist (`static`), the size budget is pinned (`build`), and
+# `npm audit` gates production dependencies (`audit`).
 # ---------------------------------------------------------------------------
