@@ -1,0 +1,138 @@
+# Fast merge gate for the SDK hardening programme.
+#
+# Why this exists alongside build.yaml: build.yaml's `Build-and-Test` job runs
+# only on *push*, only on non-main/non-staging refs, and only runs Cypress +
+# build. So (a) the 147-test vitest tier and its coverage gate ran nowhere, and
+# (b) a pull request into `staging` or `main` was gated by nothing at all.
+#
+# build.yaml is deliberately NOT modified — it is the live deploy path to the
+# mutable /v1 CDN URL (docs/sdk-hardening/CHECKPOINT.md §6, invariant 2).
+#
+# Scope discipline, so this file stays a gate and not a wish list: every job
+# here runs a script that already exists and already passes. Lint, prettier,
+# size-limit and `npm audit` jobs from the AUDIT.md §3b draft are deliberately
+# left out — see the note at the bottom of this file.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, staging]
+
+# Cancel superseded runs on the same ref. At PR volume this is most of the
+# runner bill.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit tests + coverage (node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 21.x is what build.yaml deploys on, so it must be green or CI green
+        # would not imply deploy green. 20.x is the floor `engines` allows in
+        # practice and catches accidental use of newer Node built-ins.
+        node-version: [20.x, 21.x]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      # npm ci, not npm install: install mutates the lockfile, which makes the
+      # run non-reproducible. (build.yaml uses npm install; not changing it.)
+      - run: npm ci
+      # Coverage thresholds live in vitest.config.ts and are enforced there, so
+      # a coverage drop fails this job — no separate gate step needed.
+      - run: npm run test:coverage
+
+      - name: Upload coverage
+        if: matrix.node-version == '21.x' && (success() || failure())
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14
+
+  build:
+    name: Typecheck & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 21.x
+          cache: npm
+      - run: npm ci
+      # `npm run build` is `tsc && vite build` — tsc is the only typecheck gate
+      # this repo has, so the build job is also the typecheck job.
+      - run: npm run build
+
+      # Already in the deploy path; running it here means a reserved-word
+      # regression fails on the feature branch instead of at deploy time.
+      - name: Check reserved words in bundle
+        run: node scripts/checkReservedWords.js
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 14
+
+  e2e:
+    name: Cypress e2e
+    # Pull requests only, on purpose. build.yaml already runs the Cypress
+    # suite on every branch push, so running it here on push too would pay for
+    # the same 213 assertions twice. The gap it does not cover is the PR into
+    # staging/main — that is exactly what this job closes.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 21.x
+          cache: npm
+      # Cache the Cypress binary separately: `cache: npm` covers ~/.npm but the
+      # browser binary lives in ~/.cache/Cypress and is the slow part of install.
+      - name: Cache Cypress binary
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/Cypress
+          key: cypress-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      - run: npm ci
+      - run: npm run test:e2e
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: cypress-screenshots
+          path: cypress/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
+
+# ---------------------------------------------------------------------------
+# Deliberately absent, with reasons — do not add these back without doing the
+# prerequisite work first, or the gate goes red on arrival and gets disabled:
+#
+# * Lint / prettier: there is no `lint` script, no ESLint config and no
+#   prettier config in this repo. Adding the job before the tooling means a job
+#   that fails on `npm run lint: command not found`.
+# * Size budget: needs `.size-limit.json` pinned at current sizes
+#   (81.74 kB / 23.08 kB gzip as of 2026-08-11) before it can ratchet.
+# * `npm audit --audit-level=high`: measured 2026-08-11 — 19 advisories
+#   (8 high, 4 critical), *all* of them in devDependencies (cypress, vite,
+#   vitest, rollup, @rollup/plugin-terser). The SDK has zero runtime
+#   dependencies, so none of them reach a customer bundle, and every fix is a
+#   breaking major bump. This belongs to Phase 4 (supply chain) with the
+#   dependency upgrades, not to a merge gate today.
+# * Cross-browser (WDIO/Sauce) tier: AUDIT.md §3b File 2, needs a Sauce account.
+# ---------------------------------------------------------------------------

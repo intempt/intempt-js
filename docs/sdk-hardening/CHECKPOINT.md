@@ -12,9 +12,9 @@
 | **Forked from** | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars") |
 | **Upstream tracking** | **deliberately unset** — see Invariants |
 | **Last updated** | 2026-08-11 |
-| **Next action** | **§3 — `ci.yml`.** Client-side load shedding is complete; nothing is blocked. |
-| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
-| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. Unit 147 / Cypress 213, all passing. Bundle 81.74 kB / 23.08 kB gzip. |
+| **Next action** | **§3 item 1 — port the guard suites into the unit tier**, then widen `coverage.include` and raise thresholds in the same commit (D20). `ci.yml` is done (§3d); nothing is blocked. |
+| **Phase** | Phase 0 ✅. Phase 1 ⏸ **backlogged by the user** (packaging). §4 defects ✅. Phase 2 tier-1 ✅ + **CI gate ✅**. **Phase 3 in progress** — `psl` ✅, unload ✅, **IndexedDB tier ✅**, **per-event records ✅**, **jitter ✅**, **circuit breaker ✅**, **bounded queue ✅**. |
+| **Code changed so far** | `package.json` metadata; version single-sourced; **all three live defects in §4 fixed**; **`psl` dropped — bundle 225.86 kB → 72.43 kB, zero runtime deps**; **vitest unit tier added, which found three further data-loss defects (§6a)**. **IndexedDB tier + per-event queue records**. **Jitter on retry backoff + flush interval (§3a)**. **Circuit breaker (§3b)**. **Bounded queue + drop policy (§3c)**. **`.github/workflows/ci.yml` — the tests now gate merges (§3d)**. Unit 147 / Cypress 213, all passing. Bundle 81.74 kB / 23.08 kB gzip. |
 
 ---
 
@@ -105,8 +105,9 @@ Remaining work that needs nothing from anyone else:
 
 1. **Load shedding, client-side three of four — ✅ complete.** Jitter (§3a),
    circuit breaker (§3b), bounded queue (§3c). The fourth needs the backend.
-2. Rest of Phase 2 — port the guard suites into the unit tier, golden-file
-   contract tests on the payload shape, `ci.yml` so the tiers gate merges.
+2. Rest of Phase 2 — `ci.yml` so the tiers gate merges ✅ (§3d); still open:
+   port the guard suites into the unit tier, golden-file contract tests on the
+   payload shape.
 3. Cross-subdomain consent cookie (the D15 limitation).
 4. Phase 4 client-side leftovers — structured logger, killing `any`.
 
@@ -248,51 +249,89 @@ The cross-tab test therefore asserts the cap holds, not *which* event went.
 
 6 tests added (147 unit total).
 
+## 3d. Phase 2/5 — `ci.yml`, the merge gate ✅
+
+Landed 2026-08-11 as `.github/workflows/ci.yml`. Everything built in this
+programme was previously guarded by tests that ran **only when someone
+remembered to run them**; this converts them into a gate.
+
+**The two real gaps it closes.** `build.yaml`'s `Build-and-Test` job runs on
+*push* only, skips `main`/`staging` refs, and runs only Cypress + build. So
+(a) the 147-test vitest tier and its coverage gate ran **nowhere** in CI, and
+(b) a **pull request** into `staging` or `main` was gated by **nothing at all**
+— the autopr-created staging→main PR included.
+
+Three jobs, each running a script that already exists and already passes:
+
+| Job | Command | Node |
+|---|---|---|
+| `unit` | `npm run test:coverage` (thresholds enforced in `vitest.config.ts`) | matrix 20.x, 21.x |
+| `build` | `npm run build` + `node scripts/checkReservedWords.js` | 21.x |
+| `e2e` | `npm run test:e2e` | 21.x |
+
+**Decisions worth not re-deriving:**
+
+- **`build.yaml` is untouched** — it is the live deploy path to the mutable
+  `/v1` CDN URL (Invariants §6.2). The new file sits beside it.
+- **`e2e` is `pull_request`-only.** `build.yaml` already runs the Cypress suite
+  on every branch push, so running it on push here too would pay for the same
+  213 assertions twice. The PR into `staging`/`main` is the gap, and that is
+  what this job covers.
+- **Node 21.x is in the matrix because `build.yaml` deploys on 21.x.** If CI ran
+  only a different major, CI-green would not imply deploy-green. 20.x is the
+  second leg, to catch accidental use of newer Node built-ins.
+- **`npm ci`, not `npm install`** (`build.yaml` uses `install`, which mutates the
+  lockfile and makes the run non-reproducible). Verified `npm ci` succeeds on
+  the committed `package-lock.json` (lockfileVersion 2).
+- **The Cypress binary is cached separately** at `~/.cache/Cypress`;
+  `cache: npm` only covers `~/.npm`, and the binary download is the slow part.
+
+**Four jobs from the `AUDIT.md` §3b draft were deliberately dropped**, because a
+gate that is red on arrival gets disabled. The reasons are also written into the
+workflow file itself so they are not lost:
+
+- **Lint / prettier** — there is no `lint` script and no ESLint or prettier
+  config in this repo. The job would fail on *command not found*.
+- **Size budget** — needs `.size-limit.json` pinned at the current 81.74 kB /
+  23.08 kB gzip first, then it can ratchet.
+- **`npm audit --audit-level=high`** — **measured 2026-08-11: 19 advisories
+  (8 high, 4 critical), all of them in devDependencies** (cypress, vite, vitest,
+  rollup, `@rollup/plugin-terser`). The SDK has zero runtime dependencies, so
+  none reach a customer bundle, and every available fix is a breaking major
+  bump. This is Phase 4 supply-chain work with the dependency upgrades, not a
+  merge gate today.
+- **Cross-browser WDIO/Sauce tier** — `AUDIT.md` §3b File 2, needs an account.
+
+**Verified before commit**, each command run locally on this branch, not
+inferred: `npm ci` exit 0; `npm run test:coverage` 147/147 with the gate passing
+(statements/lines 90.34%, branches 86.37%, functions 86.71%); `npm run build`
+clean at 81.74 kB / 23.08 kB gzip; `checkReservedWords.js` clean;
+`npm run test:e2e` 213 passing / 4 pending. The YAML was parsed to confirm the
+three jobs and both triggers resolve.
+
+**Still not verified, and cannot be from here:** that the workflow is green *on
+GitHub*. The branch has not been pushed. First push must be
+`git push -u origin beso/sdk-enterprise-hardening` (Invariants §6.1) — and note
+that push will trigger both `build.yaml` and this new file. Watch the first run.
+
 ## 3. Next concrete action — pick one, nothing is blocked
 
 Client-side load shedding is **complete** (jitter §3a, breaker §3b, bounded queue
 §3c). The fourth item, a server-controlled brake, is backlogged on the backend.
+The CI gate is **complete** (§3d).
 
 Highest value now, in the author's order:
 
-1. **`ci.yml`** — 147 unit + 213 Cypress tests gate *nothing*; they run only when
-   someone remembers. This is the weakest link in everything built so far.
-2. **Port the guard suites into the unit tier** (`src/guard/**`,
+1. **Port the guard suites into the unit tier** (`src/guard/**`,
    `src/intemptJs/guards/**` are Cypress-only and excluded from the coverage
    gate), then widen `coverage.include` and raise thresholds in the same commit
-   (D20).
-3. **Golden-file contract tests** on the outbound payload shape.
-4. Cross-subdomain consent cookie (D15), structured logger + killing `any`
+   (D20). This is now the largest remaining hole in Phase 2, and §3d means the
+   thresholds actually bind once raised.
+2. **Golden-file contract tests** on the outbound payload shape.
+3. Cross-subdomain consent cookie (D15), structured logger + killing `any`
    (Phase 4). The logger has a concrete consumer now: the drop counter from §3c.
-
-
-### How to start item 1 (`ci.yml`) cold
-
-A full `ci.yml` is **already drafted** in `AUDIT.md` §3b, "File 1 —
-`.github/workflows/ci.yml` (fast gate)" (around line 500), with two more files
-after it (`browser-tests.yml`, `release.yml`) and a rollout order at §3b's end.
-**Read that draft before writing anything — do not redesign it.**
-
-Two things about that draft are now out of date, because it was written during
-Phase 0 before the unit tier existed:
-
-- It predates `npm run test:unit` / `test:coverage`. Those scripts exist now
-  (§6a) and the workflow should call them directly.
-- Its job list assumes there is no vitest tier to gate on. There is: 147 tests
-  plus an enforced coverage gate.
-
-The minimum that makes merges safe, in one file:
-
-| Job | Command | Why |
-|---|---|---|
-| typecheck + build | `npm run build` (`tsc && vite build`) | the only typecheck gate that exists |
-| unit | `npm run test:coverage` | fast, and the coverage thresholds fail the build |
-| e2e | `npm run test:e2e` | 213 Cypress specs, needs a browser image |
-
-`.github/workflows/` already contains three files — `build.yaml`, `analyze.yaml`
-and `autopr.yaml`. Read them before adding a fourth; some of what the draft
-proposes may already exist. **Do not modify `build.yaml`** — it is the live
-deploy path to the mutable `/v1` CDN URL; see Invariants §6.
+4. **Credential hygiene (Phase 4)** — the remaining finding that fails an
+   enterprise security review outright.
 
 Open items carried forward:
 
@@ -523,10 +562,10 @@ not behaviour. If they break again, prefer rewriting them to go through
 |---|---|---|---|---|
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
-| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (147 tests, gate enforced); guard-suite port, contract tests and WDIO tier 2 remain |
+| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (147 tests, gate enforced), **`ci.yml` gates merges ✅**; guard-suite port, contract tests and WDIO tier 2 remain |
 | 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ✅ **jitter, circuit breaker, bounded queue** (4th ⏸ BE) |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
-| 5 | CI/CD, docs, release engineering | +9 | **91** | ⬜ |
+| 5 | CI/CD, docs, release engineering | +9 | **91** | 🟡 the fast gate (`ci.yml`) landed early, out of phase order, because Phases 2–3 had built a lot with nothing gating it — §3d. `browser-tests.yml` / `release.yml` / changesets remain |
 
 Phase deltas assume the earlier phases landed; they are not independent.
 
@@ -536,11 +575,12 @@ The original three (test tier; IndexedDB + unload fix + drop `psl`; persisted
 opt-out) are **all done** — §6a, §6b, §5, §4. Persisted opt-out landed as §4
 defect 3. Credential hygiene (Phase 4) is the one item from that list still open.
 
-The current three, if the programme has to stop early:
+`ci.yml` — item 1 of the previous list — is **done** (§3d). The current three:
 
-1. **`ci.yml`** — everything built so far is guarded by tests that run only when
-   somebody remembers to run them. One CI file converts all of it into an actual
-   gate. See §3.
+1. **Port the guard suites into the unit tier and raise the coverage
+   thresholds** (D20). `src/guard/**` and `src/intemptJs/guards/**` hold 91
+   Cypress assertions and are excluded from the coverage gate, so the gate
+   currently binds on `src/shared/**` only.
 2. **Credential hygiene (Phase 4)** — the remaining finding that fails an
    enterprise security review outright.
 3. **Hand `BACKEND.md` to the backend team.** Five items are blocked behind it
