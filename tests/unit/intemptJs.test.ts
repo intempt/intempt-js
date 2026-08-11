@@ -381,21 +381,21 @@ describe('IntemptJs — the public API class', () => {
       });
     });
 
-    it('announces an EMPTY eventName on intempt:record — a defect, asserted not fixed', () => {
-      // DEFECT (record.model.ts:29): `RecordModel._name` returns a hardcoded
+    it('announces its real eventName on intempt:record — D-13 fixed', () => {
+      // FIX (D-13, record.model.ts): `RecordModel._name` returned a hardcoded
       // `''` instead of `this.name`, so the `intempt:record` notification always
-      // carries `{ eventName: '' }` even though the model's `name` is correct
-      // and the wire payload is fine. Any customer listener switching on
-      // `eventName` sees nothing. `ProductModel._name` has the identical bug
-      // (product.model.ts:26), asserted below.
+      // carried `{ eventName: '' }` even though the model's `name` was correct
+      // and the wire payload was fine. Any customer listener switching on
+      // `eventName` saw nothing. `ProductModel._name` had the identical bug
+      // (product.model.ts), fixed with it and asserted below.
       //
-      // Not fixed here: `_name` is only read for these notification events, so
-      // the fix is safe — but it is a behaviour change for listeners that may
-      // already work around the empty string, and it belongs in a commit that
-      // can be released with a note rather than buried in a test commit.
+      // `_name` is read ONLY for these notification events — never for the
+      // outbound payload — so this changes the CustomEvent detail and nothing
+      // that reaches ingest. It is still customer-visible: a listener that
+      // worked around the empty string now sees a real name. Release-noted.
       sdk.record({ eventTitle: 'Order', userId: 'u1' } as any);
-      expect(dispatched('intempt:record')[0]!.detail).toEqual({ eventName: '' });
-      // The model itself is named correctly — the bug is confined to `_name`.
+      expect(dispatched('intempt:record')[0]!.detail).toEqual({ eventName: 'Order' });
+      // `_name` now agrees with the model's own name, which was always correct.
       expect(lastModel().name).toBe('Order');
     });
   });
@@ -447,15 +447,18 @@ describe('IntemptJs — the public API class', () => {
       expect(dispatched('intempt:consent')).toHaveLength(1);
     });
 
-    it('drops the pageId it computes — a defect, asserted not fixed', () => {
-      // DEFECT (intemptJs.ts:213 + consent.model.ts): `consent()` reads
-      // `getPageId()` and passes it into `ConsentModel`, but the model declares
-      // no `pageId` field, so it is silently discarded. Either the read is dead
-      // work or the field is missing from the wire contract — and which one is
-      // right is an ingest question. Asserted so the ambiguity is recorded.
+    it('does not read a pageId it cannot carry — D-16 fixed', () => {
+      // FIX (D-16): `consent()` read `getPageId()` and passed it into
+      // `ConsentModel`, which declares no `pageId` field, so it was discarded.
+      // The read was not free — `PageTrackerModule.getId()` mints the
+      // page-session cookie when none exists, and `consent()` is deliberately
+      // ungated by opt-out (D-5), so rejecting consent while opted out wrote a
+      // tracking cookie. The call is gone; the model shape is unchanged.
       sdk.consent({ action: 'accept', validUntil: 1 } as any);
       expect(lastModel()).not.toHaveProperty('pageId');
-      expect(tracker().getPageId).toHaveBeenCalled();
+      expect(tracker().getPageId).not.toHaveBeenCalled();
+      // Still a complete consent record — dropping the dead read cost nothing.
+      expect(lastModel()).toMatchObject({ type: 'consent', action: 'accept', profileId: 'profile-1' });
     });
   });
 

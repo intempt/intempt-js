@@ -23,6 +23,6 @@ export class ProductModel implements ModelProduct {
   }
 
   get _name(): string {
-    return '';
+    return this.name;
   }
 }

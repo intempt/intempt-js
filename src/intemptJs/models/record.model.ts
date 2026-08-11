@@ -26,7 +26,7 @@ export class RecordModel implements ModelRecord {
   }
 
   get _name(): string {
-    return '';
+    return this.name;
   }
 }
 
