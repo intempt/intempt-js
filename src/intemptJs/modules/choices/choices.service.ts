@@ -91,7 +91,14 @@ export const ChoicesService = {
        * Return an empty array if the credentials not found
        * */
       if(!username || !password) {
-        console.error('credentials not found')
+        // Guarded like every other diagnostic in the SDK. Unguarded, this line
+        // printed on the customer's production console on every choices fetch
+        // made before init completed — noise in their logs, and it advertises
+        // that this SDK carries credentials at all, which is information a
+        // production console should not volunteer.
+        if (!EnvConfig.isProduction()) {
+          console.error('credentials not found')
+        }
         return []
       }
 
