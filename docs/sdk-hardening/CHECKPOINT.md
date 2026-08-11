@@ -141,7 +141,7 @@ back toward hammering, i.e. the change would silently undo itself. So a separate
 interval rather than resuming the last incident's ceiling. There is a test for
 each of those three properties.
 
-**Tests:** 6 added (135 unit total). The fleet-spread test runs 100 independent
+**Tests:** 6 added, taking the unit tier to 135 at that point (147 now, after §3b–§3c). The fleet-spread test runs 100 independent
 batchers through one failure each and asserts >50 distinct delays — under
 deterministic backoff that collapses to 1, so the test states the thundering herd
 as an assertion. `schedules a backoff instead of hammering ingest on a 500` had to
@@ -205,7 +205,7 @@ reduction.
 **Test note:** `caps the jittered backoff ceiling at ten minutes` now holds the
 breaker closed by hand. The breaker legitimately trips at 5 failures, long before
 the ceiling reaches its cap, so the two mechanisms are tested in isolation.
-6 breaker tests added (141 unit total).
+6 breaker tests added, taking the unit tier to 141 at that point (147 now, after §3c).
 
 ## 3c. Load shedding 3 of 3 — bounded queue + drop policy ✅
 
@@ -265,83 +265,44 @@ Highest value now, in the author's order:
 4. Cross-subdomain consent cookie (D15), structured logger + killing `any`
    (Phase 4). The logger has a concrete consumer now: the drop counter from §3c.
 
-The fourth load-shedding item — a server-controlled brake — is **backlogged**, it
-needs backend work. See `BACKEND.md` §5.
 
-<details>
-<summary>Original jitter design spec, kept for provenance</summary>
+### How to start item 1 (`ci.yml`) cold
 
-### The problem
+A full `ci.yml` is **already drafted** in `AUDIT.md` §3b, "File 1 —
+`.github/workflows/ci.yml` (fast gate)" (around line 500), with two more files
+after it (`browser-tests.yml`, `release.yml`) and a rollout order at §3b's end.
+**Read that draft before writing anything — do not redesign it.**
 
-`RequestBatcher` backoff is currently **deterministic**:
-`src/shared/queue/requestBatcher.ts`, the retryable branch of `handleResponse` —
-`retryMS = this.flushInterval * 2`, capped at `MAX_RETRY_INTERVAL_MS` (10 min),
-overridden by `Retry-After` when the server sends one.
+Two things about that draft are now out of date, because it was written during
+Phase 0 before the unit tier existed:
 
-Deterministic backoff means every client that failed at the same moment retries
-at the same moment, and again at the same doubled moment after that. At 1–10M
-concurrent sessions that is a synchronised retry wave: the SDK converts a brief
-ingest wobble into a self-reinforcing thundering herd, and the herd stays in
-phase because every client is running the same doubling schedule. **The SDK's job
-during an incident is to not amplify it** — this is the cheapest item in the
-whole programme that moves that needle.
+- It predates `npm run test:unit` / `test:coverage`. Those scripts exist now
+  (§6a) and the workflow should call them directly.
+- Its job list assumes there is no vitest tier to gate on. There is: 147 tests
+  plus an enforced coverage gate.
 
-### The proposed change (small — roughly 5 lines plus tests)
+The minimum that makes merges safe, in one file:
 
-Apply **full jitter**: `sleep = random(0, min(cap, base * 2^attempt))`, the AWS
-Architecture Blog formulation, rather than `sleep = backoff` or
-`backoff/2 + random(0, backoff/2)` ("equal jitter"). Full jitter gives the widest
-spread and the lowest expected contention; its only cost is that an individual
-client sometimes retries sooner than a strict exponential would.
+| Job | Command | Why |
+|---|---|---|
+| typecheck + build | `npm run build` (`tsc && vite build`) | the only typecheck gate that exists |
+| unit | `npm run test:coverage` | fast, and the coverage thresholds fail the build |
+| e2e | `npm run test:e2e` | 213 Cypress specs, needs a browser image |
 
-### Decisions to make — these are the user's questions to answer
-
-1. **Full jitter vs equal jitter.** Full spreads best; equal guarantees a minimum
-   wait so a client cannot hammer immediately after a failure. Recommendation:
-   full jitter, because minimum-wait is already provided by the fact that a flush
-   cannot start while `requestInProgress` is true.
-2. **Does jitter apply to `Retry-After`?** The server named a specific time. My
-   position: **honour `Retry-After` as a floor and jitter only *upward*** (e.g.
-   `retryAfter + random(0, retryAfter * 0.2)`), because otherwise every client
-   told "come back in 30s" returns in the same 30th second — the exact herd we
-   are trying to break, just server-scheduled. This is the one genuinely
-   debatable point.
-3. **Jitter the normal flush interval too, or only retries?** Retries are the
-   incident path and clearly need it. Jittering the steady-state 5s flush
-   interval also de-syncs clients that loaded together (e.g. after a CDN purge),
-   at the cost of slightly less predictable batching.
-4. **Where does the randomness come from?** `Math.random` is fine here — this is
-   load spreading, not security. Note `generateId` deliberately uses
-   `crypto.getRandomValues` (D19) for a different reason; do not "make them
-   consistent".
-
-### Test plan
-
-`tests/unit/requestBatcher.test.ts` already has `schedules a backoff instead of
-hammering ingest on a 500`, `honours Retry-After over its own backoff`, and
-`caps backoff at ten minutes` — **all three will need updating**, since they
-currently assert exact `flushInterval` values that jitter makes non-deterministic.
-Stub `Math.random` to pin it, and add a test asserting the spread is actually
-wide (e.g. 100 samples do not collapse to one value).
-
-</details>
-
-### Other unblocked work, if the user redirects
-
-- Port the guard suites into the unit tier. `src/guard/**` and
-  `src/intemptJs/guards/**` are Cypress-only today and deliberately excluded from
-  the coverage gate (`vitest.config.ts` says why). Move them, then widen
-  `coverage.include` and raise the thresholds **in the same commit** (D20).
-- Golden-file contract tests on the outbound payload shape.
-- `ci.yml`, so both tiers actually gate merges — nothing runs automatically today,
-  which is the weakest link in everything built so far.
-- Cross-subdomain consent cookie (the D15 limitation).
+`.github/workflows/` already contains three files — `build.yaml`, `analyze.yaml`
+and `autopr.yaml`. Read them before adding a fourth; some of what the draft
+proposes may already exist. **Do not modify `build.yaml`** — it is the live
+deploy path to the mutable `/v1` CDN URL; see Invariants §6.
 
 Open items carried forward:
 
+- **`BACKEND.md` has not been handed to the backend team yet** — five items are
+  blocked behind it and nothing moves until that starts. It now includes §2a, the
+  new question about whether ingest emits `Retry-After` at all (see §3a).
 - Get ingest-team confirmation before stamping `$lib_version` on payloads (D12).
 - The deferred `package.json` entry fields land with Phase 1 task 5 (D11).
-- Everything in `BACKEND.md` is blocked on the backend team, by user decision.
+- Everything else in `BACKEND.md` is blocked on the backend team, by user
+  decision.
 
 ## 4. Three live defects — ✅ all three fixed
 
@@ -409,7 +370,8 @@ against a current public-suffix list.**
 
 ## 6a. Phase 2 — unit test tier ✅
 
-**`vitest` + jsdom, `tests/unit/**`, 105 tests, run with `npm run test:unit`.**
+**`vitest` + jsdom, `tests/unit/**`, **147 tests**, run with `npm run test:unit`.**
+(105 when this tier first landed; the rest came with the work in §3a–§3c.)
 Config in `vitest.config.ts`; shared jsdom/storage/timer setup in
 `tests/unit/setup.ts` (adapted from Mixpanel's `jsdom-setup.js`, Apache-2.0).
 
@@ -561,7 +523,7 @@ not behaviour. If they break again, prefer rewriting them to go through
 |---|---|---|---|---|
 | 0 | Audit & plan | — | 40 | ✅ Complete |
 | 1 | Make it a package (semver, `.d.ts`, exports, changelog) | +7 | 47 | 🟡 **In progress** (2/5 tasks) |
-| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (105 tests, gate enforced); guard-suite port, contract tests and WDIO tier 2 remain |
+| 2 | Test foundation (vitest unit tier, port Mixpanel suites, coverage gate) | +12 | 59 | 🟡 tier 1 ✅ (147 tests, gate enforced); guard-suite port, contract tests and WDIO tier 2 remain |
 | 3 | Reliability & perf core (IndexedDB tier, unload fix, transports, drop `psl`, code-split, load shedding) | +14 | 73 | 🟡 `psl` ✅, unload ✅, **IndexedDB ✅**, **per-event records ✅**; transports ⏸ (BE), code-split ⏸ (user), load shedding ✅ **jitter, circuit breaker, bounded queue** (4th ⏸ BE) |
 | 4 | Security, privacy, observability (credential hygiene, `gdpr-utils` port, logger, supply chain, kill `any`) | +11 | 84 | ⬜ |
 | 5 | CI/CD, docs, release engineering | +9 | **91** | ⬜ |
@@ -570,11 +532,19 @@ Phase deltas assume the earlier phases landed; they are not independent.
 
 ## 8. If you only do three things
 
-1. **Phase 2 (tests)** — unlocks safe change velocity for everything else.
-2. **Phase 3 items 1, 2, 4** (IndexedDB, unload dequeue fix, drop `psl`) — the
-   reliability bug and the bundle are both customer-visible today.
-3. **Phase 4 items 1, 2** (credential hygiene, persisted opt-out) — the two
-   findings that fail an enterprise security/privacy review outright.
+The original three (test tier; IndexedDB + unload fix + drop `psl`; persisted
+opt-out) are **all done** — §6a, §6b, §5, §4. Persisted opt-out landed as §4
+defect 3. Credential hygiene (Phase 4) is the one item from that list still open.
+
+The current three, if the programme has to stop early:
+
+1. **`ci.yml`** — everything built so far is guarded by tests that run only when
+   somebody remembers to run them. One CI file converts all of it into an actual
+   gate. See §3.
+2. **Credential hygiene (Phase 4)** — the remaining finding that fails an
+   enterprise security review outright.
+3. **Hand `BACKEND.md` to the backend team.** Five items are blocked behind it
+   and none of them move without that conversation starting.
 
 ## 9. Reference material
 
