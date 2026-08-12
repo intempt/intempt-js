@@ -1652,6 +1652,64 @@ logger rather than throws (no breakage, the problem becomes visible), hold D-18
 behind a deprecation note, and hold D-14 until the ingest conversation
 (`BACKEND.md`) is happening anyway, since it is a wire-value change.
 
+## 3s. The PR is open, both never-run jobs passed, and the real mutation score is 58.83%
+
+### PR #191 into `staging` — 121 commits, 176 files
+
+**Both `pull_request`-only jobs ran for the first time in the programme's life, and
+both passed:** `Cypress e2e` 126/126, and `Mutation score` **86.68% ≥ break 85** in
+**24m36s**. With that, **every job in `ci.yml` has now executed at least once.** Given
+§0c — four of five past CI failures were invisible locally — this was the largest
+outstanding unknown, and it came back clean.
+
+The one number worth keeping: **24m36s on a GitHub runner for the narrow mutation
+scope, against 3.5–4 min locally on 8 cores.** That ~7x is the constraint behind the
+decision below.
+
+### The mutation scope, widened and then deliberately split in two
+
+Measured for the first time over **all of `src/`**: **58.83%**, against the 86.57%
+the narrow scope reported. Both numbers are real; they have different denominators,
+and the gap is the finding — **the old headline said nothing about the code nine
+parallel lanes had just changed.**
+
+| Area                        | Score     | No-coverage mutants                    |
+| --------------------------- | --------- | -------------------------------------- |
+| `shared/**` (the old scope) | **85.27** | 46                                     |
+| `intemptJs.ts`              | 84.67     | 7                                      |
+| `_baseUrlParser.ts`         | 89.47     | 0                                      |
+| `choices/**`                | 47.70     | 111                                    |
+| `autoTracker.module.ts`     | 27.42     | 42                                     |
+| `autoTracker.transport.ts`  | 30.08     | 30                                     |
+| `autoTracker.eventPool.ts`  | **0.00**  | 31                                     |
+| `loaders/**`                | 22.87     | 229 (`webEditorLoader` **0.00** / 169) |
+| `platformParser.ts`         | **7.36**  | 288                                    |
+| `main.ts`                   | **0.00**  | 47                                     |
+
+**Two configs, not one.** `stryker.conf.json` keeps the narrow scope and the **85**
+floor and stays the CI gate; **`stryker.full.conf.json`** mutates everything, gates at
+**57** (~2 under measurement, per the usual ratchet rule) and runs on demand via
+`npm run test:mutation:full`.
+
+Two rejected alternatives, so they are not revisited:
+
+- **One wide gate at 57.** Rejected because `shared/**` is the majority of all mutants,
+  so it could regress ten points and a 57 threshold would still pass. The core's
+  ratchet is worth more than a single tidy number.
+- **The wide scope in CI.** At ~1.7x the mutants of a run that already takes 24m36s,
+  that is 40+ minutes on every PR. Not worth it for a number nobody acts on per-commit.
+
+**The worklist, by no-coverage count** — where the cheap kills are, with §3f-iii's
+correction applied (no-cov in _guard and report_ code is NOT cheap; prefer code that
+computes a value): `platformParser` 288, `loaders` 229, `choices` 111, `main.ts` 47,
+`autoTracker.module` 42, `eventPool` 31, `transport` 30.
+
+**`webEditorLoader.ts` and `main.ts` have no test of any kind** — 0.00% with every
+mutant uncovered. `main.ts` is the bootstrap and `webEditorLoader` is the visual-editor
+entry point, so neither is on the customer event path, which is presumably why both
+were skipped. That is a defensible priority, not an accident, but it should be a
+recorded one.
+
 ## 4. Three live defects — ✅ all three fixed
 
 Real bugs found during the audit, fixed out of phase order because all three were

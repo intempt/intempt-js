@@ -48,6 +48,7 @@
     "test:unit:watch": "vitest",
     "test:coverage": "vitest run --coverage",
     "test:mutation": "stryker run",
+    "test:mutation:full": "stryker run stryker.full.conf.json",
     "test:e2e": "cypress run",
     "lint": "eslint . --max-warnings=97",
     "lint:fix": "eslint . --fix",
