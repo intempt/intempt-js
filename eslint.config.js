@@ -52,6 +52,8 @@ export default tseslint.config(
       // generated and all gitignored.
       'test-results/**',
       'playwright-report/**',
+      // TypeDoc output — generated HTML and its bundled assets, gitignored.
+      'docs/api-generated/**',
     ],
   },
 

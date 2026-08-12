@@ -42,3 +42,6 @@ test-results/
 playwright-report/
 blob-report/
 .playwright/
+
+# Generated API reference (npm run docs:api)
+docs/api-generated/

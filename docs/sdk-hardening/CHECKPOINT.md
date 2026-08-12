@@ -1753,7 +1753,21 @@ is shared and each event schedules its own flush. Preserved deliberately, becaus
 flush drains the whole pool, so the effect is extra no-op flushes rather than lost or
 duplicated events. **Do not "fix" it without a test pinning the resulting request count.**
 
-## 3s-score. FINAL SCORE at a glance — 71 / 100 vs Mixpanel 85
+## 3s-score. SCORE at a glance — 74 / 100 vs Mixpanel 85
+
+> **Superseded within the same day.** The table below is the morning re-score (71).
+> The evening figure is **74**, after §3t (periphery tests), §3u (the WebKit tier) and
+> §3v (docs + code health): tests 72 → 78, CI/CD 68 → **74 provisional** (drop it back
+> to 68 if the WebKit leg has still not run green in CI), docs 62 → 78, code health
+> 76 → **86**. `AUDIT.md` §0a carries the recalculation and the per-row evidence.
+>
+> **Two dimensions now beat Mixpanel** — observability 80 vs 75 and code health 86 vs
+> 78 — and privacy is at parity.
+>
+> **On the 91 target: it is not reachable without `BACKEND.md`.** Dimension 4 is capped
+> at ~62 while the `writeKey` is a client-side header and dimension 2 at ~86 without a
+> wire timestamp, which holds the weighted total under 88 however much front-end work
+> is done. See `AUDIT.md` §0a, "Where the remaining points are".
 
 **Re-scored 2026-08-12**, the first actual re-score since the 40 baseline. It supersedes
 the three figures that disagreed in these docs (~78 in this file's header, 62 in §0,
@@ -1989,6 +2003,58 @@ needed `auto: true`, because a spec that only destructures `page` otherwise got 
 interception and failed with `ERR_NAME_NOT_RESOLVED`, which reads as a network problem
 rather than a missing fixture; and `track()` rejects both a bare string and an empty
 `data`, which the unit tier mocks past and an end-to-end tier cannot.
+
+## 3v. Docs and code health — 2026-08-12
+
+**Code health: 97 lint warnings → 0.** `npm run lint` is now `--max-warnings=0`, so the
+ratchet became a floor: there is no number left to edit downward, and every one of the
+eight rules demoted to `warn` to land the gate green in §3g is now an `error`.
+
+Two of the 97 were not lint debt, which is the argument for doing this by hand rather
+than with `--fix`:
+
+1. **The three `@ts-ignore`s in `envConfig.ts` were stale.** Converting them to
+   `@ts-expect-error` made `tsc` fail with _"Unused '@ts-expect-error' directive"_ — the
+   `import.meta` reads they suppressed have not errored for some time. Deleted. This is
+   also the argument for the rule now being an error: `@ts-expect-error` fails loudly
+   when its reason disappears; `@ts-ignore` never does.
+2. **38 `no-unused-expressions` in `__tests__/**` are chai, not dead code.**
+   `expect(x).to.be.true` _is_ the assertion and is a bare member expression. Off for
+   tests, still an error in `src/`.
+
+The rest: 9 `no-useless-escape` (all `[\d\.]` in `platformParser`'s browser regexes —
+inside a character class the dot is already literal, so the change is provably
+behaviour-preserving and §3t's 82 tests hold it), 10 `no-extra-boolean-cast` including
+one `!!!x`, 31 unused vars/imports/args, 3 `prefer-const`, `hasOwnProperty` off the
+prototype, and `queueStorage`'s `catch { throw error }` — removed, because a quota
+failure has to propagate or `PersistentStore` cannot demote the tier. `debounce` is now
+generic over the wrapped signature instead of taking `Function`, and the generic
+immediately caught a call site (`htmlTracker` passing `(e: Event) => void`) that the old
+type let through.
+
+**One warning is deliberately still a warning: `no-async-promise-executor`.**
+`choices.service.ts:164` swallows a throw inside the executor rather than rejecting.
+That is a real latent bug and a behaviour change to fix — a `DEFECTS.md` item, not a
+lint sweep.
+
+**Docs: the audit's own claim about this dimension was stale, which is the finding.**
+`AUDIT.md` §0a said dimension 9 was held back by "no generated API reference, no
+framework adapters, no migration guide". Two of those three already existed — 601-line
+`docs/API.md`, `docs/MIGRATION.md`, and React/Next/Vue guides, landed by earlier lanes
+(`77a111a`, `d75480b`). Only the generated reference was missing.
+
+It now exists: **TypeDoc, `npm run docs:api`, gated in `ci.yml`'s `static` job.** The
+two references are complementary and neither replaces the other — the generated one is
+read out of the types, so a changed signature appears in it without anyone remembering,
+and `treatWarningsAsErrors` makes a drift a red job; `API.md` explains what the
+signatures _mean_, which no generator produces. Output is gitignored: what is gated is
+that the reference still generates cleanly, not the bytes.
+
+Its entry point is the **class**, not `src/main.ts` — `main.ts` self-initialises and
+exports nothing, so a generator pointed at it documents an empty module. That is the
+same IIFE-only limitation that keeps `main`/`module`/`exports` off `package.json`, and
+it is the honest ceiling on this dimension: **the reference documents a class nobody can
+`import` until packaging lands.**
 
 ## 4. Three live defects — ✅ all three fixed
 

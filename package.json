@@ -57,6 +57,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "size": "size-limit",
+    "docs:api": "typedoc",
     "scan:secrets": "node scripts/scanBundleSecrets.js"
   },
   "devDependencies": {
@@ -79,6 +80,7 @@
     "prettier": "^3.9.6",
     "size-limit": "^11.2.0",
     "terser": "^5.44.1",
+    "typedoc": "^0.28.20",
     "typescript": "^5.4.4",
     "typescript-eslint": "^8.67.0",
     "vite": "^6.4.3",

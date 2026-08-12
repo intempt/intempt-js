@@ -72,11 +72,18 @@ makes the test tier more expensive to build. Phase 2 should not be deferred.
 tree at PR #191 with every gate green.**
 
 ```
-Intempt JS SDK   →  71 / 100     (baseline 40)
+Intempt JS SDK   →  74 / 100     (baseline 40; was 71 earlier the same day)
 Mixpanel JS SDK  →  85 / 100
                     ─────────
-gap                 14 points    (was 45)
+gap                 11 points    (was 45)
 ```
+
+**Four rows moved on 2026-08-12 after the first re-score**, all front-end-only work:
+tests 72 → 78 (§1c tier-1: `platformParser` and `HtmlEventData`, 110 tests, two defects
+found), CI/CD 68 → 74 (the WebKit browser tier — **provisional until the WebKit leg has
+actually run green in CI; score it 68 if it has not**), docs 62 → 78, and code health
+76 → 86, which now beats Mixpanel's 78. **Two of the ten dimensions are now ahead of the
+comparator** (observability 80 vs 75, code health 86 vs 78) and privacy is at parity.
 
 **This supersedes every other figure in these docs.** `CHECKPOINT.md`'s header said
 ~78, its §0 said 62, and §3p estimated ~81-83 — all three were extrapolations, none
@@ -86,20 +93,23 @@ for work that is parked.
 
 ### Per-dimension, baseline → now
 
-| #   | Dimension                         | Weight | Baseline | **Now** | Mixpanel | What moved it, and what is holding it back                                                                                                                                                                                                                                                                                                                                                                                        |
-| --- | --------------------------------- | ------ | -------- | ------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | Correctness & test coverage       | 15%    | 22       | **72**  | 92       | +938 unit tests (from 0), 126 Cypress, mutation testing at 86.68% on the core, property tests over the delivery invariants, golden payload contracts, per-glob coverage gates. **Held back by:** the untested periphery in §1c, and no Safari/iOS tier at all.                                                                                                                                                                    |
-| 2   | Reliability / delivery guarantees | 15%    | 58       | **82**  | 90       | IndexedDB tier with localStorage fallback, full jitter, circuit breaker, bounded queue with a reported drop count, per-event records off the shared lock, XHR fallback, and **four silent data-loss defects fixed**. **Held back by:** no `sendBeacon` (needs the credential off the header), no ingest idempotency, and events still carry no timestamp (D-1).                                                                   |
-| 3   | Performance & footprint           | 12%    | 45       | **72**  | 85       | `psl` dropped: 225.86 → **94.58 kB** raw, 27.57 kB gzip, 23.89 kB brotli, and a size budget in CI that has ratcheted twice. **Held back by:** no code-splitting (parked), and no main-thread benchmark harness, so the init/per-track budgets are unmeasured.                                                                                                                                                                     |
-| 4   | Security posture                  | 10%    | 45       | **58**  | 80       | SHA-pinned actions, a bundle secret scan, `npm audit` gating production deps, the Sonar gate un-commented, advisories 19 → 2 moderate / 0 high. **Held back by the one thing that matters most:** the `writeKey` is still a client-side `Authorization: Basic` header. **This dimension cannot exceed ~62 without ingest.**                                                                                                       |
-| 5   | API surface & backward compat     | 10%    | 35       | **48**  | 90       | Real version (`6.0.0`), single-sourced from `package.json` at build time, exposed as `IntemptJs.VERSION`; publishable metadata. **Held back by packaging being parked:** no `main`/`module`/`exports`, no published `.d.ts`, no `CHANGELOG.md`, no changesets, and an IIFE that self-initialises on import.                                                                                                                       |
-| 6   | Observability & diagnostics       | 8%     | 25       | **80**  | 75       | A levelled logger with a customer `onDiagnostic` sink replacing 55 raw `console.*` calls, real metrics (queue depth, flush latency, drop count, breaker state) surfaced as `intempt.getDiagnostics()`. **This is the one dimension where the SDK now beats Mixpanel.**                                                                                                                                                            |
-| 7   | Privacy & compliance              | 8%     | 40       | **86**  | 88       | Persisted opt-out, consent at the eTLD+1 so it carries across subdomains, DNT and GPC honoured by default with an `ignore_dnt` escape for CMP users, optional PII scrubbing, an `api_host` override for data residency, and consent records that survive `optOut()` because an audit record is not tracking. Essentially at parity.                                                                                               |
-| 8   | Build, release & CI/CD            | 10%    | 38       | **68**  | 88       | `ci.yml` with seven jobs — lint (blocking), prettier (blocking), typecheck+build, audit, unit on Node 22 and 24, e2e, mutation — plus size budget, secret scan, `npm ci`, SHA-pinned actions. **Held back by:** `release.yml` has never run, no changesets, no browser matrix, `build.yaml` still uses `npm install` and a branch trigger that matches no slash-named branch, and the deploy path is still the mutable `/v1` URL. |
-| 9   | Docs & DX                         | 6%     | 45       | **62**  | 85       | `USAGE.md` rewritten, a TypeScript example, documented diagnostics, and a defect register a customer-facing team can actually read. **Held back by:** no generated API reference, no framework adapters, no migration guide.                                                                                                                                                                                                      |
-| 10  | Code health & maintainability     | 6%     | 50       | **76**  | 78       | **Zero `any`** (was 61, then 99 after the lanes), `no-explicit-any` and `no-console` both promoted to **errors**, prettier enforced repo-wide, `autoTracker.module.ts` 526 → 400 lines split three ways. **Held back by:** 97 remaining lint warnings and the still-duplicated id triplet.                                                                                                                                        |
+| #   | Dimension                         | Weight | Baseline | **Now** | Mixpanel | What moved it, and what is holding it back                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
+| --- | --------------------------------- | ------ | -------- | ------- | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Correctness & test coverage       | 15%    | 22       | **72**  | 92       | +938 unit tests (from 0), 126 Cypress, mutation testing at 86.68% on the core, property tests over the delivery invariants, golden payload contracts, per-glob coverage gates. **Held back by:** the untested periphery in §1c, and no Safari/iOS tier at all.                                                                                                                                                                                                                                           |
+| 2   | Reliability / delivery guarantees | 15%    | 58       | **82**  | 90       | IndexedDB tier with localStorage fallback, full jitter, circuit breaker, bounded queue with a reported drop count, per-event records off the shared lock, XHR fallback, and **four silent data-loss defects fixed**. **Held back by:** no `sendBeacon` (needs the credential off the header), no ingest idempotency, and events still carry no timestamp (D-1).                                                                                                                                          |
+| 3   | Performance & footprint           | 12%    | 45       | **72**  | 85       | `psl` dropped: 225.86 → **94.58 kB** raw, 27.57 kB gzip, 23.89 kB brotli, and a size budget in CI that has ratcheted twice. **Held back by:** no code-splitting (parked), and no main-thread benchmark harness, so the init/per-track budgets are unmeasured.                                                                                                                                                                                                                                            |
+| 4   | Security posture                  | 10%    | 45       | **58**  | 80       | SHA-pinned actions, a bundle secret scan, `npm audit` gating production deps, the Sonar gate un-commented, advisories 19 → 2 moderate / 0 high. **Held back by the one thing that matters most:** the `writeKey` is still a client-side `Authorization: Basic` header. **This dimension cannot exceed ~62 without ingest.**                                                                                                                                                                              |
+| 5   | API surface & backward compat     | 10%    | 35       | **48**  | 90       | Real version (`6.0.0`), single-sourced from `package.json` at build time, exposed as `IntemptJs.VERSION`; publishable metadata. **Held back by packaging being parked:** no `main`/`module`/`exports`, no published `.d.ts`, no `CHANGELOG.md`, no changesets, and an IIFE that self-initialises on import.                                                                                                                                                                                              |
+| 6   | Observability & diagnostics       | 8%     | 25       | **80**  | 75       | A levelled logger with a customer `onDiagnostic` sink replacing 55 raw `console.*` calls, real metrics (queue depth, flush latency, drop count, breaker state) surfaced as `intempt.getDiagnostics()`. **This is the one dimension where the SDK now beats Mixpanel.**                                                                                                                                                                                                                                   |
+| 7   | Privacy & compliance              | 8%     | 40       | **86**  | 88       | Persisted opt-out, consent at the eTLD+1 so it carries across subdomains, DNT and GPC honoured by default with an `ignore_dnt` escape for CMP users, optional PII scrubbing, an `api_host` override for data residency, and consent records that survive `optOut()` because an audit record is not tracking. Essentially at parity.                                                                                                                                                                      |
+| 8   | Build, release & CI/CD            | 10%    | 38       | **68**  | 88       | `ci.yml` with seven jobs — lint (blocking), prettier (blocking), typecheck+build, audit, unit on Node 22 and 24, e2e, mutation — plus size budget, secret scan, `npm ci`, SHA-pinned actions. **Held back by:** `release.yml` has never run, no changesets, no browser matrix, `build.yaml` still uses `npm install` and a branch trigger that matches no slash-named branch, and the deploy path is still the mutable `/v1` URL.                                                                        |
+| 9   | Docs & DX                         | 6%     | 45       | **78**  | 85       | `USAGE.md` rewritten, a TypeScript example, documented diagnostics, a defect register a customer-facing team can actually read — and, as of 2026-08-12, all three of what this row previously listed as missing: `docs/API.md` (601 lines, every validation rule and error string), `docs/MIGRATION.md`, React/Next/Vue guides, and a **generated** TypeDoc reference gated in CI. **Held back by:** no hosted docs site, and the reference documents a class nobody can `import` until packaging lands. |
+| 10  | Code health & maintainability     | 6%     | 50       | **86**  | 78       | **Zero `any`** (was 61, then 99 after the lanes), **zero lint warnings** (was 97; `--max-warnings=0`, and all eight rules demoted to land the gate green are now errors), prettier enforced repo-wide, `autoTracker.module.ts` 526 → 400 lines split three ways. **This dimension now beats Mixpanel.** **Held back by:** the still-duplicated id triplet and one deliberate `no-async-promise-executor` warning that is a real latent bug (DEFECTS, `choices.service.ts:164`).                          |
 
-**Weighted:** `.15(72)+.15(82)+.12(72)+.10(58)+.10(48)+.08(80)+.08(86)+.10(68)+.06(62)+.06(76)` = **70.7 → 71**
+**Weighted, 2026-08-12 evening:**
+`.15(78)+.15(82)+.12(72)+.10(58)+.10(48)+.08(80)+.08(86)+.10(74)+.06(78)+.06(86)` =
+**73.8 → 74** (73 if the WebKit leg is still unverified). The earlier figure the same
+day was `.15(72)+…+.10(68)+.06(62)+.06(76)` = 70.7 → 71.
 
 ### Where the remaining 14 points are
 
@@ -109,14 +119,25 @@ Nearly all of them are behind decisions already made, not behind unwritten code:
 | ---------------------------------------------------------- | ---------------- | ------------- |
 | **npm packaging** (parked by the user)                     | 5: 48 → ~85      | **+3.7**      |
 | **Credential off the client** (`BACKEND.md`, needs ingest) | 4: 58 → ~80      | **+2.2**      |
-| **Test the periphery** (§1c below — no one else needed)    | 1: 72 → ~85      | **+2.0**      |
-| **A real browser matrix** (needs a device cloud)           | 8: 68 → ~85      | **+1.7**      |
-| Wire-format fixes D-1/D-3/D-15 (needs ingest)              | 2: 82 → ~90      | +1.2          |
 | Code-splitting + a benchmark harness                       | 3: 72 → ~85      | +1.6          |
+| Wire-format fixes D-1/D-3/D-15 (needs ingest)              | 2: 82 → ~90      | +1.2          |
+| **Finish the periphery** (§1c tier-1 items 3-4 remain)     | 1: 78 → ~85      | +1.0          |
+| Real Safari + iOS (needs a device cloud)                   | 8: 74 → ~85      | +1.1          |
+| Hosted docs site                                           | 9: 78 → ~85      | +0.4          |
 
-All six lands at **~81-83**. **85 — parity with Mixpanel — requires the two items that
-need other people**, which is the same conclusion `FRONTEND.md` reached from the other
-direction. Front-end-only, with packaging parked, the ceiling is ~81.
+All seven lands at **~85**, i.e. parity — and **parity still requires the two items that
+need other people** (packaging, which is the user's decision, and the credential, which
+is ingest's). That is the same conclusion `FRONTEND.md` reached from the other direction.
+
+**On the 91 target, stated plainly.** Front-end-only with packaging parked, the ceiling
+is **~81**. With packaging un-parked but no ingest work, ~85. **91 is not reachable
+without `BACKEND.md`**: dimension 4 cannot exceed ~62 while the `writeKey` is a
+client-side `Authorization: Basic` header, and dimension 2 cannot exceed ~86 without a
+timestamp on the wire and idempotency on `eventId`. Those two ceilings alone cap the
+weighted total below 88 no matter how much front-end work is done. Reaching 91 needs, in
+order: the ingest conversation (`BACKEND.md`, +3.4 across dimensions 2 and 4), packaging
+(+3.7), a device cloud for Safari/iOS (+1.1), and a benchmark harness with code-splitting
+(+1.6). Three of those four need a decision or a budget rather than engineering time.
 
 ---
 

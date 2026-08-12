@@ -23,3 +23,6 @@ standalone
 # Playwright output (tier 3)
 test-results/
 playwright-report/
+
+# TypeDoc output
+docs/api-generated/

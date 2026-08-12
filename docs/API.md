@@ -3,6 +3,12 @@
 Every method listed here lives on `window.intempt` once the SDK has loaded. There is no
 constructor to call and nothing to import — see [Installing](#installing).
 
+**There is also a generated reference: `npm run docs:api`** (TypeDoc, output in
+`docs/api-generated/`, gitignored). The two are complementary and neither replaces the
+other — the generated one is read out of the types, so a changed signature appears in it
+without anyone remembering, and it is a CI gate; this one explains what the signatures
+_mean_, which no generator produces.
+
 This reference is written against the source, not generated. The validation rules and the
 exact error strings below come from `src/intemptJs/guards/intemptJs.guard.ts`, and the
 call order from `src/intemptJs/intemptJs.ts`. The error strings are pinned by tests

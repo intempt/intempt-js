@@ -115,16 +115,16 @@ jobs:
       - run: npm i -g npm@11
       - run: npm ci
 
-      # `npm run lint` is `eslint . --max-warnings=323`. Two things are load-
-      # bearing about that number:
+      # `npm run lint` is `eslint . --max-warnings=0` as of 2026-08-12.
       #
-      #  * 0 errors is the hard gate. eslint.config.js only promotes a rule to
-      #    'error' once the repo measures zero for it, so this cannot go red on
-      #    arrival — which is the failure mode that gets a new gate deleted.
-      #  * 323 is the exact warning count measured on this branch, so the cap is
-      #    a RATCHET: the 61 `any`s and 54 `console.*` calls cannot grow, but
-      #    they also do not block today. Lower this number as FRONTEND.md #2
-      #    (structured logging) and #6 (code health) remove them. Never raise it.
+      # It was a ratchet — 323, then 279, then 97, each the exact measured count,
+      # lowered as FRONTEND.md #2 and #6 removed warnings. The code-health sweep
+      # took the repo to zero, so the ratchet became a floor: any new warning
+      # fails this job, and every rule that was demoted to 'warn' to land the gate
+      # green is now an 'error'. There is no number left to edit downward. The one
+      # deliberate exception is `no-async-promise-executor`, which is off the
+      # count because it is a real latent bug in choices.service.ts and belongs in
+      # DEFECTS.md rather than in a lint fix.
       - name: ESLint
         run: npm run lint
 
@@ -136,6 +136,15 @@ jobs:
       # `npm run format`; do not re-add `continue-on-error`.
       - name: Prettier
         run: npm run format:check
+
+      # The generated API reference, as a gate rather than an artifact.
+      # `typedoc.json` sets `treatWarningsAsErrors`, so this fails on a dangling
+      # `@link` or a tag the config does not know — i.e. the moment the public
+      # surface moves out from under `docs/API.md`, which is hand-written and
+      # cannot notice on its own. The HTML output is gitignored: what is being
+      # gated is that the reference still generates cleanly, not the bytes.
+      - name: API reference
+        run: npm run docs:api
 
   build:
     name: Typecheck & build
