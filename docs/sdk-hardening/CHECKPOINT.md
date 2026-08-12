@@ -1884,6 +1884,44 @@ entry point, so neither is on the customer event path, which is presumably why b
 were skipped. That is a defensible priority, not an accident, but it should be a
 recorded one.
 
+## 3t. `AUDIT.md` §1c, the two tier-1 files — 2026-08-12
+
+**§1c item 1 and item 2 are done. 110 tests, and each file gave up a defect the
+moment it was tested — which is the argument for the rest of §1c.**
+
+| File                         | Was                             | Tests added |
+| ---------------------------- | ------------------------------- | ----------- |
+| `platformParser.ts`          | 27.8% lines, **7.36%** mutation | **82**      |
+| `HtmlEventData.component.ts` | **0.0%** lines                  | **28**      |
+
+Unit tier **938 → 1048**.
+
+**D-28, found and fixed here.** `browserVersion()` reads `match[2]` behind a
+`match.length > 2` guard, i.e. it requires two capture groups. Nine of the eleven
+browser entries have two; **Safari and IE had one**, so their version landed in
+`match[1]`, the guard failed, and the helper returned `null`. Every Safari event ever
+sent was labelled `Safari/null`, and the Trident→IE `+ 4.0` mapping never executed
+once. Fixed by capturing the name in both regexes rather than loosening the helper —
+the two-group contract now holds for all eleven entries instead of the helper
+tolerating either shape.
+
+**D-29, found and pinned, not fixed.** `HtmlEventData` has two capture paths and the
+redaction is on one of them. `targetText` redacts passwords and `doNotCapture`;
+`getSubmittedData` reads the form through `FormData`, which includes password fields
+like any other named control, and never consults `doNotCapture`. So a click on a
+password box is redacted and **submitting the form containing it is not**. Left as an
+asserted defect because it changes what ingest receives for every form submit — a
+product call. `DEFECTS.md` D-29 has the fix.
+
+**The pattern, and it is now three for three** (§3f-i `maxQueuedEvents`, §3f-ii the
+legacy `flushAfter`, and both of these): on this codebase, testing an untested file
+finds a real defect rather than confirming it works. §1c's remaining tier-1 items —
+`sdkLoader.ts` (42.78% mutation, 51 uncovered) and `autoTracker.eventPool.ts`
+(**0.00%**) — should be budgeted on that basis, not as coverage-chasing.
+
+**Not done here:** `main.ts` and `webEditorLoader.ts` remain at 0%, which stays the
+recorded decision in §1c — neither is on the customer event path and both fail loudly.
+
 ## 4. Three live defects — ✅ all three fixed
 
 Real bugs found during the audit, fixed out of phase order because all three were

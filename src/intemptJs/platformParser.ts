@@ -117,6 +117,14 @@ export class PlatformParser {
   }
 
   protected _getBrowser() {
+    /**
+     * Every regex passed here must have **two** capture groups — a name and a
+     * version — because the version is read from `match[2]`. The Safari and IE
+     * entries below once had only one, so their version landed in `match[1]`, the
+     * `length > 2` guard failed, and every Safari event shipped as `Safari/null`
+     * while the Trident→IE mapping never ran at all (D-28). Both now capture the
+     * name, so the contract holds uniformly.
+     */
     const browserVersion = (regex: RegExp) => {
       const match = this._userAgent.match(regex);
       return match && match.length > 2 ? match[2] : null;
@@ -156,7 +164,7 @@ export class PlatformParser {
         regex: /; msie|trident/i,
         exclude: /ucbrowser/i,
         result: () => {
-          const version = browserVersion(/trident\/([\d\.]+)/i);
+          const version = browserVersion(/(trident)\/([\d\.]+)/i);
           return `IE/${version ? `${parseFloat(version) + 4.0}` : version}`;
         },
       },
@@ -170,7 +178,8 @@ export class PlatformParser {
         name: 'Safari',
         regex: /safari/i,
         exclude: /chromium|edg|ucbrowser|chrome|crios|opr|opera|fxios|firefox/i,
-        result: () => `Safari/${browserVersion(/version\/([\d\.]+).*safari/i)}`,
+        result: () =>
+          `Safari/${browserVersion(/(version)\/([\d\.]+).*safari/i)}`,
       },
       {
         name: 'Opera',

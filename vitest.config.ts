@@ -91,10 +91,14 @@ export default defineConfig({
       thresholds: {
         // Whole-repo floor. Measured 2026-08-12 across all of src/: 72.5
         // statements / 66.05 branches / 74.4 functions / 73.77 lines.
-        lines: 75,
-        branches: 68,
-        functions: 75,
-        statements: 75,
+        // Re-measured the same day after the §1c tier-1 batch (platformParser +
+        // HtmlEventData, 110 tests): 83.41 / 79.5 / 83.65 / 84.2. Ratcheted to
+        // ~2 under, per D20 — branches stays the loosest because it moves most on
+        // an unrelated refactor.
+        lines: 82,
+        branches: 77,
+        functions: 81,
+        statements: 81,
 
         // The queue/storage/privacy core. Measured 96.03 / 91.49 / 96.88 / 96.86.
         'src/shared/**/*.ts': {

@@ -235,6 +235,47 @@ every registrable suffix of the document host as well as host-only.
 its own teardown. Verified the guard fails against the old teardown before keeping
 it. The privacy suites' own cleanup was left in place.
 
+### D-28. Safari and IE never reported a browser version · `fixed` 2026-08-12
+
+`platformParser.ts`'s `browserVersion()` reads `match[2]` behind a
+`match.length > 2` guard — it requires **two** capture groups, a name and a version,
+which is how nine of the eleven browser entries were written. The Safari entry
+(`/version\/([\d\.]+).*safari/i`) and the IE entry (`/trident\/([\d\.]+)/i`) had
+**one**, so the version landed in `match[1]`, the guard failed, and the helper
+returned `null`.
+
+Consequence, for as long as the file has existed: **every Safari event shipped as
+`Safari/null`**, and the IE branch's `parseFloat(version) + 4.0` — the entire
+Trident→IE version mapping — never executed once. Silent mislabelling of a large
+share of traffic, which is exactly why `AUDIT.md` §1c ranks this file the worst risk
+in the SDK.
+
+Fixed by capturing the name in both regexes rather than by loosening the helper, so
+the two-group contract holds for all eleven entries instead of the helper silently
+tolerating either shape. Found by writing `tests/unit/platformParser.test.ts`; the
+regression tests are in that file.
+
+### D-29. The DOM redaction does not cover submitted form data · `asserted`
+
+`HtmlEventData.component.ts` has two capture paths and the privacy control is only on
+one. `getHtmlElementText` redacts to `********` on `type === 'password'` or a
+`doNotCapture` attribute. `getSubmittedData` is separate: it reads the form through
+`FormData`, which includes password fields like any other named control, and it never
+consults `doNotCapture`.
+
+So clicking a password box is redacted and **submitting the form containing it is
+not** — the password ships in `formDataText`. Same for a `doNotCapture` field on
+submit. A second, narrower instance: an element's attributes go into the `hierarchy`
+string unredacted, so `<input type="password" value="…">` set in markup leaks there
+too (typed values are not reflected as attributes, so this one is much rarer).
+
+The fix is small — filter `type === 'password'` and `[doNotCapture]` out of both the
+`FormData` entries and the unnamed-input sweep — but it changes what ingest receives
+for every form submit, so it is a product call, not a drive-by. Pinned in
+`tests/unit/htmlEventData.test.ts`; those assertions fail when it is fixed, which is
+the specification. **Severity 1 on the privacy dimension: this is the control that
+exists to stop credential capture, and half of it is missing.**
+
 ---
 
 ## How to work through this list
