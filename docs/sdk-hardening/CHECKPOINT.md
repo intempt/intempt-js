@@ -12,7 +12,7 @@
 | **Forked from**        | `origin/staging` @ `8484bca` ("Merge pull request #185 from intempt/beso-fix-vars")                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | **Last updated**       | 2026-08-12 (PR #191 open, every CI job green — §3s)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
 | **Next action**        | **§3s is the current state — start there.** PR **#191** into `staging` is open, and **every job in `ci.yml` has now passed at least once**, including the two that had never run: `e2e` 126/126 and `mutation` 86.68% in 24m36s. All of §3p's code work is done (§3q defects, §3r prettier + `any` + splits) and the full-scope mutation score is now measured — **58.83%**, worklist in §3s. **Next: review and merge #191, then hand over `BACKEND.md`.** Four defects (D-14/18/19/20) and three release-note lines need a product decision. |
-| **Score**              | **~78 / 100** (audit baseline 40, Mixpanel comparator 85). Front-end-only ceiling ~85 — see `FRONTEND.md`.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| **Score**              | **Disputed — a re-score is overdue and is the honest next measurement.** Three figures in these docs disagree: this table said ~78, §0 says 62, §3p estimates ~81-83. All predate §3q–§3s. Audit baseline 40, Mixpanel comparator 85. Front-end-only ceiling ~81 with packaging parked (~85 with it) — see `FRONTEND.md`. **Do not quote a single number until someone re-scores against `AUDIT.md`'s ten dimensions.**                                                                                                                        |
 | **Tests**              | Unit **938** (32 files) · Cypress **126** · mutation **86.68%** core (floor **85**) and **58.83%** all-src (floor 57 — §3s) · coverage all src **76.89 / 70.70 / 77.23 / 77.38** (gates 75/68/75/75) · bundle **94,580 B / 27.57 kB gzip** · ESLint **0 errors / 97 warnings** (ratchet 97; `no-explicit-any` and `no-console` are **errors** at zero) · audit **2 moderate, 0 high**                                                                                                                                                          |
 | **Phase**              | 0 ✅ · 1 ⏸ parked (packaging) · 2 ✅ tier-1 + CI gate + guard port + mutation · 3 ✅ except transports ⏸ (BE) and code-split (⬜, now cheap — see D-23) · 4 🟡 privacy ✅ §3h, client-side security ✅ §3g-ii, observability ✅ §3i, credential ⏸ (BE), `any` ✅ §3r · 5 🟡 CI breadth ✅ §3g, release/changesets ⬜                                                                                                                                                                                                                           |
 | **Landed, by section** | §3a jitter · §3b circuit breaker · §3c bounded queue · §3d `ci.yml` · §3e guard-suite port · §3f mutation testing · §3g CI breadth + supply chain · §3h privacy & consent · §3i logger & metrics · §3j docs & DX · §3k public-API / payload-contract / choices tests · §4 three live defects · §5 `psl` dropped · §6a unit tier · §6b IndexedDB · §6c per-event records                                                                                                                                                                        |
@@ -78,7 +78,10 @@ Lanes: **A** CI breadth + client-side security (§3g), **B** privacy & consent
 
 **Not verified and still unverifiable from here:** anything requiring GitHub.
 `release.yml`, the Sonar gate, and every job in `ci.yml` have never run — the
-branch remains unpushed.
+branch remains unpushed. **HISTORICAL, as of the date of this section only.**
+Superseded by §0c (first push, `ci.yml` green) and §3s (PR #191: every job in
+`ci.yml` has now passed at least once). `release.yml` and the Sonar gate are still
+unexercised.
 
 ## 0b. TODO — the live worklist, ordered · 2026-08-11
 
@@ -904,8 +907,9 @@ bump lands. **Do not work around `build.yaml` to close it.**
   invariant §6.2 and the `af1a16b` incident.
 
 **Not verified, and cannot be from here: that any of this is green on GitHub.**
-The branch has not been pushed. Every command each job runs was run locally on
-this branch and passes. `release.yml` is entirely unexercised — it needs
+**HISTORICAL — superseded by §3s: every `ci.yml` job has now passed on PR #191.**
+At the time of writing the branch was unpushed and every command each job runs had
+been run locally and passed. `release.yml` is entirely unexercised — it needs
 `NPM_TOKEN`, an `npm-publish` environment, and a tag.
 
 ## 3h. Phase 4 — privacy & consent ✅ (`FRONTEND.md` item 5)
@@ -1574,8 +1578,7 @@ overdue — three figures in these docs disagree (~78, 62, and this estimate).
 1. **Check live host sites** for the `/v1`-less CDN URL (D-12's original cause).
 2. **`build.yaml`**: `npm install` → `npm ci`, and `branches: ['*']` → `['**']`. Both
    one-liners on the deploy path, deliberately not bundled with the Node bump.
-3. **Open the PR into `staging`** — `mutation` and `e2e` are `pull_request`-only and
-   have STILL never run in CI.
+3. ~~**Open the PR into `staging`**~~ ✅ **done — PR #191, and both jobs passed. See §3s.**
 4. **Hand over `BACKEND.md`** — the tallest blocker: 6 ingest items, dimension 4's ~62
    ceiling, and the three wire-format defects.
 5. **Release-note line for D-2's "last instance wins"** — it silently stops a first
@@ -1651,6 +1654,103 @@ four are one-liners once the call is made; none should be shipped on my judgemen
 logger rather than throws (no breakage, the problem becomes visible), hold D-18
 behind a deprecation note, and hold D-14 until the ingest conversation
 (`BACKEND.md`) is happening anyway, since it is a wire-value change.
+
+## 3r. Prettier, the `any` sweep, and the last two splits — 2026-08-12
+
+The user's order for §3p's remaining work was **defects → prettier → `any` → autoTracker
+splits**. §3q is the defects step; this is the other three. Each landed as its own
+commit with every gate green.
+
+|                         | Before                                   | After                                                                   |
+| ----------------------- | ---------------------------------------- | ----------------------------------------------------------------------- |
+| `prettier --check`      | 98 of 107 files failing, gate advisory   | **clean, gate blocking**                                                |
+| `any` in `src/`         | 99 (docs said ~60; the lanes added more) | **0**                                                                   |
+| ESLint                  | 205 warnings, 2 rules deferred           | **97 warnings, 0 errors**; `no-explicit-any` + `no-console` = **error** |
+| `autoTracker.module.ts` | 526 lines                                | **400**                                                                 |
+| Unit                    | 936                                      | **938**                                                                 |
+| Bundle                  | 93,814 B                                 | 94,580 B                                                                |
+
+### The prettier sweep
+
+140 files, +6824/-4527, landed alone as the plan required. **`printWidth` stayed at the
+committed 80** rather than being widened to the de-facto ~90 (p95 of line lengths is 82;
+1500 lines exceed 80 against 162 that exceed 100). Widening would have produced a far
+smaller diff, but the point of the sweep is to enforce the config that exists, not to
+ratify the drift — a `printWidth` change is a separate preference decision.
+
+**The proof it changed no behaviour is that `dist/intempt.min.js` came out
+byte-identical**; the minifier does not care where the newlines were.
+
+`continue-on-error` is off ci.yml's prettier step, and **`.claude` is now in
+`.prettierignore`** — worktrees hold full checkouts including their own `dist/`, which
+is what made ESLint report 4048 problems instead of 323 in §0a, and with a blocking gate
+that would now fail the build on files that are not even this branch's.
+
+### The `any` sweep found three real defects
+
+Which is the argument for doing it rather than suppressing the rule:
+
+1. **Two response classifiers disagreed about the same input.** A _delivered_ response
+   with no `httpStatusCode`, or a non-numeric one, fell past every retryable branch —
+   `undefined >= 500`, `undefined === 429` and `undefined <= 0` are all false — so the
+   batch was **dequeued unconfirmed**. Yet `isDefiniteSuccess` classified that identical
+   response as inconclusive, and had a test saying so. Same silent-loss family as §6a's
+   three. Both now agree: a status that is not a number is no status, and no status
+   means retry. Two cases added to the retryable table.
+2. **`RequestQueue` declared a storage type the SDK never passes.**
+   `queueStorage?: QueueStorage` (the concrete localStorage class) while the SDK passes a
+   `PersistentStore`; they are not structurally assignable, each having private fields
+   the other lacks. It compiled only because `RequestBatcher.queueStorage` was `any`,
+   which laundered the mismatch on the way down. Now a named `QueueStorageLike` that
+   both classes `implement` — which is also what lets a test pass a stub.
+3. **`choices.service.ts` trusted localStorage.** `localStorageCache.get` returned `any`,
+   so `storedData.changes` was assumed on whatever any page script had written under that
+   key. Now narrowed, with a non-array treated as "no changes" rather than throwing
+   inside the render path.
+
+**Type decisions not to re-derive:**
+
+- **`AttributeBag = { [key: string]: unknown }`** for customer-supplied bags (event data,
+  user/account traits). **Not a `JsonValue` union** — that would be _stricter_ than the
+  `any` it replaced and would reject the `Date` and `undefined` values customers really
+  pass. `unknown` accepts everything on the way in and constrains only _reading_, which
+  the SDK never does: these go straight to `JSON.stringify`.
+- **`QueueEntry.payload` and `StoredEntry.value` are `unknown`** — the queue stores event
+  bodies without ever reading a field. Test sites that legitimately know the shape say so
+  once through a `pl()` helper instead of casting inline.
+- **`BatchSendOptions`/`BatchSendResult` moved into `requestBatcher.ts`**, where the
+  contract belongs; the transport is one implementation of it and the tests are another.
+- **`BaseModel.payload: unknown[]`** — `any[]` additionally made the _narrowed_ members
+  assignable in both directions, so a track payload could be handed to something
+  expecting identify entries.
+
+**One lint trap worth knowing:** a `-- reason` suffix on `eslint-disable-next-line`
+attaches to the **following comment line**, not to the code. Three directives were
+silently doing nothing. Put reasons on the same line, or use a block disable — which is
+what `logger.ts` does, since a per-line disable inside a ternary cannot work.
+
+The five surviving `console.*` sites in shipped code each carry a scoped disable naming
+why: the logger's own console transport, EnvConfig's warning that fires _during_ the
+initialisation of the logger's own config source, the GDPR default sink, the
+CAN'T-FIND-SCRIPT error, and one example file. A sixth now fails the build.
+
+### The splits
+
+`autoTracker.consent.ts` (consent state, the browser signal, the `/consents/data` POST)
+and `autoTracker.eventPool.ts` (the legacy unbatched path). The four consent members stay
+on `AutoTrackerModule` as delegating accessors, so the split is invisible to `IntemptJs`.
+
+**+510 B of bundle for the wiring, not the extraction** — as §3p predicted: two
+constructors, two field initialisers, six delegating members.
+
+Isolating the pool made visible what inline code hid: **that path has no persistence, no
+retry, no circuit breaker and no bound.** It runs only when the batcher failed to
+initialise (a storage tier that will not open), and keeping it is still right because the
+alternative is no tracking at all. Also now documented rather than silently carried:
+**the pool's `debounce` does not debounce** — a fresh one is created per call, so no timer
+is shared and each event schedules its own flush. Preserved deliberately, because the
+flush drains the whole pool, so the effect is extra no-op flushes rather than lost or
+duplicated events. **Do not "fix" it without a test pinning the resulting request count.**
 
 ## 3s. The PR is open, both never-run jobs passed, and the real mutation score is 58.83%
 
