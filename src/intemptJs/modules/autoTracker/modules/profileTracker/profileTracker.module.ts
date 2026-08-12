@@ -47,7 +47,7 @@ export class ProfileTrackerModule {
   handleProfileId() {
     const existingProfileId = getCookie(this.profileId) as ProfileIdCookie;
 
-    return !!existingProfileId ? existingProfileId : this._initProfileId();
+    return existingProfileId ? existingProfileId : this._initProfileId();
   }
 
   /**

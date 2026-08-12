@@ -20,7 +20,6 @@ import {
 } from '../../types/autoTracker.types.ts';
 import { ProductModel } from '../../models/product.model.ts';
 import { AutoTrackerTransport } from './autoTracker.transport.ts';
-import { EnvConfig } from '../../../shared/envConfig.ts';
 import { AutoTrackerConsent } from './autoTracker.consent.ts';
 import { AutoTrackerEventPool } from './autoTracker.eventPool.ts';
 import {
@@ -333,7 +332,7 @@ export class AutoTrackerModule {
     const browserSessionId = this._sessionTrackerModule.getId();
     const localSessionId = this._sessionTrackerModule.getLocalId();
 
-    return !!browserSessionId ? browserSessionId : localSessionId;
+    return browserSessionId ? browserSessionId : localSessionId;
   }
 
   getProfileId() {

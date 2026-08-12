@@ -96,10 +96,10 @@ describe('SDK Loader - Stub Functionality', () => {
 
     // Also mock window.fetch directly (fallback)
     cy.window().then((win) => {
-      const originalFetch = win.fetch;
+      const _originalFetch = win.fetch;
       (win as any).fetch = function (
         url: string | Request | URL,
-        options?: RequestInit,
+        _options?: RequestInit,
       ): Promise<Response> {
         // Check if this is a recommendation API call
         const urlString =
@@ -485,7 +485,7 @@ describe('SDK Loader - Stub Functionality', () => {
       (window as any).intempt = stub1;
 
       // Try to create another stub (simulating stub script running twice)
-      const stub2 = createTestStub([], []);
+      const _stub2 = createTestStub([], []);
       if ((window as any).intempt && (window as any).intempt._isStub) {
         // Stub already exists, should not replace
         expect((window as any).intempt).to.equal(stub1);
@@ -571,7 +571,7 @@ describe('SDK Loader - Stub Functionality', () => {
         },
       ];
       const promiseInfo = { id: 1, resolve: null as any, reject: null as any };
-      const promise = new Promise((resolve, reject) => {
+      const _promise = new Promise((resolve, reject) => {
         promiseInfo.resolve = resolve;
         promiseInfo.reject = reject;
       });

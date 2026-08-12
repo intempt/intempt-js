@@ -7,10 +7,7 @@ import {
   localIntemptSessionCookie,
   setCookie,
 } from '../../../../../shared/storageHandler.ts';
-import {
-  SessionCookie,
-  SessionCookieObject,
-} from '../../../../types/autoTracker.types.ts';
+import { SessionCookie } from '../../../../types/autoTracker.types.ts';
 import { SessionEventDataComponent } from '../../../../component/sessionEventData.component.ts';
 import { UserAttributeComponent } from '../../../../component/userAttribute.component.ts';
 import { BaseURLParser } from '../../../../_baseUrlParser.ts';
@@ -117,7 +114,7 @@ export class SessionTrackerModule extends PlatformParser {
 
     let referrerCookieObj = { referrer: 'direct', fullReferrer: 'direct' };
 
-    if (!!document.referrer) {
+    if (document.referrer) {
       try {
         const url = new URL(document.referrer);
         referrerCookieObj = {

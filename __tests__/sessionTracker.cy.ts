@@ -1,5 +1,5 @@
 import { SessionTrackerModule } from '../src/intemptJs/modules/autoTracker/modules/sessionTracker/sessionTracker.module.ts';
-import { clearCookies, setCookie, getCookie } from './support/testHelpers.ts';
+import { clearCookies, getCookie } from './support/testHelpers.ts';
 
 describe('SessionTrackerModule', () => {
   let sessionTracker: SessionTrackerModule;
@@ -105,7 +105,7 @@ describe('SessionTrackerModule', () => {
 
   describe('Refresh Functionality', () => {
     it('should refresh session cookie on refresh()', () => {
-      const initialId = sessionTracker.getId();
+      const _initialId = sessionTracker.getId();
       sessionTracker.refresh();
 
       // Session ID should still exist after refresh
@@ -155,7 +155,7 @@ describe('SessionTrackerModule', () => {
         configurable: true,
       });
 
-      const newTracker = new SessionTrackerModule();
+      const _newTracker = new SessionTrackerModule();
       const referrerCookie = getCookie('_intempt_referrer');
 
       expect(referrerCookie).to.not.be.null;
@@ -175,7 +175,7 @@ describe('SessionTrackerModule', () => {
         configurable: true,
       });
 
-      const newTracker = new SessionTrackerModule();
+      const _newTracker = new SessionTrackerModule();
       const referrerCookie = getCookie('_intempt_referrer');
 
       expect(referrerCookie).to.not.be.null;
@@ -192,7 +192,7 @@ describe('SessionTrackerModule', () => {
       clearCookies();
 
       // Mock import.meta.env to avoid location API error
-      const originalImportMeta = (globalThis as any).import?.meta;
+      const _originalImportMeta = (globalThis as any).import?.meta;
       if (!(globalThis as any).import) {
         (globalThis as any).import = {
           meta: { env: { VITE_LOCATION_API_URL: '' } },
@@ -220,7 +220,7 @@ describe('SessionTrackerModule', () => {
             detail: { eventName: 'View Page' },
           }),
         );
-      } catch (error) {
+      } catch {
         // Expected if location API is not available
       }
 
@@ -250,7 +250,7 @@ describe('SessionTrackerModule', () => {
 
     it('should not create session on Leave Page event', () => {
       clearCookies();
-      const newTracker = new SessionTrackerModule();
+      const _newTracker = new SessionTrackerModule();
 
       let sessionCreated = false;
       const handler = () => {
@@ -288,7 +288,7 @@ describe('SessionTrackerModule', () => {
       ];
 
       events.forEach((eventName) => {
-        const beforeId = sessionTracker.getId();
+        const _beforeId = sessionTracker.getId();
         document.dispatchEvent(
           new CustomEvent(eventName, {
             detail: { eventName: 'Test Event' },

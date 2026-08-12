@@ -92,7 +92,7 @@ export class IntemptJsGuard {
       throw new Error(`The '${params.eventTitle}' event title is forbidden`);
     }
 
-    if (!!!params.userId) {
+    if (!params.userId) {
       throw new Error("Identify parameters are invalid: 'userId' is required.");
     }
 

@@ -49,7 +49,7 @@ function generateUniqueId() {
 
 export function generateId(type?: IdType) {
   const uuid = generateUniqueId();
-  return !!type ? `${type}_${uuid}` : uuid;
+  return type ? `${type}_${uuid}` : uuid;
 }
 
 export function dispatchIntemptEvent(eventName: string, data = {}) {
@@ -62,11 +62,21 @@ export function dispatchIntemptEvent(eventName: string, data = {}) {
   document.dispatchEvent(event);
 }
 
-export function debounce(func: Function, wait: number) {
+/**
+ * Generic over the wrapped function's own parameters, rather than the `Function`
+ * type it used to take. `Function` accepts any callable and returns `any`, so a
+ * wrong-arity or wrong-type call type-checked; `A` makes the returned wrapper
+ * carry the same signature as what went in — `debounce((e: Event) => …)` is
+ * callable only with an `Event`.
+ */
+export function debounce<A extends unknown[]>(
+  func: (...args: A) => unknown,
+  wait: number,
+) {
   let timeout: ReturnType<typeof setTimeout>;
 
-  return function (...args: unknown[]) {
-    if (!!timeout) clearTimeout(timeout);
+  return function (...args: A) {
+    if (timeout) clearTimeout(timeout);
     timeout = setTimeout(() => func(...args), wait);
   };
 }

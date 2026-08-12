@@ -30,13 +30,11 @@ export class PageEventDataComponent {
     windowWidth: number;
     previousPage: string;
   }) {
-    const { query, urlHash, origin, pathname, domain } = new BaseURLParser(
-      fullUrl,
-    );
+    const { query, urlHash, pathname, domain } = new BaseURLParser(fullUrl);
 
     this.previousPage = previousPage;
     this.windowWidth = windowWidth;
-    this.timeOnPage = !!duration ? Math.round(duration / 1000) : duration;
+    this.timeOnPage = duration ? Math.round(duration / 1000) : duration;
     this.domain = domain;
     this.title = title;
     this.query = query;

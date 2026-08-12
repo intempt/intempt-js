@@ -75,7 +75,7 @@ export function createCookieGuard(
   cookieName: string,
   value?: string,
 ): GuardCondition {
-  return (context: GuardContext): boolean => {
+  return (_context: GuardContext): boolean => {
     const cookies = document.cookie.split(';');
     const cookie = cookies.find((c) => c.trim().startsWith(cookieName + '='));
 
@@ -99,7 +99,7 @@ export function createLocalStorageGuard(
   key: string,
   value?: string,
 ): GuardCondition {
-  return (context: GuardContext): boolean => {
+  return (_context: GuardContext): boolean => {
     try {
       const stored = localStorage.getItem(key);
       if (value === undefined) {
@@ -119,7 +119,7 @@ export function createTimeBlockGuard(
   startHour: number,
   endHour: number,
 ): GuardCondition {
-  return (context: GuardContext): boolean => {
+  return (_context: GuardContext): boolean => {
     const now = new Date();
     const hour = now.getHours();
 

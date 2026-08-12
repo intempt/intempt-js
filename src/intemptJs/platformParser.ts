@@ -16,7 +16,9 @@ export class PlatformParser {
     windows: (version: string) => `Windows ${version}`,
     android: (version: string) => `Android ${version}`,
     mac: (version: string) => `Mac OS X ${version.split('_').join('.')}`,
-    linux: (version: string) => `Linux`,
+    // The Linux branch deliberately drops the version: the UA regex is a bare
+    // /linux/ with no capture group, so there is never one to report.
+    linux: (_version: string) => `Linux`,
     ios: (version: string) => {
       const versionParts = version.split('.');
 
@@ -106,7 +108,7 @@ export class PlatformParser {
           }
         }
 
-        if (this._platformVersions.hasOwnProperty(key)) {
+        if (Object.prototype.hasOwnProperty.call(this._platformVersions, key)) {
           const platform = this._platformVersions[key];
           return platform(version);
         }
@@ -135,36 +137,35 @@ export class PlatformParser {
         name: 'Edge',
         regex: /edg/i,
         result: () =>
-          `Edge/${browserVersion(/(edge|edga|edgios|edg)\/([\d\.]+)/i)}`,
+          `Edge/${browserVersion(/(edge|edga|edgios|edg)\/([\d.]+)/i)}`,
       },
       {
         name: 'UCBrowser',
         regex: /ucbrowser/i,
-        result: () => `UCBrowser/${browserVersion(/(ucbrowser)\/([\d\.]+)/i)}`,
+        result: () => `UCBrowser/${browserVersion(/(ucbrowser)\/([\d.]+)/i)}`,
       },
       {
         name: 'GoogleBot',
         regex: /googlebot/i,
-        result: () => `GoogleBot/${browserVersion(/(googlebot)\/([\d\.]+)/i)}`,
+        result: () => `GoogleBot/${browserVersion(/(googlebot)\/([\d.]+)/i)}`,
       },
       {
         name: 'Chromium',
         regex: /chromium/i,
-        result: () => `Chromium/${browserVersion(/(chromium)\/([\d\.]+)/i)}`,
+        result: () => `Chromium/${browserVersion(/(chromium)\/([\d.]+)/i)}`,
       },
       {
         name: 'Firefox',
         regex: /firefox|fxios/i,
         exclude: /seamonkey/i,
-        result: () =>
-          `Firefox/${browserVersion(/(firefox|fxios)\/([\d\.]+)/i)}`,
+        result: () => `Firefox/${browserVersion(/(firefox|fxios)\/([\d.]+)/i)}`,
       },
       {
         name: 'IE',
         regex: /; msie|trident/i,
         exclude: /ucbrowser/i,
         result: () => {
-          const version = browserVersion(/(trident)\/([\d\.]+)/i);
+          const version = browserVersion(/(trident)\/([\d.]+)/i);
           return `IE/${version ? `${parseFloat(version) + 4.0}` : version}`;
         },
       },
@@ -172,19 +173,19 @@ export class PlatformParser {
         name: 'Chrome',
         regex: /chrome|crios/i,
         exclude: /opr|opera|chromium|edg|ucbrowser|googlebot/i,
-        result: () => `Chrome/${browserVersion(/(chrome|crios)\/([\d\.]+)/i)}`,
+        result: () => `Chrome/${browserVersion(/(chrome|crios)\/([\d.]+)/i)}`,
       },
       {
         name: 'Safari',
         regex: /safari/i,
         exclude: /chromium|edg|ucbrowser|chrome|crios|opr|opera|fxios|firefox/i,
         result: () =>
-          `Safari/${browserVersion(/(version)\/([\d\.]+).*safari/i)}`,
+          `Safari/${browserVersion(/(version)\/([\d.]+).*safari/i)}`,
       },
       {
         name: 'Opera',
         regex: /opr|opera/i,
-        result: () => `Opera/${browserVersion(/(opera|opr)\/([\d\.]+)/i)}`,
+        result: () => `Opera/${browserVersion(/(opera|opr)\/([\d.]+)/i)}`,
       },
     ];
 
@@ -345,7 +346,7 @@ export class PlatformParser {
         city: city ?? '',
         country: country_name ?? '',
       };
-    } catch (error) {
+    } catch {
       return {
         ip: '',
         region: '',

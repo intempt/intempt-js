@@ -50,7 +50,7 @@ export class ShopifyTrackerModule {
     const theme = window.theme;
 
     if (form) {
-      form.addEventListener('submit', (event) => {
+      form.addEventListener('submit', (_event) => {
         this.dispatchProductEvent({
           id,
           quantity: 1,

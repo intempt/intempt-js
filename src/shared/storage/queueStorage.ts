@@ -49,7 +49,7 @@ export class QueueStorage implements QueueStorageLike {
       this.storage.setItem(testKey, 'test');
       this.storage.removeItem(testKey);
       this.initialized = true;
-    } catch (error) {
+    } catch {
       throw new Error('localStorage not available');
     }
   }
@@ -59,19 +59,17 @@ export class QueueStorage implements QueueStorageLike {
     try {
       const item = this.storage.getItem(key);
       return item ? JSON.parse(item) : null;
-    } catch (error) {
+    } catch {
       return null;
     }
   }
 
   async setItem(key: string, value: unknown): Promise<void> {
     await this.init();
-    try {
-      this.storage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-      // Handle quota exceeded
-      throw error;
-    }
+    // No try/catch: a quota failure has to propagate. `PersistentStore` is what
+    // decides to demote a tier on a throw, and swallowing it here would make a
+    // full localStorage look like a successful write.
+    this.storage.setItem(key, JSON.stringify(value));
   }
 
   async removeItem(key: string): Promise<void> {

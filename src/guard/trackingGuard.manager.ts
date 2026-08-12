@@ -2,9 +2,7 @@ import {
   GuardConfig,
   GuardContext,
   GuardResult,
-  GuardCondition,
 } from './trackingGuard.types.ts';
-import { EnvConfig } from '../shared/envConfig.ts';
 
 import { createLogger } from '../shared/logger/logger.ts';
 

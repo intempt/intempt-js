@@ -66,7 +66,7 @@ export class SharedLock {
           }
         }
         await this.delay(50); // Wait before retry
-      } catch (error) {
+      } catch {
         return false;
       }
     }
@@ -82,7 +82,7 @@ export class SharedLock {
           this.storage.removeItem(this.lockKey);
         }
       }
-    } catch (error) {
+    } catch {
       // Ignore errors on release
     }
   }

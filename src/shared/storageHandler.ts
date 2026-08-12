@@ -8,12 +8,12 @@ import { extractEtldPlusOne, isHostOnlyTarget } from './publicSuffix.ts';
 const appLocalCookie: { [key: string]: string } = {};
 
 export const localIntemptSessionCookie = () =>
-  !!appLocalCookie['intempt_session']
+  appLocalCookie['intempt_session']
     ? JSON.parse(appLocalCookie['intempt_session'])
     : null;
 
 export const localIntemptPageSessionCookie = () =>
-  !!appLocalCookie['page_session']
+  appLocalCookie['page_session']
     ? JSON.parse(appLocalCookie['page_session'])
     : null;
 

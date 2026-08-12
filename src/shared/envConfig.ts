@@ -54,11 +54,9 @@ class EnvConfigManager {
     // We access it directly in try-catch since 'import' is a reserved keyword
     let viteEnv: ViteEnv | null = null;
     try {
-      // @ts-ignore - import.meta is a special syntax that TypeScript/webpack handles
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       if (import.meta && import.meta.env) {
-        // @ts-ignore
         viteEnv = import.meta.env;
       }
     } catch {
@@ -228,9 +226,6 @@ class EnvConfigManager {
 // Auto-initialize from Vite if available (for production builds)
 // This runs when the module is first imported
 try {
-  // @ts-ignore - import.meta is a special syntax that TypeScript/webpack handles
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
   if (import.meta && import.meta.env) {
     EnvConfigManager.initFromVite();
   }

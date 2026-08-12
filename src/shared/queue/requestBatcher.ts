@@ -1,4 +1,4 @@
-import { RequestQueue, QueueEntry } from './requestQueue.ts';
+import { RequestQueue } from './requestQueue.ts';
 import { QueueStorageLike } from '../storage/queueStorage.ts';
 import { createLogger } from '../logger/logger.ts';
 import { MetricsSnapshot, SdkMetrics } from '../logger/metrics.ts';
@@ -861,7 +861,7 @@ export class RequestBatcher {
     if (this.errorReporter) {
       try {
         this.errorReporter(msg, err);
-      } catch (e) {
+      } catch {
         // Ignore reporter errors
       }
     }

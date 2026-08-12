@@ -4,7 +4,6 @@ import {
   IntemptHtmlEventNames,
 } from '../../../types/autoTracker.types.ts';
 import { generateId } from '../../../../shared/shared.utils.ts';
-import { HtmlElementDataComponent } from '../../../component/HtmlEventData.component.ts';
 
 export class HtmlEventModel {
   private readonly name: IntemptHtmlEventNames;

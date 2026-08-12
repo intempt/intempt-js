@@ -14,13 +14,21 @@
 // CAN'T-FIND-SCRIPT error, and one example file). Adding a sixth now fails the
 // build, which is the point of the flip.
 //
-// Still warnings, with counts measured 2026-08-12: no-unused-expressions 38,
-// no-unused-vars 32, no-extra-boolean-cast 10, no-useless-escape 9, prefer-const 3,
-// ban-ts-comment 3, and one each of no-prototype-builtins,
-// no-unsafe-function-type, no-useless-catch — 98 in total, which is what
-// `--max-warnings` is pinned to. `no-useless-escape` is deliberately last in that
-// queue: those nine are in the bot-detection and reserved-word regexes, where
-// changing an escape is a behaviour change and not a lint fix.
+// **2026-08-12, the code-health sweep: that queue is empty. Every rule below is
+// now an ERROR and `npm run lint` is `--max-warnings=0`.** The repo went 97
+// warnings -> 0, and the ratchet is now a floor at zero rather than a number that
+// has to be edited downward each time.
+//
+// Two of the 97 turned out not to be lint debt at all, which is the reason to do
+// this by hand rather than with `--fix`:
+//
+//  1. **The three `@ts-ignore`s in envConfig.ts were stale.** Converting them to
+//     `@ts-expect-error` made tsc fail with "Unused '@ts-expect-error' directive"
+//     — the `import.meta` reads they were suppressing have not errored for some
+//     time. Deleted rather than converted.
+//  2. **`no-unused-expressions` in `__tests__/**` is chai, not dead code.**
+//     `expect(x).to.be.true` IS the assertion and is a bare member expression;
+//     all 38 were that. The rule is off for tests only, and an error in src/.
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
 import prettierConfig from 'eslint-config-prettier';
@@ -79,31 +87,32 @@ export default tseslint.config(
       eqeqeq: ['error', 'smart'],
       'no-var': 'error',
 
-      // ---- Pre-existing findings, demoted to warn so the gate lands green. ----
-      // Counts measured 2026-08-11 on this branch. Every one of these lives in
-      // src/, which this lane may not edit; they are FRONTEND.md #6 (code
-      // health) work. Promote each to 'error' as its count reaches zero.
-      '@typescript-eslint/no-unused-expressions': 'warn', // 47 — almost all `a?.b()` optional-call statements, which this rule flags but which are intentional
-      'no-extra-boolean-cast': 'warn', // 15 — `!!x` in boolean returns
-      'no-useless-escape': 'warn', // 9 — redundant backslashes in the bot-detection and reserved-word regexes; changing a regex is a behaviour change, so not a drive-by fix
-      'prefer-const': 'warn', // 7
-      'no-prototype-builtins': 'warn', // 2
-      'no-async-promise-executor': 'warn', // 1 — choices.service.ts:164, a real latent bug (a throw inside is swallowed rather than rejecting); flagged for #6, not fixed here
-      '@typescript-eslint/no-unsafe-function-type': 'warn', // 1 — shared.utils.ts:65 bare `Function`
-      'no-useless-catch': 'warn', // 1
+      // ---- Formerly demoted to 'warn'; all promoted 2026-08-12 at zero. ----
+      // Each was a real finding, fixed rather than suppressed. Keep them errors:
+      // the point of the sweep was to make the next one visible on arrival.
+      '@typescript-eslint/no-unused-expressions': 'error',
+      'no-extra-boolean-cast': 'error', // was 10 `!!x` in boolean position, incl. one `!!!x`
+      'no-useless-escape': 'error', // was 9, all `[\d\.]` in platformParser's browser regexes — inside a character class the dot is already literal, so removing the escape is provably behaviour-preserving (the 82 tests in platformParser.test.ts hold it)
+      'prefer-const': 'error',
+      'no-prototype-builtins': 'error', // was 1, `this._platformVersions.hasOwnProperty(key)`
+      'no-async-promise-executor': 'warn', // STILL 1 and still a real latent bug — choices.service.ts:164 swallows a throw inside the executor instead of rejecting. Left as a warning deliberately: fixing it changes failure behaviour on the personalisation path, so it is a DEFECTS.md item, not a lint fix.
+      '@typescript-eslint/no-unsafe-function-type': 'error', // was 1, `debounce(func: Function)` — now generic over the wrapped signature
+      'no-useless-catch': 'error', // was 1, queueStorage's `catch { throw error }`
 
       // ---- Turned off, with reasons. ----
       // The codebase uses `_unused` parameters and leading-underscore private
       // fields extensively; tsconfig already sets noUnusedLocals/Parameters
       // false as a deliberate choice.
       '@typescript-eslint/no-unused-vars': [
-        'warn',
+        'error',
         { argsIgnorePattern: '^_', varsIgnorePattern: '^_' },
       ],
-      // envConfig.ts needs @ts-ignore to touch `import.meta` from a config that
-      // targets a bundler; banning it would require editing src/, which is a
-      // different lane's file.
-      '@typescript-eslint/ban-ts-comment': 'warn',
+      // Was a warning because envConfig.ts carried three `@ts-ignore`s for
+      // `import.meta`. They were stale — see the header — and are gone, so this
+      // is an error: `@ts-ignore` silences a real error forever, while
+      // `@ts-expect-error` fails loudly once the underlying error goes away,
+      // which is how the staleness was found in the first place.
+      '@typescript-eslint/ban-ts-comment': 'error',
       // `!` is used at DOM boundaries where a null check is genuinely redundant.
       '@typescript-eslint/no-non-null-assertion': 'off',
       // TypeScript itself resolves identifiers, and it does so knowing the
@@ -122,6 +131,12 @@ export default tseslint.config(
     rules: {
       '@typescript-eslint/no-explicit-any': 'off',
       'no-console': 'off',
+      // Chai's assertion style — `expect(x).to.be.true`, `expect(y).to.exist` —
+      // IS the assertion, and it is a bare member expression. The rule flags all
+      // 38 of them in the Cypress specs as "unused expressions", which is the
+      // rule not knowing chai rather than a defect. Off for tests only; it stays
+      // on for src/, where an unused expression really is dead code.
+      '@typescript-eslint/no-unused-expressions': 'off',
     },
   },
 

@@ -33,7 +33,7 @@ export class HtmlElementDataComponent {
     const formData = new FormData(element as HTMLFormElement);
     const unnamedInputs = element.querySelectorAll('input:not([name])');
 
-    for (let [key, value] of formData.entries()) {
+    for (const [key, value] of formData.entries()) {
       formEntries.push({
         key,
         value: value.toString(),

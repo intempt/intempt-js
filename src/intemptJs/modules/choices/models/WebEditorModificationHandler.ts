@@ -91,7 +91,7 @@ export class WebEditorModificationHandler {
     } = opts || {};
 
     const range = document.createRange();
-    let fragment = range.createContextualFragment(html);
+    const fragment = range.createContextualFragment(html);
 
     if (trimWhitespace) {
       // remove whitespace-only text nodes at root
