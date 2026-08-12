@@ -272,7 +272,21 @@ describe('outbound payload contract', () => {
    * it is a real trigger with a real code path (`autoTracker.module.ts:148`), so
    * this helper also happens to assert that the unload flush works at all.
    */
-  async function flushAndCapture(path: string): Promise<Call[]> {
+  /**
+   * @param names Event names this test needs in the captured batch. **Pass them
+   * whenever the assertion depends on a specific event being present.** Without
+   * them the poll below stops at the FIRST matching request, and that request is
+   * not necessarily this test's: all tests share one SDK instance (D-2), so the
+   * auto-tracked bootstrap or an earlier test's event can be flushed on its own
+   * first. That is exactly how CI failed on Node 24 — "No entry named Identify in
+   * the captured batch. Saw: Session start" — while Node 22 and every local run
+   * passed. Waiting for the named events instead of for any request removes the
+   * timing dependency rather than widening a sleep.
+   */
+  async function flushAndCapture(
+    path: string,
+    ...names: string[]
+  ): Promise<Call[]> {
     // Instances from earlier tests still hold `beforeunload` listeners and will
     // also fire, so matches are narrowed to this test's own source id. The
     // consent endpoint is not source-scoped, so it is matched on path alone —
@@ -294,10 +308,25 @@ describe('outbound payload contract', () => {
     // the actual cause. Passed locally and on Node 24; only 22 was slow enough.
     await new Promise((r) => setTimeout(r, 20));
 
+    /** Have the wanted events actually landed in one of my requests yet? */
+    const satisfied = () => {
+      const matched = calls.filter(mine);
+      if (matched.length === 0) return false;
+      if (names.length === 0) return true;
+      return names.every((name) =>
+        matched.some((c) => {
+          const body = JSON.parse(c.init.body as string);
+          return (body.track as { name: string }[] | undefined)?.some(
+            (e) => e.name === name,
+          );
+        }),
+      );
+    };
+
     for (let i = 0; i < 60; i++) {
       window.dispatchEvent(new Event('beforeunload'));
       await new Promise((r) => setTimeout(r, 2));
-      if (calls.some(mine)) break;
+      if (satisfied()) break;
     }
 
     const matched = calls.filter(mine);
@@ -309,6 +338,19 @@ describe('outbound payload contract', () => {
         `flushAndCapture('${path}') captured no request for source ${sourceId}. ` +
           `Seen: ${calls.map((c) => c.url).join(', ') || '(none)'}`,
       );
+    }
+    // Requests carrying a wanted event first, so `const [call] = ...` picks a
+    // useful one even if a bootstrap-only batch went out ahead of it.
+    if (names.length > 0) {
+      const carries = (c: Call) => {
+        const body = JSON.parse(c.init.body as string);
+        return (body.track as { name: string }[] | undefined)?.some((e) =>
+          names.includes(e.name),
+        )
+          ? 0
+          : 1;
+      };
+      matched.sort((a, b) => carries(a) - carries(b));
     }
     return matched;
   }
@@ -357,7 +399,7 @@ describe('outbound payload contract', () => {
         eventTitle: 'Signup Clicked',
         data: { plan: 'pro', seats: 3 },
       } as any);
-      const [call] = await flushAndCapture('/track');
+      const [call] = await flushAndCapture('/track', 'Signup Clicked');
       expectMatchesGolden('track', trackBodyFor(call!, 'Signup Clicked'));
     });
 
@@ -368,7 +410,7 @@ describe('outbound payload contract', () => {
         userAttributes: { email: 'a@b.c', plan: 'pro' },
         data: { source: 'form' },
       } as any);
-      const [call] = await flushAndCapture('/track');
+      const [call] = await flushAndCapture('/track', 'Signed Up');
       expectMatchesGolden('identify-full', trackBodyFor(call!, 'Signed Up'));
     });
 
@@ -379,7 +421,7 @@ describe('outbound payload contract', () => {
       // distinguish "not provided" from "never supported", which is exactly the
       // ambiguity that made $lib_version risky to add.
       sdk.identify({ userId: 'user-9' } as any);
-      const [call] = await flushAndCapture('/track');
+      const [call] = await flushAndCapture('/track', 'Identify');
       expectMatchesGolden('identify-minimal', trackBodyFor(call!, 'Identify'));
     });
 
@@ -389,13 +431,13 @@ describe('outbound payload contract', () => {
         accountId: 'acct-3',
         accountAttributes: { tier: 'gold' },
       } as any);
-      const [call] = await flushAndCapture('/track');
+      const [call] = await flushAndCapture('/track', 'Joined Org');
       expectMatchesGolden('group', trackBodyFor(call!, 'Joined Org'));
     });
 
     it('records the alias payload — the one model with no session or page', async () => {
       sdk.alias({ userId: 'u-new', anotherUserId: 'u-old' } as any);
-      const [call] = await flushAndCapture('/track');
+      const [call] = await flushAndCapture('/track', 'Identify');
       expectMatchesGolden('alias', trackBody(call!));
     });
 
@@ -408,7 +450,7 @@ describe('outbound payload contract', () => {
         userAttributes: { email: 'a@b.c' },
         accountAttributes: { tier: 'gold' },
       } as any);
-      const [call] = await flushAndCapture('/track');
+      const [call] = await flushAndCapture('/track', 'Order Completed');
       expectMatchesGolden('record', trackBodyFor(call!, 'Order Completed'));
     });
 
@@ -417,7 +459,7 @@ describe('outbound payload contract', () => {
         { productId: 'p1', price: 10 },
         { productId: 'p2', price: 20 },
       ] as any);
-      const [call] = await flushAndCapture('/track');
+      const [call] = await flushAndCapture('/track', 'Product ordered');
       expectMatchesGolden(
         'product-ordered',
         trackBodyFor(call!, 'Product ordered'),
@@ -432,7 +474,15 @@ describe('outbound payload contract', () => {
       sdk.track({ eventTitle: 'A', data: { n: 1 } } as any);
       sdk.identify({ userId: 'user-9' } as any);
       sdk.productView('p-42');
-      const [call] = await flushAndCapture('/track');
+      // All three names: this golden asserts a *multi-event* batch, so a request
+      // carrying only the first event would satisfy a bare wait and then fail the
+      // length assertion below.
+      const [call] = await flushAndCapture(
+        '/track',
+        'A',
+        'Identify',
+        'Product viewed',
+      );
       const body = trackBody(call!);
       expect(body.track.length).toBeGreaterThanOrEqual(3);
       expectMatchesGolden('mixed-batch', body);
@@ -482,7 +532,7 @@ describe('outbound payload contract', () => {
       // three entries rather than three events — a structural fact ingest has to
       // know to count events correctly.
       sdk.productOrdered([{ productId: 'p1' }, { productId: 'p2' }] as any);
-      const [call] = await flushAndCapture('/track');
+      const [call] = await flushAndCapture('/track', 'Product ordered');
       const event = trackBody(call!).track.find(
         (e: any) => e.name === 'Product ordered',
       );

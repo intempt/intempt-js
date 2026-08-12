@@ -1656,6 +1656,25 @@ behind a deprecation note, and hold D-14 until the ingest conversation
 
 ### PR #191 into `staging` — 121 commits, 176 files
 
+**One flake surfaced on the second push and is fixed — read this before touching
+`payloadContract.test.ts`.** `Unit tests + coverage (node 24.x)` failed with _"No entry
+named Identify in the captured batch. Saw: Session start"_, on a docs-and-config
+commit that changed no source. This is the **same defect as §0c failure #5, in the
+helper rather than the goldens**: the §0c fix narrowed each golden to its own entries,
+but `flushAndCapture` still stopped polling at the **first** matching request — and
+because all tests share one SDK instance (D-2), the auto-tracked bootstrap can be
+flushed on its own ahead of the test's event. The golden then looked for `Identify` in
+a batch containing only `Session start`.
+
+Fixed by making the wait **name-aware**: `flushAndCapture(path, ...names)` polls until
+the events the test actually needs have landed, and orders matching requests so a
+carrying one comes first. Nine call sites now pass their names, including the
+multi-event `mixed-batch` golden, where a bare wait could be satisfied by a request
+holding only the first of three events. **The fix removes a timing dependency rather
+than widening a sleep** — which is the third time on this branch that a "raise the
+timeout" instinct would have papered over a real ordering bug. Verified by running the
+file six times and the whole tier three times.
+
 **Both `pull_request`-only jobs ran for the first time in the programme's life, and
 both passed:** `Cypress e2e` 126/126, and `Mutation score` **86.68% ≥ break 85** in
 **24m36s**. With that, **every job in `ci.yml` has now executed at least once.** Given
