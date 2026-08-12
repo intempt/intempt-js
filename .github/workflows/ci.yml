@@ -25,6 +25,13 @@ on:
     branches: ['**']
   pull_request:
     branches: [main, staging]
+    # `labeled` so that adding `run-mutation` to an open PR re-triggers this
+    # workflow and the mutation job picks it up, rather than needing a new push.
+    # The other three are the defaults, which have to be restated once `types` is
+    # given at all.
+    types: [opened, synchronize, reopened, labeled]
+  # Manual trigger, for running the mutation job on demand from the Actions tab.
+  workflow_dispatch:
 
 # Cancel superseded runs on the same ref. At PR volume this is most of the
 # runner bill.
@@ -242,13 +249,34 @@ jobs:
 
   mutation:
     name: Mutation score
-    # Pull requests only, same reasoning as e2e below: the run takes ~3.5 min,
-    # and mutation score answers a question that only matters when a change is
-    # about to merge -- "would any test have noticed this?". `break` in
-    # stryker.conf.json fails the job on a regression below it; it is a ratchet
-    # raised only to just under a measured score, and it reached 85 on
-    # 2026-08-12 when the score hit 86.57%.
-    if: github.event_name == 'pull_request'
+    # **Opt-in, not automatic — changed 2026-08-12.** It ran on every PR until
+    # the first real measurement came back: **24m36s on a GitHub runner** against
+    # ~3.5-4 min locally on 8 cores, roughly 7x. That is the longest job in the
+    # file by an order of magnitude, and it is the last one standing on every
+    # merge.
+    #
+    # Two ways to run it now:
+    #
+    #   1. Add the **`run-mutation`** label to a pull request. The `labeled`
+    #      trigger above means adding it to an already-open PR starts the run
+    #      immediately; no new push needed. Remove and re-add to run it again.
+    #   2. **Actions -> CI -> Run workflow** (`workflow_dispatch`), on any branch.
+    #
+    # What is deliberately given up: the score can now regress on a PR that
+    # nobody labels. That is accepted because the `break: 85` floor still fails
+    # the job whenever it *is* run, and the intended cadence is "before a release
+    # and when touching src/shared" rather than "every commit". If a regression
+    # ever slips to `staging` this way, the fix is to label the release PR, not
+    # to put a 24-minute job back on every merge.
+    #
+    # The gate itself is unchanged: `break` in stryker.conf.json fails the job on
+    # a regression below the floor. It is a ratchet, raised only to just under a
+    # measured score, and reached 85 on 2026-08-12 at a measured 86.57% (86.68%
+    # on the PR #191 run).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       contains(github.event.pull_request.labels.*.name, 'run-mutation'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
