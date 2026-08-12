@@ -19,3 +19,7 @@ standalone
 # blocking gate, an unignored worktree would fail the build on files that are not
 # even this branch's.
 .claude
+
+# Playwright output (tier 3)
+test-results/
+playwright-report/

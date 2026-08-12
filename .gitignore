@@ -36,3 +36,9 @@ reports
 *.sw?
 sonar-project.properties
 standalone/
+
+# Playwright (tier 3)
+test-results/
+playwright-report/
+blob-report/
+.playwright/

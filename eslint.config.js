@@ -40,6 +40,10 @@ export default tseslint.config(
       // dist/), so without this eslint lints the project several times over and
       // reports thousands of duplicate problems from generated output.
       '.claude/**',
+      // Playwright's own output: traces, screenshots and the HTML report, all
+      // generated and all gitignored.
+      'test-results/**',
+      'playwright-report/**',
     ],
   },
 

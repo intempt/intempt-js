@@ -1922,6 +1922,74 @@ finds a real defect rather than confirming it works. §1c's remaining tier-1 ite
 **Not done here:** `main.ts` and `webEditorLoader.ts` remain at 0%, which stays the
 recorded decision in §1c — neither is on the customer event path and both fail loudly.
 
+## 3u. Tier 3 — the WebKit browser tier ✅ · 2026-08-12
+
+**`BACKLOG.md` §3 parked cross-browser testing on "blocker: money". Half of it was
+never blocked on money.** WebKit — the engine Safari is built on — ships with
+Playwright and runs on a free `ubuntu-latest` runner. This is that half, landed as
+`playwright.config.ts`, `tests/browser/**`, and
+`.github/workflows/browser-tests.yml` (`pull_request`-only, like `e2e` and
+`mutation`).
+
+Until now **every browser claim in this repo was asserted on a Chromium-family
+engine**: vitest in jsdom (not a browser at all) and Cypress in Electron.
+
+### What each leg covers, and what it costs
+
+| Leg                    | Runner          | Engine                                   | Cost                  | Covers                                                           |
+| ---------------------- | --------------- | ---------------------------------------- | --------------------- | ---------------------------------------------------------------- |
+| **WebKit / Linux**     | `ubuntu-latest` | GTK/WPE port of WebKit                   | free                  | parse failures, missing APIs, storage, the unload path           |
+| **WebKit / macOS**     | `macos-latest`  | WebKit linked against Apple's frameworks | free (10× on private) | the same, failing _differently_ — that is the second leg's point |
+| **Chromium (control)** | both            | the engine already known to work         | seconds               | disambiguates "our spec is wrong" from "WebKit disagrees"        |
+| ~~Real Safari~~        | —               | needs `safaridriver` over WebDriver      | a second harness      | ITP, the 7-day cookie cap — **not covered**                      |
+| ~~iOS Safari~~         | —               | needs a device cloud                     | ~$30–100/mo           | storage eviction on device — **not covered**                     |
+
+**The distinction that must not get lost in a green checkmark: WebKit is the engine,
+not the browser.** This tier catches the failure class that takes the whole bundle
+down — the §3h regex lookbehind would have been exactly that on Safari < 16.4. It does
+**not** carry ITP, the 7-day script-written-cookie cap, or iOS storage eviction, which
+are the half of the Safari risk that loses data _quietly_. Playwright has no Safari
+channel, so real Safari is a separate harness, not a config flag. Both remain
+`BACKLOG.md` §3.
+
+### The seven specs, and why there are only seven
+
+`tests/browser/sdkSmoke.spec.ts`: does it parse, does it find its own script tag, does
+`VERSION` survive minification, does a `track()` reach ingest, did some storage tier
+accept a write, does an auto-tracked click throw, does a navigation flush the batch.
+**Deliberately not a port of the unit tier** — re-asserting queue logic here would
+spend minutes of CI re-answering what 1048 unit tests answer in two seconds, on the
+tier that is most expensive to debug when it goes red. The unload spec is the most
+WebKit-specific one: Safari does not reliably fire `beforeunload`, and its
+`fetch(keepalive)` support has differed from Chromium's for years.
+
+**The harness serves the production artifact at the production URL, offline.**
+`page.route()` fulfils `https://cdn.intempt.com/v1/intempt.min.js` from
+`dist/intempt.min.js`, so the bundle's own script-tag detection — the
+`CAN'T FIND SCRIPT` path, the known signature of the mutable `/v1` deploy — is
+exercised rather than bypassed. A `localhost` dev server would have required building
+with a different CDN literal, i.e. testing a bundle no customer receives. The fixture
+page is a real `https` origin because storage is opaque on `about:blank`, and a
+catch-all `route.abort()` means no test can pass by talking to real ingest.
+
+### Verified, and the part that is not
+
+**Chromium leg: 7/7 green locally.** **The WebKit leg has never run** — this machine
+is CachyOS and WebKit needs Ubuntu system libraries that installing requires root for.
+Per §0c, "verified locally" and "verified in CI" are different claims and four of five
+past CI failures were invisible locally; **this one is knowingly in the second
+category, and the first PR run is where it gets its answer.** The control leg exists
+precisely so that a red WebKit run is attributable: both red is our bug, WebKit alone
+is the finding.
+
+Three harness defects were found and fixed getting the control leg green, each worth
+knowing: **Playwright matches routes in reverse registration order**, so the catch-all
+had to be registered _first_ or it swallowed the fixture page; the routing fixture
+needed `auto: true`, because a spec that only destructures `page` otherwise got no
+interception and failed with `ERR_NAME_NOT_RESOLVED`, which reads as a network problem
+rather than a missing fixture; and `track()` rejects both a bare string and an empty
+`data`, which the unit tier mocks past and an end-to-end tier cannot.
+
 ## 4. Three live defects — ✅ all three fixed
 
 Real bugs found during the audit, fixed out of phase order because all three were
