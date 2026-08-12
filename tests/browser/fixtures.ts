@@ -97,12 +97,62 @@ export const test = base.extend<{ harness: Harness }>({
         }),
       );
 
-      await page.route(`${HOST}/**`, (route) =>
-        route.fulfill({
+      /**
+       * `/stub` serves the same page with the **pre-init queue stub** installed
+       * ahead of the SDK tag, which is how the real snippet is deployed: a tiny
+       * inline shim records calls in `window.intempt._queue` (and holds the promise
+       * for the async `recommendation`) so nothing the page does before the bundle
+       * arrives is lost. The loader drains that queue onto the real instance.
+       *
+       * A separate page rather than a flag on the default one, because the stub has
+       * to run *before* the bundle, and the difference between "queued then
+       * replayed" and "called directly" is the whole thing under test.
+       *
+       * `defer` on the SDK tag is what makes the window real: without it the bundle
+       * executes immediately, nothing is ever queued, and the test would pass while
+       * proving nothing.
+       */
+      await page.route(`${HOST}/**`, (route) => {
+        const wantsStub = new URL(route.request().url()).pathname.startsWith(
+          '/stub',
+        );
+        const stub = wantsStub
+          ? `<script>
+  window.intempt = {
+    _queue: [],
+    _pendingPromises: [],
+    track: function () {
+      this._queue.push({ method: 'track', args: [].slice.call(arguments) });
+    },
+    recommendation: function () {
+      var self = this;
+      this._queue.push({ method: 'recommendation', args: [].slice.call(arguments) });
+      return new Promise(function (resolve, reject) {
+        self._pendingPromises.push({ resolve: resolve, reject: reject });
+      });
+    },
+  };
+  window.__stubSettled = [];
+  window.__stubIsStub = true;
+  window.intempt.track({ eventTitle: 'Queued before load', data: { via: 'stub' } });
+  // Recorded synchronously, at the moment of the call: proof that this call went
+  // into the queue rather than straight to a bundle that had already loaded. The
+  // test cannot observe that window afterwards — the bundle is served from disk and
+  // replaces the stub almost immediately — so the stub has to leave the evidence.
+  window.__stubQueueLengthAtCall = window.intempt._queue.length;
+  window.intempt
+    .recommendation({ id: 'rec-1' })
+    .then(function () { window.__stubSettled.push('resolved'); })
+    .catch(function () { window.__stubSettled.push('rejected'); });
+</script>`
+          : '';
+
+        return route.fulfill({
           status: 200,
           contentType: 'text/html',
           body: `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>SDK browser tier</title>
-<script src="${CDN}?${CONFIG_QUERY}"></script>
+${stub}
+<script ${wantsStub ? 'defer ' : ''}src="${CDN}?${CONFIG_QUERY}"></script>
 </head><body>
   <h1>Fixture</h1>
   <a id="cta" class="btn" href="/pricing">Pricing</a>
@@ -112,8 +162,8 @@ export const test = base.extend<{ harness: Harness }>({
     <button type="submit">Sign in</button>
   </form>
 </body></html>`,
-        }),
-      );
+        });
+      });
 
       await page.route(`${INGEST}/**`, async (route, request: Request) => {
         try {
