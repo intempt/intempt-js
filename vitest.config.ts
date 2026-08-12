@@ -97,10 +97,12 @@ export default defineConfig({
         // an unrelated refactor.
         // Re-measured again after §1c tier-1 items 3-4 (sdkLoader replay/stub
         // paths + the event pool, 36 tests): 85.69 / 81.57 / 84.82 / 85.02.
-        lines: 83,
-        branches: 79,
-        functions: 82,
-        statements: 83,
+        // And again after the D-29 fix + the Shopify tracker suite:
+        // 87.21 / 83.55 / 87.23 / 86.52.
+        lines: 85,
+        branches: 81,
+        functions: 85,
+        statements: 84,
 
         // The queue/storage/privacy core. Measured 96.03 / 91.49 / 96.88 / 96.86.
         'src/shared/**/*.ts': {

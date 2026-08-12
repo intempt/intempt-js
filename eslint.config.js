@@ -97,7 +97,7 @@ export default tseslint.config(
       'no-useless-escape': 'error', // was 9, all `[\d\.]` in platformParser's browser regexes — inside a character class the dot is already literal, so removing the escape is provably behaviour-preserving (the 82 tests in platformParser.test.ts hold it)
       'prefer-const': 'error',
       'no-prototype-builtins': 'error', // was 1, `this._platformVersions.hasOwnProperty(key)`
-      'no-async-promise-executor': 'warn', // STILL 1 and still a real latent bug — choices.service.ts:164 swallows a throw inside the executor instead of rejecting. Left as a warning deliberately: fixing it changes failure behaviour on the personalisation path, so it is a DEFECTS.md item, not a lint fix.
+      'no-async-promise-executor': 'error', // Was 1, in code since deleted. Re-measured 2026-08-12: zero occurrences repo-wide, so it joins the others as an error rather than sitting as a standing warning nobody can act on.
       '@typescript-eslint/no-unsafe-function-type': 'error', // was 1, `debounce(func: Function)` — now generic over the wrapped signature
       'no-useless-catch': 'error', // was 1, queueStorage's `catch { throw error }`
 
