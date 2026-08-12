@@ -95,10 +95,12 @@ export default defineConfig({
         // HtmlEventData, 110 tests): 83.41 / 79.5 / 83.65 / 84.2. Ratcheted to
         // ~2 under, per D20 — branches stays the loosest because it moves most on
         // an unrelated refactor.
-        lines: 82,
-        branches: 77,
-        functions: 81,
-        statements: 81,
+        // Re-measured again after §1c tier-1 items 3-4 (sdkLoader replay/stub
+        // paths + the event pool, 36 tests): 85.69 / 81.57 / 84.82 / 85.02.
+        lines: 83,
+        branches: 79,
+        functions: 82,
+        statements: 83,
 
         // The queue/storage/privacy core. Measured 96.03 / 91.49 / 96.88 / 96.86.
         'src/shared/**/*.ts': {

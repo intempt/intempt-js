@@ -1936,6 +1936,41 @@ finds a real defect rather than confirming it works. §1c's remaining tier-1 ite
 **Not done here:** `main.ts` and `webEditorLoader.ts` remain at 0%, which stays the
 recorded decision in §1c — neither is on the customer event path and both fail loudly.
 
+### 3t-ii. §1c tier 1 is now complete — items 3 and 4
+
+36 more tests; unit tier **1048 → 1084**; coverage all-src 83.41 → **85.69 / 81.57 /
+84.82 / 85.02**, gates ratcheted 82/77/81/81 → **83/79/82/83** per D20.
+
+| File                       | Was                              | Tests added |
+| -------------------------- | -------------------------------- | ----------- |
+| `loaders/sdkLoader.ts`     | 74.1% lines, **42.78%** mutation | **20**      |
+| `autoTracker.eventPool.ts` | 17.4% lines, **0.00%** mutation  | **17**      |
+
+**`sdkLoader.ts`'s gap was never the config parse** — that is the best-tested part of
+the file. It was everything around the _handoff_: which of the four stub queue names is
+recognised (`_queue`, `_stubQueue`, `queue`, `__queue` — each its own branch, and a
+dropped one means that customer's pre-init events vanish with no error), what happens
+when a queued call names a method that does not exist or throws, how the async
+`recommendation` promises the stub is still holding get settled, whether the stub
+`<script>` is removed without touching the SDK's own tag or the host page's, and what an
+init failure does. Now asserted: **construction failure leaves `window.intempt` as the
+stub rather than assigning a half-built instance** — the stub at least keeps queueing and
+its calls are no-ops instead of TypeErrors.
+
+**`autoTracker.eventPool.ts` is 23 lines and was at 0.00%, every mutant uncovered** —
+the code that runs when everything else has already failed. Several assertions pin the
+_absence_ of guarantees rather than their presence, each labelled as such: a failed POST
+drops the batch permanently (the pool is cleared before the `await`; no retry, no
+persistence, nothing counts the loss), and the "debounce" does not coalesce because a
+fresh one is constructed per `push` — which the source comment explicitly asks for a
+request-count test before anyone fixes it. That test now exists and will fail when the
+fix lands.
+
+**One thing the tests corrected about the source's own story:** the deep copy in
+`flush()` happens at flush time, not push time, so the pool holds the caller's object by
+reference for the whole debounce window and a mutation inside that window ships. Both
+halves are asserted.
+
 ## 3u. Tier 3 — the WebKit browser tier ✅ · 2026-08-12
 
 **`BACKLOG.md` §3 parked cross-browser testing on "blocker: money". Half of it was

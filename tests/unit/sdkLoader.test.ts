@@ -357,6 +357,311 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
     });
   });
 
+  /**
+   * `AUDIT.md` §1c tier 1, item 3: `sdkLoader.ts` sat at **42.78% mutation score with
+   * 51 uncovered mutants** despite 26 Cypress tests and the suites above. The gap was
+   * not the config parse — it is the best-tested part of the file — but everything
+   * around the *handoff*: which of the four stub queue names is recognised, what
+   * happens when a queued method does not exist, how the async `recommendation`
+   * promises are settled, whether the stub `<script>` is removed, and what an init
+   * failure does to the host page.
+   *
+   * That is the code whose failure mode is "every pre-init event is lost", which is
+   * silent from the customer's side.
+   */
+  describe('the four stub queue names', () => {
+    // The loader checks `_queue`, `_stubQueue`, `queue` and `__queue` in that order,
+    // because the snippet is written by whoever installed it and the name is a guess
+    // at another implementation's convention. Each is a separate branch, and a
+    // dropped one means that customer's pre-init events vanish with no error.
+    it.each(['_queue', '_stubQueue', 'queue', '__queue'])(
+      'drains a stub queue named %s',
+      (queueName) => {
+        const queue = [
+          {
+            method: 'track',
+            args: [{ eventTitle: 'from-' + queueName, data: { x: 1 } }],
+          },
+        ];
+        (window as any).intempt = { [queueName]: queue };
+        appendScript(REQUIRED_QUERY);
+
+        const seen: any[] = [];
+        const listener = (ev: Event) => seen.push((ev as CustomEvent).detail);
+        document.addEventListener('intempt:event', listener);
+        try {
+          SDK.init();
+        } finally {
+          document.removeEventListener('intempt:event', listener);
+        }
+
+        expect(seen.some((d) => d.event?.name === 'from-' + queueName)).toBe(
+          true,
+        );
+        expect(queue).toHaveLength(0);
+      },
+    );
+
+    it('prefers _queue when a stub carries more than one of the names', () => {
+      // Order is the contract: `_queue` first. A stub that sets two names is
+      // malformed, but silently replaying the wrong one would double-count or drop.
+      (window as any).intempt = {
+        _queue: [
+          { method: 'track', args: [{ eventTitle: 'winner', data: { x: 1 } }] },
+        ],
+        queue: [
+          { method: 'track', args: [{ eventTitle: 'loser', data: { x: 1 } }] },
+        ],
+      };
+      appendScript(REQUIRED_QUERY);
+
+      const seen: any[] = [];
+      const listener = (ev: Event) => seen.push((ev as CustomEvent).detail);
+      document.addEventListener('intempt:event', listener);
+      try {
+        SDK.init();
+      } finally {
+        document.removeEventListener('intempt:event', listener);
+      }
+
+      expect(seen.some((d) => d.event?.name === 'winner')).toBe(true);
+      expect(seen.some((d) => d.event?.name === 'loser')).toBe(false);
+    });
+
+    it('ignores a queue property that is not an array', () => {
+      // `Array.isArray` guards every one of the four reads. Without it the `for`
+      // loop over a string or object throws inside init, on the host page.
+      (window as any).intempt = { _queue: 'not-an-array' };
+      appendScript(REQUIRED_QUERY);
+
+      expect(() => SDK.init()).not.toThrow();
+      expect((window as any).intempt.VERSION).toBeDefined();
+    });
+  });
+
+  describe('replay failures must not stop the rest of the queue', () => {
+    it('skips a queued call naming a method that does not exist', () => {
+      const queue = [
+        { method: 'notARealMethod', args: [] },
+        {
+          method: 'track',
+          args: [{ eventTitle: 'after-bad-method', data: { x: 1 } }],
+        },
+      ];
+      (window as any).intempt = { _queue: queue };
+      appendScript(REQUIRED_QUERY);
+
+      const seen: any[] = [];
+      const listener = (ev: Event) => seen.push((ev as CustomEvent).detail);
+      document.addEventListener('intempt:event', listener);
+      try {
+        SDK.init();
+      } finally {
+        document.removeEventListener('intempt:event', listener);
+      }
+
+      // The `typeof fn !== 'function'` guard `continue`s rather than throwing, so
+      // one bad entry from a hand-written snippet cannot cost the whole queue.
+      expect(seen.some((d) => d.event?.name === 'after-bad-method')).toBe(true);
+    });
+
+    it('keeps replaying after a queued call throws', () => {
+      // `track` with no arguments throws out of IntemptJsGuard. The per-call
+      // try/catch is what keeps the following entries alive.
+      const queue = [
+        { method: 'track', args: [] },
+        {
+          method: 'track',
+          args: [{ eventTitle: 'after-throw', data: { x: 1 } }],
+        },
+      ];
+      (window as any).intempt = { _queue: queue };
+      appendScript(REQUIRED_QUERY);
+
+      const seen: any[] = [];
+      const listener = (ev: Event) => seen.push((ev as CustomEvent).detail);
+      document.addEventListener('intempt:event', listener);
+      try {
+        expect(() => SDK.init()).not.toThrow();
+      } finally {
+        document.removeEventListener('intempt:event', listener);
+      }
+
+      expect(seen.some((d) => d.event?.name === 'after-throw')).toBe(true);
+    });
+
+    it('drains the queue exactly once, so a second init cannot double-send', () => {
+      const queue = [
+        {
+          method: 'track',
+          args: [{ eventTitle: 'once-only', data: { x: 1 } }],
+        },
+      ];
+      (window as any).intempt = { _queue: queue };
+      appendScript(REQUIRED_QUERY);
+      SDK.init();
+
+      expect(queue).toHaveLength(0);
+    });
+  });
+
+  describe('the stub script tag', () => {
+    /** A stub `<script>` as the snippet writes it, alongside the SDK's own tag. */
+    function appendStubScript(content: string): HTMLScriptElement {
+      const script = document.createElement('script');
+      script.textContent = content;
+      document.body.appendChild(script);
+      return script;
+    }
+
+    it('removes an inline stub script once its queue has been replayed', () => {
+      const stub = appendStubScript('window.intempt={_queue:[],_isStub:true};');
+      (window as any).intempt = { _queue: [] };
+      appendScript(REQUIRED_QUERY);
+
+      SDK.init();
+
+      // Left in place it would be dead markup that still *looks* like the SDK to
+      // anyone debugging the page, and to any later loader run.
+      expect(document.body.contains(stub)).toBe(false);
+    });
+
+    it("leaves the SDK's own script tag alone", () => {
+      appendStubScript('window.intempt={_queue:[]};');
+      (window as any).intempt = { _queue: [] };
+      const sdkScript = appendScript(REQUIRED_QUERY);
+
+      SDK.init();
+
+      // The removal walks every script on the page and skips the SDK one by
+      // identity. Getting that check wrong deletes the bundle's own tag.
+      expect(document.body.contains(sdkScript)).toBe(true);
+    });
+
+    it('recognises a stub by any of the three inline markers', () => {
+      const markers = ['_isStub', '_queue', '_pendingPromises'];
+      for (const marker of markers) {
+        document.querySelectorAll('script').forEach((s) => s.remove());
+        delete (window as any).intempt;
+
+        const stub = appendStubScript(`var x = { ${marker}: 1 };`);
+        (window as any).intempt = { _queue: [] };
+        appendScript(REQUIRED_QUERY);
+
+        SDK.init();
+        expect(document.body.contains(stub)).toBe(false);
+      }
+    });
+
+    it('recognises an external stub by src rather than content', () => {
+      const stub = document.createElement('script');
+      stub.src = 'https://example.com/assets/intempt-stub.js';
+      document.body.appendChild(stub);
+      (window as any).intempt = { _queue: [] };
+      appendScript(REQUIRED_QUERY);
+
+      SDK.init();
+      expect(document.body.contains(stub)).toBe(false);
+    });
+
+    it('leaves an unrelated script tag alone', () => {
+      const unrelated = appendStubScript('var unrelatedGlobal = 1;');
+      (window as any).intempt = { _queue: [] };
+      appendScript(REQUIRED_QUERY);
+
+      SDK.init();
+
+      // The markers are what identify a stub. Removing scripts that merely happen
+      // to be inline would be the SDK vandalising the host page.
+      expect(document.body.contains(unrelated)).toBe(true);
+    });
+
+    it('does not touch any script when there was no stub at all', () => {
+      const unrelated = appendStubScript('var unrelated = 1;');
+      appendScript(REQUIRED_QUERY);
+
+      SDK.init();
+      expect(document.body.contains(unrelated)).toBe(true);
+    });
+  });
+
+  describe('the async handoff — recommendation() promises the stub is still holding', () => {
+    it('settles the stub promises in FIFO order rather than by matching arguments', async () => {
+      // `recommendation()` is the one async public method, so the snippet handed the
+      // page a promise it cannot itself resolve. The loader settles those in the
+      // order the calls were queued — deliberately, rather than by JSON-matching
+      // arguments, which is brittle. Untested until now, and its failure mode is a
+      // promise on the customer's page that never settles.
+      const settled: string[] = [];
+      const pendingPromises = [
+        {
+          resolve: () => settled.push('first-resolve'),
+          reject: () => settled.push('first-reject'),
+        },
+        {
+          resolve: () => settled.push('second-resolve'),
+          reject: () => settled.push('second-reject'),
+        },
+      ];
+      (window as any).intempt = {
+        _queue: [
+          { method: 'recommendation', args: [{ id: 'a' }] },
+          { method: 'recommendation', args: [{ id: 'b' }] },
+        ],
+        _pendingPromises: pendingPromises,
+      };
+      appendScript(REQUIRED_QUERY);
+
+      SDK.init();
+      await vi.waitFor(() => expect(settled).toHaveLength(2));
+
+      // Both **resolve**, not reject, even with no network: `recommendation()`
+      // degrades to control rather than failing, which is the safe direction and is
+      // asserted here so a future change to that policy surfaces at the handoff too.
+      expect(settled).toEqual(['first-resolve', 'second-resolve']);
+      // Drained in place, so a second replay cannot settle them twice.
+      expect(pendingPromises).toHaveLength(0);
+    });
+
+    it('does not throw when there are more recommendation calls than pending promises', () => {
+      // A snippet may queue a call without holding a promise for it. The loader
+      // logs and carries on; throwing here would abort the rest of the replay.
+      (window as any).intempt = {
+        _queue: [
+          { method: 'recommendation', args: [{ id: 'a' }] },
+          { method: 'recommendation', args: [{ id: 'b' }] },
+        ],
+        _pendingPromises: [{ resolve: () => {}, reject: () => {} }],
+      };
+      appendScript(REQUIRED_QUERY);
+
+      expect(() => SDK.init()).not.toThrow();
+    });
+  });
+
+  describe('init failure must not break the host page', () => {
+    it('reports and returns when the config is invalid, instead of throwing (D-12)', () => {
+      // No script tag at all: `getIntemptConfig()` falls back to an all-empty
+      // config and `new IntemptJs(...)` throws inside `isValidConfig`. `main.ts`
+      // calls `SDK.init()` un-try/caught, so an uncaught throw here would land in
+      // the customer's own JavaScript. An analytics SDK must never break the page
+      // that embeds it.
+      expect(() => SDK.init()).not.toThrow();
+    });
+
+    it('leaves window.intempt unreplaced when construction failed', () => {
+      const stub = { _queue: [], marker: 'still-the-stub' };
+      (window as any).intempt = stub;
+
+      SDK.init();
+
+      // Assigning a half-built instance would be worse than leaving the stub: the
+      // stub at least keeps queueing, and every call on it is a no-op rather than
+      // a TypeError.
+      expect((window as any).intempt).toBe(stub);
+    });
+  });
+
   describe('window.intempt replacement', () => {
     it('replaces window.intempt with the real IntemptJs instance', () => {
       appendScript(REQUIRED_QUERY);
