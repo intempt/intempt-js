@@ -1753,25 +1753,51 @@ is shared and each event schedules its own flush. Preserved deliberately, becaus
 flush drains the whole pool, so the effect is extra no-op flushes rather than lost or
 duplicated events. **Do not "fix" it without a test pinning the resulting request count.**
 
-## 3s-pending. ⚠️ A table the user wants logged here — CONTENT NOT YET RECEIVED
+## 3s-score. FINAL SCORE at a glance — 71 / 100 vs Mixpanel 85
 
-**Read this if the user asks you to "log the table".** On 2026-08-12, immediately before
-a context clear, the user asked for a table to be saved into this checkpoint and said
-they would ask again after the clear. **The paste arrived truncated — only the top border
-came through:**
+**Re-scored 2026-08-12**, the first actual re-score since the 40 baseline. It supersedes
+the three figures that disagreed in these docs (~78 in this file's header, 62 in §0,
+~81-83 in §3p — all extrapolations, none a re-score). It is **lower than two of those
+guesses on purpose**: it scores the whole SDK including the untested periphery, and gives
+no credit for parked work.
 
-```
-┌───────────────┬────────────────┬──────────┐
-```
+| Dimension     | Baseline → Now | Mixpanel |
+| ------------- | -------------- | -------- |
+| Tests         | 22 → 72        | 92       |
+| Reliability   | 58 → 82        | 90       |
+| Performance   | 45 → 72        | 85       |
+| Security      | 45 → 58        | 80       |
+| API surface   | 35 → 48        | 90       |
+| Observability | 25 → **80**    | 75       |
+| Privacy       | 40 → 86        | 88       |
+| CI/CD         | 38 → 68        | 88       |
+| Docs          | 45 → 62        | 85       |
+| Code health   | 50 → 76        | 78       |
 
-That is a 3-column box-drawing table (widths ~15 / ~16 / ~10) and **nothing else — no
-header row, no data**. It was not invented or reconstructed, deliberately: a fabricated
-table in this file would be worse than an absent one, because the next reader trusts what
-is here.
+**Weighted: 71 / 100.** Baseline 40, Mixpanel comparator 85, gap 14 (was 45).
 
-**Action when asked:** request the table content again, then replace this whole section
-with it. Delete this placeholder at that point. If the paste truncates a second time, ask
-for it as plain text or as a file path rather than a rendered box.
+Three things to read off it rather than re-derive:
+
+- **Observability is the one dimension now ahead of Mixpanel** (80 vs 75) — the levelled
+  logger, the customer `onDiagnostic` sink, and real metrics via `getDiagnostics()`.
+  Privacy is effectively at parity (86 vs 88).
+- **The two laggards are exactly the two parked items.** Security is stuck at 58 because
+  the `writeKey` is still a client-side `Authorization: Basic` header (**cannot exceed ~62
+  without ingest**), and API surface at 48 because packaging is parked.
+- **Tests at 72, not 85, is the untested periphery** — not the core, which is at 85.27%
+  mutation score. See `AUDIT.md` §1c.
+
+**This is a weighted-rubric judgement, not a measurement.** The weights are inherited
+from `AUDIT.md` §1; the per-dimension numbers are mine, and a second reviewer could
+reasonably land anywhere in **68-75**. Do not quote 71 the way you would quote the 58.83%
+mutation score, which is reproducible. The value here is the direction and the itemised
+gap, not the digit.
+
+**Full per-dimension evidence — what moved each number and what is holding it back — is
+`AUDIT.md` §0a**, along with the itemisation of the remaining 14 points (packaging +3.7,
+credential off the client +2.2, testing the periphery +2.0, browser matrix +1.7,
+wire-format fixes +1.2, code-split and benchmarks +1.6 → ~81-83; **85 needs the two items
+that need other people**).
 
 ## 3s. The PR is open, both never-run jobs passed, and the real mutation score is 58.83%
 
