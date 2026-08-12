@@ -11,6 +11,18 @@ is in progress, what the next concrete action is, and which decisions are alread
 settled (so they are not re-litigated). It is designed to be read cold, with no
 prior conversation context.
 
+**`docs/sdk-hardening/` is gitignored as of 2026-08-12 and is NOT in the repo.** It is
+working state for the in-flight programme, kept on the machine doing the work rather
+than shipped to everyone who clones. Consequences to know before relying on it:
+
+- A fresh clone has none of these files. If you are reading this on a machine that
+  never ran the programme, the paths below will not resolve and that is expected — ask
+  for the files rather than assuming the programme never existed.
+- `git log` still contains them up to `251a10a`, so nothing is lost.
+- **`DEFECTS.md` and `BACKEND.md` are the two a non-programme reader is most likely to
+  need** — the known-defect register and the ingest handover spec. If either is wanted
+  by someone else, hand over the file rather than un-ignoring the directory.
+
 Supporting documents:
 
 - `docs/sdk-hardening/CHECKPOINT.md` — **state + next steps. Read this first.**
