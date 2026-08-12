@@ -13,7 +13,10 @@ Audited commit: `ab9d3a6` (branch `beso-fix-vars`). Date: 2026-08-11.
 
 ---
 
-## 0. Overall score
+## 0. Overall score — BASELINE, 2026-08-10
+
+> **This section is the original audit baseline and is kept for the record.**
+> **For the current number, read §0a immediately below: 71/100 as of 2026-08-12.**
 
 ```
 Intempt JS SDK   →  40 / 100
@@ -60,6 +63,117 @@ well-localised fix.
 The corollary is the risk: because the foundation is sound, the temptation is to
 keep adding features on top. Every feature added before the test tier exists
 makes the test tier more expensive to build. Phase 2 should not be deferred.
+
+---
+
+## 0a. FINAL SCORE — re-scored 2026-08-12, after the programme
+
+**The 40 in §0 is the _baseline_. This is the current number, measured on the merged
+tree at PR #191 with every gate green.**
+
+```
+Intempt JS SDK   →  71 / 100     (baseline 40)
+Mixpanel JS SDK  →  85 / 100
+                    ─────────
+gap                 14 points    (was 45)
+```
+
+**This supersedes every other figure in these docs.** `CHECKPOINT.md`'s header said
+~78, its §0 said 62, and §3p estimated ~81-83 — all three were extrapolations, none
+was a re-score. The number is lower than two of those guesses on purpose: it scores
+the _whole_ SDK, including the periphery that has no tests, and it does not give credit
+for work that is parked.
+
+### Per-dimension, baseline → now
+
+| #   | Dimension                         | Weight | Baseline | **Now** | Mixpanel | What moved it, and what is holding it back                                                                                                                                                                                                                                                                                                                                                                                        |
+| --- | --------------------------------- | ------ | -------- | ------- | -------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Correctness & test coverage       | 15%    | 22       | **72**  | 92       | +938 unit tests (from 0), 126 Cypress, mutation testing at 86.68% on the core, property tests over the delivery invariants, golden payload contracts, per-glob coverage gates. **Held back by:** the untested periphery in §1c, and no Safari/iOS tier at all.                                                                                                                                                                    |
+| 2   | Reliability / delivery guarantees | 15%    | 58       | **82**  | 90       | IndexedDB tier with localStorage fallback, full jitter, circuit breaker, bounded queue with a reported drop count, per-event records off the shared lock, XHR fallback, and **four silent data-loss defects fixed**. **Held back by:** no `sendBeacon` (needs the credential off the header), no ingest idempotency, and events still carry no timestamp (D-1).                                                                   |
+| 3   | Performance & footprint           | 12%    | 45       | **72**  | 85       | `psl` dropped: 225.86 → **94.58 kB** raw, 27.57 kB gzip, 23.89 kB brotli, and a size budget in CI that has ratcheted twice. **Held back by:** no code-splitting (parked), and no main-thread benchmark harness, so the init/per-track budgets are unmeasured.                                                                                                                                                                     |
+| 4   | Security posture                  | 10%    | 45       | **58**  | 80       | SHA-pinned actions, a bundle secret scan, `npm audit` gating production deps, the Sonar gate un-commented, advisories 19 → 2 moderate / 0 high. **Held back by the one thing that matters most:** the `writeKey` is still a client-side `Authorization: Basic` header. **This dimension cannot exceed ~62 without ingest.**                                                                                                       |
+| 5   | API surface & backward compat     | 10%    | 35       | **48**  | 90       | Real version (`6.0.0`), single-sourced from `package.json` at build time, exposed as `IntemptJs.VERSION`; publishable metadata. **Held back by packaging being parked:** no `main`/`module`/`exports`, no published `.d.ts`, no `CHANGELOG.md`, no changesets, and an IIFE that self-initialises on import.                                                                                                                       |
+| 6   | Observability & diagnostics       | 8%     | 25       | **80**  | 75       | A levelled logger with a customer `onDiagnostic` sink replacing 55 raw `console.*` calls, real metrics (queue depth, flush latency, drop count, breaker state) surfaced as `intempt.getDiagnostics()`. **This is the one dimension where the SDK now beats Mixpanel.**                                                                                                                                                            |
+| 7   | Privacy & compliance              | 8%     | 40       | **86**  | 88       | Persisted opt-out, consent at the eTLD+1 so it carries across subdomains, DNT and GPC honoured by default with an `ignore_dnt` escape for CMP users, optional PII scrubbing, an `api_host` override for data residency, and consent records that survive `optOut()` because an audit record is not tracking. Essentially at parity.                                                                                               |
+| 8   | Build, release & CI/CD            | 10%    | 38       | **68**  | 88       | `ci.yml` with seven jobs — lint (blocking), prettier (blocking), typecheck+build, audit, unit on Node 22 and 24, e2e, mutation — plus size budget, secret scan, `npm ci`, SHA-pinned actions. **Held back by:** `release.yml` has never run, no changesets, no browser matrix, `build.yaml` still uses `npm install` and a branch trigger that matches no slash-named branch, and the deploy path is still the mutable `/v1` URL. |
+| 9   | Docs & DX                         | 6%     | 45       | **62**  | 85       | `USAGE.md` rewritten, a TypeScript example, documented diagnostics, and a defect register a customer-facing team can actually read. **Held back by:** no generated API reference, no framework adapters, no migration guide.                                                                                                                                                                                                      |
+| 10  | Code health & maintainability     | 6%     | 50       | **76**  | 78       | **Zero `any`** (was 61, then 99 after the lanes), `no-explicit-any` and `no-console` both promoted to **errors**, prettier enforced repo-wide, `autoTracker.module.ts` 526 → 400 lines split three ways. **Held back by:** 97 remaining lint warnings and the still-duplicated id triplet.                                                                                                                                        |
+
+**Weighted:** `.15(72)+.15(82)+.12(72)+.10(58)+.10(48)+.08(80)+.08(86)+.10(68)+.06(62)+.06(76)` = **70.7 → 71**
+
+### Where the remaining 14 points are
+
+Nearly all of them are behind decisions already made, not behind unwritten code:
+
+| Unblock                                                    | Dimension effect | Weighted gain |
+| ---------------------------------------------------------- | ---------------- | ------------- |
+| **npm packaging** (parked by the user)                     | 5: 48 → ~85      | **+3.7**      |
+| **Credential off the client** (`BACKEND.md`, needs ingest) | 4: 58 → ~80      | **+2.2**      |
+| **Test the periphery** (§1c below — no one else needed)    | 1: 72 → ~85      | **+2.0**      |
+| **A real browser matrix** (needs a device cloud)           | 8: 68 → ~85      | **+1.7**      |
+| Wire-format fixes D-1/D-3/D-15 (needs ingest)              | 2: 82 → ~90      | +1.2          |
+| Code-splitting + a benchmark harness                       | 3: 72 → ~85      | +1.6          |
+
+All six lands at **~81-83**. **85 — parity with Mixpanel — requires the two items that
+need other people**, which is the same conclusion `FRONTEND.md` reached from the other
+direction. Front-end-only, with packaging parked, the ceiling is ~81.
+
+---
+
+## 1c. The testing gap, audited file by file — 2026-08-12
+
+**Why this section exists.** Dimension 1 scores 72, not 85, and the reason is not the
+core: `shared/**` is at **85.27% mutation score**, which is genuinely strong. The reason
+is that the _periphery_ has close to nothing. Two independent measurements agree on
+which files, so this is evidence rather than impression:
+
+- **unit line coverage** from `coverage/lcov.info`
+- **mutation score** from the first full-scope run (`stryker.full.conf.json`), which
+  asks the sharper question: would any test _notice_ if this line were wrong?
+
+### Tier 1 — untested and it matters. Do these first.
+
+| File                                                     | LOC | Unit lines | Mutation                          | Why it matters                                                                                                                                                                                                                                                                                             |
+| -------------------------------------------------------- | --- | ---------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `intemptJs/platformParser.ts`                            | 162 | **27.8%**  | **7.36%** (288 uncovered mutants) | **The worst risk in the SDK.** It derives device, browser, OS and geo attributes attached to **every event**. When it is wrong it is wrong _silently_ — no error, no dropped request, just every event mislabelled and dashboards that look fine. Nothing else on this list can corrupt data this quietly. |
+| `intemptJs/component/HtmlEventData.component.ts`         | 52  | **0.0%**   | —                                 | Builds the payload for every auto-tracked click, change and submit: target text, form field capture, hierarchy. **It contains the `doNotCapture` / `type === 'password'` redaction** — the one privacy control on auto-tracked DOM data, and no test asserts it fires.                                     |
+| `loaders/sdkLoader.ts`                                   | 85  | 74.1%      | **42.78%** (51 uncovered)         | How the SDK boots, finds its own script tag, and **replays calls the snippet stub queued before it loaded**. A bug here loses every pre-init event. Has 26 Cypress tests, which is why coverage is not terrible, but the mutation score says most of the branch logic is unasserted.                       |
+| `intemptJs/modules/autoTracker/autoTracker.eventPool.ts` | 23  | **17.4%**  | **0.00%**                         | The fallback delivery path, used when the batcher cannot initialise. It has no retry, no persistence and no bound — so the code that runs in the _already-degraded_ case is the code with no tests.                                                                                                        |
+
+### Tier 2 — untested, lower blast radius
+
+| File                                   | LOC | Unit lines | Mutation                  | Note                                                                                                                   |
+| -------------------------------------- | --- | ---------- | ------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `loaders/webEditorLoader.ts`           | 101 | **0.0%**   | **0.00%** (169 uncovered) | Visual-editor entry point. Internal tool, 2 Cypress tests at the loader boundary only. Not on the customer event path. |
+| `main.ts`                              | 20  | **0.0%**   | **0.00%** (47 uncovered)  | The bootstrap and the guard decision. Fails loudly and immediately if broken.                                          |
+| `.../shopifyTracker.module.ts`         | 38  | **2.6%**   | —                         | Only runs for Shopify customers, and only when `?shopify=1`.                                                           |
+| `.../htmlTracker.module.ts`            | 12  | 66.7%      | —                         | Thin listener wiring; the payload work is `HtmlEventData` above.                                                       |
+| `choices/choices.service.ts`           | 93  | 51.6%      | 36.84%                    | Personalisation fetch. Degrades to control on failure, which is the safe direction.                                    |
+| `component/userAttribute.component.ts` | 40  | 77.5%      | —                         | Landing page and referrer derivation.                                                                                  |
+| `models/*.model.ts` (3 files)          | ~9  | 0.0%       | —                         | `auth`, `HtmlEvent`, `choicesRequest` — near-trivial constructors.                                                     |
+
+### What "test the periphery" concretely means
+
+**One file, first, before anything else: `platformParser.ts`.** 288 uncovered mutants on
+code that mislabels data silently. It is also cheap to test — it is nearly pure: user-agent
+string in, attributes out. Table-driven tests over a corpus of real UA strings would kill
+most of those mutants and are exactly the shape §3f-ii found to be high-yield (mutants in
+code that _computes a value_, not in guard or reporting branches — see §3f-iii for why
+that distinction matters).
+
+Then `HtmlEventData.component.ts`, because the password/`doNotCapture` redaction is a
+privacy control asserted by nothing.
+
+**What NOT to chase:** `main.ts` and `webEditorLoader.ts` are 0% and will stay 0% for
+now. That is a **recorded decision, not an oversight** — neither is on the customer event
+path and both fail loudly. Writing 169 mutants' worth of tests for the visual editor
+before `platformParser` has any would be optimising the wrong number.
+
+**The gap no amount of unit testing closes:** there is still **no Safari, iOS Safari or
+Android Chrome coverage at all**. Those are precisely the browsers where storage quotas,
+ITP cookie capping and `pagehide` semantics diverge — i.e. where an analytics SDK actually
+breaks. Cypress cannot drive them. That is `BACKLOG.md` §3 and it needs a device cloud,
+which needs money.
 
 ---
 

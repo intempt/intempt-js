@@ -12,6 +12,26 @@
 >
 > Updated 2026-08-12.
 
+## Topics in this file
+
+**This is the single tracker for everything parked.** The two biggest items each own a
+topic, because they are what the score is now capped by:
+
+| Topic                        | What is in it                                                                  | Blocker           |
+| ---------------------------- | ------------------------------------------------------------------------------ | ----------------- |
+| **§1.1 Packaging**           | npm publishing: `index.d.ts`, module build, `exports`, `CHANGELOG`, changesets | user              |
+| **§2 Ingest / `BACKEND.md`** | all six server-side items, and the wire-format defects they gate               | ingest            |
+| **§2b Product decisions**    | four defects and three release notes that change customer-visible behaviour    | user              |
+| §1.2, §1.3                   | code-splitting; the act of handing `BACKEND.md` over                           | user              |
+| §3                           | cross-browser device cloud                                                     | money             |
+| §4                           | changesets automation, the two `build.yaml` fixes                              | sequencing / user |
+| §5, §6                       | reduced in scope; done, listed so nobody re-parks them                         | —                 |
+
+**Packaging (§1.1) and the ingest work (§2) are the two that matter.** `AUDIT.md` §0a
+quantifies them: together they are worth **+5.9 weighted points** and they are the
+reason 85 (Mixpanel parity) is not reachable without other people. Everything else on
+this list is worth ~1 point or less.
+
 ## How to read the blocker column
 
 | Blocker        | Meaning                                                           |
@@ -98,6 +118,107 @@ change the wire format:
 - **D-3 — every session event shares one `eventId`**, and the batcher dedupes on
   `eventId`, so session events after the first are droppable by design.
 - **D-15 — auto-tracked events carry no `type` field.**
+
+---
+
+## 2b. Blocked on a product decision — customer-visible behaviour · blocker: user
+
+**Parked 2026-08-12.** Each of these is a **one-line code change** and a **multi-line
+consequence for existing customers**. None should ship on an engineer's judgement, which
+is why they are here rather than in `CHECKPOINT.md` §0b. All four are `asserted` or
+`open` in `DEFECTS.md`, so today's behaviour is pinned by a test and a fix will show up
+as a failing test to update deliberately.
+
+The shape they share: **the SDK currently accepts something invalid in silence.** Fixing
+that means it starts throwing — inside the customer's own page, in code that works today.
+
+### 2b.1 D-18 — the commerce helpers validate nothing
+
+`productAdd`, `productView` and `productOrdered` call **no guard at all**, unlike
+`track`/`identify`/`group`/`record`/`alias`/`consent`, which all validate first.
+`productAdd(undefined)` builds and sends an event with `data: undefined` rather than
+telling the caller anything.
+
+- **Fix:** add the missing guard calls. One line each.
+- **Cost of fixing:** any customer currently calling these loosely — passing a partial
+  object, or a value from an unvalidated cart payload — gets a **thrown error in their
+  page** where they previously got a silently degraded event. In an e-commerce checkout
+  handler, an uncaught throw can break the purchase flow. That is a worse failure than
+  the bad data.
+- **Cost of NOT fixing:** malformed commerce events keep arriving and are only
+  discoverable by someone noticing revenue rows with missing fields.
+- **Recommended:** fix, but as **warn-through-the-logger, not throw** — the diagnostic
+  sink already exists (`onDiagnostic`), so the customer can see the problem without their
+  page breaking. Escalate to a throw in a later major, announced.
+
+### 2b.2 D-19 — `identify` and `group` disagree about empty ids
+
+`isIdentifyValid` rejects a falsy `userId` (`!!params.userId`). `isGroupValid` checks only
+`undefined`/`null`, so **`group({ accountId: 0 })` and `group({ accountId: '' })` are
+accepted** and sent. Two sibling methods, two different contracts, with nothing recording
+which is intended.
+
+- **Fix:** make `group` match `identify`. One condition.
+- **Cost of fixing:** a customer whose account ids are numeric and can legitimately be
+  `0` — an entirely plausible schema — starts getting throws for events that work today.
+- **Cost of NOT fixing:** `accountId: ''` produces group events attached to an empty
+  account, which is silent data corruption at the account level.
+- **Recommended:** same as D-18 — warn, do not throw. **And decide explicitly whether
+  `0` is a valid account id**, because that is a data-model question, not a lint one.
+
+### 2b.3 D-20 — `consent.validUntil` is typed required and never validated
+
+`ConsentParams.validUntil` is `number` and non-optional in TypeScript, but no runtime
+check exists, so a JavaScript caller can omit it entirely and the consent record is
+written with `validUntil: undefined`.
+
+- **Fix:** validate it in `isConsentValid`.
+- **Cost of fixing:** **this is the most dangerous of the four to make throw.**
+  `consent()` is called from a consent-banner click handler. A throw there can leave the
+  banner stuck, which means the visitor cannot give _or_ refuse consent — a compliance
+  failure caused by a compliance check.
+- **Cost of NOT fixing:** consent records with no expiry. If the retention policy is
+  "delete when `validUntil` passes", a record with `undefined` may never expire, or may
+  be treated as already expired. **Which of those happens is an ingest question**, so
+  this one is partly coupled to §2.
+- **Recommended:** warn, never throw, and ask ingest what it does with a missing
+  `validUntil` before deciding whether a default is safe.
+
+### 2b.4 D-14 — an untitled `group()` is reported as "Identify"
+
+`GroupModel` falls back to `'Identify'` when no `eventTitle` is given
+(`this.name = params.eventTitle ?? 'Identify'`), so an untitled group event is
+**indistinguishable from an identify event at ingest**.
+
+- **Fix:** change the fallback to something like `'Group'`.
+- **Cost of fixing:** **this one is different from the other three — it changes a value
+  that is already in customer reports.** Any saved report, funnel or alert keyed on the
+  event name `"Identify"` will silently stop matching those events. It is a data
+  migration, not a code change.
+- **Cost of NOT fixing:** group and identify events cannot be separated in analysis, and
+  nobody looking at the data can tell.
+- **Recommended:** **hold until the `BACKEND.md` conversation is happening anyway.**
+  Ingest has to be part of this — someone may need to backfill or alias historical
+  events — and it should ship with a release note naming the date the meaning changed.
+
+### 2b.5 Three drafted release-note lines, unapproved
+
+In `RELEASE-NOTES-DRAFT.md`, kept separate from the DNT/GPC entry the user approved on
+2026-08-12. Each describes a change that **has already landed** on the branch, so these
+are not blocking code — they are blocking honest communication:
+
+1. **`intempt:record` / `intempt:product` now carry a real `eventName`** (D-13). Was
+   always `''`. Only the browser CustomEvent changed; nothing that reaches ingest.
+   Affects customers whose listeners switch on `eventName` or work around the empty
+   string.
+2. **A second SDK instance now shuts the first one down** (D-2, "last instance wins").
+   Previously both ran and every event was sent twice. **A page deliberately running two
+   instances — two projects on one page — now loses one**, silently.
+3. **A missing credential now throws at init** (D-25) instead of constructing and failing
+   later as a 401. Direct-construction only; the script-tag path is unaffected.
+
+**Cost of leaving unapproved:** a customer hits one of these and finds nothing written
+down, which is exactly the failure `DEFECTS.md` exists to prevent.
 
 ---
 

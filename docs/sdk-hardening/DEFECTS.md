@@ -244,6 +244,11 @@ changes what customers receive, and several (D-1, D-3, D-15) change the wire
 format, which means they need the ingest conversation first — the same one
 `BACKEND.md` items 3 and 4 are waiting on.
 
+**D-14, D-18, D-19 and D-20 are now written up in full in `BACKLOG.md` §2b** — each with
+the cost of fixing, the cost of not fixing, and a recommendation. They are parked on a
+product decision, not on effort: every one is a one-line change with a multi-line
+consequence for existing customers.
+
 Suggested order:
 
 1. **D-2** (duplicate instance) and **D-9/D-10/D-11** (page tracker) — pure
