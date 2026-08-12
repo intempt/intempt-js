@@ -1753,6 +1753,26 @@ is shared and each event schedules its own flush. Preserved deliberately, becaus
 flush drains the whole pool, so the effect is extra no-op flushes rather than lost or
 duplicated events. **Do not "fix" it without a test pinning the resulting request count.**
 
+## 3s-pending. ⚠️ A table the user wants logged here — CONTENT NOT YET RECEIVED
+
+**Read this if the user asks you to "log the table".** On 2026-08-12, immediately before
+a context clear, the user asked for a table to be saved into this checkpoint and said
+they would ask again after the clear. **The paste arrived truncated — only the top border
+came through:**
+
+```
+┌───────────────┬────────────────┬──────────┐
+```
+
+That is a 3-column box-drawing table (widths ~15 / ~16 / ~10) and **nothing else — no
+header row, no data**. It was not invented or reconstructed, deliberately: a fabricated
+table in this file would be worse than an absent one, because the next reader trusts what
+is here.
+
+**Action when asked:** request the table content again, then replace this whole section
+with it. Delete this placeholder at that point. If the paste truncates a second time, ask
+for it as plain text or as a file path rather than a rendered box.
+
 ## 3s. The PR is open, both never-run jobs passed, and the real mutation score is 58.83%
 
 ### PR #191 into `staging` — 121 commits, 176 files
