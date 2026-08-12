@@ -482,7 +482,8 @@ clean at 81.74 kB / 23.08 kB gzip; `checkReservedWords.js` clean;
 three jobs and both triggers resolve.
 
 **Still not verified, and cannot be from here:** that the workflow is green _on
-GitHub_. The branch has not been pushed. First push must be
+GitHub_. **HISTORICAL — superseded by §0c and §3s; every job in this file is now
+green on PR #191.** At the time of writing the branch was unpushed. First push must be
 `git push -u origin beso/sdk-enterprise-hardening` (Invariants §6.1) — and note
 that push will trigger both `build.yaml` and this new file. Watch the first run.
 
