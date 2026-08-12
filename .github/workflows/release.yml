@@ -1,0 +1,146 @@
+# npm publish with provenance.
+#
+# TRIGGER POLICY — the most important thing in this file. This workflow NEVER
+# runs on a push to a branch. Publishing to npm is irreversible (a version
+# number can be deprecated but never reused), so the trigger is either a
+# `v*` tag or an explicit human `workflow_dispatch`. A `push: branches:` trigger
+# here would mean every merge publishes; do not add one.
+#
+# Relationship to build.yaml: build.yaml deploys the CDN bundle to the mutable
+# /v1 path and is invariant (CHECKPOINT §6.2). This file is a SEPARATE
+# distribution channel — the npm package — and does not touch S3 or the CDN.
+# Publishing here has no effect on existing CDN customers.
+#
+# WHAT IS NOT YET TRUE, read before first use: `package.json` deliberately has
+# no `main` / `module` / `exports` / `types`, because the only build output is a
+# self-initialising IIFE and there is nothing importable to point at
+# (CHECKPOINT §2 task 1, D11). So the first publish ships a CDN/script-tag
+# package: `browser`, `unpkg` and `jsdelivr` resolve, `import` does not. That is
+# honest but limited — Phase 1 task 5 adds the module build. Decide whether to
+# publish before or after that; this workflow does not care.
+#
+# Every action is pinned to a full commit SHA — see the header of ci.yml for why
+# and how to update a pin.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: 'Pack and validate only — do not publish to npm'
+        type: boolean
+        default: true
+      tag:
+        description: 'npm dist-tag to publish under'
+        type: choice
+        default: latest
+        options: [latest, next, beta]
+
+# One release at a time, and never cancel one in flight: a cancelled publish can
+# leave the registry and the git tag disagreeing.
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    # `environment` is the place to require a human approval before the publish
+    # step runs. Create an `npm-publish` environment with required reviewers in
+    # repo settings; until it exists this line is inert, not blocking.
+    environment: npm-publish
+    permissions:
+      # Required for provenance: npm exchanges this OIDC token with Sigstore to
+      # attest that the tarball was built by this workflow from this commit.
+      # `publishConfig.provenance: true` in package.json is what turns it on, and
+      # the publish FAILS without this permission rather than silently shipping
+      # an unattested package.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          # 21.x matches what build.yaml deploys on, so the tarball's bundle is
+          # byte-comparable with the one on the CDN.
+          node-version: 21.x
+          cache: npm
+          # Writes the .npmrc that `npm publish` needs to find NODE_AUTH_TOKEN.
+          registry-url: 'https://registry.npmjs.org'
+
+      - run: npm ci
+
+      # Re-gate here rather than trusting that CI ran on this commit. A tag can
+      # be pushed at any commit, including one that never saw a pull request,
+      # and an npm version cannot be withdrawn once it exists.
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests + coverage
+        run: npm run test:coverage
+
+      - name: Build
+        run: npm run build
+
+      - name: Check reserved words in bundle
+        run: node scripts/checkReservedWords.js
+
+      # A published tarball is permanent and world-readable, so this scan matters
+      # more here than anywhere else in the repo.
+      - name: Scan bundle for credentials
+        run: npm run scan:secrets
+
+      - name: Size budget
+        run: npm run size
+
+      # `files` in package.json is an allowlist (dist, README.md, USAGE.md,
+      # LICENSE), so this is the check that it actually resolved to those and
+      # that dist/ is present — an empty `dist` would otherwise publish an empty
+      # package that looks successful.
+      - name: Show tarball contents
+        run: npm pack --dry-run
+
+      - name: Fail if the built bundle is missing or empty
+        run: test -s dist/intempt.min.js
+
+      # On a tag push, the tag must match package.json's version. Without this,
+      # tagging v6.0.1 while package.json still says 6.0.0 publishes 6.0.0 —
+      # which either fails as a duplicate or, worse, succeeds as the wrong thing.
+      - name: Verify tag matches package.json version
+        if: github.event_name == 'push'
+        run: |
+          tag_version="${GITHUB_REF_NAME#v}"
+          pkg_version="$(node -p "require('./package.json').version")"
+          if [ "$tag_version" != "$pkg_version" ]; then
+            echo "Tag $GITHUB_REF_NAME implies version $tag_version but package.json says $pkg_version." >&2
+            exit 1
+          fi
+          echo "Tag and package.json agree on $pkg_version."
+
+      # A manual run defaults to dry-run: true, so the safe path is the default
+      # and publishing is the explicit opt-out. A tag push always publishes.
+      - name: Publish
+        if: github.event_name == 'push' || inputs.dry-run == false
+        # `--provenance` is redundant with publishConfig.provenance but stated
+        # here so the intent is visible at the call site.
+        run: npm publish --provenance --access public --tag "${{ inputs.tag || 'latest' }}"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Dry run — nothing was published
+        if: github.event_name == 'workflow_dispatch' && inputs.dry-run
+        run: echo "dry-run was true, so every gate above ran but npm publish was skipped."
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        if: success() || failure()
+        with:
+          name: release-dist
+          path: dist/
+          retention-days: 90

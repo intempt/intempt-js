@@ -1,0 +1,15 @@
+{
+  "//": "Standalone so the example can be type-checked on its own: npx tsc -p examples/typescript. The repo's root tsconfig does not include examples/.",
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "types": [],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmit": true
+  },
+  "include": ["**/*.ts"]
+}

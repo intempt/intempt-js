@@ -1,5 +1,12 @@
-import { GuardConfig, GuardContext, GuardResult, GuardCondition } from './trackingGuard.types.ts';
-import { EnvConfig } from '../shared/envConfig.ts';
+import {
+  GuardConfig,
+  GuardContext,
+  GuardResult,
+} from './trackingGuard.types.ts';
+
+import { createLogger } from '../shared/logger/logger.ts';
+
+const log = createLogger('TrackingGuard');
 
 export class TrackingGuardManager {
   private _guards: Map<string, GuardConfig> = new Map();
@@ -91,8 +98,9 @@ export class TrackingGuardManager {
     }
 
     // Get enabled guards only
-    const enabledGuards = Array.from(this._guards.values())
-      .filter(guard => guard.enabled !== false);
+    const enabledGuards = Array.from(this._guards.values()).filter(
+      (guard) => guard.enabled !== false,
+    );
 
     if (enabledGuards.length === 0) {
       return { blocked: false };
@@ -106,15 +114,13 @@ export class TrackingGuardManager {
           return {
             blocked: true,
             guardId: guard.id,
-            reason: guard.description || `Blocked by guard: ${guard.id}`
+            reason: guard.description || `Blocked by guard: ${guard.id}`,
           };
         }
       } catch (error) {
         // Log error but continue checking other guards
         try {
-          if (!EnvConfig.isProduction()) {
-            console.error(`[TrackingGuard] Error evaluating guard ${guard.id}:`, error);
-          }
+          log.error(`error evaluating guard ${guard.id}`, error);
         } catch {
           // If EnvConfig is not available (e.g., in tests), just continue
           // Error is already caught, we just skip logging
@@ -125,4 +131,3 @@ export class TrackingGuardManager {
     return { blocked: false };
   }
 }
-

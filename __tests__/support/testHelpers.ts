@@ -3,8 +3,10 @@
  */
 
 export function clearCookies() {
-  document.cookie.split(";").forEach(c => {
-    document.cookie = c.replace(/^ +/, "").replace(/=.*/, "=;expires=" + new Date().toUTCString() + ";path=/");
+  document.cookie.split(';').forEach((c) => {
+    document.cookie = c
+      .replace(/^ +/, '')
+      .replace(/=.*/, '=;expires=' + new Date().toUTCString() + ';path=/');
   });
 }
 
@@ -21,13 +23,13 @@ export function getCookie(name: string): string | null {
 
 export function mockWindowLocation(href: string) {
   delete (window as any).location;
-  (window as any).location = { 
+  (window as any).location = {
     href,
     hostname: new URL(href).hostname,
     pathname: new URL(href).pathname,
     search: new URL(href).search,
     hash: new URL(href).hash,
-    origin: new URL(href).origin
+    origin: new URL(href).origin,
   };
 }
 
@@ -35,4 +37,3 @@ export function restoreWindowLocation() {
   // Restore original location
   (window as any).location = location;
 }
-

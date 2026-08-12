@@ -2,3 +2,27 @@ node_modules
 dist/*
 package-lock.json
 package.json
+
+# Generated output — same set .gitignore excludes. Without these, a
+# `prettier --check .` after a coverage or mutation run walks thousands of
+# generated HTML files and takes minutes.
+coverage
+reports
+.stryker-tmp
+cypress/screenshots
+cypress/videos
+standalone
+
+# `.claude/worktrees/` holds full checkouts, including their own dist/ and
+# node_modules/. ESLint reported 4048 problems instead of 323 for exactly this
+# reason during the five-lane merge (CHECKPOINT §0a). Now that prettier is a
+# blocking gate, an unignored worktree would fail the build on files that are not
+# even this branch's.
+.claude
+
+# Playwright output (tier 3)
+test-results/
+playwright-report/
+
+# TypeDoc output
+docs/api-generated/

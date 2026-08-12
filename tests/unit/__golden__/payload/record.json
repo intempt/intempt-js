@@ -1,0 +1,27 @@
+{
+  "track": [
+    {
+      "name": "Order Completed",
+      "type": "record",
+      "payload": [
+        {
+          "eventId": "<eventId>",
+          "profileId": "<profileId>",
+          "sessionId": "<sessionId>",
+          "pageId": "<pageId>",
+          "userId": "u1",
+          "accountId": "a1",
+          "data": {
+            "total": 42
+          },
+          "userAttributes": {
+            "email": "a@b.c"
+          },
+          "accountAttributes": {
+            "tier": "gold"
+          }
+        }
+      ]
+    }
+  ]
+}

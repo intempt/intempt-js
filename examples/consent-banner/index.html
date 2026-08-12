@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Intempt SDK — consent and opt-out</title>
+
+    <!-- 1. Queue stub. See examples/basic-html/index.html for the annotated copy. -->
+    <script>
+      (function () {
+        if (window.intempt) return;
+        var queue = [],
+          pending = [];
+        var methods = [
+          'identify',
+          'group',
+          'track',
+          'record',
+          'alias',
+          'consent',
+          'productAdd',
+          'productOrdered',
+          'productView',
+          'logOut',
+          'optIn',
+          'optOut',
+          'isUserOptIn',
+          'recommendation',
+        ];
+        var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
+        methods.forEach(function (m) {
+          stub[m] = function () {
+            var args = [].slice.call(arguments);
+            if (m === 'recommendation') {
+              return new Promise(function (resolve, reject) {
+                pending.push({ resolve: resolve, reject: reject });
+                queue.push({ method: m, args: args });
+              });
+            }
+            queue.push({ method: m, args: args });
+          };
+        });
+        window.intempt = stub;
+      })();
+    </script>
+
+    <!-- 2. The SDK. Replace all four parameters. The /v1/ segment is required. -->
+    <script
+      async
+      src="https://cdn.intempt.com/v1/intempt.min.js?organization=YOUR_ORG&project=YOUR_PROJECT&source=YOUR_SOURCE_ID&key=YOUR_KEY"
+    ></script>
+
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+        max-width: 46rem;
+        margin: 2rem auto;
+        padding: 0 1rem 8rem;
+      }
+      h1 {
+        font-size: 1.4rem;
+      }
+      h2 {
+        font-size: 1.05rem;
+        margin-top: 2rem;
+      }
+      button {
+        font: inherit;
+        padding: 0.4rem 0.8rem;
+        margin: 0 0.4rem 0.4rem 0;
+        cursor: pointer;
+      }
+      code {
+        font-family: ui-monospace, monospace;
+      }
+      #banner {
+        position: fixed;
+        inset: auto 0 0 0;
+        border-top: 1px solid currentColor;
+        background: Canvas;
+        padding: 1rem;
+        display: none;
+      }
+      #banner.show {
+        display: block;
+      }
+      #state {
+        border-left: 3px solid currentColor;
+        padding: 0.5rem 0.75rem;
+        margin: 1rem 0;
+      }
+      #log {
+        border: 1px solid currentColor;
+        border-radius: 4px;
+        padding: 0.5rem 0.75rem;
+        max-height: 14rem;
+        overflow: auto;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        white-space: pre-wrap;
+      }
+      table {
+        border-collapse: collapse;
+      }
+      td,
+      th {
+        border: 1px solid currentColor;
+        padding: 0.3rem 0.6rem;
+        text-align: left;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Consent and opt-out</h1>
+
+    <p>
+      These are two different mechanisms and mixing them up is the most common
+      integration mistake with this SDK.
+    </p>
+
+    <table>
+      <tr>
+        <th></th>
+        <th><code>optOut()</code> / <code>optIn()</code></th>
+        <th><code>consent()</code></th>
+      </tr>
+      <tr>
+        <td>What it does</td>
+        <td>Turns collection off and on</td>
+        <td>Sends an event recording the visitor's decision</td>
+      </tr>
+      <tr>
+        <td>Stops tracking?</td>
+        <td>Yes</td>
+        <td><strong>No</strong></td>
+      </tr>
+      <tr>
+        <td>Survives reload?</td>
+        <td>Yes — <code>localStorage</code></td>
+        <td>It is an event, not state</td>
+      </tr>
+      <tr>
+        <td>Scope</td>
+        <td>This origin only</td>
+        <td>—</td>
+      </tr>
+    </table>
+
+    <p>
+      So a "reject" flow needs both:
+      <code>consent({ action: 'reject' })</code> to record the decision, then
+      <code>optOut()</code> to stop collecting.
+    </p>
+
+    <h2>The ordering trap</h2>
+
+    <p>
+      <code>consent()</code> is itself gated on the opt-out flag. Calling
+      <code>optOut()</code> first makes the following <code>consent()</code> a
+      silent no-op — no error, no event, no audit record of the refusal. Record
+      first, then opt out. The reverse applies on re-consent:
+      <code>optIn()</code> before <code>consent({ action: 'accept' })</code>, or
+      the acceptance is never recorded.
+    </p>
+
+    <div id="state">Reading current state…</div>
+
+    <button id="show-banner">Show the banner again</button>
+    <button id="try-track">Try to track an event</button>
+
+    <h2>What happened</h2>
+    <div id="log">(nothing yet)</div>
+
+    <div id="banner">
+      <p style="margin-top: 0">
+        <strong>We use analytics cookies.</strong> This banner is the example;
+        the two buttons below run the flows described above.
+      </p>
+      <button id="accept">Accept</button>
+      <button id="reject">Reject</button>
+    </div>
+
+    <script>
+      var ONE_YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+      var DECISION_KEY = 'example_consent_decision';
+
+      var log = document.getElementById('log');
+      var lines = 0;
+      function write(text) {
+        if (lines === 0) log.textContent = '';
+        lines++;
+        log.textContent = lines + '. ' + text + '\n' + log.textContent;
+      }
+
+      window.addEventListener('intempt:consent', function (e) {
+        write('SDK dispatched intempt:consent -> ' + e.detail.eventName);
+      });
+      window.addEventListener('intempt:track', function (e) {
+        write('SDK dispatched intempt:track -> ' + e.detail.eventName);
+      });
+
+      function ready() {
+        return Boolean(window.intempt) && window.intempt._isStub !== true;
+      }
+
+      function renderState() {
+        var el = document.getElementById('state');
+        if (!ready()) {
+          el.textContent =
+            'SDK not loaded yet. isUserOptIn() would return undefined right ' +
+            'now — through the stub it returns nothing at all, which is why this panel waits.';
+          return;
+        }
+        var decision = localStorage.getItem(DECISION_KEY);
+        el.textContent =
+          'isUserOptIn(): ' +
+          window.intempt.isUserOptIn() +
+          '  ·  your stored decision: ' +
+          (decision || 'none') +
+          '  ·  the SDK stores its own flag under the localStorage key "intempt_do_not_track".';
+      }
+
+      // Painting a consent UI in its correct initial state is the one case that genuinely has
+      // to wait for the SDK, because isUserOptIn() has no return value through the stub.
+      var waited = 0;
+      var poll = setInterval(function () {
+        if (ready()) {
+          clearInterval(poll);
+          renderState();
+          // Only ask if this visitor has not decided. The SDK's flag persists on its own; the
+          // separate key here is so the banner knows whether it has been answered at all,
+          // which "opted in" cannot tell you (that is also the default).
+          if (!localStorage.getItem(DECISION_KEY)) {
+            document.getElementById('banner').classList.add('show');
+          }
+        } else if ((waited += 250) >= 5000) {
+          clearInterval(poll);
+          renderState();
+          write(
+            'The SDK never loaded. On localhost that is expected — see examples/README.md.',
+          );
+        }
+      }, 250);
+
+      document.getElementById('accept').onclick = function () {
+        // optIn() first: consent() is a no-op while opted out, so on a re-consent this
+        // ordering is what makes the acceptance land.
+        window.intempt.optIn();
+        window.intempt.consent({
+          action: 'accept',
+          validUntil: Date.now() + ONE_YEAR_MS,
+          category: 'analytics',
+        });
+        localStorage.setItem(DECISION_KEY, 'accept');
+        write('optIn(), then consent({ action: "accept" })');
+        document.getElementById('banner').classList.remove('show');
+        renderState();
+      };
+
+      document.getElementById('reject').onclick = function () {
+        // Record the refusal BEFORE opting out, or it is silently dropped.
+        window.intempt.consent({
+          action: 'reject',
+          validUntil: Date.now() + ONE_YEAR_MS,
+          category: 'analytics',
+        });
+        window.intempt.optOut();
+        localStorage.setItem(DECISION_KEY, 'reject');
+        write('consent({ action: "reject" }), then optOut()');
+        document.getElementById('banner').classList.remove('show');
+        renderState();
+      };
+
+      document.getElementById('show-banner').onclick = function () {
+        localStorage.removeItem(DECISION_KEY);
+        document.getElementById('banner').classList.add('show');
+        renderState();
+      };
+
+      document.getElementById('try-track').onclick = function () {
+        window.intempt.track({
+          eventTitle: 'Consent Demo Click',
+          data: { at: Date.now() },
+        });
+        // While opted out this returns normally and does nothing at all — no event, no error.
+        // The absence of an intempt:track line in the log is the only signal.
+        write(
+          'called track(). Opted in: ' +
+            (ready() ? window.intempt.isUserOptIn() : 'unknown') +
+            '. If false, nothing was sent and nothing was raised.',
+        );
+      };
+    </script>
+
+    <p>
+      <small
+        ><strong>One limitation to plan around:</strong> the opt-out flag lives
+        in <code>localStorage</code>, which is origin-scoped. An opt-out on
+        <code>www.example.com</code> does <em>not</em> carry to
+        <code>shop.example.com</code>. If you run one product across subdomains
+        you must call <code>optOut()</code> on each origin yourself — a shared
+        cookie at the registrable domain is not implemented.</small
+      >
+    </p>
+  </body>
+</html>

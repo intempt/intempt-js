@@ -1,11 +1,14 @@
-import { ConsentAction, ConsentParams, IntemptIdsParams } from '../types/intemptJs.types.ts';
+import {
+  ConsentAction,
+  ConsentParams,
+  IntemptIdsParams,
+} from '../types/intemptJs.types.ts';
 import { ConsentTrack } from '../interfaces/baseModel.interface.ts';
-
 
 export class ConsentModel implements ConsentTrack {
   readonly type = 'consent';
   readonly action: ConsentAction;
-  readonly email?:string;
+  readonly email?: string;
   readonly message?: string;
   readonly category?: string;
   readonly sourceId: string;

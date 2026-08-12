@@ -1,17 +1,23 @@
 import {
   AliasModelPayload,
   GroupModelPayload,
-  IdentifyModelPayload, ProductModelPayload,
+  IdentifyModelPayload,
+  ProductModelPayload,
   RecordModelPayload,
   TrackModelPayload,
 } from '../types/autoTracker.types.ts';
 
-
-
 interface BaseModel {
   readonly name: string;
   readonly type: string;
-  readonly payload: any[];
+  /**
+   * `unknown[]`, not `any[]`: every interface below narrows this to its own
+   * payload type, so the base only needs to say "an array of entries". `any[]`
+   * additionally made the *narrowed* members assignable in both directions, which
+   * is how a `TrackModelPayload[]` could be handed to something expecting
+   * identify entries without a complaint.
+   */
+  readonly payload: unknown[];
   get _name(): string;
 }
 
@@ -45,7 +51,7 @@ export interface ModelTrack extends BaseModel {
   readonly payload: TrackModelPayload[];
 }
 
-export interface ConsentTrack  {
+export interface ConsentTrack {
   readonly type: 'consent';
   get _name(): string;
 }

@@ -1,0 +1,24 @@
+{
+  "track": [
+    {
+      "name": "Signed Up",
+      "type": "identify",
+      "payload": [
+        {
+          "eventId": "<eventId>",
+          "profileId": "<profileId>",
+          "sessionId": "<sessionId>",
+          "pageId": "<pageId>",
+          "userId": "user-9",
+          "userAttributes": {
+            "email": "a@b.c",
+            "plan": "pro"
+          },
+          "data": {
+            "source": "form"
+          }
+        }
+      ]
+    }
+  ]
+}

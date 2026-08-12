@@ -3,11 +3,10 @@ import { generateId } from '../../shared/shared.utils.ts';
 import { TrackModelPayload } from '../types/autoTracker.types.ts';
 import { ModelTrack } from '../interfaces/baseModel.interface.ts';
 
-
 export class TrackModel implements ModelTrack {
-   readonly name: string;
-   readonly type = 'track';
-   readonly payload: TrackModelPayload[] = [];
+  readonly name: string;
+  readonly type = 'track';
+  readonly payload: TrackModelPayload[] = [];
 
   constructor(params: TrackParams & IntemptIdsParams) {
     this.name = params.eventTitle;
@@ -17,9 +16,8 @@ export class TrackModel implements ModelTrack {
       sessionId: params.sessionId!,
       pageId: params.pageId!,
       profileId: params.profileId!,
-      data: params.data
-    })
-
+      data: params.data,
+    });
   }
 
   get _name(): string {

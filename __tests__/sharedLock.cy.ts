@@ -10,11 +10,11 @@ describe('SharedLock', () => {
     localStorage.removeItem(`__intempt_lock_${lockKey}__`);
     lock1 = new SharedLock(lockKey, {
       storage: localStorage,
-      timeoutMS: 1000
+      timeoutMS: 1000,
     });
     lock2 = new SharedLock(lockKey, {
       storage: localStorage,
-      timeoutMS: 1000
+      timeoutMS: 1000,
     });
   });
 
@@ -36,7 +36,7 @@ describe('SharedLock', () => {
 
       const lock1Promise = lock1.withLock(async () => {
         lock1Acquired = true;
-        await new Promise(resolve => setTimeout(resolve, 100));
+        await new Promise((resolve) => setTimeout(resolve, 100));
         return 'lock1';
       });
 
@@ -56,7 +56,8 @@ describe('SharedLock', () => {
     it('should release lock after operation', async () => {
       await lock1.withLock(async () => {
         // Lock should be held
-        expect(localStorage.getItem(`__intempt_lock_${lockKey}__`)).to.not.be.null;
+        expect(localStorage.getItem(`__intempt_lock_${lockKey}__`)).to.not.be
+          .null;
       });
 
       // Lock should be released
@@ -68,10 +69,13 @@ describe('SharedLock', () => {
   describe('Lock Expiration', () => {
     it('should handle expired locks', async () => {
       // Manually set an expired lock
-      localStorage.setItem(`__intempt_lock_${lockKey}__`, JSON.stringify({
-        pid: 'old_pid',
-        timestamp: Date.now() - 2000 // 2 seconds ago
-      }));
+      localStorage.setItem(
+        `__intempt_lock_${lockKey}__`,
+        JSON.stringify({
+          pid: 'old_pid',
+          timestamp: Date.now() - 2000, // 2 seconds ago
+        }),
+      );
 
       // Should be able to acquire lock (expired lock should be cleared)
       const result = await lock1.withLock(async () => {
@@ -81,4 +85,3 @@ describe('SharedLock', () => {
     });
   });
 });
-
