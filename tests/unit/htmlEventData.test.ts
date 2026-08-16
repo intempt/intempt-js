@@ -88,37 +88,72 @@ describe('the redaction — the one privacy control on auto-tracked DOM data', (
   });
 
   /**
-   * **D-29 — the redaction does not cover submitted form data. Found writing this
-   * file; pinned, not fixed.**
+   * **D-29 — fixed 2026-08-12. These were the pinning tests; they are now the
+   * regression tests.**
    *
-   * `getHtmlElementText` redacts `targetText`. `getSubmittedData` is a separate path
-   * that reads the form through `FormData`, and **`FormData` includes password fields
-   * like any other named control**. So a click on a password box is redacted, and
-   * submitting the form containing it is not — the password ships in
-   * `formDataText`. `doNotCapture` is likewise ignored there.
+   * The redaction used to exist on one of the two capture paths only.
+   * `getHtmlElementText` masked a clicked password field; `getSubmittedData` read
+   * the form through `FormData`, which includes password controls like any other
+   * named control and knows nothing about `doNotCapture`. So clicking a password
+   * box was redacted and **submitting the form containing it was not** — the
+   * password shipped in `formDataText`.
    *
-   * The fix is small (filter `type === 'password'` and `[doNotCapture]` out of both
-   * the `FormData` entries and the unnamed-input sweep) but it changes what ingest
-   * receives for every form submit, so it is a deliberate call, not a drive-by.
-   * These assertions fail when it is fixed — that is the specification.
+   * Redacted rather than dropped, deliberately: an absent key is
+   * indistinguishable from a field the user left empty, while "this form had a
+   * password" is legitimate analytics and its value never is.
    */
-  describe('D-29: submitted form data is NOT redacted', () => {
-    it('captures a named password field on submit', () => {
+  describe('D-29 regression: submitted form data is redacted too', () => {
+    it('masks a named password field on submit and keeps the rest', () => {
       const form = mount(
         '<form action="/login"><input name="user" value="ada" /><input name="pw" type="password" value="hunter2" /></form>',
       );
       expect(new HtmlElementDataComponent(form, SUBMIT).formDataText).toEqual([
         { key: 'user', value: 'ada' },
-        { key: 'pw', value: 'hunter2' },
+        { key: 'pw', value: '********' },
       ]);
     });
 
-    it('ignores `doNotCapture` on submit', () => {
+    it('honours `doNotCapture` on submit', () => {
       const form = mount(
         '<form action="/pay"><input name="card" doNotCapture value="4111111111111111" /></form>',
       );
       expect(new HtmlElementDataComponent(form, SUBMIT).formDataText).toEqual([
-        { key: 'card', value: '4111111111111111' },
+        { key: 'card', value: '********' },
+      ]);
+    });
+
+    it('masks an unnamed password field, matched directly rather than by name', () => {
+      // `FormData` skips unnamed controls, so these come through the separate
+      // sweep and cannot be matched on a name — there is none.
+      const form = mount(
+        '<form action="/login"><input type="password" value="hunter2" /></form>',
+      );
+      expect(new HtmlElementDataComponent(form, SUBMIT).formDataText).toEqual([
+        { key: 'input-0', value: '********' },
+      ]);
+    });
+
+    it('never lets the raw value into the payload by any path', () => {
+      const form = mount(
+        '<form action="/login"><input name="pw" type="password" value="hunter2" /><input name="card" doNotCapture value="4111111111111111" /></form>',
+      );
+      const captured = new HtmlElementDataComponent(form, SUBMIT);
+
+      // The whole object, not just `formDataText`: the hierarchy string is the
+      // other path a markup `value=` attribute can escape through.
+      const serialised = JSON.stringify(captured);
+      expect(serialised).not.toContain('hunter2');
+      expect(serialised).not.toContain('4111111111111111');
+    });
+
+    it('redacts by field, not by form — one password does not blank the others', () => {
+      const form = mount(
+        '<form action="/login"><input name="user" value="ada" /><input name="pw" type="password" value="x" /><input name="remember" value="yes" /></form>',
+      );
+      expect(new HtmlElementDataComponent(form, SUBMIT).formDataText).toEqual([
+        { key: 'user', value: 'ada' },
+        { key: 'pw', value: '********' },
+        { key: 'remember', value: 'yes' },
       ]);
     });
   });
@@ -330,15 +365,28 @@ describe('generateHierarchy', () => {
     );
   });
 
-  it('does not redact the hierarchy, so a value attribute survives it', () => {
-    // The redaction covers `targetText` only. A password input's *attributes* still
-    // go into the hierarchy string — and `value` set in the markup is one of them.
-    // This is the same gap as D-29, on a second path, and it is asserted rather
-    // than fixed for the same reason.
+  it('masks a redacted element’s value attribute in the hierarchy too (D-29)', () => {
+    // The hierarchy is the third path a value can escape through, after
+    // `targetText` and `formDataText`. A `value` written in the markup is a real
+    // attribute and used to survive here even when the text was masked.
     const input = mount('<input type="password" value="hunter2" />');
     const captured = new HtmlElementDataComponent(input, CHANGE);
 
     expect(captured.targetText).toBe('********');
-    expect(captured.hierarchy).toContain("value='hunter2'");
+    expect(captured.hierarchy).toContain("value='********'");
+    expect(JSON.stringify(captured)).not.toContain('hunter2');
+  });
+
+  it('keeps every other attribute intact on a redacted element', () => {
+    // Masking the value must not turn the selector into a useless one — the
+    // element's shape is what makes the hierarchy worth sending.
+    const input = mount(
+      '<input type="password" name="pw" value="hunter2" placeholder="Password" />',
+    );
+    const hierarchy = new HtmlElementDataComponent(input, CHANGE).hierarchy;
+
+    expect(hierarchy).toContain("[type='password']");
+    expect(hierarchy).toContain("[name='pw']");
+    expect(hierarchy).toContain("[placeholder='Password']");
   });
 });
