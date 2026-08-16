@@ -1,0 +1,17 @@
+{
+  "track": [
+    {
+      "name": "Identify",
+      "type": "identify",
+      "payload": [
+        {
+          "eventId": "<eventId>",
+          "profileId": "<profileId>",
+          "sessionId": "<sessionId>",
+          "pageId": "<pageId>",
+          "userId": "user-9"
+        }
+      ]
+    }
+  ]
+}

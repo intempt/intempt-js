@@ -6,7 +6,7 @@
 export function getReservedWordPatterns(word) {
   // Escape special regex characters
   const escapedWord = word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  
+
   // Patterns that indicate the word is used as a variable name
   return [
     // var/let/const declarations
@@ -36,8 +36,11 @@ export function getReservedWordPatterns(word) {
  */
 export function shouldExcludeMatch(word, match, matchIndex, bundleCode) {
   const before = bundleCode.substring(Math.max(0, matchIndex - 50), matchIndex);
-  const after = bundleCode.substring(matchIndex + match.length, matchIndex + match.length + 50);
-  
+  const after = bundleCode.substring(
+    matchIndex + match.length,
+    matchIndex + match.length + 50,
+  );
+
   // Special case: Exclude $ if it's part of a template literal ${...}
   if (word === '$') {
     const beforeChar = bundleCode.charAt(matchIndex - 1);
@@ -46,7 +49,7 @@ export function shouldExcludeMatch(word, match, matchIndex, bundleCode) {
       return true;
     }
   }
-  
+
   // Skip if surrounded by quotes (simple heuristic)
   const singleQuoteBefore = before.lastIndexOf("'");
   const singleQuoteAfter = after.indexOf("'");
@@ -54,13 +57,17 @@ export function shouldExcludeMatch(word, match, matchIndex, bundleCode) {
   const doubleQuoteAfter = after.indexOf('"');
   const backtickBefore = before.lastIndexOf('`');
   const backtickAfter = after.indexOf('`');
-  
-  const inString = 
-    (singleQuoteBefore !== -1 && singleQuoteAfter !== -1 && 
-     (before.substring(singleQuoteBefore).match(/'/g) || []).length % 2 === 1) ||
-    (doubleQuoteBefore !== -1 && doubleQuoteAfter !== -1 && 
-     (before.substring(doubleQuoteBefore).match(/"/g) || []).length % 2 === 1) ||
+
+  const inString =
+    (singleQuoteBefore !== -1 &&
+      singleQuoteAfter !== -1 &&
+      (before.substring(singleQuoteBefore).match(/'/g) || []).length % 2 ===
+        1) ||
+    (doubleQuoteBefore !== -1 &&
+      doubleQuoteAfter !== -1 &&
+      (before.substring(doubleQuoteBefore).match(/"/g) || []).length % 2 ===
+        1) ||
     (backtickBefore !== -1 && backtickAfter !== -1);
-  
+
   return inString;
 }

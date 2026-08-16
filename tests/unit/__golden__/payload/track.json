@@ -1,0 +1,20 @@
+{
+  "track": [
+    {
+      "name": "Signup Clicked",
+      "type": "track",
+      "payload": [
+        {
+          "eventId": "<eventId>",
+          "sessionId": "<sessionId>",
+          "pageId": "<pageId>",
+          "profileId": "<profileId>",
+          "data": {
+            "plan": "pro",
+            "seats": 3
+          }
+        }
+      ]
+    }
+  ]
+}

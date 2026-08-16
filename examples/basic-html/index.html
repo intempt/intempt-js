@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Intempt SDK — basic install</title>
+
+    <!--
+  1. QUEUE STUB
+  Buffers window.intempt.* calls made before the SDK finishes downloading. The SDK
+  replays them in order once it loads, which is why nothing below waits for a callback.
+  Copy this block verbatim.
+-->
+    <script>
+      (function () {
+        if (window.intempt) return;
+        var queue = [],
+          pending = [];
+        var methods = [
+          'identify',
+          'group',
+          'track',
+          'record',
+          'alias',
+          'consent',
+          'productAdd',
+          'productOrdered',
+          'productView',
+          'logOut',
+          'optIn',
+          'optOut',
+          'isUserOptIn',
+          'recommendation',
+        ];
+        var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
+        methods.forEach(function (m) {
+          stub[m] = function () {
+            var args = [].slice.call(arguments);
+            if (m === 'recommendation') {
+              return new Promise(function (resolve, reject) {
+                pending.push({ resolve: resolve, reject: reject });
+                queue.push({ method: m, args: args });
+              });
+            }
+            queue.push({ method: m, args: args });
+          };
+        });
+        window.intempt = stub;
+      })();
+    </script>
+
+    <!--
+  2. THE SDK
+  Replace all four query parameters with your own values.
+  The /v1/ path segment is REQUIRED: the SDK finds its own script tag by matching this
+  URL, and without it reads an empty configuration and refuses to start.
+-->
+    <script
+      async
+      src="https://cdn.intempt.com/v1/intempt.min.js?organization=YOUR_ORG&project=YOUR_PROJECT&source=YOUR_SOURCE_ID&key=YOUR_KEY"
+    ></script>
+
+    <style>
+      :root {
+        color-scheme: light dark;
+      }
+      body {
+        font:
+          16px/1.5 system-ui,
+          sans-serif;
+        max-width: 46rem;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+      h1 {
+        font-size: 1.4rem;
+      }
+      h2 {
+        font-size: 1.05rem;
+        margin-top: 2rem;
+      }
+      button {
+        font: inherit;
+        padding: 0.4rem 0.8rem;
+        margin: 0 0.4rem 0.4rem 0;
+        cursor: pointer;
+      }
+      #log {
+        border: 1px solid currentColor;
+        border-radius: 4px;
+        padding: 0.5rem 0.75rem;
+        max-height: 20rem;
+        overflow: auto;
+        font-family: ui-monospace, monospace;
+        font-size: 0.8rem;
+        white-space: pre-wrap;
+      }
+      .status {
+        padding: 0.5rem 0.75rem;
+        border-left: 3px solid currentColor;
+        margin: 1rem 0;
+      }
+      code {
+        font-family: ui-monospace, monospace;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Intempt SDK — basic install</h1>
+
+    <p>
+      The two script tags in this page's <code>&lt;head&gt;</code> are the
+      entire install. View source; there is nothing else.
+    </p>
+
+    <div class="status" id="status">Checking whether the SDK loaded…</div>
+
+    <h2>Identify a user</h2>
+    <p>
+      Call this as soon as you know who someone is, and on every page load while
+      they stay signed in.
+    </p>
+    <button id="identify">identify()</button>
+    <button id="identify-attrs">identify() with attributes</button>
+
+    <h2>Send a custom event</h2>
+    <p>
+      <code>track</code> requires both a title and a non-empty
+      <code>data</code> object. <code>record</code> takes optional user context
+      and no <code>data</code>.
+    </p>
+    <button id="track">track()</button>
+    <button id="record">record()</button>
+
+    <h2>Calls that are rejected</h2>
+    <p>
+      Validation throws on your own stack. These three buttons show the exact
+      errors.
+    </p>
+    <button id="bad-reserved">Reserved title</button>
+    <button id="bad-empty-data">Empty data</button>
+    <button id="bad-userid">Blank userId</button>
+
+    <h2>Automatic tracking</h2>
+    <p>
+      You did not wire any of this up. Click the button, type in the field, or
+      submit the form and watch the log: the SDK captures clicks, field changes
+      and submits on its own, plus a page view when this page loaded.
+    </p>
+    <button id="noop">A button that does nothing</button>
+    <form id="demo-form" onsubmit="event.preventDefault()">
+      <label>Anything: <input name="anything" value="hello" /></label>
+      <label>Secret: <input name="secret" value="12345" doNotCapture /></label>
+      <button type="submit">Submit</button>
+    </form>
+    <p>
+      <small
+        >The second field carries the <code>doNotCapture</code> attribute, so
+        its <em>displayed</em> text is masked. It does not strip the value
+        submitted through the form — do not rely on it for whole-form
+        secrecy.</small
+      >
+    </p>
+
+    <h2>What the SDK sent</h2>
+    <p>
+      Every event is also dispatched on <code>window</code> as
+      <code>intempt:event</code>. This log is that listener. It fires at
+      dispatch time, so a line here means the call was accepted — not that it
+      reached the server.
+    </p>
+    <div id="log">(nothing yet)</div>
+
+    <script>
+      var log = document.getElementById('log');
+      var lines = 0;
+
+      function write(text) {
+        if (lines === 0) log.textContent = '';
+        lines++;
+        log.textContent = lines + '. ' + text + '\n' + log.textContent;
+      }
+
+      // Every event the SDK sends, automatic or manual.
+      window.addEventListener('intempt:event', function (e) {
+        write('intempt:event ' + JSON.stringify(e.detail.event));
+      });
+
+      // Per-type events carry only a name. Handy when you just want the title.
+      ['track', 'identify', 'page', 'session', 'html'].forEach(function (type) {
+        window.addEventListener('intempt:' + type, function (e) {
+          write('intempt:' + type + ' -> ' + e.detail.eventName);
+        });
+      });
+
+      // --- readiness -----------------------------------------------------------
+      // `_isStub` is true while the queue stub is in place; VERSION exists only on the real
+      // SDK. You rarely need this check, because the stub queues your calls for you.
+      var status = document.getElementById('status');
+      var waitedMs = 0;
+      var poll = setInterval(function () {
+        if (window.intempt && window.intempt._isStub !== true) {
+          clearInterval(poll);
+          status.textContent =
+            'SDK loaded, version ' +
+            window.intempt.VERSION +
+            '. Opted in: ' +
+            window.intempt.isUserOptIn() +
+            '.';
+          return;
+        }
+        waitedMs += 250;
+        if (waitedMs >= 5000) {
+          clearInterval(poll);
+          status.textContent =
+            'The SDK did not take over window.intempt within 5s. Check the console. The three ' +
+            'usual causes: the config placeholders in the script URL are still there; you are ' +
+            'on localhost or 127.0.0.1, where tracking is blocked by design; or an ad blocker ' +
+            'stopped the request. See examples/README.md.';
+        }
+      }, 250);
+
+      // --- calls that work -----------------------------------------------------
+      document.getElementById('identify').onclick = function () {
+        window.intempt.identify({ userId: 'user_123' });
+        write('called identify({ userId: "user_123" })');
+      };
+
+      document.getElementById('identify-attrs').onclick = function () {
+        // userAttributes require an eventTitle. Omitting the title throws.
+        window.intempt.identify({
+          userId: 'user_123',
+          eventTitle: 'Profile Updated',
+          userAttributes: { email: 'user@example.com', plan: 'premium' },
+          data: { updatedFrom: 'settings' },
+        });
+        write('called identify() with userAttributes');
+      };
+
+      document.getElementById('track').onclick = function () {
+        window.intempt.track({
+          eventTitle: 'Newsletter Signup',
+          data: { listId: 'weekly', source: 'footer' },
+        });
+        write('called track({ eventTitle: "Newsletter Signup", ... })');
+      };
+
+      document.getElementById('record').onclick = function () {
+        window.intempt.record({
+          eventTitle: 'Feature Used',
+          userId: 'user_123',
+          accountId: 'company_acme',
+          data: { feature: 'dashboard_export' },
+        });
+        write('called record({ eventTitle: "Feature Used", ... })');
+      };
+
+      // --- calls that are rejected --------------------------------------------
+      function expectError(label, fn) {
+        // The queue stub does not validate — it only records the call. So a "rejected" call
+        // made before the SDK loads throws nothing here and throws later, during replay,
+        // where the error lands in the console instead of your try/catch.
+        if (!window.intempt || window.intempt._isStub === true) {
+          write(
+            label +
+              ': SDK not loaded yet, so the stub queued it without validating',
+          );
+          return;
+        }
+        try {
+          fn();
+          write(label + ': no error — unexpected');
+        } catch (err) {
+          write(label + ' threw: ' + err.message);
+        }
+      }
+
+      document.getElementById('bad-reserved').onclick = function () {
+        // 'click on' is reserved for the automatic click tracker. Matched case-insensitively.
+        expectError('reserved title', function () {
+          window.intempt.track({ eventTitle: 'Click On', data: { a: 1 } });
+        });
+      };
+
+      document.getElementById('bad-empty-data').onclick = function () {
+        expectError('empty data', function () {
+          window.intempt.track({ eventTitle: 'Something Happened', data: {} });
+        });
+      };
+
+      document.getElementById('bad-userid').onclick = function () {
+        // identify() requires a truthy userId; '' is rejected. group() would accept ''.
+        expectError('blank userId', function () {
+          window.intempt.identify({ userId: '' });
+        });
+      };
+    </script>
+  </body>
+</html>

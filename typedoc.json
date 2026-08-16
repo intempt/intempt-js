@@ -1,0 +1,68 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+
+  // The generated API reference. `docs/API.md` stays and is still the document a
+  // customer should read first — it is written for a human, carries the exact
+  // validation strings and the limitations, and no generator produces that. What it
+  // cannot do is stay honest by itself: it is written against the source and drifts
+  // the moment a signature changes.
+  //
+  // This is the other half. TypeDoc reads the types, so a renamed parameter or a
+  // changed return type shows up in the output without anyone remembering to edit
+  // prose, and `npm run docs:api` failing is a signal that the public surface moved.
+  //
+  // Entry point is the class, not `src/main.ts`: `main.ts` self-initialises on import
+  // and exports nothing, so pointing a generator at it documents an empty module.
+  // That is the same IIFE-only limitation that keeps `main`/`module`/`exports` off
+  // package.json (CHECKPOINT §2 task 1) — when the module build lands, this entry
+  // point becomes the package entry point and the two stop disagreeing.
+  "entryPoints": ["src/intemptJs/intemptJs.ts"],
+  "out": "docs/api-generated",
+
+  "name": "Intempt JS SDK",
+  "readme": "none",
+  "includeVersion": true,
+
+  // Private and internal members are not the contract. A customer reaching for
+  // `_batcher` has already left the supported surface, and documenting it would
+  // imply otherwise.
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "excludeInternal": true,
+
+  // Warnings are failures here for the same reason the lint ratchet is at zero: a
+  // reference with dangling `@link`s and undocumented public methods degrades one
+  // commit at a time, and nobody notices until it is worthless.
+  "treatWarningsAsErrors": true,
+
+  // …with two exceptions, both structural rather than sloppiness, and both recorded
+  // so the exemption is deliberate:
+  //   - `NotDocumented`: the public methods carry their contract in `docs/API.md`
+  //     and in the guard's error strings, not in TSDoc comments. Turning this on
+  //     would mean 30-odd stub comments written to satisfy a generator.
+  //   - `NotExported`: the class references types declared in files outside the
+  //     entry point's import graph root; they are real and exported, TypeDoc simply
+  //     will not follow them from a single entry point.
+  // `@required` is this repo's own convention for naming the mandatory shape of a
+  // method's params object, used in `intemptJs.ts`. Declared rather than rewritten:
+  // the comments predate this config and they are accurate.
+  "blockTags": [
+    "@param",
+    "@returns",
+    "@throws",
+    "@example",
+    "@see",
+    "@deprecated",
+    "@required",
+    // `@return`, singular — TSDoc's tag is `@returns`. Accepted rather than
+    // corrected across the file: renaming a tag in a comment is not worth a
+    // source diff, and the generator's job is to read what is there.
+    "@return"
+  ],
+
+  "validation": {
+    "notExported": false,
+    "notDocumented": false,
+    "invalidLink": true
+  }
+}

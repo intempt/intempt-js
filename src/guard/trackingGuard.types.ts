@@ -16,7 +16,9 @@ export interface GuardContext {
  * Returns true if tracking should be BLOCKED (SDK should not initialize)
  * Returns false if tracking should be ALLOWED (SDK can initialize)
  */
-export type GuardCondition = (context: GuardContext) => boolean | Promise<boolean>;
+export type GuardCondition = (
+  context: GuardContext,
+) => boolean | Promise<boolean>;
 
 /**
  * Guard configuration
@@ -37,4 +39,3 @@ export interface GuardResult {
   guardId?: string;
   reason?: string;
 }
-

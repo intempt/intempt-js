@@ -20,9 +20,12 @@ describe('WebEditorLoader - allowed origins', () => {
     window.dispatchEvent(
       new MessageEvent('message', {
         origin: 'https://evil.com',
-        data: { type: 'INIT', payload: { experience: {}, variantId: 'v', token: 't' } },
+        data: {
+          type: 'INIT',
+          payload: { experience: {}, variantId: 'v', token: 't' },
+        },
         source: window,
-      })
+      }),
     );
     expect(postMessageStub).not.to.have.been.called;
   });
@@ -33,11 +36,15 @@ describe('WebEditorLoader - allowed origins', () => {
         origin: 'https://opener.test.com',
         data: { type: 'INIT', payload: {} },
         source: window,
-      })
+      }),
     );
     expect(postMessageStub).to.have.been.called;
     const [payload, targetOrigin] = postMessageStub.getCall(0).args;
-    expect(payload).to.deep.include({ type: 'ACK', ok: false, error: 'invalid_payload' });
+    expect(payload).to.deep.include({
+      type: 'ACK',
+      ok: false,
+      error: 'invalid_payload',
+    });
     expect(targetOrigin).to.equal('https://opener.test.com');
   });
 });

@@ -1,19 +1,17 @@
 import { IntemptJs } from './intemptJs/intemptJs.ts';
 
-
 type ShopifyMeta = {
-  page?: { pageType: string }
-  product?: { id: string }
-}
-
+  page?: { pageType: string };
+  product?: { id: string };
+};
 
 declare global {
   interface Window {
     intempt: IntemptJs;
-    Shopify: { meta: ShopifyMeta};
-    meta: ShopifyMeta
+    Shopify: { meta: ShopifyMeta };
+    meta: ShopifyMeta;
     theme: {
-      productStrings:{addToCart: string}
+      productStrings: { addToCart: string };
     };
   }
 
@@ -36,9 +34,6 @@ declare global {
       readonly VITE_WEB_EDITOR_STORAGE_KEY: string;
       readonly VITE_CDN_LINK: string;
       readonly VITE_LOCATION_API_URL: string;
-
     };
   }
 }
-
-

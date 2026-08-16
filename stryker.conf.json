@@ -1,0 +1,37 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "Mutation testing (Phase 2). Line coverage says a line RAN; a mutation score says a test would NOTICE if that line were wrong. The unit tier sits at 92.57% lines, and the three data-loss defects the property tests found (CHECKPOINT.md §6a) were all in code that was already 'covered' -- which is exactly the gap this measures. Run with `npm run test:mutation`.",
+  "testRunner": "vitest",
+  "_comment_vitest": "related:false is required, not tuning. Stryker's default asks vitest for the test files 'related' to a mutated source file; that graph comes up empty in this repo (imports carry explicit .ts extensions, a repo convention -- see CLAUDE.md), so the dry run aborts with 'No tests were executed'. Running the whole tier is affordable: it is ~1.3s.",
+  "vitest": {
+    "configFile": "vitest.config.ts",
+    "related": false
+  },
+  "concurrency": 8,
+  "coverageAnalysis": "perTest",
+  "_comment_mutate": "THIS IS THE CORE SCOPE, and it is deliberately NOT all of src/. `stryker.full.conf.json` mutates everything and measured 58.83% on 2026-08-12; this narrow scope measured 86.57%. Both numbers are real -- they have different denominators. The split exists because the CI job took 24m36s on THIS scope on a GitHub runner (vs 3.5 min locally on 8 cores), so the full scope would be 40+ minutes on every PR. So: this config is the blocking gate and keeps the 85 floor on the well-tested core; the full config is run on demand. A single wide gate at 57 was the alternative and was rejected -- `shared/**` is the majority of all mutants, so it could regress ten points and a 57 threshold would still pass.",
+  "mutate": [
+    "src/shared/**/*.ts",
+    "src/guard/**/*.ts",
+    "src/intemptJs/guards/**/*.ts",
+    "!src/**/*.d.ts",
+    "!src/**/types/**",
+    "!src/shared/version.ts"
+  ],
+  "reporters": ["progress", "clear-text", "html"],
+  "htmlReporter": {
+    "fileName": "reports/mutation/index.html"
+  },
+  "clearTextReporter": {
+    "maxTestsToLog": 0
+  },
+  "timeoutMS": 20000,
+  "_comment_thresholds": "Measured baseline at the commit that added this file: 70.66% overall (2123 mutants; 1285 killed, 13 timeout, 398 survived, 141 with no coverage). `break` ratchets: it is raised to just under the measured score each time a batch of tests lands, never set ahead of the work (setting the 85% target up front would fail every PR for the duration). History: 65 (baseline 70.66) -> 73 (measured 75.12) -> 75 (measured 77.58, after the five-lane merge added the logger and privacy modules, both of which arrived with their own tests) -> 80 (measured 80.31, after 27 storage tests took storage/** from 64.09 to 84.52) -> 85 (measured 86.57 on the nine-lane merged tree, which is the USER'S TARGET FLOOR reached: requestBatcher 88.19, requestQueue 87.65, shared.utils 47.83 -> 95.65, storageHandler 95.83). RESOLVED 2026-08-12: the scope question below. `stryker.full.conf.json` now mutates ALL of src/ and measured 58.83% -- the number this config's 86.57% was never entitled to claim. See that file for the per-area worklist. Target floor is 85 per the user. The gap below the measured score leaves room for the 13 timeout-classified mutants, the one non-deterministic part of the score. Never lower it.",
+  "thresholds": {
+    "high": 85,
+    "low": 75,
+    "break": 85
+  },
+  "tempDirName": "node_modules/.stryker-tmp",
+  "ignoreStatic": true
+}

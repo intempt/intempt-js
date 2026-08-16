@@ -23,10 +23,14 @@ describe('EnvConfig - getOpenerOrigins', () => {
     EnvConfig.reset();
     EnvConfig.initFromValues({
       ...DEFAULT_TEST_CONFIG,
-      VITE_OPENER_LINKS: '["https://app.intempt.com/", "https://app.staging.intempt.com/"]',
+      VITE_OPENER_LINKS:
+        '["https://app.intempt.com/", "https://app.staging.intempt.com/"]',
     });
     const origins = EnvConfig.getOpenerOrigins();
-    expect(origins).to.deep.equal(['https://app.intempt.com', 'https://app.staging.intempt.com']);
+    expect(origins).to.deep.equal([
+      'https://app.intempt.com',
+      'https://app.staging.intempt.com',
+    ]);
   });
 
   it('deduplicates and normalizes origins (trailing slash removed)', () => {
@@ -43,10 +47,14 @@ describe('EnvConfig - getOpenerOrigins', () => {
     EnvConfig.reset();
     EnvConfig.initFromValues({
       ...DEFAULT_TEST_CONFIG,
-      VITE_OPENER_LINKS: '["https://valid.com", "not-a-url", "https://also-valid.com/"]',
+      VITE_OPENER_LINKS:
+        '["https://valid.com", "not-a-url", "https://also-valid.com/"]',
     });
     const origins = EnvConfig.getOpenerOrigins();
-    expect(origins).to.deep.equal(['https://valid.com', 'https://also-valid.com']);
+    expect(origins).to.deep.equal([
+      'https://valid.com',
+      'https://also-valid.com',
+    ]);
   });
 
   it('returns empty array when VITE_OPENER_LINKS is empty', () => {

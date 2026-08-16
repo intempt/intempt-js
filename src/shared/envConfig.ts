@@ -1,14 +1,23 @@
 /**
  * Environment Configuration Utility
- * 
+ *
  * Centralized management of environment variables that can be initialized
  * from Vite's import.meta.env (production builds) or custom values (tests).
- * 
+ *
  * Usage:
  *   - Production: EnvConfig.initFromVite() (auto-initialized)
  *   - Tests: EnvConfig.initFromValues({ VITE_API: '...', ... })
  *   - Access: EnvConfig.getApi(), EnvConfig.getEnv(), etc.
  */
+
+/**
+ * `import.meta.env` as this SDK reads it: the same field names as {@link EnvConfig},
+ * but every one optional, because it is replaced at build time and is absent
+ * entirely under plain `tsc` or a direct import. Spelled out rather than left as
+ * `any` so that adding a field to `EnvConfig` without wiring it here is a type
+ * error instead of a silent `undefined` falling back to the default.
+ */
+type ViteEnv = Partial<EnvConfig>;
 
 export interface EnvConfig {
   readonly VITE_API: string;
@@ -43,13 +52,11 @@ class EnvConfigManager {
   static initFromVite(): void {
     // Check if import.meta.env is available
     // We access it directly in try-catch since 'import' is a reserved keyword
-    let viteEnv: any = null;
+    let viteEnv: ViteEnv | null = null;
     try {
-      // @ts-ignore - import.meta is a special syntax that TypeScript/webpack handles
       // eslint-disable-next-line @typescript-eslint/ban-ts-comment
       // @ts-ignore
       if (import.meta && import.meta.env) {
-        // @ts-ignore
         viteEnv = import.meta.env;
       }
     } catch {
@@ -57,6 +64,12 @@ class EnvConfigManager {
     }
 
     if (!viteEnv) {
+      // Stays a raw console.warn: the logger gates itself on
+      // EnvConfig.isProduction(), so importing it here would make the logger and
+      // its own configuration source mutually dependent — and this line fires
+      // *during* that initialisation, when the environment it would consult is
+      // precisely what is missing.
+      // eslint-disable-next-line no-console -- deliberate, see the comment above
       console.warn('[EnvConfig] import.meta.env not available, using defaults');
       this.instance = { ...this.DEFAULT_CONFIG };
       return;
@@ -65,11 +78,19 @@ class EnvConfigManager {
       VITE_API: viteEnv.VITE_API || this.DEFAULT_CONFIG.VITE_API,
       VITE_CDN_LINK: viteEnv.VITE_CDN_LINK || this.DEFAULT_CONFIG.VITE_CDN_LINK,
       VITE_ENV: viteEnv.VITE_ENV || this.DEFAULT_CONFIG.VITE_ENV,
-      VITE_CHOICES_API: viteEnv.VITE_CHOICES_API || this.DEFAULT_CONFIG.VITE_CHOICES_API,
-      VITE_WEB_EDITOR_BASE_LINK: viteEnv.VITE_WEB_EDITOR_BASE_LINK || this.DEFAULT_CONFIG.VITE_WEB_EDITOR_BASE_LINK,
-      VITE_OPENER_LINKS: viteEnv.VITE_OPENER_LINKS ?? this.DEFAULT_CONFIG.VITE_OPENER_LINKS,
-      VITE_WEB_EDITOR_STORAGE_KEY: viteEnv.VITE_WEB_EDITOR_STORAGE_KEY || this.DEFAULT_CONFIG.VITE_WEB_EDITOR_STORAGE_KEY,
-      VITE_LOCATION_API_URL: viteEnv.VITE_LOCATION_API_URL || this.DEFAULT_CONFIG.VITE_LOCATION_API_URL,
+      VITE_CHOICES_API:
+        viteEnv.VITE_CHOICES_API || this.DEFAULT_CONFIG.VITE_CHOICES_API,
+      VITE_WEB_EDITOR_BASE_LINK:
+        viteEnv.VITE_WEB_EDITOR_BASE_LINK ||
+        this.DEFAULT_CONFIG.VITE_WEB_EDITOR_BASE_LINK,
+      VITE_OPENER_LINKS:
+        viteEnv.VITE_OPENER_LINKS ?? this.DEFAULT_CONFIG.VITE_OPENER_LINKS,
+      VITE_WEB_EDITOR_STORAGE_KEY:
+        viteEnv.VITE_WEB_EDITOR_STORAGE_KEY ||
+        this.DEFAULT_CONFIG.VITE_WEB_EDITOR_STORAGE_KEY,
+      VITE_LOCATION_API_URL:
+        viteEnv.VITE_LOCATION_API_URL ||
+        this.DEFAULT_CONFIG.VITE_LOCATION_API_URL,
       DEV: viteEnv.DEV !== undefined ? viteEnv.DEV : this.DEFAULT_CONFIG.DEV,
     };
   }
@@ -144,9 +165,17 @@ class EnvConfigManager {
     if (raw) {
       try {
         const parsed = JSON.parse(raw);
-        urls = Array.isArray(parsed) ? parsed.map(String) : raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+        urls = Array.isArray(parsed)
+          ? parsed.map(String)
+          : raw
+              .split(',')
+              .map((s: string) => s.trim())
+              .filter(Boolean);
       } catch {
-        urls = raw.split(',').map((s: string) => s.trim()).filter(Boolean);
+        urls = raw
+          .split(',')
+          .map((s: string) => s.trim())
+          .filter(Boolean);
       }
     }
     const origins: string[] = [];
@@ -197,9 +226,6 @@ class EnvConfigManager {
 // Auto-initialize from Vite if available (for production builds)
 // This runs when the module is first imported
 try {
-  // @ts-ignore - import.meta is a special syntax that TypeScript/webpack handles
-  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-  // @ts-ignore
   if (import.meta && import.meta.env) {
     EnvConfigManager.initFromVite();
   }

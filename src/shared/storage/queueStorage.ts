@@ -2,7 +2,38 @@
  * Wrapper for localStorage-based queue storage
  * Handles initialization and error recovery
  */
-export class QueueStorage {
+export interface StoredEntry {
+  key: string;
+  /**
+   * A queue record as it came back out of storage — so `unknown`, not `any`. It
+   * was written by this bundle, an older one, or another tab, and the queue is
+   * the code that has to decide whether the shape is still usable.
+   */
+  value: unknown;
+}
+
+/**
+ * The storage surface the queue actually needs.
+ *
+ * Extracted because `RequestQueue` declared `queueStorage?: QueueStorage` — the
+ * concrete localStorage class — while the SDK passes a `PersistentStore`
+ * (IndexedDB with a localStorage fallback). Those two are not structurally
+ * assignable: both have private fields the other lacks. It typechecked only
+ * because `RequestBatcher.queueStorage` was `any`, which laundered the mismatch on
+ * the way down. Naming the contract is what removing that `any` requires, and it
+ * is also what lets a test pass a stub without subclassing either one.
+ */
+export interface QueueStorageLike {
+  init(): Promise<void>;
+  getItem(key: string): Promise<unknown>;
+  setItem(key: string, value: unknown): Promise<void>;
+  removeItem(key: string): Promise<void>;
+  entries(prefix: string, limit?: number): Promise<StoredEntry[]>;
+  keys(prefix: string): Promise<string[]>;
+  removeItems(keys: string[]): Promise<void>;
+}
+
+export class QueueStorage implements QueueStorageLike {
   private storage: Storage;
   private initialized: boolean = false;
 
@@ -18,34 +49,98 @@ export class QueueStorage {
       this.storage.setItem(testKey, 'test');
       this.storage.removeItem(testKey);
       this.initialized = true;
-    } catch (error) {
+    } catch {
       throw new Error('localStorage not available');
     }
   }
 
-  async getItem(key: string): Promise<any> {
+  async getItem(key: string): Promise<unknown> {
     await this.init();
     try {
       const item = this.storage.getItem(key);
       return item ? JSON.parse(item) : null;
-    } catch (error) {
+    } catch {
       return null;
     }
   }
 
-  async setItem(key: string, value: any): Promise<void> {
+  async setItem(key: string, value: unknown): Promise<void> {
     await this.init();
-    try {
-      this.storage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-      // Handle quota exceeded
-      throw error;
-    }
+    // No try/catch: a quota failure has to propagate. `PersistentStore` is what
+    // decides to demote a tier on a throw, and swallowing it here would make a
+    // full localStorage look like a successful write.
+    this.storage.setItem(key, JSON.stringify(value));
   }
 
   async removeItem(key: string): Promise<void> {
     await this.init();
     this.storage.removeItem(key);
   }
-}
 
+  /**
+   * Every entry whose key starts with `prefix`, in key order, up to `limit`.
+   *
+   * Key order is the queue's FIFO order — see `RequestQueue.makeItemKey`, which
+   * builds keys that sort chronologically. Reading a bounded number of entries
+   * is the point: the queue no longer has to deserialise every pending event to
+   * fill one batch.
+   *
+   * Corrupt individual entries are skipped rather than failing the read. One
+   * unparseable record must not make the whole queue unreadable — that would
+   * turn a single bad write into total event loss.
+   */
+  async entries(prefix: string, limit?: number): Promise<StoredEntry[]> {
+    await this.init();
+
+    const keys: string[] = [];
+    for (let i = 0; i < this.storage.length; i++) {
+      const key = this.storage.key(i);
+      if (key && key.startsWith(prefix)) {
+        keys.push(key);
+      }
+    }
+    keys.sort();
+
+    const selected = typeof limit === 'number' ? keys.slice(0, limit) : keys;
+    const out: StoredEntry[] = [];
+    for (const key of selected) {
+      try {
+        const raw = this.storage.getItem(key);
+        if (raw !== null) {
+          out.push({ key, value: JSON.parse(raw) });
+        }
+      } catch {
+        // Skip the corrupt record; the rest of the queue is still good.
+      }
+    }
+    return out;
+  }
+
+  /** Keys under `prefix`, in FIFO order. Cheaper than `entries` when only counting. */
+  async keys(prefix: string): Promise<string[]> {
+    await this.init();
+    const keys: string[] = [];
+    for (let i = 0; i < this.storage.length; i++) {
+      const key = this.storage.key(i);
+      if (key && key.startsWith(prefix)) {
+        keys.push(key);
+      }
+    }
+    return keys.sort();
+  }
+
+  /**
+   * Remove several keys.
+   *
+   * localStorage has no transactions, so this is not atomic — unlike the
+   * IndexedDB tier. Each removal is individually atomic, which is enough for the
+   * queue: a partial removal leaves the un-removed events queued, and they are
+   * filtered by the batcher's already-sent check rather than re-sent.
+   */
+  async removeItems(keys: string[]): Promise<void> {
+    await this.init();
+    for (const key of keys) {
+      this.storage.removeItem(key);
+    }
+  }
+}

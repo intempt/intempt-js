@@ -1,0 +1,34 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "_comment": "FULL-SCOPE mutation testing: every runtime file in src/, not just the well-tested core. Run with `npm run test:mutation:full`. NOT a CI gate -- `stryker.conf.json` is, because the narrow scope already takes 24m36s on a GitHub runner and this scope is ~1.7x the mutants. Keep the two files in sync except for `mutate`, `thresholds` and `htmlReporter`.",
+  "_comment_measurement": "Measured 2026-08-12, first ever full-scope run: 58.83% overall in 6m03s locally, against 86.57% for the narrow scope. The gap IS the finding: the 86.57% headline said nothing about the code nine parallel lanes changed. Per area, score / no-coverage mutants: shared 85.27 / 46 (holds up -- this was the old scope); intemptJs.ts 84.67 / 7; _baseUrlParser 89.47 / 0; choices 47.70 / 111; autoTracker.module 27.42 / 42; autoTracker.transport 30.08 / 30; autoTracker.eventPool 0.00 / 31; loaders 22.87 / 229 (webEditorLoader is 0.00 / 169); platformParser 7.36 / 288; main.ts 0.00 / 47. WORKLIST, by no-coverage count, which is where the cheap kills are (see CHECKPOINT.md 3f-ii, and 3f-iii for why no-cov in *guard/report* code is NOT cheap): platformParser 288, loaders 229 (webEditorLoader 169, sdkLoader 60), choices 111, main.ts 47, autoTracker.module 42, eventPool 31, transport 30.",
+  "_comment_break": "break=57, ~2 under the 58.83 measurement, per the same ratchet rule the narrow config uses: raise it as tests land, never set it ahead of the work, never lower it. This is NOT a loosening of the 85 floor -- that floor still applies to the narrow scope in stryker.conf.json. Different denominators.",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.ts",
+    "related": false
+  },
+  "concurrency": 8,
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/**/*.ts",
+    "!src/**/*.d.ts",
+    "!src/**/types/**",
+    "!src/shared/version.ts"
+  ],
+  "reporters": ["progress", "clear-text", "html"],
+  "htmlReporter": {
+    "fileName": "reports/mutation-full/index.html"
+  },
+  "clearTextReporter": {
+    "maxTestsToLog": 0
+  },
+  "timeoutMS": 20000,
+  "thresholds": {
+    "high": 85,
+    "low": 50,
+    "break": 57
+  },
+  "tempDirName": "node_modules/.stryker-tmp",
+  "ignoreStatic": true
+}
