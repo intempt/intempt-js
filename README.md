@@ -1,132 +1,218 @@
 # Intempt Browser SDK
 
-Client-side JavaScript SDK for the [Intempt](https://intempt.com) platform. Add one
-script tag and it automatically tracks page views, sessions, and user interactions, with
-a simple API for identification, custom events, consent, commerce events, and
-recommendations.
+Client-side JavaScript SDK for the [Intempt](https://intempt.com) platform.
 
-## Installation
+Add one script tag and it tracks page views, sessions, clicks and form interactions on its
+own. On top of that you get a small API for identifying users, sending custom events,
+recording consent, commerce events, and fetching recommendations — and it can apply
+on-page experiences (DOM changes) driven from your Intempt workspace.
 
-Add **both** snippets to your page `<head>`, in this order. The first installs a small
-queue stub so `window.intempt.*` calls work immediately; the second loads the SDK
-asynchronously and replays anything that was queued. There's no constructor to call —
-your account settings go in the SDK URL's query parameters.
+Zero runtime dependencies, ~82 kB minified / ~23 kB gzipped, TypeScript source, MIT.
+
+---
+
+## Install
+
+The SDK ships as a self-initialising bundle on the CDN. **`npm install` does not work yet** —
+there is no module build and nothing to `import`. The script tag is the install. See
+[Forthcoming](#forthcoming) for what changes.
+
+Add both snippets to your `<head>`, **in this order**. The first is a queue stub so
+`window.intempt.*` works immediately; the second loads the SDK asynchronously and replays
+anything you queued.
 
 ```html
 <!-- 1. Queue stub — buffers calls until the SDK is ready -->
 <script>
-(function () {
-  if (window.intempt) return;
-  var queue = [], pending = [];
-  var methods = ['identify','group','track','record','alias','consent',
-                 'productAdd','productOrdered','productView','logOut',
-                 'optIn','optOut','isUserOptIn','recommendation'];
-  var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
-  methods.forEach(function (m) {
-    stub[m] = function () {
-      var args = [].slice.call(arguments);
-      if (m === 'recommendation') {
-        return new Promise(function (resolve, reject) {
-          pending.push({ resolve: resolve, reject: reject });
-          queue.push({ method: m, args: args });
-        });
-      }
-      queue.push({ method: m, args: args });
-    };
-  });
-  window.intempt = stub;
-})();
+  (function () {
+    if (window.intempt) return;
+    var queue = [],
+      pending = [];
+    var methods = [
+      'identify',
+      'group',
+      'track',
+      'record',
+      'alias',
+      'consent',
+      'productAdd',
+      'productOrdered',
+      'productView',
+      'logOut',
+      'optIn',
+      'optOut',
+      'isUserOptIn',
+      'recommendation',
+    ];
+    var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
+    methods.forEach(function (m) {
+      stub[m] = function () {
+        var args = [].slice.call(arguments);
+        if (m === 'recommendation') {
+          return new Promise(function (resolve, reject) {
+            pending.push({ resolve: resolve, reject: reject });
+            queue.push({ method: m, args: args });
+          });
+        }
+        queue.push({ method: m, args: args });
+      };
+    });
+    window.intempt = stub;
+  })();
 </script>
 
 <!-- 2. Load the SDK asynchronously -->
 <script
   async
-  src="https://cdn.intempt.com/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password">
-</script>
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=my-org&project=my-project&source=web-source&key=username.password"
+></script>
 ```
 
-| Parameter | Description |
-|-----------|-------------|
-| `organization` | Organization identifier |
-| `project` | Project identifier |
-| `source` | Source ID (`sourceId`) you're sending data to |
-| `key` | API key, in `username.password` form |
-| `shopify` | Shopify tracking — add `&shopify=1` to enable, omit to disable |
-| `magento` | Magento product detection — add `&magento=1` to enable, omit to disable |
+There is no constructor. Configuration goes in the script URL's query string:
 
-> `shopify` and `magento` are enabled by **presence**: including the parameter with any
-> non-empty value turns it on. To disable, leave it out entirely (note that `=0` or
-> `=false` will **not** disable it).
+| Parameter      | Description                                                             |
+| -------------- | ----------------------------------------------------------------------- |
+| `organization` | Organization identifier                                                 |
+| `project`      | Project identifier                                                      |
+| `source`       | Source ID (`sourceId`) you're sending data to                           |
+| `key`          | API key, in `username.password` form                                    |
+| `shopify`      | Shopify tracking — add `&shopify=1` to enable, omit to disable          |
+| `magento`      | Magento product detection — add `&magento=1` to enable, omit to disable |
 
-Once loaded, the SDK takes over `window.intempt`, replays any queued calls, and starts
-auto-tracking. Because the SDK loads with `async`, it never blocks page rendering.
+> **The `/v1/` path segment is required.** The SDK finds its own `<script>` tag by matching
+> that URL. Without it, it reads an empty configuration and never starts — the console shows
+> `CAN'T FIND SCRIPT`. If you are upgrading from a snippet without `/v1/`, see the
+> [migration guide](docs/MIGRATION.md#1-add-v1-to-the-script-url).
 
-## Quick Start
+> `shopify` and `magento` are enabled by **presence**: the parameter with any non-empty value
+> turns it on. `&shopify=0` and `&shopify=false` both _enable_ it. To disable, leave it out.
 
-All event methods take a single object argument:
+## 30-second example
+
+Every event method takes a single object.
 
 ```javascript
+// Who they are — call this as soon as you know, and on every page load while signed in
 window.intempt.identify({ userId: 'user_123' });
 
+// What they did — both fields are required, and `data` must be non-empty
 window.intempt.track({
   eventTitle: 'Purchase Completed',
-  data: { amount: 99.99, currency: 'USD' }
+  data: { amount: 99.99, currency: 'USD' },
 });
+
+// See what the SDK is sending, including the automatic events
+window.addEventListener('intempt:event', (e) => console.log(e.detail.event));
 ```
 
-## Methods
+Page views, sessions, clicks and form interactions need none of this — they are already being
+captured.
 
-Available on `window.intempt`:
+**Two things that will confuse you if you don't know them:**
 
-### Identification
-- `identify({ userId, eventTitle?, userAttributes?, data? })` — identify the current user
-- `alias({ userId, anotherUserId })` — link two user IDs (e.g. anonymous → authenticated)
-- `group({ accountId, eventTitle?, accountAttributes? })` — associate the user with an account
+- **Tracking is blocked on `localhost` and `127.0.0.1`**, and for bot user agents, by design.
+  Nothing is broken; use a real or staging hostname. [How to develop against
+  it](examples/README.md#2-localhost-is-blocked-by-design).
+- **Validation throws.** A missing required field or a [reserved event
+  title](docs/API.md#reserved-event-titles) raises an `Error` on your own stack. Wrap calls if
+  a bad payload must not break the page.
 
-### Events
-- `track({ eventTitle, data })` — send a custom event (`data` required, non-empty)
-- `record({ eventTitle, userId?, accountId?, data?, ... })` — record an event with optional context
+## Documentation
 
-### Consent
-- `consent({ action, validUntil, email?, message?, category? })` — record a consent decision (`action` is `'accept'` or `'reject'`)
+|                                                 |                                                                                                                                                                                                                                        |
+| ----------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **[USAGE.md](USAGE.md)**                        | The guide, task by task. Start here.                                                                                                                                                                                                   |
+| **[API reference](docs/API.md)**                | Every method, every validation rule, every error string, and the limitations                                                                                                                                                           |
+| **Generated reference**                         | `npm run docs:api` — TypeDoc over the public class, from the types themselves. Complements the hand-written reference above rather than replacing it: this one cannot drift from a signature, that one explains what a signature means |
+| **[examples/](examples/)**                      | Runnable pages: [basic](examples/basic-html/index.html), [consent](examples/consent-banner/index.html), [SPA routing](examples/spa/index.html), [commerce](examples/ecommerce/index.html), [TypeScript](examples/typescript/)          |
+| **[TypeScript quickstart](docs/TYPESCRIPT.md)** | Declarations to copy, a typed wrapper, and the traps types can't catch                                                                                                                                                                 |
+| **[Migration guide](docs/MIGRATION.md)**        | Upgrading an older integration, with a checklist                                                                                                                                                                                       |
+| **Frameworks**                                  | [React](docs/integrations/REACT.md) · [Next.js](docs/integrations/NEXTJS.md) · [Vue](docs/integrations/VUE.md)                                                                                                                         |
+| Platform docs                                   | [docs.intempt.com/js-sdk](https://docs.intempt.com/js-sdk)                                                                                                                                                                             |
 
-### Commerce
-- `productAdd({ productId, quantity? })` — track adding a product to cart
-- `productView(productId)` — track viewing a product (takes a string)
-- `productOrdered([{ productId, quantity? }, ...])` — track a completed order (takes an array)
+The framework pages are integration **guides**, not adapter packages — without a module build
+there is nothing for an adapter to wrap. Each is a script tag plus a typed wrapper you own.
 
-### Privacy
-- `optIn()` / `optOut()` — enable or disable tracking (on by default)
-- `isUserOptIn()` — check whether tracking is currently enabled
+## The API, in one screen
 
-### Session & Recommendations
-- `logOut()` — reset session/profile state on user logout
-- `recommendation({ id, quantity, fields })` — fetch recommendations (async, returns a `Promise`)
+All on `window.intempt`. Full rules in the [API reference](docs/API.md).
 
-See [USAGE.md](USAGE.md) for the full guide with examples.
+```
+identify({ userId, eventTitle?, userAttributes?, data? })   // userId must be truthy
+alias({ userId, anotherUserId })                            // link two IDs
+group({ accountId, eventTitle?, accountAttributes? })       // associate with an account
 
-## Auto-Tracking
+track({ eventTitle, data })                                 // data required, non-empty
+record({ eventTitle, userId?, accountId?, data?, ... })      // data optional
 
-The SDK automatically captures page views, page exits, sessions, clicks, and form
-interactions — no setup required. To keep sensitive on-screen text out of events, add
-the `doNotCapture` attribute to an element (its captured text is masked); password
-inputs are masked automatically.
+consent({ action, validUntil, email?, message?, category? }) // 'accept' | 'reject'
+optIn() / optOut() / isUserOptIn()                          // on by default, persisted
+
+productAdd({ productId, quantity? })                        // one object
+productView(productId)                                      // a bare string
+productOrdered([{ productId, quantity? }, ...])             // an array
+
+logOut()                                                    // reset profile + session
+recommendation({ id, quantity, fields })                    // async, returns a Promise
+VERSION                                                     // e.g. '6.0.0'
+```
+
+## Auto-tracking
+
+Page views (including SPA route changes via the History API), page exits with time-on-page,
+sessions, clicks, form changes and form submits — no setup.
+
+To keep sensitive on-screen text out of those events, add `doNotCapture` to an element and
+its captured text is masked. Password inputs are masked automatically.
+
+```html
+<span doNotCapture>Balance: $12,500</span>
+```
+
+It masks the captured **text** only — not the element's tag, id or classes, and not values
+submitted through a form.
 
 ## Integrations
 
 - **Shopify** (`&shopify=1`) — automatic product view and add-to-cart tracking.
 - **Magento** (`&magento=1`) — product detection for personalization.
 
-## Local Development Note
+On Shopify, calling `productAdd`/`productView` yourself as well will double-count.
 
-By default, tracking is blocked on `localhost` / `127.0.0.1` and for bot/crawler user
-agents. Use a real or staging domain to see events flow.
+## Known limitations
 
-## Documentation
+Stated up front, because finding them after you integrate is worse.
 
-Full usage guide: [USAGE.md](USAGE.md) · Platform docs:
-[docs.intempt.com/js-sdk](https://docs.intempt.com/js-sdk)
+|                                        |                                                                                                                   |
+| -------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| **CDN install only**                   | No module build, no `import`, no published types                                                                  |
+| **The CDN path is mutable**            | `/v1/intempt.min.js` is overwritten in place on release. Don't pin an SRI hash on it — self-host if you need SRI. |
+| **No public ID getters**               | Profile/session/page IDs are internal. `getProfileId()` was removed.                                              |
+| **Consent is origin-scoped**           | `localStorage`, so an opt-out doesn't cross subdomains                                                            |
+| **`consent()` doesn't stop tracking**  | It records a decision. `optOut()` is the switch — and call `consent()` first, or it's dropped.                    |
+| **`recommendation()` ignores opt-out** | It calls the API regardless. Gate it yourself.                                                                    |
+| **The write key is in the page**       | Inherent to a browser SDK. Scope it to one source, write-only, and rotate it.                                     |
+
+## Forthcoming
+
+Planned, **not shipped** — don't write code against it yet: a module build exporting a
+side-effect-free `createIntempt(config)`, the `main`/`module`/`exports`/`types` fields, a
+published `.d.ts`, and a `CHANGELOG.md`. When it lands, `npm install intemptjs` plus an import
+becomes a supported install; the script tag stays. Details in the
+[migration guide](docs/MIGRATION.md#forthcoming-the-module-build).
+
+To make that migration cheap, put a wrapper module between your app and `window.intempt`
+now — [`examples/typescript/analytics.ts`](examples/typescript/analytics.ts).
+
+## Contributing
+
+```bash
+npm ci
+npm run build        # tsc + vite, production bundle
+npm run test:unit    # vitest, jsdom
+npm run test:e2e     # cypress
+```
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).

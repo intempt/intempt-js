@@ -1,25 +1,35 @@
-import { dispatchIntemptEvent, generateId } from '../../../../../shared/shared.utils.ts';
-import { getCookie, localIntemptSessionCookie, setCookie } from '../../../../../shared/storageHandler.ts';
-import {  SessionCookie, SessionCookieObject } from '../../../../types/autoTracker.types.ts';
+import {
+  dispatchIntemptEvent,
+  generateId,
+} from '../../../../../shared/shared.utils.ts';
+import {
+  getCookie,
+  localIntemptSessionCookie,
+  setCookie,
+} from '../../../../../shared/storageHandler.ts';
+import { SessionCookie } from '../../../../types/autoTracker.types.ts';
 import { SessionEventDataComponent } from '../../../../component/sessionEventData.component.ts';
 import { UserAttributeComponent } from '../../../../component/userAttribute.component.ts';
 import { BaseURLParser } from '../../../../_baseUrlParser.ts';
 import { PlatformParser } from '../../../../platformParser.ts';
 
-export class SessionTrackerModule extends PlatformParser{
+import { createLogger } from '../../../../../shared/logger/logger.ts';
+
+const log = createLogger('SessionTracker');
+
+export class SessionTrackerModule extends PlatformParser {
   private readonly idType = 'ses';
   private readonly _eventName = 'Session start';
 
   private readonly intemptSession = 'intempt_session';
   private readonly keys = [this.intemptSession];
 
+  private readonly millisecondsPerSecond = 1000;
+  private readonly secondsPerMinute = 60;
+  private readonly minutesStep = 30;
 
-
-  private readonly millisecondsPerSecond  = 1000;
-  private readonly secondsPerMinute  = 60;
-  private readonly minutesStep  = 30;
-
-  private readonly _defaultSessionTimeWithoutActivity = this.minutesStep * this.secondsPerMinute * this.millisecondsPerSecond;
+  private readonly _defaultSessionTimeWithoutActivity =
+    this.minutesStep * this.secondsPerMinute * this.millisecondsPerSecond;
 
   private readonly _foregroundEventNames = [
     'intempt:html',
@@ -36,8 +46,10 @@ export class SessionTrackerModule extends PlatformParser{
     'intempt:logOut',
     'intempt:consent',
   ];
-  private _allTrackingEvents = [...this._foregroundEventNames, ...this._backgroundEventNames]
-
+  private _allTrackingEvents = [
+    ...this._foregroundEventNames,
+    ...this._backgroundEventNames,
+  ];
 
   constructor() {
     super();
@@ -45,19 +57,20 @@ export class SessionTrackerModule extends PlatformParser{
     this._sessionActivityHandler();
   }
 
-  refresh(){
+  refresh() {
     this.initReferrerCookie();
     this.setSessionCookie();
   }
-
 
   get cookieKeys() {
     return this.keys;
   }
 
-  getId(){
-    const cookie = getCookie(this.intemptSession) as {intempt_session : string} | null;
-    
+  getId() {
+    const cookie = getCookie(this.intemptSession) as {
+      intempt_session: string;
+    } | null;
+
     if (cookie) {
       try {
         const parsed = JSON.parse(cookie[this.intemptSession]);
@@ -65,23 +78,22 @@ export class SessionTrackerModule extends PlatformParser{
           return parsed.id;
         }
       } catch (error) {
-        console.error('Error parsing session cookie:', error);
+        log.error('error parsing session cookie', error);
         // Return empty string on error - cookie is corrupted
         return '';
       }
     }
-    
+
     return '';
   }
 
-  getLocalId(){
+  getLocalId() {
     const localCookie = localIntemptSessionCookie();
-    return localCookie?.id ?? '' ;
+    return localCookie?.id ?? '';
   }
 
-  setSessionCookie(id?:string){
+  setSessionCookie(id?: string) {
     const sessionId = id ?? generateId(this.idType);
-
 
     setCookie({
       name: this.intemptSession,
@@ -94,22 +106,23 @@ export class SessionTrackerModule extends PlatformParser{
     });
   }
 
-  private initReferrerCookie(){
+  private initReferrerCookie() {
     const cookie = getCookie('_intempt_referrer');
-    if(cookie) { return;}
+    if (cookie) {
+      return;
+    }
 
-    let referrerCookieObj = {referrer:'direct', fullReferrer:'direct'};
+    let referrerCookieObj = { referrer: 'direct', fullReferrer: 'direct' };
 
-    if(!!document.referrer){
-      try{
+    if (document.referrer) {
+      try {
         const url = new URL(document.referrer);
         referrerCookieObj = {
           referrer: url.host,
-          fullReferrer:  url.href
+          fullReferrer: url.href,
         };
-      }
-      catch (error:any){
-        console.log('[_getReferrerValues] ERROR',error);
+      } catch (error: unknown) {
+        log.warn('_getReferrerValues failed', error);
       }
     }
 
@@ -118,13 +131,10 @@ export class SessionTrackerModule extends PlatformParser{
       value: JSON.stringify(referrerCookieObj),
       path: '/',
     });
-
-
-
   }
 
-  private _sessionActivityHandler(){
-    this._allTrackingEvents.forEach( (domEventName) => {
+  private _sessionActivityHandler() {
+    this._allTrackingEvents.forEach((domEventName) => {
       document.addEventListener(domEventName, (event) => {
         const { detail } = event as CustomEvent;
         const { eventName } = detail;
@@ -142,7 +152,7 @@ export class SessionTrackerModule extends PlatformParser{
           try {
             session = { ...JSON.parse(sessionCookie[this.intemptSession]) };
           } catch (error) {
-            console.error('Error parsing session cookie in handler:', error);
+            log.error('error parsing session cookie in handler', error);
             // Cookie is corrupted - create new session (unless it's Leave Page)
             if (eventName.toLowerCase() !== 'leave page') {
               return this._onNewSession(eventName);
@@ -154,25 +164,22 @@ export class SessionTrackerModule extends PlatformParser{
 
         // Refresh session cookie with existing ID (or undefined to generate new)
         this.setSessionCookie(session.id ?? undefined);
-      })
-    })
+      });
+    });
   }
-
-
 
   /**
    * Runs when a new session should be created
    * */
-  private async _onNewSession(initializerEventName:string = this._eventName){
+  private async _onNewSession(initializerEventName: string = this._eventName) {
     this.setSessionCookie();
 
     const [location, platform] = await Promise.all([
       this._getLocation(),
-      this._getPlatform()
+      this._getPlatform(),
     ]);
 
     const urlParams = new BaseURLParser();
-
 
     const eventAttributes = new SessionEventDataComponent({
       sessionStartEventName: initializerEventName,
@@ -185,7 +192,7 @@ export class SessionTrackerModule extends PlatformParser{
       urlParams,
       platform,
       this.deviceType,
-      this.browser
+      this.browser,
     );
 
     dispatchIntemptEvent('intempt:session', {
@@ -196,4 +203,3 @@ export class SessionTrackerModule extends PlatformParser{
     });
   }
 }
-

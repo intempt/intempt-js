@@ -1,9 +1,12 @@
-import { AutoTrackerModule } from './modules/autoTracker/autoTracker.module.ts'
+import { AutoTrackerModule } from './modules/autoTracker/autoTracker.module.ts';
 import {
   AliasParams,
   ConsentParams,
   GroupParams,
-  IdentifyParams, IntemptConfig, ProductParams, RecommendationParams,
+  IdentifyParams,
+  IntemptConfig,
+  ProductParams,
+  RecommendationParams,
   RecordParams,
   TrackParams,
 } from './types/intemptJs.types.ts';
@@ -18,22 +21,71 @@ import { localStorageCache } from '../shared/storageHandler.ts';
 import { ConsentModel } from './models/consent.model.ts';
 import { ChoicesModule } from './modules/choices/choices.module.ts';
 import { ProductModel } from './models/product.model.ts';
-import { IntemptEventListenerName, IntemptEventName } from './types/constants.types.ts';
+import {
+  IntemptEventListenerName,
+  IntemptEventName,
+} from './types/constants.types.ts';
 import { EnvConfig } from '../shared/envConfig.ts';
+import { SDK_VERSION } from '../shared/version.ts';
+import { resolveIngestBaseUrl } from '../shared/privacy/dataResidency.ts';
+import { clearOptInOut, hasOptedIn } from '../shared/privacy/gdpr.ts';
+import { configureLogger, createLogger } from '../shared/logger/logger.ts';
+import { MetricsSnapshot } from '../shared/logger/metrics.ts';
 
+const log = createLogger('Intempt');
 
 export class IntemptJs extends IntemptJsGuard {
-  private readonly _api = EnvConfig.getApi();
-  private readonly _autoTracker!:AutoTrackerModule;
-  private readonly _choices!:ChoicesModule;
-  private readonly _config:IntemptConfig;
+  /** Build-time SDK version. Part of the public contract — see src/shared/version.ts */
+  static readonly VERSION: string = SDK_VERSION;
+  /** Instance mirror of {@link IntemptJs.VERSION}, for `window.intempt.VERSION`. */
+  readonly VERSION: string = SDK_VERSION;
 
+  /**
+   * Ingest base URL. `config.apiHost` wins over the build-time default so a
+   * data-residency customer can name their own regional endpoint — see
+   * `resolveIngestBaseUrl` for why there is no `region` shorthand. Assigned in the
+   * constructor because it depends on the config.
+   */
+  private readonly _api: string;
+  private readonly _autoTracker!: AutoTrackerModule;
+  private readonly _choices!: ChoicesModule;
+  private readonly _config: IntemptConfig;
 
-  constructor(config:IntemptConfig) {
+  constructor(config: IntemptConfig) {
     super();
-    this._config = { ...config};
+    this._config = { ...config };
 
-    if(!this.isValidConfig(config)) return;
+    // Logger first, before validation, on purpose: `isValidConfig` throws on a
+    // bad config, and a customer debugging that throw wants the SDK's own
+    // diagnostics already switched on when it happens.
+    configureLogger({
+      debug: config.debug,
+      level: config.logLevel,
+      sink: config.onDiagnostic,
+    });
+
+    // Routed through the logger rather than a bare console.warn: the logger is
+    // now the single gate for SDK diagnostics, and it is configured above.
+    this._api = resolveIngestBaseUrl(
+      config?.apiHost,
+      EnvConfig.getApi(),
+      (message) => {
+        log.warn(message);
+      },
+    );
+
+    // D-24: this was `if (!this.isValidConfig(config)) return;`, an unreachable
+    // branch — `isValidConfig` only ever throws or returns literal `true`, so the
+    // `return` could not run and a misconfigured `new IntemptJs()` has always
+    // thrown rather than yielding a half-built instance. Calling it as a
+    // statement says that: validation is a throwing precondition, not a test.
+    // (Do NOT "fix" the old branch by guarding `optIn`/`optOut` against an
+    // undefined `_autoTracker` — DEFECTS D-24 records why that premise was wrong.)
+    // The same dead `if (!this.isXValid(...)) return;` shape remains at the five
+    // public-method call sites; removing it there wants the guards' return type
+    // changed to `void` so a future author cannot reintroduce the assumption, and
+    // that belongs with the `any` sweep which rewrites these signatures anyway.
+    this.isValidConfig(config);
 
     this._autoTracker = new AutoTrackerModule(this._config, this._api);
 
@@ -48,12 +100,24 @@ export class IntemptJs extends IntemptJsGuard {
     void this._choices.init();
   }
 
+  /**
+   * Current state of the delivery pipeline: queue depth, flush latency, events
+   * dropped by the queue cap, and circuit-breaker state.
+   *
+   * Readable from the browser console on a customer's own page, which is the
+   * point — it answers "are my events arriving?" with numbers instead of a guess.
+   * `null` when the batcher failed to initialise (the SDK then falls back to a
+   * simple queue with no metrics of its own).
+   */
+  getDiagnostics(): MetricsSnapshot | null {
+    return this._autoTracker ? this._autoTracker.getDiagnostics() : null;
+  }
 
   /**
    * Allow tracking
    * @return void
    * */
-  optIn(){
+  optIn() {
     this._autoTracker.doNotTrack = false;
   }
 
@@ -61,7 +125,7 @@ export class IntemptJs extends IntemptJsGuard {
    * Disable tracking
    * @return void
    * */
-  optOut(){
+  optOut() {
     this._autoTracker.doNotTrack = true;
   }
 
@@ -70,8 +134,55 @@ export class IntemptJs extends IntemptJsGuard {
    * @return { boolean }
    * Default: true
    * */
-  isUserOptIn(): boolean{
-    return !this._autoTracker.doNotTrack
+  isUserOptIn(): boolean {
+    return !this._autoTracker.doNotTrack;
+  }
+
+  /**
+   * Has the visitor *explicitly* opted in?
+   *
+   * Not the inverse of {@link isUserOptIn}. A visitor who has never been asked is
+   * neither opted in nor opted out, and `isUserOptIn()` reports `true` for them
+   * because tracking-by-default is the SDK's documented behaviour. A consent
+   * banner needs this third state to decide whether to show itself at all.
+   * @return { boolean }
+   * */
+  hasExplicitlyOptedIn(): boolean {
+    return hasOptedIn();
+  }
+
+  /**
+   * Forget the visitor's stored consent decision, returning them to "never asked".
+   *
+   * For re-asking after a privacy-policy change: with an explicit answer on file,
+   * a banner has nothing to ask about. Distinct from `optOut()`, which records a
+   * refusal — this records nothing.
+   *
+   * The in-memory flag is reset to what a fresh page load would compute from the
+   * now-empty store — which, since this SDK tracks by default, means tracking
+   * resumes. Leaving a stale opt-out in memory instead would make the current tab
+   * disagree with every other tab and with the next reload. Any browser DNT/GPC
+   * signal still applies: clearing a *stored* decision cannot clear that.
+   * @return void
+   * */
+  clearConsent(): void {
+    clearOptInOut();
+    if (this._autoTracker) {
+      this._autoTracker.forgetConsentDecision();
+    }
+  }
+
+  /**
+   * The profileId/sessionId/pageId triplet every event carries. Re-read on
+   * every call rather than cached, so a session rollover or page change is
+   * reflected immediately instead of drifting on a long-lived SPA tab.
+   */
+  private _ids(): { profileId: string; sessionId: string; pageId: string } {
+    return {
+      profileId: this._autoTracker.getProfileId(),
+      sessionId: this._autoTracker.getSessionId(),
+      pageId: this._autoTracker.getPageId(),
+    };
   }
 
   /**
@@ -82,98 +193,83 @@ export class IntemptJs extends IntemptJsGuard {
    * @return void
    *
    * */
-  identify(params:IdentifyParams):void{
+  identify(params: IdentifyParams): void {
     if (!this.isUserOptIn()) return;
     if (!this.isIdentifyValid(params)) return;
 
-
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new IdentifyModel({
       ...params,
       profileId,
       sessionId,
-      pageId
-    })
-
-    dispatchIntemptEvent('intempt:identify', {
-      eventName: eventData._name
+      pageId,
     });
 
+    dispatchIntemptEvent('intempt:identify', {
+      eventName: eventData._name,
+    });
 
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-  group(params:GroupParams){
+  group(params: GroupParams) {
     if (!this.isUserOptIn()) return;
     if (!this.isGroupValid(params)) return;
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new GroupModel({
       ...params,
       profileId,
       sessionId,
-      pageId
-    })
-    dispatchIntemptEvent('intempt:group', {
-      eventName: eventData._name
+      pageId,
     });
-    dispatchIntemptEvent('intempt:event', { event: eventData});
-    
+    dispatchIntemptEvent('intempt:group', {
+      eventName: eventData._name,
+    });
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-
-  track(params:TrackParams){
+  track(params: TrackParams) {
     if (!this.isUserOptIn()) return;
     if (!this.isTrackValid(params)) return;
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new TrackModel({
       ...params,
       profileId,
       sessionId,
-      pageId
-    })
-
-
-    dispatchIntemptEvent('intempt:track',{
-      eventName: eventData._name
+      pageId,
     });
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+
+    dispatchIntemptEvent('intempt:track', {
+      eventName: eventData._name,
+    });
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-
-  record(params:RecordParams){
+  record(params: RecordParams) {
     if (!this.isUserOptIn()) return;
     if (!this.isRecordValid(params)) return;
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new RecordModel({
       ...params,
       profileId,
       sessionId,
-      pageId
-    })
+      pageId,
+    });
 
     dispatchIntemptEvent('intempt:record', {
-      eventName: eventData._name
+      eventName: eventData._name,
     });
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-
-  alias(params:AliasParams){
+  alias(params: AliasParams) {
     if (!this.isUserOptIn()) return;
     if (!this.isAliasValid(params)) return;
 
@@ -182,13 +278,12 @@ export class IntemptJs extends IntemptJsGuard {
     const eventData = new AliasModel({
       ...params,
       profileId,
-    })
-
+    });
 
     dispatchIntemptEvent('intempt:alias', {
-      eventName: eventData._name
+      eventName: eventData._name,
     });
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
   /**
@@ -197,56 +292,66 @@ export class IntemptJs extends IntemptJsGuard {
    * @param { ConsentParams } params
    * @required params { action: 'accept' | 'reject', validUntil: number }
    * @return void
+   *
+   * Deliberately NOT gated on `isUserOptIn()` (D-5). Every other public method
+   * skips work while opted out because that work is *tracking* — this one is
+   * *recording a consent decision*, which is an audit record a regulator can
+   * ask for. `optOut()` then `consent({action:'reject'})` must still produce
+   * that record; gating it on the opt-out flag would silently discard the very
+   * evidence of the refusal, and the reverse call order would break
+   * re-consent. The record survives regardless of tracking state; only its
+   * own shape validation (`isConsentValid`) can stop it.
    * */
-  consent(params: ConsentParams):void {
-    if (!this.isUserOptIn()) return;
+  consent(params: ConsentParams): void {
     if (!this.isConsentValid(params)) return;
 
     const profileId = this._autoTracker.getProfileId();
     const sourceId = this._config.sourceId;
-    const pageId = this._autoTracker.getPageId();
 
+    // D-16: `getPageId()` used to be read here and passed to `ConsentModel`,
+    // which declares no `pageId` field — so it was silently discarded. The read
+    // was not free: `PageTrackerModule.getId()` MINTS the page-session cookie
+    // when none exists, and `consent()` is deliberately not gated on opt-out
+    // (D-5), so an opted-out visitor rejecting consent was having a tracking
+    // cookie written for them by the very call that refused tracking. Dropping
+    // the read removes dead work and that write. Adding `pageId` to the consent
+    // wire contract instead is an ingest question — see BACKEND.md.
     const eventData = new ConsentModel({
       ...params,
       profileId,
       sourceId,
-      pageId
-    })
-
-    dispatchIntemptEvent('intempt:consent', {
-      eventName: eventData._name
     });
 
-    dispatchIntemptEvent('intempt:event', { event: eventData});
+    dispatchIntemptEvent('intempt:consent', {
+      eventName: eventData._name,
+    });
+
+    dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-  productAdd(params: ProductParams){
+  productAdd(params: ProductParams) {
     if (!this.isUserOptIn()) return;
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new ProductModel({
       eventTitle: IntemptEventName.PRODUCT_ADD,
-      products: [ params ],
+      products: [params],
       profileId,
       sessionId,
       pageId,
-    })
+    });
 
     dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
-      eventName: eventData._name
+      eventName: eventData._name,
     });
-    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData });
   }
 
-  productOrdered(params: ProductParams[]){
+  productOrdered(params: ProductParams[]) {
     if (!this.isUserOptIn()) return;
 
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new ProductModel({
       eventTitle: IntemptEventName.PRODUCT_ORDER,
@@ -254,20 +359,17 @@ export class IntemptJs extends IntemptJsGuard {
       profileId,
       sessionId,
       pageId,
-    })
+    });
 
     dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
-      eventName: eventData._name
+      eventName: eventData._name,
     });
-    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
-
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData });
   }
 
-  productView(productId: string){
+  productView(productId: string) {
     if (!this.isUserOptIn()) return;
-    const profileId = this._autoTracker.getProfileId();
-    const sessionId = this._autoTracker.getSessionId();
-    const pageId = this._autoTracker.getPageId();
+    const { profileId, sessionId, pageId } = this._ids();
 
     const eventData = new ProductModel({
       eventTitle: IntemptEventName.PRODUCT_VIEW,
@@ -275,29 +377,30 @@ export class IntemptJs extends IntemptJsGuard {
       profileId,
       sessionId,
       pageId,
-    })
-    dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
-      eventName: eventData._name
     });
-    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData});
-
+    dispatchIntemptEvent(IntemptEventListenerName.PRODUCT, {
+      eventName: eventData._name,
+    });
+    dispatchIntemptEvent(IntemptEventListenerName.EVENT, { event: eventData });
   }
 
-  logOut(){
+  logOut() {
     if (!this.isUserOptIn()) return;
 
     this._autoTracker.refresh();
 
     dispatchIntemptEvent('intempt:logOut', {
-      eventName: 'Log Out'
+      eventName: 'Log Out',
     });
   }
 
-  async recommendation (params:RecommendationParams){
-    const {organization, sourceId, project, writeKey} = this._config;
-    const {id, quantity, fields} = params
+  async recommendation(params: RecommendationParams) {
+    if (!this.isUserOptIn()) return null;
+
+    const { organization, sourceId, project, writeKey } = this._config;
+    const { id, quantity, fields } = params;
     const url = `${this._api}/${organization}/projects/${project}/feeds/${id}/data`;
-    const [ username, password ] = writeKey.split('.');
+    const [username, password] = writeKey.split('.');
     const profileId = this._autoTracker.getProfileId();
     const productId = localStorageCache.get('productId');
     const body = {
@@ -306,24 +409,25 @@ export class IntemptJs extends IntemptJsGuard {
       limit: quantity,
       fields,
       productId: productId?.toString(),
-    }
+    };
 
     const encodedCredentials = btoa(`${username}:${password}`);
-    try{
-      const response =  await fetch(url, {
+    try {
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Basic ${encodedCredentials}`,
+          Authorization: `Basic ${encodedCredentials}`,
         },
-        body: JSON.stringify({...body }),
-        keepalive: true
+        body: JSON.stringify({ ...body }),
+        keepalive: true,
       });
       return response?.json();
+    } catch {
+      // Swallowed deliberately: a failed consent POST must not throw into the
+      // customer's own click handler. The binding is omitted rather than named
+      // and ignored, so the lint ratchet stays at zero warnings for this file.
+      return null;
     }
-    catch(error){
-      return null
-    }
-
   }
 }

@@ -1,0 +1,20 @@
+{
+  "track": [
+    {
+      "name": "Joined Org",
+      "type": "group",
+      "payload": [
+        {
+          "eventId": "<eventId>",
+          "profileId": "<profileId>",
+          "sessionId": "<sessionId>",
+          "pageId": "<pageId>",
+          "accountId": "acct-3",
+          "accountAttributes": {
+            "tier": "gold"
+          }
+        }
+      ]
+    }
+  ]
+}

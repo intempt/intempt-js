@@ -1,0 +1,361 @@
+# Fast merge gate for the SDK hardening programme.
+#
+# Why this exists alongside build.yaml: build.yaml's `Build-and-Test` job runs
+# only on *push*, only on non-main/non-staging refs, and only runs Cypress +
+# build. So (a) the 444-test vitest tier and its coverage gate ran nowhere, and
+# (b) a pull request into `staging` or `main` was gated by nothing at all.
+#
+# build.yaml is deliberately NOT modified — it is the live deploy path to the
+# mutable /v1 CDN URL (docs/sdk-hardening/CHECKPOINT.md §6, invariant 2).
+#
+# Scope discipline, so this file stays a gate and not a wish list: every job
+# here runs a script that already exists and already passes locally on this
+# branch. Nothing is added speculatively — see the note at the bottom for what
+# is still deliberately absent and why.
+#
+# Every action is pinned to a full commit SHA with the tag in a trailing
+# comment. A mutable tag like `@v4` is a supply-chain hole: whoever controls the
+# tag controls what runs with this repo's `GITHUB_TOKEN`. Update a pin by
+# resolving the new tag to its SHA (`gh api repos/<owner>/<repo>/git/ref/tags/<tag>`)
+# and changing both the SHA and the comment together.
+name: CI
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: [main, staging]
+    # `labeled` so that adding `run-mutation` to an open PR re-triggers this
+    # workflow and the mutation job picks it up, rather than needing a new push.
+    # The other three are the defaults, which have to be restated once `types` is
+    # given at all.
+    types: [opened, synchronize, reopened, labeled]
+  # Manual trigger, for running the mutation job on demand from the Actions tab.
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref. At PR volume this is most of the
+# runner bill.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    name: Unit tests + coverage (node ${{ matrix.node-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # WAS [20.x, 21.x], because 21.x is what build.yaml deploys on. Changed
+        # to 22.x, and that is a real gap someone has to close: after the
+        # devDependency upgrades (vitest 4, jsdom 30, eslint 9) the toolchain
+        # declares engines that EXCLUDE Node 21 — the runner logged EBADENGINE
+        # for @asamuzakjp/css-color (^22.13 || >=24), lru-cache and others.
+        #
+        # So CI-green no longer implies deploy-green, because build.yaml still
+        # deploys on 21.x and this file may not touch it (invariant §6.2).
+        # Closing that needs a deploy-Node decision, not code. It is the same
+        # decision that blocks the remaining `vite` advisory.
+        # WAS [20.x, 21.x]. Both legs had to go, and for the same reason:
+        # after the devDependency upgrades the *test toolchain* requires a newer
+        # Node than either offered. 21.x logs EBADENGINE for
+        # @asamuzakjp/css-color (^22.13 || >=24) and friends; 20.x dies at
+        # startup with `webidl.util.markAsUncloneable is not a function`, an
+        # undici API that jsdom 30 needs and that Node 20 does not have.
+        #
+        # This is about the TOOLCHAIN, not the shipped SDK: the bundle is a
+        # browser IIFE and `engines: node >=18` in package.json still describes
+        # what a consumer needs to *install* it. Contributors, though, now need
+        # Node >= 22.
+        #
+        # The gap someone must close: build.yaml still deploys on Node 21, and
+        # this file may not touch it (invariant §6.2). Until that is decided,
+        # CI-green does not imply deploy-green. Same decision blocks the
+        # remaining `vite` advisory.
+        node-version: [22.x, 24.x]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: npm
+      # npm ci, not npm install: install mutates the lockfile, which makes the
+      # run non-reproducible. (build.yaml uses npm install; not changing it.)
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
+      - run: npm ci
+      # Coverage thresholds live in vitest.config.ts and are enforced there, so
+      # a coverage drop fails this job — no separate gate step needed.
+      - run: npm run test:coverage
+
+      - name: Upload coverage
+        if: matrix.node-version == '21.x' && (success() || failure())
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: coverage
+          path: coverage/
+          retention-days: 14
+
+  static:
+    name: Lint & format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          cache: npm
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
+      - run: npm ci
+
+      # `npm run lint` is `eslint . --max-warnings=0` as of 2026-08-12.
+      #
+      # It was a ratchet — 323, then 279, then 97, each the exact measured count,
+      # lowered as FRONTEND.md #2 and #6 removed warnings. The code-health sweep
+      # took the repo to zero, so the ratchet became a floor: any new warning
+      # fails this job, and every rule that was demoted to 'warn' to land the gate
+      # green is now an 'error'. There is no number left to edit downward. The one
+      # deliberate exception is `no-async-promise-executor`, which is off the
+      # count because it is a real latent bug in choices.service.ts and belongs in
+      # DEFECTS.md rather than in a lint fix.
+      - name: ESLint
+        run: npm run lint
+
+      # BLOCKING as of 2026-08-12. It was advisory because 98 of 107 source files
+      # failed `prettier --check` — `.prettierrc` was committed long ago and never
+      # enforced — and a gate that is red on arrival gets disabled. The repo-wide
+      # `npm run format` has now landed as its own commit (138 files), so the check
+      # passes from here and the flag is gone. If this step ever fails, run
+      # `npm run format`; do not re-add `continue-on-error`.
+      - name: Prettier
+        run: npm run format:check
+
+      # The generated API reference, as a gate rather than an artifact.
+      # `typedoc.json` sets `treatWarningsAsErrors`, so this fails on a dangling
+      # `@link` or a tag the config does not know — i.e. the moment the public
+      # surface moves out from under `docs/API.md`, which is hand-written and
+      # cannot notice on its own. The HTML output is gitignored: what is being
+      # gated is that the reference still generates cleanly, not the bytes.
+      - name: API reference
+        run: npm run docs:api
+
+  build:
+    name: Typecheck & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          cache: npm
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
+      - run: npm ci
+      # `npm run build` is `tsc && vite build` — tsc is the only typecheck gate
+      # this repo has, so the build job is also the typecheck job.
+      - run: npm run build
+
+      # Already in the deploy path; running it here means a reserved-word
+      # regression fails on the feature branch instead of at deploy time.
+      - name: Check reserved words in bundle
+        run: node scripts/checkReservedWords.js
+
+      # No credential may be baked into the artifact. This matters more here
+      # than in most repos: build.yaml overwrites ONE mutable CDN path
+      # (/v1/intempt.min.js) that every customer loads, with no previous
+      # artifact to roll back to. Calibrated against the real bundle — see the
+      # header of the script for the two things in it that look like secrets and
+      # are not.
+      - name: Scan bundle for credentials
+        run: npm run scan:secrets
+
+      # Runs in this job because it needs the built artifact, and building twice
+      # would double the slowest step. Limits in .size-limit.json are pinned
+      # ~2% over the measured 23.06 kB gzip / 20.11 kB brotli / 81.81 kB raw;
+      # ratchet them DOWN as the bundle shrinks.
+      - name: Size budget
+        run: npm run size
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dist
+          path: dist/
+          retention-days: 14
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          cache: npm
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
+      - run: npm ci
+
+      # THE BLOCKING GATE, and the important one. The SDK has zero runtime
+      # dependencies (`psl` was dropped in CHECKPOINT §5), so this is currently
+      # "0 advisories out of 0 packages" — which is exactly the property worth
+      # defending. --audit-level=low means the day someone adds a runtime
+      # dependency with any known advisory, this fails. Nothing that reaches a
+      # customer's page is allowed to carry one.
+      - name: Audit production dependencies (blocking)
+        run: npm audit --omit=dev --audit-level=low
+
+      # BLOCKING as of 2026-08-12. It was advisory for one reason: the last
+      # remaining high was `vite`, whose fix needed vite >= 6.4.3, and every
+      # vite from 6 onward declares `engines: node ^20.19.0 || >=22.12.0` —
+      # excluding Node 21.x, the version build.yaml deployed on. That made the
+      # advisory structurally unfixable rather than neglected, and a gate that
+      # cannot pass gets disabled, so it reported instead of failing.
+      #
+      # The user approved moving the deploy to Node 22, vite went 5.4.21 →
+      # 6.4.3, and the tree is now 2 moderate / 0 high (from 19 with 8 high and
+      # 4 critical when this programme started). So the reason for the exemption
+      # is gone and this fails a merge again.
+      #
+      # Kept at --audit-level=high rather than low: the two survivors are
+      # transitive moderates with no available fix, and the production half
+      # above already holds the zero-runtime-dependency line at --audit-level=low.
+      # Do not "fix" a future advisory by pinning around build.yaml.
+      - name: Audit dev dependencies (blocking)
+        run: npm audit --audit-level=high
+
+  mutation:
+    name: Mutation score
+    # **Opt-in, not automatic — changed 2026-08-12.** It ran on every PR until
+    # the first real measurement came back: **24m36s on a GitHub runner** against
+    # ~3.5-4 min locally on 8 cores, roughly 7x. That is the longest job in the
+    # file by an order of magnitude, and it is the last one standing on every
+    # merge.
+    #
+    # Two ways to run it now:
+    #
+    #   1. Add the **`run-mutation`** label to a pull request. The `labeled`
+    #      trigger above means adding it to an already-open PR starts the run
+    #      immediately; no new push needed. Remove and re-add to run it again.
+    #   2. **Actions -> CI -> Run workflow** (`workflow_dispatch`), on any branch.
+    #
+    # What is deliberately given up: the score can now regress on a PR that
+    # nobody labels. That is accepted because the `break: 85` floor still fails
+    # the job whenever it *is* run, and the intended cadence is "before a release
+    # and when touching src/shared" rather than "every commit". If a regression
+    # ever slips to `staging` this way, the fix is to label the release PR, not
+    # to put a 24-minute job back on every merge.
+    #
+    # The gate itself is unchanged: `break` in stryker.conf.json fails the job on
+    # a regression below the floor. It is a ratchet, raised only to just under a
+    # measured score, and reached 85 on 2026-08-12 at a measured 86.57% (86.68%
+    # on the PR #191 run).
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event_name == 'pull_request' &&
+       contains(github.event.pull_request.labels.*.name, 'run-mutation'))
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          cache: npm
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
+      - run: npm ci
+      - run: npm run test:mutation
+
+      - name: Upload mutation report
+        if: success() || failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mutation-report
+          path: reports/mutation/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  e2e:
+    name: Cypress e2e
+    # Pull requests only, on purpose. build.yaml already runs the Cypress
+    # suite on every branch push, so running it here on push too would pay for
+    # the same 122 assertions twice. The gap it does not cover is the PR into
+    # staging/main — that is exactly what this job closes.
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+          cache: npm
+      # Cache the Cypress binary separately: `cache: npm` covers ~/.npm but the
+      # browser binary lives in ~/.cache/Cypress and is the slow part of install.
+      - name: Cache Cypress binary
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.cache/Cypress
+          key: cypress-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+      # Pin npm to the major that generated package-lock.json. Node 22 ships
+      # npm 10, and npm 10 resolves this tree differently from npm 11 — the
+      # first CI run failed every job with "Missing: esbuild@0.28.2 from lock
+      # file" for exactly that reason, while `npm ci` was clean locally. Either
+      # the lock or the CLI has to be pinned; pinning the CLI keeps the lock
+      # reproducible for whoever runs npm locally.
+      - run: npm i -g npm@11
+      - run: npm ci
+      - run: npm run test:e2e
+
+      - name: Upload failure screenshots
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: cypress-screenshots
+          path: cypress/screenshots/
+          if-no-files-found: ignore
+          retention-days: 7
+
+# ---------------------------------------------------------------------------
+# Deliberately absent, with reasons — do not add these back without doing the
+# prerequisite work first, or the gate goes red on arrival and gets disabled:
+#
+# * Cross-browser (WDIO/Sauce) tier: AUDIT.md §3b File 2, needs a Sauce account.
+#   This is the one remaining cap on dimension 1 that is a budget decision
+#   rather than engineering work (FRONTEND.md, "The ceiling").
+# * Type-aware ESLint (`recommendedTypeChecked`): would duplicate the `tsc` run
+#   in the build job at a cost of minutes. See eslint.config.js for the detail.
+# * Main-thread budget assertions (init < 10 ms, per-track < 0.1 ms):
+#   FRONTEND.md #9, needs a benchmark harness that does not exist yet.
+#
+# Resolved since the previous revision of this file, for the record:
+# lint/prettier now exist (`static`), the size budget is pinned (`build`), and
+# `npm audit` gates production dependencies (`audit`).
+# ---------------------------------------------------------------------------

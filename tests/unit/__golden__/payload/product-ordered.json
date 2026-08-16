@@ -1,0 +1,30 @@
+{
+  "track": [
+    {
+      "name": "Product ordered",
+      "type": "product",
+      "payload": [
+        {
+          "eventId": "<eventId>",
+          "profileId": "<profileId>",
+          "sessionId": "<sessionId>",
+          "pageId": "<pageId>",
+          "data": {
+            "productId": "p1",
+            "price": 10
+          }
+        },
+        {
+          "eventId": "<eventId>",
+          "profileId": "<profileId>",
+          "sessionId": "<sessionId>",
+          "pageId": "<pageId>",
+          "data": {
+            "productId": "p2",
+            "price": 20
+          }
+        }
+      ]
+    }
+  ]
+}

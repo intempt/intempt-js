@@ -1,0 +1,47 @@
+Intempt JS SDK
+Copyright (c) 2025 Intempt
+
+This product includes software derived from mixpanel-js
+(https://github.com/mixpanel/mixpanel-js), Copyright Mixpanel, Inc.,
+licensed under the Apache License, Version 2.0.
+
+A copy of the Apache License, Version 2.0 is available at:
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Derived work in this repository, with the nature of the derivation:
+
+  src/shared/storage/indexedDbStore.ts
+      Derived from mixpanel-js `src/storage/indexed-db.js`. The open/init
+      promise-caching structure and the non-fatal failure posture follow that
+      implementation; the TypeScript, the per-record API and the transactional
+      removeItems() are original.
+
+  src/shared/storage/persistentStore.ts
+      Derived from mixpanel-js `src/storage/wrapper.js`. The
+      IndexedDB-with-localStorage-fallback pattern and its one-way fallback
+      policy follow that implementation; the interface and code are original.
+
+  src/shared/privacy/gdpr.ts
+      Derived from mixpanel-js `src/gdpr-utils.js`. The consent decision table is
+      that file's: which signals count as an opt-out, that a browser DNT flag
+      outranks a stored opt-in, that only an opt-IN emits a tracking callback, and
+      that a failed consent *read* must not break the caller. Retains the Apache
+      License header. Deliberate divergences (no per-token keying, no
+      persistenceType, once-per-page notices, addOptOutCheck* not ported) are
+      documented in the file itself.
+
+  src/shared/privacy/doNotTrackSignals.ts
+      Derived from mixpanel-js `src/gdpr-utils.js` `_hasDoNotTrackFlagOn`. The
+      three-property check (navigator.doNotTrack / navigator.msDoNotTrack /
+      window.doNotTrack) and the accepted-truthy value set (true, 1, '1', 'yes')
+      are that implementation's; GPC support, the TypeScript and the never-throw
+      posture are original.
+
+  tests/unit/setup.ts
+      Adapted from mixpanel-js `tests/unit/jsdom-setup.js`.
+
+The eTLD+1 heuristic in src/shared/publicSuffix.ts was informed by the approach
+in mixpanel-js `src/utils.js` (extract_domain), but shares no code with it.
+
+NOTE: direct reuse of Apache-2.0 code is permitted with attribution, which this
+file provides. Confirm with counsel before shipping any file copied verbatim.

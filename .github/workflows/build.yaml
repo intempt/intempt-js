@@ -13,7 +13,7 @@ jobs:
       contents: read
     strategy:
       matrix:
-        node-version: [21.x]
+        node-version: [22.x]
     steps:
       - uses: actions/checkout@v4
       - name: Use Node.js ${{ matrix.node-version }}
@@ -38,15 +38,15 @@ jobs:
 
     env:
       AWS_DEPLOYER_ROLE: 'arn:aws:iam::253548970387:role/GithubActionsIntemptJSDeployer'
-      AWS_REGION: "us-east-1"
-      AWS_S3_BUCKET_NAME: "253548970387.cdn.intempt.com"
-      AWS_S3_ROLE_NAME: "IntemptJSDeployer"
-      INTEMPT_JS_SOURCE: "./dist/intempt.min.js"
+      AWS_REGION: 'us-east-1'
+      AWS_S3_BUCKET_NAME: '253548970387.cdn.intempt.com'
+      AWS_S3_ROLE_NAME: 'IntemptJSDeployer'
+      INTEMPT_JS_SOURCE: './dist/intempt.min.js'
       VERSION_KEY: '/v1'
 
     strategy:
       matrix:
-        node-version: [21.x]
+        node-version: [22.x]
 
     steps:
       - uses: actions/checkout@v4
@@ -83,7 +83,6 @@ jobs:
           AWS_REGION: ${{ env.AWS_REGION }}
           FILE: ${{ env.INTEMPT_JS_SOURCE }}
 
-
       - name: Create invalidation
         run: aws cloudfront create-invalidation --distribution-id "E1E1XM6MRZKA1G" --paths '/*'
 
@@ -96,15 +95,15 @@ jobs:
 
     env:
       AWS_DEPLOYER_ROLE: 'arn:aws:iam::763337247345:role/GithubActionsIntemptJSDeployer'
-      AWS_REGION: "us-east-1"
-      AWS_S3_BUCKET_NAME: "763337247345.cdn.staging.intempt.com"
-      AWS_S3_ROLE_NAME: "IntemptJSDeployer"
-      INTEMPT_JS_SOURCE: "./dist/intempt.min.js"
+      AWS_REGION: 'us-east-1'
+      AWS_S3_BUCKET_NAME: '763337247345.cdn.staging.intempt.com'
+      AWS_S3_ROLE_NAME: 'IntemptJSDeployer'
+      INTEMPT_JS_SOURCE: './dist/intempt.min.js'
       VERSION_KEY: '/v1'
 
     strategy:
       matrix:
-        node-version: [21.x]
+        node-version: [22.x]
 
     steps:
       - uses: actions/checkout@v4
