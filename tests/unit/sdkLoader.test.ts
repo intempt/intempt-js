@@ -72,6 +72,7 @@ function appendScript(query: string): HTMLScriptElement {
 
 describe('sdkLoader — building IntemptConfig from the script URL', () => {
   beforeEach(() => {
+    vi.useFakeTimers();
     EnvConfig.initFromValues({ VITE_CDN_LINK: CDN_LINK });
     autoTrackerInstances.length = 0;
     delete (window as any).intempt;
@@ -84,24 +85,27 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
   afterEach(() => {
     document.querySelectorAll('script').forEach((s) => s.remove());
     delete (window as any).intempt;
+    vi.useRealTimers();
   });
 
   describe('script-tag discovery', () => {
-    it('finds its own script by matching the CDN link against every script src', () => {
+    it('finds its own script by matching the CDN link against every script src', async () => {
       appendScript(REQUIRED_QUERY);
       SDK.init();
+      await vi.runAllTimersAsync();
 
       expect(autoTrackerInstances).toHaveLength(1);
       expect(autoTrackerInstances[0]!.config.project).toBe('proj-1');
     });
 
-    it('ignores unrelated script tags on the page and still finds its own', () => {
+    it('ignores unrelated script tags on the page and still finds its own', async () => {
       const other = document.createElement('script');
       other.src = 'https://unrelated.example.com/analytics.js';
       document.body.appendChild(other);
       appendScript(REQUIRED_QUERY);
 
       SDK.init();
+      await vi.runAllTimersAsync();
 
       expect(autoTrackerInstances).toHaveLength(1);
     });
@@ -109,7 +113,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
     it(
       'logs the exact "CAN\'T FIND SCRIPT" string, and no longer throws, when no script tag matches ' +
         'the CDN link (D-12) — the support signature stays, the uncaught throw into the host page does not',
-      () => {
+      async () => {
         // No script appended at all: `document.scripts` has nothing whose src
         // includes the CDN link.
         const errorSpy = vi
@@ -123,6 +127,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
         // `SDK.init()` un-try/caught, and an analytics SDK must never break
         // the page that embeds it.
         expect(() => SDK.init()).not.toThrow();
+        await vi.runAllTimersAsync();
 
         expect(errorSpy).toHaveBeenCalledWith("CAN'T FIND SCRIPT");
         // window.intempt is never assigned, because construction failed and
@@ -131,7 +136,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       },
     );
 
-    it('matches via String.includes rather than an exact match, so the CDN link may appear anywhere in the src', () => {
+    it('matches via String.includes rather than an exact match, so the CDN link may appear anywhere in the src', async () => {
       // getCdnLink() -> 'https://cdn.example.com/v1/intempt.min.js', matched
       // with `s.src.includes(cdnLink)`. Confirm it is a substring test rather
       // than equality by appending harmless trailing content after the query
@@ -140,6 +145,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       appendScript(`${REQUIRED_QUERY}&extra=1`);
 
       SDK.init();
+      await vi.runAllTimersAsync();
 
       expect(autoTrackerInstances).toHaveLength(1);
     });
@@ -148,41 +154,45 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
   describe('required config fields', () => {
     it.each(['project', 'key', 'source', 'organization'])(
       'does not throw, and leaves window.intempt unset, when %s is missing from the query string entirely (D-12)',
-      (missingParam) => {
+      async (missingParam) => {
         const params = new URLSearchParams(REQUIRED_QUERY);
         params.delete(missingParam);
         appendScript(params.toString());
 
         expect(() => SDK.init()).not.toThrow();
+        await vi.runAllTimersAsync();
         expect((window as any).intempt).toBeUndefined();
       },
     );
 
     it.each(['project', 'key', 'source', 'organization'])(
       'does not throw when %s is present but empty — a blank value is treated identically to a missing one (D-12)',
-      (emptyParam) => {
+      async (emptyParam) => {
         const params = new URLSearchParams(REQUIRED_QUERY);
         params.set(emptyParam, '');
         appendScript(params.toString());
 
         expect(() => SDK.init()).not.toThrow();
+        await vi.runAllTimersAsync();
         expect((window as any).intempt).toBeUndefined();
       },
     );
 
-    it('constructs successfully once every required field is present and non-empty', () => {
+    it('constructs successfully once every required field is present and non-empty', async () => {
       appendScript(REQUIRED_QUERY);
       expect(() => SDK.init()).not.toThrow();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances).toHaveLength(1);
     });
 
-    it('maps the query-string names to the config field names customers cannot guess from the type', () => {
+    it('maps the query-string names to the config field names customers cannot guess from the type', async () => {
       // The query string uses short names (`key`, `source`) for fields the
       // `IntemptConfig` type calls `writeKey` / `sourceId`. Getting this
       // mapping wrong silently produces an unreachable option, exactly the
       // failure mode this whole file exists to catch.
       appendScript(REQUIRED_QUERY);
       SDK.init();
+      await vi.runAllTimersAsync();
 
       const config = autoTrackerInstances[0]!.config;
       expect(config.writeKey).toBe('write-key-1');
@@ -193,9 +203,10 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
   });
 
   describe('shopify / magento — D-17, formerly the !!searchParams.get() footgun', () => {
-    it('defaults both to false when absent from the query string', () => {
+    it('defaults both to false when absent from the query string', async () => {
       appendScript(REQUIRED_QUERY);
       SDK.init();
+      await vi.runAllTimersAsync();
 
       expect(autoTrackerInstances[0]!.config.shopify).toBe(false);
       expect(autoTrackerInstances[0]!.config.magento).toBe(false);
@@ -203,9 +214,10 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
 
     it.each(['shopify=false', 'shopify=0'])(
       'D-17 (fixed): %s is now read as DISABLED via readBooleanParam, not enabled',
-      (flag) => {
+      async (flag) => {
         appendScript(`${REQUIRED_QUERY}&${flag}`);
         SDK.init();
+        await vi.runAllTimersAsync();
 
         // Previously this was the known, documented D-17 defect: `!!get()`
         // treats any present, non-empty string — including the literal text
@@ -216,13 +228,14 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       },
     );
 
-    it('shopify=true and shopify=1 are read as enabled', () => {
+    it('shopify=true and shopify=1 are read as enabled', async () => {
       appendScript(`${REQUIRED_QUERY}&shopify=true`);
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.shopify).toBe(true);
     });
 
-    it("a bare/empty shopify value opts in, matching readBooleanParam's HTML-boolean-attribute semantics", () => {
+    it("a bare/empty shopify value opts in, matching readBooleanParam's HTML-boolean-attribute semantics", async () => {
       // Under the old !!get() idiom this was the one case that read as
       // disabled (get() returns '' and !!'' is false). readBooleanParam
       // treats a present-but-empty value as an explicit opt-in instead,
@@ -230,74 +243,84 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       // old behaviour is intentional and shared with the privacy switches.
       appendScript(`${REQUIRED_QUERY}&shopify=`);
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.shopify).toBe(true);
     });
 
-    it('magento shares the same fix as shopify — D-17 named both', () => {
+    it('magento shares the same fix as shopify — D-17 named both', async () => {
       appendScript(`${REQUIRED_QUERY}&magento=false`);
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.magento).toBe(false);
     });
   });
 
   describe('privacy switches — the readBooleanParam parse shopify/magento now also use', () => {
-    it('ignore_dnt=false correctly disables the flag', () => {
+    it('ignore_dnt=false correctly disables the flag', async () => {
       // §3h gave ignore_dnt/pii_scrubbing a real boolean parse specifically
       // because a privacy switch defaulting the wrong way is a regulator-grade
       // problem, not a cosmetics one. D-17's fix extended the same parse to
       // shopify/magento, so this and the shopify=false test above now agree.
       appendScript(`${REQUIRED_QUERY}&ignore_dnt=false`);
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.ignore_dnt).toBe(false);
     });
 
-    it('ignore_dnt=true enables it', () => {
+    it('ignore_dnt=true enables it', async () => {
       appendScript(`${REQUIRED_QUERY}&ignore_dnt=true`);
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.ignore_dnt).toBe(true);
     });
 
-    it('ignore_dnt is undefined (not false) when absent, leaving the SDK default in force', () => {
+    it('ignore_dnt is undefined (not false) when absent, leaving the SDK default in force', async () => {
       appendScript(REQUIRED_QUERY);
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.ignore_dnt).toBeUndefined();
     });
 
-    it('pii_scrubbing=false correctly disables scrubbing', () => {
+    it('pii_scrubbing=false correctly disables scrubbing', async () => {
       appendScript(`${REQUIRED_QUERY}&pii_scrubbing=false`);
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.piiScrubbing).toBe(false);
     });
 
-    it('pii_scrubbing=true enables scrubbing', () => {
+    it('pii_scrubbing=true enables scrubbing', async () => {
       appendScript(`${REQUIRED_QUERY}&pii_scrubbing=true`);
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.piiScrubbing).toBe(true);
     });
 
-    it('pii_scrubbing is undefined when absent', () => {
+    it('pii_scrubbing is undefined when absent', async () => {
       appendScript(REQUIRED_QUERY);
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.piiScrubbing).toBeUndefined();
     });
 
-    it('api_host is read as a plain string, not through the boolean parser', () => {
+    it('api_host is read as a plain string, not through the boolean parser', async () => {
       appendScript(
         `${REQUIRED_QUERY}&api_host=${encodeURIComponent('https://eu.ingest.example.com')}`,
       );
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.apiHost).toBe(
         'https://eu.ingest.example.com',
       );
     });
 
-    it('api_host is undefined (so resolveIngestBaseUrl falls through to the build-time default) when absent', () => {
+    it('api_host is undefined (so resolveIngestBaseUrl falls through to the build-time default) when absent', async () => {
       appendScript(REQUIRED_QUERY);
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.apiHost).toBeUndefined();
     });
 
-    it('api_host="" is read as undefined, not as an empty-string host (D-27, fixed)', () => {
+    it('api_host="" is read as undefined, not as an empty-string host (D-27, fixed)', async () => {
       // Previously `.get()` returning '' for a present-but-empty param
       // survived `?? undefined` unchanged (`''` is not `null`), so
       // resolveIngestBaseUrl received an empty string instead of falling
@@ -305,12 +328,13 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       // the same as absent.
       appendScript(`${REQUIRED_QUERY}&api_host=`);
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(autoTrackerInstances[0]!.config.apiHost).toBeUndefined();
     });
   });
 
   describe('stub-queue replay — the async handoff between the inline snippet and the real SDK', () => {
-    it('replays a queued synchronous call onto the real IntemptJs instance once it exists', () => {
+    it('replays a queued synchronous call onto the real IntemptJs instance once it exists', async () => {
       // The inline snippet installs a stub `window.intempt` that just records
       // calls in `_queue` before the real bundle has loaded. `SDK.init()` must
       // drain that queue onto the freshly constructed real instance.
@@ -329,6 +353,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       document.addEventListener('intempt:event', listener);
       try {
         SDK.init();
+        await vi.runAllTimersAsync();
       } finally {
         document.removeEventListener('intempt:event', listener);
       }
@@ -341,17 +366,19 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       expect(queue).toHaveLength(0);
     });
 
-    it('does not attempt to replay when there was no stub (window.intempt was never set)', () => {
+    it('does not attempt to replay when there was no stub (window.intempt was never set)', async () => {
       appendScript(REQUIRED_QUERY);
       expect(() => SDK.init()).not.toThrow();
+      await vi.runAllTimersAsync();
       expect((window as any).intempt).toBeDefined();
     });
 
-    it('ignores a window.intempt that exists but carries none of the recognised queue property names', () => {
+    it('ignores a window.intempt that exists but carries none of the recognised queue property names', async () => {
       (window as any).intempt = { somethingElse: [] };
       appendScript(REQUIRED_QUERY);
 
       expect(() => SDK.init()).not.toThrow();
+      await vi.runAllTimersAsync();
       // Replaced with the real instance rather than left alone or crashed on.
       expect((window as any).intempt.VERSION).toBeDefined();
     });
@@ -376,7 +403,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
     // dropped one means that customer's pre-init events vanish with no error.
     it.each(['_queue', '_stubQueue', 'queue', '__queue'])(
       'drains a stub queue named %s',
-      (queueName) => {
+      async (queueName) => {
         const queue = [
           {
             method: 'track',
@@ -391,6 +418,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
         document.addEventListener('intempt:event', listener);
         try {
           SDK.init();
+          await vi.runAllTimersAsync();
         } finally {
           document.removeEventListener('intempt:event', listener);
         }
@@ -402,7 +430,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       },
     );
 
-    it('prefers _queue when a stub carries more than one of the names', () => {
+    it('prefers _queue when a stub carries more than one of the names', async () => {
       // Order is the contract: `_queue` first. A stub that sets two names is
       // malformed, but silently replaying the wrong one would double-count or drop.
       (window as any).intempt = {
@@ -420,6 +448,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       document.addEventListener('intempt:event', listener);
       try {
         SDK.init();
+        await vi.runAllTimersAsync();
       } finally {
         document.removeEventListener('intempt:event', listener);
       }
@@ -428,19 +457,20 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       expect(seen.some((d) => d.event?.name === 'loser')).toBe(false);
     });
 
-    it('ignores a queue property that is not an array', () => {
+    it('ignores a queue property that is not an array', async () => {
       // `Array.isArray` guards every one of the four reads. Without it the `for`
       // loop over a string or object throws inside init, on the host page.
       (window as any).intempt = { _queue: 'not-an-array' };
       appendScript(REQUIRED_QUERY);
 
       expect(() => SDK.init()).not.toThrow();
+      await vi.runAllTimersAsync();
       expect((window as any).intempt.VERSION).toBeDefined();
     });
   });
 
   describe('replay failures must not stop the rest of the queue', () => {
-    it('skips a queued call naming a method that does not exist', () => {
+    it('skips a queued call naming a method that does not exist', async () => {
       const queue = [
         { method: 'notARealMethod', args: [] },
         {
@@ -456,6 +486,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       document.addEventListener('intempt:event', listener);
       try {
         SDK.init();
+        await vi.runAllTimersAsync();
       } finally {
         document.removeEventListener('intempt:event', listener);
       }
@@ -465,7 +496,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       expect(seen.some((d) => d.event?.name === 'after-bad-method')).toBe(true);
     });
 
-    it('keeps replaying after a queued call throws', () => {
+    it('keeps replaying after a queued call throws', async () => {
       // `track` with no arguments throws out of IntemptJsGuard. The per-call
       // try/catch is what keeps the following entries alive.
       const queue = [
@@ -483,6 +514,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       document.addEventListener('intempt:event', listener);
       try {
         expect(() => SDK.init()).not.toThrow();
+        await vi.runAllTimersAsync();
       } finally {
         document.removeEventListener('intempt:event', listener);
       }
@@ -490,7 +522,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       expect(seen.some((d) => d.event?.name === 'after-throw')).toBe(true);
     });
 
-    it('drains the queue exactly once, so a second init cannot double-send', () => {
+    it('drains the queue exactly once, so a second init cannot double-send', async () => {
       const queue = [
         {
           method: 'track',
@@ -500,6 +532,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       (window as any).intempt = { _queue: queue };
       appendScript(REQUIRED_QUERY);
       SDK.init();
+      await vi.runAllTimersAsync();
 
       expect(queue).toHaveLength(0);
     });
@@ -514,31 +547,33 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       return script;
     }
 
-    it('removes an inline stub script once its queue has been replayed', () => {
+    it('removes an inline stub script once its queue has been replayed', async () => {
       const stub = appendStubScript('window.intempt={_queue:[],_isStub:true};');
       (window as any).intempt = { _queue: [] };
       appendScript(REQUIRED_QUERY);
 
       SDK.init();
+      await vi.runAllTimersAsync();
 
       // Left in place it would be dead markup that still *looks* like the SDK to
       // anyone debugging the page, and to any later loader run.
       expect(document.body.contains(stub)).toBe(false);
     });
 
-    it("leaves the SDK's own script tag alone", () => {
+    it("leaves the SDK's own script tag alone", async () => {
       appendStubScript('window.intempt={_queue:[]};');
       (window as any).intempt = { _queue: [] };
       const sdkScript = appendScript(REQUIRED_QUERY);
 
       SDK.init();
+      await vi.runAllTimersAsync();
 
       // The removal walks every script on the page and skips the SDK one by
       // identity. Getting that check wrong deletes the bundle's own tag.
       expect(document.body.contains(sdkScript)).toBe(true);
     });
 
-    it('recognises a stub by any of the three inline markers', () => {
+    it('recognises a stub by any of the three inline markers', async () => {
       const markers = ['_isStub', '_queue', '_pendingPromises'];
       for (const marker of markers) {
         document.querySelectorAll('script').forEach((s) => s.remove());
@@ -549,11 +584,12 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
         appendScript(REQUIRED_QUERY);
 
         SDK.init();
+        await vi.runAllTimersAsync();
         expect(document.body.contains(stub)).toBe(false);
       }
     });
 
-    it('recognises an external stub by src rather than content', () => {
+    it('recognises an external stub by src rather than content', async () => {
       const stub = document.createElement('script');
       stub.src = 'https://example.com/assets/intempt-stub.js';
       document.body.appendChild(stub);
@@ -561,26 +597,29 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       appendScript(REQUIRED_QUERY);
 
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(document.body.contains(stub)).toBe(false);
     });
 
-    it('leaves an unrelated script tag alone', () => {
+    it('leaves an unrelated script tag alone', async () => {
       const unrelated = appendStubScript('var unrelatedGlobal = 1;');
       (window as any).intempt = { _queue: [] };
       appendScript(REQUIRED_QUERY);
 
       SDK.init();
+      await vi.runAllTimersAsync();
 
       // The markers are what identify a stub. Removing scripts that merely happen
       // to be inline would be the SDK vandalising the host page.
       expect(document.body.contains(unrelated)).toBe(true);
     });
 
-    it('does not touch any script when there was no stub at all', () => {
+    it('does not touch any script when there was no stub at all', async () => {
       const unrelated = appendStubScript('var unrelated = 1;');
       appendScript(REQUIRED_QUERY);
 
       SDK.init();
+      await vi.runAllTimersAsync();
       expect(document.body.contains(unrelated)).toBe(true);
     });
   });
@@ -613,7 +652,9 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       appendScript(REQUIRED_QUERY);
 
       SDK.init();
-      await vi.waitFor(() => expect(settled).toHaveLength(2));
+      await vi.runAllTimersAsync();
+
+      expect(settled).toHaveLength(2);
 
       // Both **resolve**, not reject, even with no network: `recommendation()`
       // degrades to control rather than failing, which is the safe direction and is
@@ -623,7 +664,7 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       expect(pendingPromises).toHaveLength(0);
     });
 
-    it('does not throw when there are more recommendation calls than pending promises', () => {
+    it('does not throw when there are more recommendation calls than pending promises', async () => {
       // A snippet may queue a call without holding a promise for it. The loader
       // logs and carries on; throwing here would abort the rest of the replay.
       (window as any).intempt = {
@@ -636,24 +677,27 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       appendScript(REQUIRED_QUERY);
 
       expect(() => SDK.init()).not.toThrow();
+      await vi.runAllTimersAsync();
     });
   });
 
   describe('init failure must not break the host page', () => {
-    it('reports and returns when the config is invalid, instead of throwing (D-12)', () => {
+    it('reports and returns when the config is invalid, instead of throwing (D-12)', async () => {
       // No script tag at all: `getIntemptConfig()` falls back to an all-empty
       // config and `new IntemptJs(...)` throws inside `isValidConfig`. `main.ts`
       // calls `SDK.init()` un-try/caught, so an uncaught throw here would land in
       // the customer's own JavaScript. An analytics SDK must never break the page
       // that embeds it.
       expect(() => SDK.init()).not.toThrow();
+      await vi.runAllTimersAsync();
     });
 
-    it('leaves window.intempt unreplaced when construction failed', () => {
+    it('leaves window.intempt unreplaced when construction failed', async () => {
       const stub = { _queue: [], marker: 'still-the-stub' };
       (window as any).intempt = stub;
 
       SDK.init();
+      await vi.runAllTimersAsync();
 
       // Assigning a half-built instance would be worse than leaving the stub: the
       // stub at least keeps queueing, and every call on it is a no-op rather than
@@ -663,9 +707,10 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
   });
 
   describe('window.intempt replacement', () => {
-    it('replaces window.intempt with the real IntemptJs instance', () => {
+    it('replaces window.intempt with the real IntemptJs instance', async () => {
       appendScript(REQUIRED_QUERY);
       SDK.init();
+      await vi.runAllTimersAsync();
 
       expect((window as any).intempt).toBeDefined();
       expect((window as any).intempt.VERSION).toBeDefined();
