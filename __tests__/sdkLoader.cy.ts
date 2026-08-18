@@ -60,6 +60,11 @@ describe('SDK Loader - Stub Functionality', () => {
   async function initSDK() {
     const { SDK } = await import('../src/loaders/sdkLoader.ts');
     SDK.init();
+    // SDK.init() now defers the real initSDK() work to requestIdleCallback
+    // (LCP fix). This helper is a plain async function (not a cy command
+    // chain), so the wait needs a real promise rather than cy.wait to
+    // actually block it.
+    await new Promise<void>((resolve) => setTimeout(resolve, 100));
     // Return IntemptJs type for type checking
     const { IntemptJs } = await import('../src/intemptJs/intemptJs.ts');
     return IntemptJs;
