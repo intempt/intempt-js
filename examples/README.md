@@ -1,7 +1,7 @@
 # Examples
 
-Runnable pages. Five are a single self-contained HTML file with the real install snippet in
-it — nothing bundled or built. Two are not: `typescript/` is declarations to copy, and
+Runnable pages. Four are a single self-contained HTML file with the real install snippet
+in it — nothing bundled or built. Two are not: `typescript/` is declarations to copy, and
 `nextjs/` is a real app, because a Next project has no HTML file to paste a snippet into.
 
 | Example                                        | Shows                                                                                                         |

@@ -125,10 +125,13 @@ jobs:
       # The Next.js example installs its own dependencies -- it is a real app,
       # not a snippet, and `next` has to be resolvable for `next/script` and the
       # JSX types to check.
+      #
+      # `npm ci`, not `npm install`: the example commits its own lock, and
+      # `npm install` would silently rewrite a drifted one instead of failing.
       - name: Next.js example
         working-directory: examples/nextjs
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm run typecheck
 
   static:

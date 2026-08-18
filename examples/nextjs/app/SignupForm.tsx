@@ -19,9 +19,9 @@ export function SignupForm() {
       onSubmit={(event) => {
         event.preventDefault();
 
-        // The anonymous visitor becomes a known one. alias first, so the
-        // events already attributed to the anonymous id follow across.
-        analytics.alias(email, 'anonymous-visitor-id');
+        // `identify` is enough here: the SDK stamps the anonymous profile id on
+        // the event itself, so the history follows without an explicit alias.
+        // `alias` is for merging two ids you already hold — see Surface.tsx.
         analytics.identify(email, {
           plan: 'pro',
           signup_source: 'nextjs-example',

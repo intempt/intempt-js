@@ -9,6 +9,8 @@ Next app has no HTML file to paste the snippet into.
 | `app/intempt/analytics.ts` | The wrapper. Guards `window` so a server-side call fails loudly instead of silently |
 | `app/SignupForm.tsx`       | A client component calling it. Server components cannot: the SDK lives on `window`  |
 | `app/intempt/intempt.d.ts` | The `window.intempt` surface, copied from [`../typescript`](../typescript)          |
+| `app/Surface.tsx`          | Every method called once — the file that keeps the wrapper honest                   |
+| `app/page.tsx`             | The page tying the two together                                                     |
 
 ## Run it
 
