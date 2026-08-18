@@ -7,7 +7,7 @@ type ShopifyMeta = {
 
 declare global {
   interface Window {
-    intempt: IntemptJs;
+    intempt?: IntemptJs;
     Shopify: { meta: ShopifyMeta };
     meta: ShopifyMeta;
     theme: {

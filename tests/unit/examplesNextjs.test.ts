@@ -116,7 +116,9 @@ describe('group', () => {
 
 describe('track', () => {
   it('passes the guard with non-empty data', () => {
-    expect(() => analytics.track('cta_clicked', { placement: 'hero' })).not.toThrow();
+    expect(() =>
+      analytics.track('cta_clicked', { placement: 'hero' }),
+    ).not.toThrow();
   });
 
   it('surfaces the guard rejection of empty data rather than hiding it', () => {
