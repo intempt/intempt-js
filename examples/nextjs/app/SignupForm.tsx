@@ -7,7 +7,8 @@ import { analytics } from "./intempt/analytics";
  * A client component, because the SDK lives on `window`.
  *
  * Calling it from a server component is the mistake this example is shaped to
- * prevent: the module would evaluate on the server, where `window` is undefined.
+ * prevent: the module would evaluate on the server, where `window` is undefined
+ * and `analytics` throws with that as the message.
  */
 export function SignupForm() {
   const [email, setEmail] = useState("");
@@ -17,8 +18,15 @@ export function SignupForm() {
     <form
       onSubmit={(event) => {
         event.preventDefault();
-        analytics.identify(email);
+
+        // The anonymous visitor becomes a known one. alias first, so the
+        // events already attributed to the anonymous id follow across.
+        analytics.alias(email, "anonymous-visitor-id");
+        analytics.identify(email, { plan: "pro", signup_source: "nextjs-example" });
+        analytics.group("acct_acme", { company_name: "Acme", seat_count: 12 });
+
         analytics.track("signup_submitted", { plan: "pro", source_page: "/" });
+
         setSent(true);
       }}
     >

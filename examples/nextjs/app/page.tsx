@@ -1,4 +1,5 @@
 import { SignupForm } from "./SignupForm";
+import { Surface } from "./Surface";
 
 export default function Home() {
   return (
@@ -9,6 +10,7 @@ export default function Home() {
         tag. Open the network tab and submit the form to watch events go out.
       </p>
       <SignupForm />
+      <Surface />
     </main>
   );
 }
