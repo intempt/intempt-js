@@ -49,6 +49,24 @@ const IDENTITY_FIELDS = [
  */
 const NO_PAGE_ID = new Set(['Session start']);
 
+/**
+ * **`alias()` carries neither `sessionId` nor `pageId`, and that is pre-existing
+ * asserted behaviour** — `tests/unit/__golden__/payload/alias.json` pins exactly
+ * that shape (`AliasModelPayload` in `autoTracker.types.ts` does not even declare a
+ * `sessionId` field). `IntemptJs.alias()` only ever reads `profileId`.
+ *
+ * Keyed on `type` rather than `name`: `AliasModel` hardcodes `name = 'Identify'`
+ * (also pre-existing, also pinned by the same golden fixture), which is exactly
+ * why this exemption has to exist here — without it, a failure on the alias entry
+ * reads as `entry N (Identify) is missing sessionId`, indistinguishable in the
+ * error message from an actual `identify()` call losing its session, and that
+ * false read is what sent an earlier investigation of this failure chasing a
+ * session-id/idle-defer race that does not exist. The real bug was `alias()`
+ * being un-exempted here alongside a same-named event it does not actually share
+ * an identity contract with.
+ */
+const NO_SESSION_OR_PAGE_ID = new Set(['alias']);
+
 type Entry = {
   name?: string;
   type?: string;
@@ -150,9 +168,13 @@ test('every handler delivers events carrying a complete, consistent identity', a
   // 1. Every event carries every identity field, non-empty.
   for (const [index, payload] of payloads.entries()) {
     const owner = entries.find((entry) => entry.payload?.includes(payload));
-    const required = NO_PAGE_ID.has(owner?.name ?? '')
-      ? IDENTITY_FIELDS.filter((field) => field !== 'pageId')
-      : IDENTITY_FIELDS;
+    const required = NO_SESSION_OR_PAGE_ID.has(owner?.type ?? '')
+      ? IDENTITY_FIELDS.filter(
+          (field) => field !== 'pageId' && field !== 'sessionId',
+        )
+      : NO_PAGE_ID.has(owner?.name ?? '')
+        ? IDENTITY_FIELDS.filter((field) => field !== 'pageId')
+        : IDENTITY_FIELDS;
 
     for (const field of required) {
       const value = payload[field];
@@ -167,6 +189,7 @@ test('every handler delivers events carrying a complete, consistent identity', a
   //     the exemption above cannot quietly widen into "pageId is optional".
   for (const entry of entries) {
     if (NO_PAGE_ID.has(entry.name ?? '')) continue;
+    if (NO_SESSION_OR_PAGE_ID.has(entry.type ?? '')) continue;
     for (const payload of entry.payload ?? []) {
       expect(
         typeof payload.pageId === 'string' && payload.pageId.length > 0,

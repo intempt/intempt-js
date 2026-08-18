@@ -342,6 +342,16 @@ function initSDK() {
   log.info('SDK initialized', window.intempt);
 }
 
+const IDLE_TIMEOUT_MS = 2000;
+
+function runWhenIdle(fn: () => void): void {
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(fn, { timeout: IDLE_TIMEOUT_MS });
+  } else {
+    setTimeout(fn, 0);
+  }
+}
+
 export const SDK = {
-  init: initSDK,
+  init: () => runWhenIdle(initSDK),
 };

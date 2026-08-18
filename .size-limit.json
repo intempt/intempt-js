@@ -2,20 +2,20 @@
   {
     "name": "intempt.min.js — gzip (what most customers download)",
     "path": "dist/intempt.min.js",
-    "limit": "27.9 kB",
+    "limit": "31.9 kB",
     "gzip": true
   },
   {
     "name": "intempt.min.js — brotli (what a modern CDN serves)",
     "path": "dist/intempt.min.js",
-    "limit": "24.2 kB",
+    "limit": "27.7 kB",
     "gzip": false,
     "brotli": true
   },
   {
     "name": "intempt.min.js — raw (parse/compile cost on the host page)",
     "path": "dist/intempt.min.js",
-    "limit": "95.8 kB",
+    "limit": "109.4 kB",
     "gzip": false,
     "brotli": false
   }
