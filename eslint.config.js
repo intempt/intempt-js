@@ -43,6 +43,16 @@ export default tseslint.config(
       'reports/**',
       '.stryker-tmp/**',
       'node_modules/**',
+      // `node_modules/**` alone only matches the top-level directory — an
+      // example package installed in place (`cd examples/nextjs && npm
+      // install`, exactly what running an example locally involves) leaves a
+      // nested `node_modules` plus Next.js's own generated `.next/` and
+      // `next-env.d.ts`, none of which the pattern above reaches. Without
+      // this, `npm run lint` from repo root goes from clean to ~12,800
+      // findings the moment anyone actually runs an example.
+      '**/node_modules/**',
+      'examples/nextjs/.next/**',
+      'examples/nextjs/next-env.d.ts',
       'standalone/**',
       // Agent worktrees are full checkouts of this repo (including their own
       // dist/), so without this eslint lints the project several times over and
