@@ -3,8 +3,8 @@
 The App Router install. This is the one example that is not a single HTML file, because a
 Next app has no HTML file to paste the snippet into.
 
-| File                       | What it shows                                                                      |
-| -------------------------- | ---------------------------------------------------------------------------------- |
+| File                       | What it shows                                                                       |
+| -------------------------- | ----------------------------------------------------------------------------------- |
 | `app/layout.tsx`           | The install — the loader as a `next/script` tag, and why `afterInteractive`         |
 | `app/intempt/analytics.ts` | The wrapper. Guards `window` so a server-side call fails loudly instead of silently |
 | `app/SignupForm.tsx`       | A client component calling it. Server components cannot: the SDK lives on `window`  |

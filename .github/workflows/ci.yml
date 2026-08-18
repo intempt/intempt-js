@@ -118,7 +118,9 @@ jobs:
       # example that does not compile is worse than no example: it is the first
       # thing a new integrator copies.
       - name: TypeScript example
-        run: npx --yes typescript@5 --project examples/typescript
+        # `--package`, not a bare `npx typescript@5`: the package's binary is
+        # `tsc`, and npx cannot infer it from the package name.
+        run: npx --yes --package typescript@5 tsc --project examples/typescript
 
       # The Next.js example installs its own dependencies -- it is a real app,
       # not a snippet, and `next` has to be resolvable for `next/script` and the

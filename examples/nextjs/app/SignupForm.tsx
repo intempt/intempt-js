@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { analytics } from "./intempt/analytics";
+import { useState } from 'react';
+import { analytics } from './intempt/analytics';
 
 /**
  * A client component, because the SDK lives on `window`.
@@ -11,7 +11,7 @@ import { analytics } from "./intempt/analytics";
  * and `analytics` throws with that as the message.
  */
 export function SignupForm() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState('');
   const [sent, setSent] = useState(false);
 
   return (
@@ -21,11 +21,14 @@ export function SignupForm() {
 
         // The anonymous visitor becomes a known one. alias first, so the
         // events already attributed to the anonymous id follow across.
-        analytics.alias(email, "anonymous-visitor-id");
-        analytics.identify(email, { plan: "pro", signup_source: "nextjs-example" });
-        analytics.group("acct_acme", { company_name: "Acme", seat_count: 12 });
+        analytics.alias(email, 'anonymous-visitor-id');
+        analytics.identify(email, {
+          plan: 'pro',
+          signup_source: 'nextjs-example',
+        });
+        analytics.group('acct_acme', { company_name: 'Acme', seat_count: 12 });
 
-        analytics.track("signup_submitted", { plan: "pro", source_page: "/" });
+        analytics.track('signup_submitted', { plan: 'pro', source_page: '/' });
 
         setSent(true);
       }}

@@ -1,7 +1,7 @@
-"use client";
+'use client';
 
-import { useState } from "react";
-import { analytics } from "./intempt/analytics";
+import { useState } from 'react';
+import { analytics } from './intempt/analytics';
 
 /**
  * Every method on the surface, called once.
@@ -22,9 +22,9 @@ export function Surface() {
       <button
         onClick={() => {
           // Identity
-          analytics.identify("user_1", { plan: "pro" });
-          analytics.alias("user_1", "anonymous_1");
-          analytics.group("acct_1", { company_name: "Acme" });
+          analytics.identify('user_1', { plan: 'pro' });
+          analytics.alias('user_1', 'anonymous_1');
+          analytics.group('acct_1', { company_name: 'Acme' });
         }}
       >
         identify / alias / group
@@ -33,10 +33,10 @@ export function Surface() {
       <button
         onClick={() => {
           // Events. `data` must be non-empty — the SDK throws on `{}`.
-          analytics.track("cta_clicked", { placement: "hero" });
-          analytics.record("invoice_paid", {
-            userId: "user_1",
-            accountId: "acct_1",
+          analytics.track('cta_clicked', { placement: 'hero' });
+          analytics.record('invoice_paid', {
+            userId: 'user_1',
+            accountId: 'acct_1',
             data: { amount_cents: 12900 },
           });
         }}
@@ -47,11 +47,11 @@ export function Surface() {
       <button
         onClick={() => {
           // Commerce. productView takes a bare string; the others take objects.
-          analytics.productView("sku_1");
-          analytics.productAdd({ productId: "sku_1", quantity: 2 });
+          analytics.productView('sku_1');
+          analytics.productAdd({ productId: 'sku_1', quantity: 2 });
           analytics.productOrdered([
-            { productId: "sku_1", quantity: 2 },
-            { productId: "sku_2" },
+            { productId: 'sku_1', quantity: 2 },
+            { productId: 'sku_2' },
           ]);
         }}
       >
@@ -61,7 +61,7 @@ export function Surface() {
       <button
         onClick={() => {
           // Consent. `action` is case-sensitive; 'Accept' throws at runtime.
-          analytics.consent("accept", 1798761600, { email: "user@acme.com" });
+          analytics.consent('accept', 1798761600, { email: 'user@acme.com' });
         }}
       >
         consent
@@ -90,7 +90,11 @@ export function Surface() {
       <button
         onClick={() => {
           analytics
-            .recommendation({ id: 1, quantity: 4, fields: ["productId", "title", "price"] })
+            .recommendation({
+              id: 1,
+              quantity: 4,
+              fields: ['productId', 'title', 'price'],
+            })
             .then(setFeed)
             .catch((error: unknown) => setFeed(String(error)));
         }}

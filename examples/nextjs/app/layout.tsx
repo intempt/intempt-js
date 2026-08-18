@@ -1,9 +1,9 @@
-import type { Metadata } from "next";
-import Script from "next/script";
+import type { Metadata } from 'next';
+import Script from 'next/script';
 
 export const metadata: Metadata = {
-  title: "Intempt + Next.js",
-  description: "Installing the Intempt browser SDK in an App Router app",
+  title: 'Intempt + Next.js',
+  description: 'Installing the Intempt browser SDK in an App Router app',
 };
 
 export default function RootLayout({
