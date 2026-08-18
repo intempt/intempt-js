@@ -1,7 +1,8 @@
 # Examples
 
-Runnable pages, each one a single self-contained HTML file with the real install snippet in
-it. Nothing is bundled or built.
+Runnable pages. Five are a single self-contained HTML file with the real install snippet in
+it — nothing bundled or built. Two are not: `typescript/` is declarations to copy, and
+`nextjs/` is a real app, because a Next project has no HTML file to paste a snippet into.
 
 | Example                                        | Shows                                                                                                      |
 | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -10,6 +11,7 @@ it. Nothing is bundled or built.
 | [`spa/`](spa/index.html)                       | Automatic page views across a `pushState` router — how little you have to write                            |
 | [`ecommerce/`](ecommerce/index.html)           | `productView`, `productAdd`, `productOrdered`                                                              |
 | [`typescript/`](typescript/)                   | Declarations for `window.intempt`, a typed wrapper, and the compile-time traps. Type-checks under `strict` |
+| [`nextjs/`](nextjs/)                           | The App Router install — `next/script`, and a wrapper that guards `window` so a server-side call fails loudly |
 
 ---
 

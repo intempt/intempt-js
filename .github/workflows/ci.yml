@@ -104,6 +104,31 @@ jobs:
           path: coverage/
           retention-days: 14
 
+  examples:
+    name: Examples typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+
+      # The repo's own `npm run build` typechecks `src`, `__tests__` and `tests`
+      # only, so until this job existed nothing checked examples/ at all. An
+      # example that does not compile is worse than no example: it is the first
+      # thing a new integrator copies.
+      - name: TypeScript example
+        run: npx --yes typescript@5 --project examples/typescript
+
+      # The Next.js example installs its own dependencies -- it is a real app,
+      # not a snippet, and `next` has to be resolvable for `next/script` and the
+      # JSX types to check.
+      - name: Next.js example
+        working-directory: examples/nextjs
+        run: |
+          npm install --no-audit --no-fund
+          npm run typecheck
+
   static:
     name: Lint & format
     runs-on: ubuntu-latest
