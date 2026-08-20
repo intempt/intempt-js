@@ -1,7 +1,7 @@
 // Import EnvConfig first to ensure it's initialized before other modules
 import { EnvConfig } from './shared/envConfig.ts';
 import { SDK_VERSION } from './shared/version.ts';
-import { SDK } from './loaders/sdkLoader.ts';
+import { SDK, readScriptUrlBooleanParam } from './loaders/sdkLoader.ts';
 import { WEB_EDITOR } from './loaders/webEditorLoader.ts';
 import { TrackingGuardManager } from './guard/trackingGuard.manager.ts';
 import { shouldBlockTracking } from './guard/trackingGuard.checker.ts';
@@ -19,13 +19,25 @@ const guardManager = new TrackingGuardManager();
 
 // Register default guards (can be customized)
 function setupDefaultGuards() {
-  // Block on localhost
+  // Block on localhost, unless the embedding page opted out via the script URL.
+  //
+  // This exists for embedders whose *production* origin is itself something
+  // that looks like localhost to a DNS-naive check — e.g. a Tauri (or Electron)
+  // desktop app, which serves its webview from `tauri://localhost` or
+  // `http://tauri.localhost` in the real, shipped build, not just in local dev.
+  // Those apps have no way to change what hostname the OS webview reports, so
+  // an unconditional block silently loses 100% of their events with no
+  // workaround available from the host page. `?allow_local_hosts` is opt-in
+  // (default false) precisely because for an ordinary website `localhost`
+  // really does mean "developer's machine" and should stay blocked.
+  const allowLocalHosts = readScriptUrlBooleanParam('allow_local_hosts');
+
   guardManager.register({
     id: 'block-localhost',
     name: 'Block Localhost',
     description: 'Prevent tracking on localhost',
     condition: createDomainBlockGuard(['localhost', '127.0.0.1']),
-    enabled: true,
+    enabled: allowLocalHosts !== true,
   });
 
   // Block crawler/bot user agents

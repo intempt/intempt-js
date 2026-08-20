@@ -77,13 +77,37 @@ export function readBooleanParam(
   return false;
 }
 
-function getIntemptConfig(): IntemptConfig {
+/**
+ * Finds the SDK's own `<script>` tag on the page, the same way `getIntemptConfig`
+ * does. Factored out so callers that need a single script-URL parameter — e.g.
+ * `main.ts` deciding whether to register the localhost guard, before the full
+ * config is ever parsed — don't re-implement the CDN-link scan.
+ */
+function findIntemptScriptElement(): HTMLScriptElement | undefined {
   const cdnLink = EnvConfig.getCdnLink();
-  const scripts = document.scripts;
+  return Array.from(document.scripts).find((s) => s.src.includes(cdnLink));
+}
 
-  const intemptScript = Array.from(scripts).find((s) =>
-    s.src.includes(cdnLink),
-  );
+/**
+ * Reads a single boolean parameter straight off the SDK's own `<script>` tag
+ * URL, independent of `getIntemptConfig()`. Exists for callers that must decide
+ * something *before* the bootstrap gets around to building the full config —
+ * currently `main.ts`'s guard registration, which runs at module-evaluation
+ * time, synchronously, ahead of `SDK.init()`.
+ *
+ * Returns `undefined` (not `false`) when the script tag can't be found or the
+ * parameter is absent, so callers can tell "not set" apart from "set to false"
+ * and fall back to their own default rather than silently picking one here.
+ */
+export function readScriptUrlBooleanParam(name: string): boolean | undefined {
+  const intemptScript = findIntemptScriptElement();
+  if (!intemptScript) return undefined;
+
+  return readBooleanParam(new URL(intemptScript.src).searchParams, name);
+}
+
+function getIntemptConfig(): IntemptConfig {
+  const intemptScript = findIntemptScriptElement();
   if (!intemptScript) {
     // Deliberately a raw, unconditional console.error and NOT routed through the
     // logger.

@@ -55,7 +55,9 @@ vi.mock('../../src/intemptJs/modules/choices/choices.module.ts', () => ({
   ChoicesModule: MockChoices,
 }));
 
-const { SDK } = await import('../../src/loaders/sdkLoader.ts');
+const { SDK, readScriptUrlBooleanParam } = await import(
+  '../../src/loaders/sdkLoader.ts'
+);
 
 const CDN_LINK = 'https://cdn.example.com/v1/intempt.min.js';
 
@@ -148,6 +150,31 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       await vi.runAllTimersAsync();
 
       expect(autoTrackerInstances).toHaveLength(1);
+    });
+  });
+
+  describe('readScriptUrlBooleanParam — the script-URL check main.ts uses before any config exists', () => {
+    it('reads a boolean parameter off the SDK\'s own script tag', () => {
+      appendScript(`${REQUIRED_QUERY}&allow_local_hosts=true`);
+      expect(readScriptUrlBooleanParam('allow_local_hosts')).toBe(true);
+    });
+
+    it('returns undefined, not false, when the parameter is absent', () => {
+      appendScript(REQUIRED_QUERY);
+      expect(readScriptUrlBooleanParam('allow_local_hosts')).toBe(undefined);
+    });
+
+    it('returns undefined when no script tag matches the CDN link at all', () => {
+      // No script appended — mirrors the "CAN'T FIND SCRIPT" case in
+      // getIntemptConfig(), except this path must fail quietly with no config
+      // parsed yet to log against.
+      expect(readScriptUrlBooleanParam('allow_local_hosts')).toBe(undefined);
+    });
+
+    it('does not confuse this parameter for an unrelated one on the same URL', () => {
+      appendScript(`${REQUIRED_QUERY}&ignore_dnt=true`);
+      expect(readScriptUrlBooleanParam('allow_local_hosts')).toBe(undefined);
+      expect(readScriptUrlBooleanParam('ignore_dnt')).toBe(true);
     });
   });
 

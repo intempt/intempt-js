@@ -78,6 +78,7 @@ There is no constructor. Configuration goes in the script URL's query string:
 | `key`          | API key, in `username.password` form                                    |
 | `shopify`      | Shopify tracking — add `&shopify=1` to enable, omit to disable          |
 | `magento`      | Magento product detection — add `&magento=1` to enable, omit to disable |
+| `allow_local_hosts` | Disables the built-in `localhost`/`127.0.0.1` tracking block — add `&allow_local_hosts=true` to enable, omit to keep the block. See note below. |
 
 > **The `/v1/` path segment is required.** The SDK finds its own `<script>` tag by matching
 > that URL. Without it, it reads an empty configuration and never starts — the console shows
@@ -86,6 +87,16 @@ There is no constructor. Configuration goes in the script URL's query string:
 
 > `shopify` and `magento` are enabled by **presence**: the parameter with any non-empty value
 > turns it on. `&shopify=0` and `&shopify=false` both _enable_ it. To disable, leave it out.
+
+> **`allow_local_hosts` is for embedders whose production origin looks like localhost, not for
+> local development.** The block on `localhost`/`127.0.0.1` exists because for an ordinary
+> website, that hostname really does mean "developer's machine," and it stays on by default.
+> But some embedders — a Tauri or Electron desktop app, for example — serve their webview from a
+> `localhost`-shaped origin (`tauri://localhost`, `http://tauri.localhost`) in their real, shipped
+> **production** build, with no way to change what hostname the OS webview reports. For those,
+> the block silently loses every event with no workaround, which is what this flag is for. Unlike
+> `shopify`/`magento`, this one parses with the same true/false rules as `ignore_dnt` — only
+> `?allow_local_hosts=true` (or `=1`/`=yes`/bare) enables it; `=false`/`=0`/`=no`/`=off` does not.
 
 ## 30-second example
 
