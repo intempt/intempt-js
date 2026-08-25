@@ -2,6 +2,9 @@ import { AutoTrackerModule } from './modules/autoTracker/autoTracker.module.ts';
 import {
   AliasParams,
   ConsentParams,
+  FlagContext,
+  FlagDetail,
+  FlagReason,
   GroupParams,
   IdentifyParams,
   IntemptConfig,
@@ -392,6 +395,138 @@ export class IntemptJs extends IntemptJsGuard {
     dispatchIntemptEvent('intempt:logOut', {
       eventName: 'Log Out',
     });
+  }
+
+  /**
+   * The value assigned to this person for `key`, or `defaultValue` if the service did not answer.
+   *
+   * This is the CODE path, distinct from the visual-editor path the rest of this SDK serves. The
+   * `ChoicesModule` fetches from `choose-web` and applies changes against the DOM without the
+   * caller branching; `variation` reads `choose-api` and hands back a value the caller branches on.
+   * Both are legitimate and they are not interchangeable — a React component gated on a flag needs
+   * a branch, not a DOM mutation.
+   *
+   * `choose-web` is deliberately untouched by this addition, so the visual editor keeps working
+   * exactly as it does today.
+   *
+   * Ask for a KEY, never a mode. Whether the key names an experiment, a personalization or a flag
+   * is the platform's business: its serving query filters on channel and status and never on mode.
+   */
+  async variation<T>(key: string, context: FlagContext, defaultValue: T): Promise<T> {
+    const detail = await this.variationDetail<T>(key, context, defaultValue);
+    return detail.value;
+  }
+
+  /**
+   * As `variation`, plus WHY.
+   *
+   * `HOLDOUT` means the product deliberately held this person back. `OFF` means the experience is
+   * not running, or the service did not answer. Without that distinction those are the same absent
+   * value and a caller cannot tell a rollout decision from an outage.
+   */
+  async variationDetail<T>(
+    key: string,
+    context: FlagContext,
+    defaultValue: T,
+  ): Promise<FlagDetail<T>> {
+    if (typeof key !== 'string' || !key.trim()) {
+      throw new TypeError('variation: key is required');
+    }
+    if (defaultValue === undefined) {
+      // Required, not optional. A caller who omits it has no answer during an outage, and the
+      // failure surfaces far from here as an undefined branch.
+      throw new TypeError('variation: defaultValue is required');
+    }
+
+    const choices = await this._chooseOrEmpty(context, [key]);
+    const choice = choices.find((c) => c?.name === key);
+    if (!choice) return { value: defaultValue, reason: 'off' };
+
+    return {
+      value: (choice.body ?? defaultValue) as T,
+      reason: (choice.reason as FlagReason) ?? 'off',
+      variant: typeof choice.group === 'string' ? choice.group : undefined,
+    };
+  }
+
+  /** Every key assigned to this person, in one call. */
+  async allFlags(context: FlagContext): Promise<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    for (const choice of await this._chooseOrEmpty(context, undefined)) {
+      if (typeof choice?.name === 'string' && choice.name) out[choice.name] = choice.body;
+    }
+    return out;
+  }
+
+  async boolVariation(key: string, context: FlagContext, defaultValue: boolean): Promise<boolean> {
+    const value = await this.variation<unknown>(key, context, defaultValue);
+    // A served value of the wrong type is a misconfiguration, not something to coerce:
+    // Boolean('false') is true, and a silent coercion is indistinguishable from a real answer.
+    return typeof value === 'boolean' ? value : defaultValue;
+  }
+
+  async stringVariation(key: string, context: FlagContext, defaultValue: string): Promise<string> {
+    const value = await this.variation<unknown>(key, context, defaultValue);
+    return typeof value === 'string' ? value : defaultValue;
+  }
+
+  async numberVariation(key: string, context: FlagContext, defaultValue: number): Promise<number> {
+    const value = await this.variation<unknown>(key, context, defaultValue);
+    return typeof value === 'number' && Number.isFinite(value) ? value : defaultValue;
+  }
+
+  /**
+   * Resolves immediately.
+   *
+   * Present so the cross-SDK surface is the same everywhere, and so a caller porting from an SDK
+   * that polls a local flag store does not have to remove the call. Evaluation is remote: each
+   * `variation` is a request, so there is no local state to wait for.
+   */
+  async waitForInitialization(timeoutMs?: number): Promise<void> {
+    void timeoutMs;
+  }
+
+  /**
+   * A transport failure yields no choices rather than throwing.
+   *
+   * This is the entire reason `defaultValue` is required: a network failure, a 5xx or a timeout
+   * must resolve to the value the caller chose. A flag SDK that throws when the service is
+   * unreachable takes the page down with it, which is the opposite of what a kill switch is for.
+   */
+  private async _chooseOrEmpty(
+    context: FlagContext,
+    names: string[] | undefined,
+  ): Promise<Array<{ name?: string; group?: unknown; body?: unknown; reason?: unknown }>> {
+    const { organization, sourceId, project, writeKey } = this._config;
+    const url = `${this._api}/${organization}/projects/${project}/optimization/choose-api`;
+    const [username, password] = writeKey.split('.');
+
+    const identification: Record<string, unknown> = { sourceId };
+    // The profile id the SDK already holds, unless the caller supplied one. It is the value that
+    // survives sign-in, so deriving on it keeps a visitor's assignment stable across the moment
+    // they log in.
+    const profileId = context?.profileId ?? this._autoTracker.getProfileId();
+    if (profileId) identification.profileId = profileId;
+    if (context?.userId) identification.userId = context.userId;
+
+    const body: Record<string, unknown> = { identification, device: 'all' };
+    if (names) body.names = names;
+
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${btoa(`${username}:${password}`)}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response?.ok) return [];
+      const parsed = await response.json();
+      return Array.isArray(parsed?.choices) ? parsed.choices : [];
+    } catch {
+      return [];
+    }
   }
 
   async recommendation(params: RecommendationParams) {

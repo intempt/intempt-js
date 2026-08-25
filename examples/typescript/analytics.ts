@@ -162,6 +162,57 @@ export async function recommend(
 }
 
 /**
+ * Gate a code path on a flag.
+ *
+ * This is the CODE path, distinct from the visual editor. The editor changes a page without your
+ * code knowing; this hands you a value to branch on, which is what a component needs.
+ *
+ * `defaultValue` is required and is a real decision: it is what runs when Intempt cannot be
+ * reached, so choose the behaviour you already have. A flag lookup never throws for a service
+ * problem — it throws only for a blank key or a missing default, which are yours to fix.
+ */
+export async function flag(key: string, defaultValue: boolean): Promise<boolean> {
+  const s = sdk();
+  if (!s) return defaultValue;
+  try {
+    return await s.boolVariation(key, {}, defaultValue);
+  } catch {
+    return defaultValue;
+  }
+}
+
+/**
+ * The same lookup, plus WHY.
+ *
+ * `holdout` means the product deliberately held this person back — a real answer, not a failure.
+ * `off` means the experience is not running, or the service did not answer. Without the reason
+ * those two are the same value and you cannot tell a rollout decision from an outage.
+ */
+export async function flagDetail(
+  key: string,
+  defaultValue: string,
+): Promise<{ value: string; reason: string; variant?: string }> {
+  const s = sdk();
+  if (!s) return { value: defaultValue, reason: 'off' };
+  try {
+    return await s.variationDetail(key, {}, defaultValue);
+  } catch {
+    return { value: defaultValue, reason: 'off' };
+  }
+}
+
+/** Every flag assigned to this visitor, in one request rather than one per key. */
+export async function allFlags(): Promise<Record<string, unknown>> {
+  const s = sdk();
+  if (!s) return {};
+  try {
+    return await s.allFlags({});
+  } catch {
+    return {};
+  }
+}
+
+/**
  * Resolves once the real SDK has replaced the stub, or after `timeoutMs`.
  *
  * You rarely need this — the stub queues calls for you. It is here for the cases that

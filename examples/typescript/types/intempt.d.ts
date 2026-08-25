@@ -103,6 +103,67 @@ export interface Intempt {
    * body is not JSON — see docs/API.md.
    */
   recommendation(params: RecommendationParams): Promise<unknown>;
+
+  /**
+   * Read a flag, experiment or personalization by KEY.
+   *
+   * The CODE path, distinct from the visual editor. The editor changes a page without your code
+   * knowing; these hand you a value to branch on, which is what a component needs. Both run on the
+   * same page and neither replaces the other.
+   *
+   * `defaultValue` is required. It is what you receive on a network failure, a timeout, an unknown
+   * key or a malformed response — so choose the behaviour you want during an outage, usually the
+   * one you already have. These reject only for a blank key or a missing default, never for a
+   * service problem.
+   */
+  variation<T>(key: string, context: FlagContext, defaultValue: T): Promise<T>;
+
+  /**
+   * The same lookup, plus WHY.
+   *
+   * `holdout` means the product deliberately held this person back — a real answer, not a failure.
+   * `off` means the experience is not running, or the service did not answer.
+   */
+  variationDetail<T>(
+    key: string,
+    context: FlagContext,
+    defaultValue: T,
+  ): Promise<FlagDetail<T>>;
+
+  /** Every key assigned to this visitor, in one request rather than one per key. */
+  allFlags(context: FlagContext): Promise<Record<string, unknown>>;
+
+  boolVariation(key: string, context: FlagContext, defaultValue: boolean): Promise<boolean>;
+  stringVariation(key: string, context: FlagContext, defaultValue: string): Promise<string>;
+  numberVariation(key: string, context: FlagContext, defaultValue: number): Promise<number>;
+
+  /**
+   * Resolves immediately. Present so the surface matches every other Intempt SDK, and so porting
+   * from one that polls a local flag store does not mean deleting the call — evaluation here is
+   * remote, so there is no local state to wait for.
+   */
+  waitForInitialization(timeoutMs?: number): Promise<void>;
+}
+
+/** Why an evaluation returned the value it did. */
+export type FlagReason = 'targeted' | 'holdout' | 'not_targeted' | 'off';
+
+/**
+ * Who is being evaluated.
+ *
+ * Both are optional: the SDK fills in the profile id it already holds. That identifier is present
+ * before and after someone signs in, which is what keeps their assignment stable across it.
+ */
+export interface FlagContext {
+  userId?: string;
+  profileId?: string;
+}
+
+/** A value and why it was returned. `variant` is absent when nothing was served. */
+export interface FlagDetail<T = unknown> {
+  value: T;
+  reason: FlagReason;
+  variant?: string;
 }
 
 declare global {
