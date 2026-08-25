@@ -171,7 +171,10 @@ export async function recommend(
  * reached, so choose the behaviour you already have. A flag lookup never throws for a service
  * problem — it throws only for a blank key or a missing default, which are yours to fix.
  */
-export async function flag(key: string, defaultValue: boolean): Promise<boolean> {
+export async function flag(
+  key: string,
+  defaultValue: boolean,
+): Promise<boolean> {
   const s = sdk();
   if (!s) return defaultValue;
   try {

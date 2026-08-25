@@ -133,9 +133,21 @@ export interface Intempt {
   /** Every key assigned to this visitor, in one request rather than one per key. */
   allFlags(context: FlagContext): Promise<Record<string, unknown>>;
 
-  boolVariation(key: string, context: FlagContext, defaultValue: boolean): Promise<boolean>;
-  stringVariation(key: string, context: FlagContext, defaultValue: string): Promise<string>;
-  numberVariation(key: string, context: FlagContext, defaultValue: number): Promise<number>;
+  boolVariation(
+    key: string,
+    context: FlagContext,
+    defaultValue: boolean,
+  ): Promise<boolean>;
+  stringVariation(
+    key: string,
+    context: FlagContext,
+    defaultValue: string,
+  ): Promise<string>;
+  numberVariation(
+    key: string,
+    context: FlagContext,
+    defaultValue: number,
+  ): Promise<number>;
 
   /**
    * Resolves immediately. Present so the surface matches every other Intempt SDK, and so porting

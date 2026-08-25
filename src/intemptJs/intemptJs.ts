@@ -412,7 +412,11 @@ export class IntemptJs extends IntemptJsGuard {
    * Ask for a KEY, never a mode. Whether the key names an experiment, a personalization or a flag
    * is the platform's business: its serving query filters on channel and status and never on mode.
    */
-  async variation<T>(key: string, context: FlagContext, defaultValue: T): Promise<T> {
+  async variation<T>(
+    key: string,
+    context: FlagContext,
+    defaultValue: T,
+  ): Promise<T> {
     const detail = await this.variationDetail<T>(key, context, defaultValue);
     return detail.value;
   }
@@ -453,26 +457,41 @@ export class IntemptJs extends IntemptJsGuard {
   async allFlags(context: FlagContext): Promise<Record<string, unknown>> {
     const out: Record<string, unknown> = {};
     for (const choice of await this._chooseOrEmpty(context, undefined)) {
-      if (typeof choice?.name === 'string' && choice.name) out[choice.name] = choice.body;
+      if (typeof choice?.name === 'string' && choice.name)
+        out[choice.name] = choice.body;
     }
     return out;
   }
 
-  async boolVariation(key: string, context: FlagContext, defaultValue: boolean): Promise<boolean> {
+  async boolVariation(
+    key: string,
+    context: FlagContext,
+    defaultValue: boolean,
+  ): Promise<boolean> {
     const value = await this.variation<unknown>(key, context, defaultValue);
     // A served value of the wrong type is a misconfiguration, not something to coerce:
     // Boolean('false') is true, and a silent coercion is indistinguishable from a real answer.
     return typeof value === 'boolean' ? value : defaultValue;
   }
 
-  async stringVariation(key: string, context: FlagContext, defaultValue: string): Promise<string> {
+  async stringVariation(
+    key: string,
+    context: FlagContext,
+    defaultValue: string,
+  ): Promise<string> {
     const value = await this.variation<unknown>(key, context, defaultValue);
     return typeof value === 'string' ? value : defaultValue;
   }
 
-  async numberVariation(key: string, context: FlagContext, defaultValue: number): Promise<number> {
+  async numberVariation(
+    key: string,
+    context: FlagContext,
+    defaultValue: number,
+  ): Promise<number> {
     const value = await this.variation<unknown>(key, context, defaultValue);
-    return typeof value === 'number' && Number.isFinite(value) ? value : defaultValue;
+    return typeof value === 'number' && Number.isFinite(value)
+      ? value
+      : defaultValue;
   }
 
   /**
@@ -496,7 +515,9 @@ export class IntemptJs extends IntemptJsGuard {
   private async _chooseOrEmpty(
     context: FlagContext,
     names: string[] | undefined,
-  ): Promise<Array<{ name?: string; group?: unknown; body?: unknown; reason?: unknown }>> {
+  ): Promise<
+    Array<{ name?: string; group?: unknown; body?: unknown; reason?: unknown }>
+  > {
     const { organization, sourceId, project, writeKey } = this._config;
     const url = `${this._api}/${organization}/projects/${project}/optimization/choose-api`;
     const [username, password] = writeKey.split('.');

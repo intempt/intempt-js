@@ -39,7 +39,9 @@ describe('variation', () => {
     } as never);
 
   beforeEach(() => {
-    vi.stubGlobal('btoa', (s: string) => Buffer.from(s, 'binary').toString('base64'));
+    vi.stubGlobal('btoa', (s: string) =>
+      Buffer.from(s, 'binary').toString('base64'),
+    );
   });
 
   afterEach(() => {
@@ -51,7 +53,9 @@ describe('variation', () => {
     vi.stubGlobal(
       'fetch',
       respond({
-        choices: [{ name: 'checkout_v2', group: 'B', body: true, reason: 'targeted' }],
+        choices: [
+          { name: 'checkout_v2', group: 'B', body: true, reason: 'targeted' },
+        ],
       }),
     );
 
@@ -75,7 +79,10 @@ describe('variation', () => {
   });
 
   it('returns the default when the service is unreachable', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network down')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockRejectedValue(new Error('network down')),
+    );
 
     await expect(sdk().variation('k', CTX, 'safe')).resolves.toBe('safe');
   });
@@ -97,12 +104,15 @@ describe('variation', () => {
 
   it('refuses an empty key and a missing default', async () => {
     // A programming mistake throws; a runtime condition does not. That difference is the point.
-    await expect(sdk().variation('  ', CTX, 'x')).rejects.toThrow(/key is required/);
+    await expect(sdk().variation('  ', CTX, 'x')).rejects.toThrow(
+      /key is required/,
+    );
     await expect(
-      (sdk() as unknown as { variation: (k: string, c: unknown) => Promise<unknown> }).variation(
-        'k',
-        CTX,
-      ),
+      (
+        sdk() as unknown as {
+          variation: (k: string, c: unknown) => Promise<unknown>;
+        }
+      ).variation('k', CTX),
     ).rejects.toThrow(/defaultValue is required/);
   });
 
@@ -152,18 +162,26 @@ describe('variation', () => {
     const all = await sdk().allFlags(CTX);
 
     expect(all).toEqual({ a: 1 });
-    expect(JSON.parse(chooseCall(fetchMock)[1].body)).not.toHaveProperty('names');
+    expect(JSON.parse(chooseCall(fetchMock)[1].body)).not.toHaveProperty(
+      'names',
+    );
   });
 
   it('falls back rather than coercing a wrong-typed value', async () => {
     // Boolean('false') is true. A silent coercion is indistinguishable from a correct answer.
-    vi.stubGlobal('fetch', respond({ choices: [{ name: 'f', body: 'false', reason: 'targeted' }] }));
+    vi.stubGlobal(
+      'fetch',
+      respond({ choices: [{ name: 'f', body: 'false', reason: 'targeted' }] }),
+    );
 
     await expect(sdk().boolVariation('f', CTX, false)).resolves.toBe(false);
   });
 
   it('accepts a correctly typed value', async () => {
-    vi.stubGlobal('fetch', respond({ choices: [{ name: 'f', body: 42, reason: 'targeted' }] }));
+    vi.stubGlobal(
+      'fetch',
+      respond({ choices: [{ name: 'f', body: 42, reason: 'targeted' }] }),
+    );
 
     await expect(sdk().numberVariation('f', CTX, 0)).resolves.toBe(42);
   });
@@ -178,7 +196,9 @@ describe('variation', () => {
     // its own. Asserted against the choose endpoint rather than fetch as a whole, because the
     // auto-tracker is calling out independently.
     expect(
-      fetchMock.mock.calls.some(([u]) => String(u).includes('/optimization/choose-api')),
+      fetchMock.mock.calls.some(([u]) =>
+        String(u).includes('/optimization/choose-api'),
+      ),
     ).toBe(false);
   });
 });
