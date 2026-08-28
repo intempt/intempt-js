@@ -32,6 +32,9 @@ const CDN = 'https://cdn.intempt.com/v1/intempt.min.js';
 const INGEST = 'https://api.intempt.com/v1';
 const GEO = 'https://ipapi.co/json/';
 
+// Populated only if the SDK regresses and calls the third-party lookup again.
+const thirdPartyGeoCalls: string[] = [];
+
 const BUNDLE = resolve(process.cwd(), 'dist/intempt.min.js');
 
 const CONFIG_QUERY =
@@ -40,6 +43,8 @@ const CONFIG_QUERY =
 export type Harness = {
   /** Every request the page made to ingest, in order, already JSON-parsed. */
   ingested: () => unknown[];
+  /** URLs of any third-party geo lookup the SDK attempted. Must stay empty. */
+  thirdPartyGeoCalls: () => string[];
   /**
    * Wait until an ingest request whose body mentions `name` has landed.
    *
@@ -179,21 +184,17 @@ ${stub}
         });
       });
 
-      await page.route(`${GEO}*`, (route) =>
-        route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          headers: { 'access-control-allow-origin': '*' },
-          body: JSON.stringify({
-            ip: '203.0.113.7',
-            region: 'California',
-            city: 'San Francisco',
-            country_name: 'United States',
-          }),
-        }),
-      );
+      // The SDK must never contact a third-party IP lookup from the end user's
+      // browser. This used to stub that call; it now fails the test if the call
+      // is ever made again. A stub would let a reintroduced lookup pass silently,
+      // which is exactly how the original one survived unnoticed.
+      await page.route(`${GEO}*`, (route) => {
+        thirdPartyGeoCalls.push(route.request().url());
+        return route.abort();
+      });
 
       await use({
+        thirdPartyGeoCalls: () => thirdPartyGeoCalls,
         ingested: () => ingested,
         pageErrors: () => pageErrors,
         waitForEvent: async (name: string) => {

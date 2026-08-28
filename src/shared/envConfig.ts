@@ -28,7 +28,6 @@ export interface EnvConfig {
   /** JSON array or comma-separated list of opener URLs */
   readonly VITE_OPENER_LINKS: string;
   readonly VITE_WEB_EDITOR_STORAGE_KEY: string;
-  readonly VITE_LOCATION_API_URL: string;
   readonly DEV: boolean;
 }
 
@@ -42,7 +41,6 @@ class EnvConfigManager {
     VITE_WEB_EDITOR_BASE_LINK: '',
     VITE_OPENER_LINKS: '',
     VITE_WEB_EDITOR_STORAGE_KEY: '',
-    VITE_LOCATION_API_URL: '',
     DEV: false,
   };
 
@@ -88,9 +86,6 @@ class EnvConfigManager {
       VITE_WEB_EDITOR_STORAGE_KEY:
         viteEnv.VITE_WEB_EDITOR_STORAGE_KEY ||
         this.DEFAULT_CONFIG.VITE_WEB_EDITOR_STORAGE_KEY,
-      VITE_LOCATION_API_URL:
-        viteEnv.VITE_LOCATION_API_URL ||
-        this.DEFAULT_CONFIG.VITE_LOCATION_API_URL,
       DEV: viteEnv.DEV !== undefined ? viteEnv.DEV : this.DEFAULT_CONFIG.DEV,
     };
   }
@@ -191,10 +186,6 @@ class EnvConfigManager {
 
   static getWebEditorStorageKey(): string {
     return this.get().VITE_WEB_EDITOR_STORAGE_KEY;
-  }
-
-  static getLocationApiUrl(): string {
-    return this.get().VITE_LOCATION_API_URL;
   }
 
   static isDev(): boolean {

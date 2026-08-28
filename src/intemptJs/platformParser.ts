@@ -325,35 +325,21 @@ export class PlatformParser {
   }
 
   protected async _getLocation(): Promise<LocationApi> {
-    const locationApiUrl = EnvConfig.getLocationApiUrl();
-
-    if (!locationApiUrl) {
-      return {
-        ip: '',
-        region: '',
-        city: '',
-        country: '',
-      };
-    }
-
-    try {
-      const response = await fetch(locationApiUrl);
-      const data = await response.json();
-      const { ip, region, city, country_name } = data;
-      return {
-        ip: ip ?? '',
-        region: region ?? '',
-        city: city ?? '',
-        country: country_name ?? '',
-      };
-    } catch {
-      return {
-        ip: '',
-        region: '',
-        city: '',
-        country: '',
-      };
-    }
+    // Deliberately empty. This used to call a third-party IP lookup from the
+    // end user's browser, which disclosed every visitor's address to a service
+    // the customer never contracted with and that is not a named subprocessor.
+    //
+    // Nothing is lost by removing it: Intempt derives country, region and city
+    // server-side from the connection the request arrives on, which is both more
+    // accurate and never leaves our own infrastructure. The empty shape below is
+    // the one this function already returned whenever the lookup was unconfigured
+    // or failed, so every caller already handles it.
+    return {
+      ip: '',
+      region: '',
+      city: '',
+      country: '',
+    };
   }
 
   protected async _getPlatform() {

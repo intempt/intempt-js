@@ -114,7 +114,7 @@ other origins.
 
 ```
 script-src  'self' https://cdn.intempt.com;
-connect-src 'self' https://api.intempt.com https://ipapi.co;
+connect-src 'self' https://api.intempt.com;
 img-src     'self' data: https://cdn.intempt.com;
 style-src   'self' 'unsafe-inline';
 ```
@@ -123,7 +123,6 @@ style-src   'self' 'unsafe-inline';
 | ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `script-src https://cdn.intempt.com`  | Where the SDK bundle is served from. Also the origin of the visual web editor, which the SDK loads on demand.                                      |
 | `connect-src https://api.intempt.com` | Event ingest and the recommendations API.                                                                                                          |
-| `connect-src https://ipapi.co`        | Geo/IP enrichment. **If you don't want this call, block this origin** — the SDK degrades to sending events without geo fields rather than failing. |
 | `img-src data:`                       | Inline image data used by rendered experiences.                                                                                                    |
 | `style-src 'unsafe-inline'`           | **Only if you use experiences/recommendations that restyle the page.** If you use the SDK for event tracking alone, drop it.                       |
 
