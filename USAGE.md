@@ -119,12 +119,12 @@ img-src     'self' data: https://cdn.intempt.com;
 style-src   'self' 'unsafe-inline';
 ```
 
-| Directive                             | Why the SDK needs it                                                                                                                               |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `script-src https://cdn.intempt.com`  | Where the SDK bundle is served from. Also the origin of the visual web editor, which the SDK loads on demand.                                      |
-| `connect-src https://api.intempt.com` | Event ingest and the recommendations API.                                                                                                          |
-| `img-src data:`                       | Inline image data used by rendered experiences.                                                                                                    |
-| `style-src 'unsafe-inline'`           | **Only if you use experiences/recommendations that restyle the page.** If you use the SDK for event tracking alone, drop it.                       |
+| Directive                             | Why the SDK needs it                                                                                                         |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `script-src https://cdn.intempt.com`  | Where the SDK bundle is served from. Also the origin of the visual web editor, which the SDK loads on demand.                |
+| `connect-src https://api.intempt.com` | Event ingest and the recommendations API.                                                                                    |
+| `img-src data:`                       | Inline image data used by rendered experiences.                                                                              |
+| `style-src 'unsafe-inline'`           | **Only if you use experiences/recommendations that restyle the page.** If you use the SDK for event tracking alone, drop it. |
 
 Two practical notes:
 
