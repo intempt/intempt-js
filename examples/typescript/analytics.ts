@@ -184,26 +184,6 @@ export async function flag(
   }
 }
 
-/**
- * The same lookup, plus WHY.
- *
- * `holdout` means the product deliberately held this person back — a real answer, not a failure.
- * `off` means the experience is not running, or the service did not answer. Without the reason
- * those two are the same value and you cannot tell a rollout decision from an outage.
- */
-export async function flagDetail(
-  key: string,
-  defaultValue: string,
-): Promise<{ value: string; reason: string; variant?: string }> {
-  const s = sdk();
-  if (!s) return { value: defaultValue, reason: 'off' };
-  try {
-    return await s.variationDetail(key, {}, defaultValue);
-  } catch {
-    return { value: defaultValue, reason: 'off' };
-  }
-}
-
 /** Every flag assigned to this visitor, in one request rather than one per key. */
 export async function allFlags(): Promise<Record<string, unknown>> {
   const s = sdk();

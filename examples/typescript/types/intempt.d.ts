@@ -118,18 +118,6 @@ export interface Intempt {
    */
   variation<T>(key: string, context: FlagContext, defaultValue: T): Promise<T>;
 
-  /**
-   * The same lookup, plus WHY.
-   *
-   * `holdout` means the product deliberately held this person back — a real answer, not a failure.
-   * `off` means the experience is not running, or the service did not answer.
-   */
-  variationDetail<T>(
-    key: string,
-    context: FlagContext,
-    defaultValue: T,
-  ): Promise<FlagDetail<T>>;
-
   /** Every key assigned to this visitor, in one request rather than one per key. */
   allFlags(context: FlagContext): Promise<Record<string, unknown>>;
 
@@ -157,9 +145,6 @@ export interface Intempt {
   waitForInitialization(timeoutMs?: number): Promise<void>;
 }
 
-/** Why an evaluation returned the value it did. */
-export type FlagReason = 'targeted' | 'holdout' | 'not_targeted' | 'off';
-
 /**
  * Who is being evaluated.
  *
@@ -169,13 +154,6 @@ export type FlagReason = 'targeted' | 'holdout' | 'not_targeted' | 'off';
 export interface FlagContext {
   userId?: string;
   profileId?: string;
-}
-
-/** A value and why it was returned. `variant` is absent when nothing was served. */
-export interface FlagDetail<T = unknown> {
-  value: T;
-  reason: FlagReason;
-  variant?: string;
 }
 
 declare global {
