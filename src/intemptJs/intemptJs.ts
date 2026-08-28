@@ -417,18 +417,23 @@ export class IntemptJs extends IntemptJsGuard {
     context: FlagContext,
     defaultValue: T,
   ): Promise<T> {
-    const detail = await this.variationDetail<T>(key, context, defaultValue);
+    const detail = await this._variationDetail<T>(key, context, defaultValue);
     return detail.value;
   }
 
   /**
-   * As `variation`, plus WHY.
+   * Internal. NOT part of the public surface, and deliberately so.
    *
-   * `HOLDOUT` means the product deliberately held this person back. `OFF` means the experience is
-   * not running, or the service did not answer. Without that distinction those are the same absent
-   * value and a caller cannot tell a rollout decision from an outage.
+   * It would return a `reason`, and the platform does not send one yet: a held-back person's
+   * experience is absent from the evaluation response entirely rather than present with a cause.
+   * So every reason here would read `off` -- including for someone who WAS targeted and did
+   * receive the variant. That is not a missing answer, it is a wrong one, and a method whose
+   * entire purpose is explaining why must not guess.
+   *
+   * `variation` uses it for the value, which is correct either way. It becomes public when the
+   * serving contract carries a reason.
    */
-  async variationDetail<T>(
+  private async _variationDetail<T>(
     key: string,
     context: FlagContext,
     defaultValue: T,
@@ -449,7 +454,6 @@ export class IntemptJs extends IntemptJsGuard {
     return {
       value: (choice.body ?? defaultValue) as T,
       reason: (choice.reason as FlagReason) ?? 'off',
-      variant: typeof choice.group === 'string' ? choice.group : undefined,
     };
   }
 

@@ -59,23 +59,23 @@ describe('variation', () => {
       }),
     );
 
-    const detail = await sdk().variationDetail('checkout_v2', CTX, false);
-
-    expect(detail).toEqual({ value: true, reason: 'targeted', variant: 'B' });
+    // `variation`, not `variationDetail`: the detail method is internal until the platform sends
+    // a reason. Note the mock supplies `group: 'B'` and `reason` -- neither of which the serving
+    // response actually carries today, which is exactly why asserting on them here proved nothing.
+    await expect(sdk().variation('checkout_v2', CTX, false)).resolves.toBe(true);
   });
 
-  it('reports a holdout as a holdout rather than as an absent answer', async () => {
-    // Before the reason existed, a held-back person and a failed request were both an absent entry
-    // and a caller could not tell them apart.
+  it('returns the default when the served body is null', async () => {
+    // A held-back person's experience is absent from the response today rather than present with
+    // a null body, so this covers the shape rather than the holdout case. Telling a holdout from
+    // an outage needs a reason the platform does not yet send, and is not asserted here because
+    // it cannot be.
     vi.stubGlobal(
       'fetch',
-      respond({ choices: [{ name: 'k', body: null, reason: 'holdout' }] }),
+      respond({ choices: [{ name: 'k', body: null }] }),
     );
 
-    const detail = await sdk().variationDetail('k', CTX, 'fallback');
-
-    expect(detail.reason).toBe('holdout');
-    expect(detail.value).toBe('fallback');
+    await expect(sdk().variation('k', CTX, 'fallback')).resolves.toBe('fallback');
   });
 
   it('returns the default when the service is unreachable', async () => {
@@ -96,10 +96,7 @@ describe('variation', () => {
   it('returns the default when the key is unknown', async () => {
     vi.stubGlobal('fetch', respond({ choices: [] }));
 
-    const detail = await sdk().variationDetail('never_created', CTX, 'safe');
-
-    expect(detail.value).toBe('safe');
-    expect(detail.reason).toBe('off');
+    await expect(sdk().variation('never_created', CTX, 'safe')).resolves.toBe('safe');
   });
 
   it('refuses an empty key and a missing default', async () => {
