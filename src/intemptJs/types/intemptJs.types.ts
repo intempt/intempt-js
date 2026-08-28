@@ -42,6 +42,16 @@ export type IntemptConfig = {
   magento: boolean;
 
   /**
+   * Let Intempt derive country, region and city from the address the event arrives on.
+   *
+   * Default `true`. The SDK sends this as `?ip=1` or `?ip=0` on the events endpoint; the browser
+   * never handles its own address and no third party is involved. Set `false` to store no location
+   * at all. Named to match Mixpanel's `UseIpAddressForGeolocation`, so a customer migrating does
+   * not have to look it up.
+   */
+  useIpAddressForGeolocation?: boolean;
+
+  /**
    * Ignore the browser's Do Not Track **and Global Privacy Control** signals.
    *
    * Default `false` — the SDK honours both. Set this only if you operate your own

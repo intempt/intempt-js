@@ -16,13 +16,6 @@ export type DeviceType =
   | DeviceTypeName.TABLET
   | DeviceTypeName.MOBILE
   | DeviceTypeName.DEFAULT;
-export type Location = {
-  ip: string;
-  region: string;
-  city: string;
-  country: string;
-};
-
 export type UtmKeys =
   | UtmKey.CAMPAIGN
   | UtmKey.CONTENT
@@ -49,13 +42,6 @@ export type IntemptShopifyEventNames =
   | IntemptEventName.PRODUCT_VIEW
   | IntemptEventName.PRODUCT_ADD
   | IntemptEventName.PRODUCT_ORDER;
-
-export type LocationApi = {
-  ip: string;
-  region: string;
-  city: string;
-  country: string;
-};
 
 export type ShopifyEvent = CustomEvent<IntemptShopifyEvent>;
 

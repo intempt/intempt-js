@@ -34,9 +34,6 @@ class Probe extends PlatformParser {
   handleEntropy() {
     return this._handleUserAgentEntropyValue();
   }
-  getLocation() {
-    return this._getLocation();
-  }
   getPlatform() {
     return this._getPlatform();
   }
@@ -457,28 +454,23 @@ describe('_getPlatform — which of the two paths runs', () => {
   });
 });
 
-describe('_getLocation', () => {
-  // The SDK used to call a third-party IP lookup from the end user's browser.
-  // These tests used to cover that call's success, failure and unconfigured
-  // paths. The call is gone, so what is worth asserting now is the opposite:
-  // that the method resolves without touching the network at all.
-  it('returns empty fields and never issues a request', async () => {
-    const fetchSpy = vi.fn();
-    vi.stubGlobal('fetch', fetchSpy);
-
-    await expect(new Probe().getLocation()).resolves.toEqual(EMPTY);
-    expect(fetchSpy).not.toHaveBeenCalled();
+describe('geolocation', () => {
+  // The SDK used to call ipapi.co from the end user's browser on every session start.
+  // It is gone: Intempt derives country, region and city server-side from the address the
+  // request already arrives on. Pinned as an absence so re-adding a browser-side lookup is a
+  // deliberate act with a failing test in front of it.
+  it('exposes no location method at all', () => {
+    expect(
+      (new Probe() as unknown as Record<string, unknown>)._getLocation,
+    ).toBeUndefined();
   });
 
-  it('resolves the same way on every call, with no configuration to read', async () => {
+  it('never issues a request while parsing the platform', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
 
-    const first = await new Probe().getLocation();
-    const second = await new Probe().getLocation();
+    await new Probe().getPlatform();
 
-    expect(first).toEqual(EMPTY);
-    expect(second).toEqual(EMPTY);
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

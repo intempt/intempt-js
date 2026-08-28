@@ -88,7 +88,9 @@ export class AutoTrackerEventPool {
 
     const { organization, sourceId, project, writeKey } = this._config;
 
-    const url = `${this._api}/${organization}/projects/${project}/sources/${sourceId}/track`;
+    const url =
+      `${this._api}/${organization}/projects/${project}/sources/${sourceId}/track` +
+      `?ip=${this._config.useIpAddressForGeolocation === false ? '0' : '1'}`;
 
     const [username, password] = writeKey.split('.');
 

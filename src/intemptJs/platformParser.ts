@@ -1,4 +1,4 @@
-import { DeviceType, LocationApi } from './types/autoTracker.types.ts';
+import { DeviceType } from './types/autoTracker.types.ts';
 import { DeviceTypeName } from './types/constants.types.ts';
 import { EnvConfig } from '../shared/envConfig.ts';
 
@@ -324,23 +324,6 @@ export class PlatformParser {
     }
   }
 
-  protected async _getLocation(): Promise<LocationApi> {
-    // Deliberately empty. This used to call a third-party IP lookup from the
-    // end user's browser, which disclosed every visitor's address to a service
-    // the customer never contracted with and that is not a named subprocessor.
-    //
-    // Nothing is lost by removing it: Intempt derives country, region and city
-    // server-side from the connection the request arrives on, which is both more
-    // accurate and never leaves our own infrastructure. The empty shape below is
-    // the one this function already returned whenever the lookup was unconfigured
-    // or failed, so every caller already handles it.
-    return {
-      ip: '',
-      region: '',
-      city: '',
-      country: '',
-    };
-  }
 
   protected async _getPlatform() {
     if (navigator.userAgentData) {
