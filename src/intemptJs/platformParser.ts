@@ -1,6 +1,5 @@
 import { DeviceType } from './types/autoTracker.types.ts';
 import { DeviceTypeName } from './types/constants.types.ts';
-import { EnvConfig } from '../shared/envConfig.ts';
 
 export class PlatformParser {
   defaultPlatform = 'Unknown';

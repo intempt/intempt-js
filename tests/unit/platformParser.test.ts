@@ -1,7 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { PlatformParser } from '../../src/intemptJs/platformParser.ts';
 import { DeviceTypeName } from '../../src/intemptJs/types/constants.types.ts';
-import { EnvConfig } from '../../src/shared/envConfig.ts';
 
 /**
  * `platformParser.ts` — the worst-tested file in the SDK on arrival
