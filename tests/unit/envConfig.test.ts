@@ -35,7 +35,6 @@ describe('EnvConfig', () => {
       VITE_CHOICES_API: 'https://choices.example.com',
       VITE_WEB_EDITOR_BASE_LINK: 'https://editor.example.com',
       VITE_WEB_EDITOR_STORAGE_KEY: 'editor_key',
-      VITE_LOCATION_API_URL: 'https://geo.example.com',
       VITE_ENV: 'staging',
       DEV: true,
     });
@@ -45,7 +44,6 @@ describe('EnvConfig', () => {
     expect(EnvConfig.getChoicesApi()).toBe('https://choices.example.com');
     expect(EnvConfig.getWebEditorBaseLink()).toBe('https://editor.example.com');
     expect(EnvConfig.getWebEditorStorageKey()).toBe('editor_key');
-    expect(EnvConfig.getLocationApiUrl()).toBe('https://geo.example.com');
     expect(EnvConfig.getEnv()).toBe('staging');
     expect(EnvConfig.isDev()).toBe(true);
   });
