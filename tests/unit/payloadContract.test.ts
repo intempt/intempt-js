@@ -369,7 +369,9 @@ describe('outbound payload contract', () => {
       // The API base comes from `EnvConfig.getApi()` and is empty under test, so
       // the assertion pins the path — which is the part the SDK builds — rather
       // than the host, which is environment config.
-      expect(call!.url).toBe(`/acme/projects/proj-1/sources/${sourceId}/track?ip=1`);
+      expect(call!.url).toBe(
+        `/acme/projects/proj-1/sources/${sourceId}/track?ip=1`,
+      );
       expect(call!.init.method).toBe('POST');
       expect(
         (call!.init.headers as Record<string, string>)['Content-Type'],

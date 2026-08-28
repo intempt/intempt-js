@@ -323,7 +323,6 @@ export class PlatformParser {
     }
   }
 
-
   protected async _getPlatform() {
     if (navigator.userAgentData) {
       return this._handleUserAgentEntropyValue();
