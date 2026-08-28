@@ -62,7 +62,9 @@ describe('variation', () => {
     // `variation`, not `variationDetail`: the detail method is internal until the platform sends
     // a reason. Note the mock supplies `group: 'B'` and `reason` -- neither of which the serving
     // response actually carries today, which is exactly why asserting on them here proved nothing.
-    await expect(sdk().variation('checkout_v2', CTX, false)).resolves.toBe(true);
+    await expect(sdk().variation('checkout_v2', CTX, false)).resolves.toBe(
+      true,
+    );
   });
 
   it('returns the default when the served body is null', async () => {
@@ -70,12 +72,11 @@ describe('variation', () => {
     // a null body, so this covers the shape rather than the holdout case. Telling a holdout from
     // an outage needs a reason the platform does not yet send, and is not asserted here because
     // it cannot be.
-    vi.stubGlobal(
-      'fetch',
-      respond({ choices: [{ name: 'k', body: null }] }),
-    );
+    vi.stubGlobal('fetch', respond({ choices: [{ name: 'k', body: null }] }));
 
-    await expect(sdk().variation('k', CTX, 'fallback')).resolves.toBe('fallback');
+    await expect(sdk().variation('k', CTX, 'fallback')).resolves.toBe(
+      'fallback',
+    );
   });
 
   it('returns the default when the service is unreachable', async () => {
@@ -96,7 +97,9 @@ describe('variation', () => {
   it('returns the default when the key is unknown', async () => {
     vi.stubGlobal('fetch', respond({ choices: [] }));
 
-    await expect(sdk().variation('never_created', CTX, 'safe')).resolves.toBe('safe');
+    await expect(sdk().variation('never_created', CTX, 'safe')).resolves.toBe(
+      'safe',
+    );
   });
 
   it('refuses an empty key and a missing default', async () => {
