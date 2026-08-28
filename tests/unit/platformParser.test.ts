@@ -458,14 +458,11 @@ describe('_getPlatform — which of the two paths runs', () => {
 });
 
 describe('_getLocation', () => {
-  const EMPTY = { ip: '', region: '', city: '', country: '' };
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('returns empty fields without a request when no location API is configured', async () => {
-    vi.spyOn(EnvConfig, 'getLocationApiUrl').mockReturnValue('');
+  // The SDK used to call a third-party IP lookup from the end user's browser.
+  // These tests used to cover that call's success, failure and unconfigured
+  // paths. The call is gone, so what is worth asserting now is the opposite:
+  // that the method resolves without touching the network at all.
+  it('returns empty fields and never issues a request', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
 
@@ -473,71 +470,15 @@ describe('_getLocation', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('maps `country_name` onto `country` and passes the rest through', async () => {
-    vi.spyOn(EnvConfig, 'getLocationApiUrl').mockReturnValue(
-      'https://geo.example.com/json',
-    );
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        json: () =>
-          Promise.resolve({
-            ip: '203.0.113.7',
-            region: 'California',
-            city: 'San Francisco',
-            country_name: 'United States',
-            // Extra fields the API sends must not reach the payload.
-            latitude: 37.77,
-          }),
-      }),
-    );
+  it('resolves the same way on every call, with no configuration to read', async () => {
+    const fetchSpy = vi.fn();
+    vi.stubGlobal('fetch', fetchSpy);
 
-    await expect(new Probe().getLocation()).resolves.toEqual({
-      ip: '203.0.113.7',
-      region: 'California',
-      city: 'San Francisco',
-      country: 'United States',
-    });
-  });
+    const first = await new Probe().getLocation();
+    const second = await new Probe().getLocation();
 
-  it('substitutes empty strings for fields the API omits', async () => {
-    vi.spyOn(EnvConfig, 'getLocationApiUrl').mockReturnValue(
-      'https://geo.example.com/json',
-    );
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        json: () => Promise.resolve({ ip: '203.0.113.7' }),
-      }),
-    );
-
-    await expect(new Probe().getLocation()).resolves.toEqual({
-      ...EMPTY,
-      ip: '203.0.113.7',
-    });
-  });
-
-  it('degrades to empty fields when the request fails', async () => {
-    vi.spyOn(EnvConfig, 'getLocationApiUrl').mockReturnValue(
-      'https://geo.example.com/json',
-    );
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
-
-    // A geo lookup failing must never fail the event — it is decoration.
-    await expect(new Probe().getLocation()).resolves.toEqual(EMPTY);
-  });
-
-  it('degrades to empty fields when the response is not JSON', async () => {
-    vi.spyOn(EnvConfig, 'getLocationApiUrl').mockReturnValue(
-      'https://geo.example.com/json',
-    );
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        json: () => Promise.reject(new SyntaxError('Unexpected token <')),
-      }),
-    );
-
-    await expect(new Probe().getLocation()).resolves.toEqual(EMPTY);
+    expect(first).toEqual(EMPTY);
+    expect(second).toEqual(EMPTY);
+    expect(fetchSpy).not.toHaveBeenCalled();
   });
 });

@@ -191,21 +191,9 @@ describe('SessionTrackerModule', () => {
     it('should create new session on foreground event', () => {
       clearCookies();
 
-      // Mock import.meta.env to avoid location API error
-      const _originalImportMeta = (globalThis as any).import?.meta;
-      if (!(globalThis as any).import) {
-        (globalThis as any).import = {
-          meta: { env: { VITE_LOCATION_API_URL: '' } },
-        };
-      } else if (!(globalThis as any).import.meta) {
-        (globalThis as any).import.meta = {
-          env: { VITE_LOCATION_API_URL: '' },
-        };
-      } else if (!(globalThis as any).import.meta.env) {
-        (globalThis as any).import.meta.env = { VITE_LOCATION_API_URL: '' };
-      } else {
-        (globalThis as any).import.meta.env.VITE_LOCATION_API_URL = '';
-      }
+      // The import.meta.env shim that used to live here existed only to stop the
+      // location API call erroring during the test. That call is gone, so the
+      // shim is too.
 
       const newTracker = new SessionTrackerModule();
 
