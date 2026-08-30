@@ -270,15 +270,20 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       );
     });
 
-    it('use_ip_for_geolocation is undefined when absent, which the send path treats as on', async () => {
-      // Absent must not read as an opt-out. Ingestion treats a missing `?ip=`
-      // as "derive location", so an unset switch and an unpatched server agree.
+    it('use_ip_for_geolocation absent leaves the key present and undefined, not missing', async () => {
+      // `toBeUndefined()` on its own could not fail here. Before the loader read this
+      // parameter the key was simply absent from the config object, and an absent key reads
+      // as undefined too — so the assertion held whether or not the loader did anything.
+      // Checking the key is present is what makes it depend on the read.
+      //
+      // Absent must still not read as an opt-out: ingestion treats a missing `?ip=` as
+      // "derive location", so an unset switch and an unpatched server agree.
       appendScript(REQUIRED_QUERY);
       SDK.init();
       await vi.runAllTimersAsync();
-      expect(
-        autoTrackerInstances[0]!.config.useIpAddressForGeolocation,
-      ).toBeUndefined();
+      const config = autoTrackerInstances[0]!.config;
+      expect('useIpAddressForGeolocation' in config).toBe(true);
+      expect(config.useIpAddressForGeolocation).toBeUndefined();
     });
 
     it('ignore_dnt=false correctly disables the flag', async () => {
