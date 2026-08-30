@@ -458,17 +458,46 @@ describe('geolocation', () => {
   // It is gone: Intempt derives country, region and city server-side from the address the
   // request already arrives on. Pinned as an absence so re-adding a browser-side lookup is a
   // deliberate act with a failing test in front of it.
-  it('exposes no location method at all', () => {
-    expect(
-      (new Probe() as unknown as Record<string, unknown>)._getLocation,
-    ).toBeUndefined();
+  //
+  // Two earlier versions of this block did not do that job, and both are worth naming because
+  // they looked fine:
+  //
+  //  - `expect(probe._getLocation).toBeUndefined()` on its own passes for a MISSPELLED key just
+  //    as happily as for a removed method, so it could never fail. The check below anchors on
+  //    the surface rather than one name: it fails if ANY method appears whose name suggests a
+  //    location lookup, which a typo cannot satisfy.
+  //  - A fetch spy around `getPlatform()` asserted nothing, because `getPlatform` never called
+  //    the lookup even before the removal — `_getLocation` was called from the session tracker.
+  //    A spy on the wrong path is green on the old code and the new one alike.
+  it('exposes no location-shaped method on the platform surface', () => {
+    const probe = new Probe() as unknown as Record<string, unknown>;
+
+    const names = new Set<string>();
+    for (
+      let proto = Object.getPrototypeOf(probe);
+      proto && proto !== Object.prototype;
+      proto = Object.getPrototypeOf(proto)
+    ) {
+      Object.getOwnPropertyNames(proto).forEach((n) => names.add(n));
+    }
+
+    // The set is non-empty, so an assertion over it cannot pass by looking at nothing.
+    expect(names.size).toBeGreaterThan(0);
+
+    const locationish = [...names].filter((n) => /location|geo|ipapi/i.test(n));
+    expect(locationish).toEqual([]);
   });
 
-  it('never issues a request while parsing the platform', async () => {
-    const fetchSpy = vi.fn();
+  it('reaches no network at all through any parser method', async () => {
+    const fetchSpy = vi.fn(() =>
+      Promise.reject(new Error('the parser must not reach the network')),
+    );
     vi.stubGlobal('fetch', fetchSpy);
 
-    await new Probe().getPlatform();
+    const probe = new Probe();
+    await probe.getPlatform();
+    probe.handleUserAgent();
+    await probe.handleEntropy();
 
     expect(fetchSpy).not.toHaveBeenCalled();
   });

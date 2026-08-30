@@ -128,3 +128,34 @@ test('flushes on page hide rather than losing the batch', async ({
     })
     .toBeGreaterThan(0);
 });
+
+// The removal of the browser-side IP lookup is the whole point of this change, and until
+// now nothing checked it. `fixtures.ts` routes the third-party host and records any call,
+// with a comment saying the test fails if one is made — but no spec read the recorder, so
+// the guard could not fail and the comment was not true. This is the read.
+//
+// It runs against the built bundle rather than the source, which matters: the source could
+// stop referencing the lookup while a stale `dist/` still shipped it, and that is the
+// artifact a customer actually loads.
+test('never contacts a third-party IP lookup from the browser', async ({
+  page,
+  harness,
+}) => {
+  await loadSdk(page);
+
+  await page.evaluate(() => {
+    (window as unknown as { intempt: { track: (n: string) => void } }).intempt.track(
+      'geo-guard',
+    );
+  });
+  await page.goto(`${HOST}/second-page`, { waitUntil: 'load' });
+
+  expect(
+    harness.thirdPartyGeoCalls(),
+    'the SDK reached a third-party IP lookup from the end user browser',
+  ).toEqual([]);
+
+  // Without this the assertion above is satisfied by an SDK that never started. A bundle
+  // that failed to load also makes zero geo calls.
+  expect(await page.evaluate(() => typeof window.intempt)).toBe('object');
+});
