@@ -256,6 +256,31 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
   });
 
   describe('privacy switches — the readBooleanParam parse shopify/magento now also use', () => {
+    it('use_ip_for_geolocation=false reaches the config, so the opt-out is settable', async () => {
+      // The switch shipped on IntemptConfig without being read here, so it was
+      // always undefined and the SDK always sent `?ip=1`. The type existed, the
+      // send sites consumed it, and no customer could set it -- the exact failure
+      // the comment beside these params warns about. This test fails without the
+      // read: `false` becomes `undefined`.
+      appendScript(`${REQUIRED_QUERY}&use_ip_for_geolocation=false`);
+      SDK.init();
+      await vi.runAllTimersAsync();
+      expect(autoTrackerInstances[0]!.config.useIpAddressForGeolocation).toBe(
+        false,
+      );
+    });
+
+    it('use_ip_for_geolocation is undefined when absent, which the send path treats as on', async () => {
+      // Absent must not read as an opt-out. Ingestion treats a missing `?ip=`
+      // as "derive location", so an unset switch and an unpatched server agree.
+      appendScript(REQUIRED_QUERY);
+      SDK.init();
+      await vi.runAllTimersAsync();
+      expect(
+        autoTrackerInstances[0]!.config.useIpAddressForGeolocation,
+      ).toBeUndefined();
+    });
+
     it('ignore_dnt=false correctly disables the flag', async () => {
       // §3h gave ignore_dnt/pii_scrubbing a real boolean parse specifically
       // because a privacy switch defaulting the wrong way is a regulator-grade

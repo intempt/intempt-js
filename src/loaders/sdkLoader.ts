@@ -128,6 +128,13 @@ function getIntemptConfig(): IntemptConfig {
     // redaction rule is worse than none.
     ignore_dnt: readBooleanParam(source.searchParams, 'ignore_dnt'),
     piiScrubbing: readBooleanParam(source.searchParams, 'pii_scrubbing'),
+    // Absent means on, matching the platform: the ingestion side treats a missing
+    // `?ip=` as "derive location", so an unset switch and an unpatched server agree.
+    // Only `use_ip_for_geolocation=false` turns it off.
+    useIpAddressForGeolocation: readBooleanParam(
+      source.searchParams,
+      'use_ip_for_geolocation',
+    ),
     // `?? undefined` alone is not enough: `.get()` returns `''` (not `null`)
     // for a present-but-empty `?api_host=`, so `?? undefined` never fires and
     // `resolveIngestBaseUrl` receives an empty string instead of falling

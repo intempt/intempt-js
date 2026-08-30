@@ -20,12 +20,15 @@ type PrivateSend = (
   error?: string;
 }>;
 
-function makeTransport(): AutoTrackerTransport {
+function makeTransport(
+  overrides: Partial<IntemptConfig> = {},
+): AutoTrackerTransport {
   const config: IntemptConfig = {
     organization: 'org',
     sourceId: 'src',
     project: 'proj',
     writeKey: 'user.pass',
+    ...overrides,
   } as IntemptConfig;
   return new AutoTrackerTransport(config, 'https://api.example.com');
 }
@@ -164,5 +167,36 @@ describe('AutoTrackerTransport fetch -> XHR fallback', () => {
     expect(FakeXHR.instances.length).toBe(0);
     expect(result.httpStatusCode).toBe(400);
     expect(result.ok).toBe(false);
+  });
+});
+
+// The `?ip=` flag is written in two places -- the event pool and here. Only the pool
+// copy was covered, so this one could have drifted or been dropped without a single
+// test noticing, on the batch path that carries most production traffic.
+describe('AutoTrackerTransport geolocation flag', () => {
+  it('sends ?ip=0 when the customer has switched geolocation off', async () => {
+    const fetchMock = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        new Response('{}', { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await send(makeTransport({ useIpAddressForGeolocation: false }));
+
+    expect(String(fetchMock.mock.calls[0]![0])).toContain('?ip=0');
+  });
+
+  it('sends ?ip=1 when the switch is absent, matching what ingestion assumes', async () => {
+    // Absent must not read as an opt-out: the server treats a missing `?ip=` as
+    // "derive location", so an unset switch and an unpatched server agree.
+    const fetchMock = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        new Response('{}', { status: 200 }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await send(makeTransport());
+
+    expect(String(fetchMock.mock.calls[0]![0])).toContain('?ip=1');
   });
 });

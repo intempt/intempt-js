@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PlatformParser } from '../../src/intemptJs/platformParser.ts';
 import { DeviceTypeName } from '../../src/intemptJs/types/constants.types.ts';
 
@@ -488,17 +488,15 @@ describe('geolocation', () => {
     expect(locationish).toEqual([]);
   });
 
-  it('reaches no network at all through any parser method', async () => {
-    const fetchSpy = vi.fn(() =>
-      Promise.reject(new Error('the parser must not reach the network')),
-    );
-    vi.stubGlobal('fetch', fetchSpy);
-
-    const probe = new Probe();
-    await probe.getPlatform();
-    probe.handleUserAgent();
-    await probe.handleEntropy();
-
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
+  // REMOVED, deliberately, rather than repaired: a fetch spy around the parser's own
+  // methods is green on `staging` too. The only `fetch(` in this file was inside
+  // `_getLocation`, and none of `_getPlatform`, `_handleUserAgent` or
+  // `_handleUserAgentEntropyValue` ever reached it -- `_getLocation` was called from
+  // the session tracker. A spy that passes identically before and after the change it
+  // claims to guard is not a weaker test, it is not a test, and leaving it in place
+  // would say this behaviour is covered when it is not.
+  //
+  // What actually guards the removal:
+  //   - the surface check above, proven to fail by planting `_getLocation` back
+  //   - `sdkSmoke.spec.ts` asserting zero third-party geo calls from the built bundle
 });
