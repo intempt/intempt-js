@@ -562,22 +562,19 @@ describe('choices engine', () => {
       expect(resolver).toHaveBeenCalledTimes(1);
     });
 
-    it('marks only the FIRST iwe id per element — a defect, asserted not fixed', () => {
-      // DEFECT (choices.module.ts:89-102). Pointers are deduplicated by
-      // `xPathSelector|xPathIndex` via the `seen` set, but the *iwe id* is not
-      // part of that key. So when two changes reference the same element under
-      // different ids — one change's `parent` is another change's target, which
-      // is the common case for a container — only the first id is written as an
-      // attribute. The second change's `elementGetterByIweId` then returns null
-      // and the change is **silently skipped**: no throw, no log, the visitor
-      // just does not see that experience.
+    it('marks EVERY distinct iwe id on an element, not only the first', () => {
+      // Was a characterisation test asserting the opposite, because the fix was judged too
+      // risky to take alone. It is fixed now.
       //
-      // Asserted rather than fixed because the fix (key on
-      // selector|index|iweId, or set all ids for a resolved element) changes how
-      // many attributes land on customer DOM nodes, and the marking pass runs
-      // before any change is applied — a mistake there breaks every experience
-      // at once. It wants its own change with a parity check against real
-      // choice payloads, which is the same discipline §5 used for `psl`.
+      // The `seen` set exists to avoid stamping the same attribute on the same element twice.
+      // Its key was `xPathSelector|xPathIndex`, which silently meant "one attribute per element
+      // per page". Two changes referencing one element under different ids — one change's
+      // `parent` being another change's target, which is every container — stamped only the
+      // first. The loser's `elementGetterByIweId` then returned null and the change vanished
+      // with no throw and no log.
+      //
+      // That is not an MVT-only problem: two live experiences sharing a container hit it in
+      // production. The key now includes the attribute name.
       setBody('<div id="p"><span id="t">t</span></div>');
       const mod = new ChoicesModule(config as any);
       const resolver = vi.fn(() => document.getElementById('t'));
@@ -592,7 +589,51 @@ describe('choices engine', () => {
 
       const target = document.getElementById('t')!;
       expect(target.getAttribute('firstId')).toBe('true');
-      expect(target.hasAttribute('secondId')).toBe(false);
+      expect(target.getAttribute('secondId')).toBe('true');
+
+      // The element cache is still keyed by position, so the resolver runs once for two
+      // pointers at the same xPath. Stamping twice must not cost two lookups.
+      expect(resolver).toHaveBeenCalledTimes(1);
+    });
+
+    it('stamps the same attribute only once for a repeated pointer', () => {
+      setBody('<div id="p"><span id="t">t</span></div>');
+      const mod = new ChoicesModule(config as any);
+      const resolver = vi.fn(() => document.getElementById('t'));
+
+      const out = (mod as any).markPointersFromChanges(
+        [
+          { xPathSelector: '//span', xPathIndex: 0, iweId: 'sameId' },
+          { xPathSelector: '//span', xPathIndex: 0, iweId: 'sameId' },
+        ],
+        resolver,
+      );
+
+      expect(out).toHaveLength(1);
+    });
+
+    it('prefers iwePtrId over iweId when the payload carries one', () => {
+      // iweId is namespaced by variant id, so the same DOM element carries a different one in
+      // every variant. iwePtrId is page-scoped. The editor does not publish it yet, so this is
+      // forward-compatible rather than currently exercised in production.
+      setBody('<div id="p"><span id="t">t</span></div>');
+      const mod = new ChoicesModule(config as any);
+
+      (mod as any).markPointersFromChanges(
+        [
+          {
+            xPathSelector: '//span',
+            xPathIndex: 0,
+            iweId: 'iwe-id-41-aaa',
+            iwePtrId: 'iwe-ptr-page-bbb',
+          },
+        ],
+        vi.fn(() => document.getElementById('t')),
+      );
+
+      const target = document.getElementById('t')!;
+      expect(target.getAttribute('iwe-ptr-page-bbb')).toBe('true');
+      expect(target.hasAttribute('iwe-id-41-aaa')).toBe(false);
     });
 
     it('skips pointers whose element cannot be resolved', () => {
@@ -684,22 +725,23 @@ describe('choices engine', () => {
       );
     });
 
-    it('writes an attribute literally named "undefined" when a change has no iwe id', () => {
-      // Also a defect, milder: an absent `iweId` is not guarded, so the element
-      // gets `undefined="true"`. Harmless to rendering, but it means a change
-      // with a missing id silently marks the wrong thing rather than being
-      // skipped, and every such element collides on one attribute name.
+    it('skips a pointer that has no usable attribute name', () => {
+      // Was a characterisation test asserting the opposite. The self-pointer built in
+      // markPointersFromChanges is an object literal, so it is always truthy even when the
+      // change carries no iweId — `.filter(Boolean)` cannot catch it. The element then got a
+      // literal attribute called "undefined", which every such change shared, so they all
+      // resolved to the same first match.
       setBody('<div id="p"><span id="t">t</span></div>');
       const mod = new ChoicesModule(config as any);
 
-      (mod as any).markPointersFromChanges(
+      const out = (mod as any).markPointersFromChanges(
         [{ xPathSelector: '//span', xPathIndex: 0 }],
         vi.fn(() => document.getElementById('t')),
       );
 
-      expect(document.getElementById('t')!.getAttribute('undefined')).toBe(
-        'true',
-      );
+      const target = document.getElementById('t')!;
+      expect(target.hasAttribute('undefined')).toBe(false);
+      expect(out).toEqual([]);
     });
   });
 

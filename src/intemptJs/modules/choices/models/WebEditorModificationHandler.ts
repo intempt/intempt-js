@@ -1,9 +1,31 @@
 import { Modification } from '../../../types/choices.types.ts';
 
+/**
+ * The attribute name a pointer was stamped with, resolved the SAME way the stamper resolves it.
+ *
+ * `markPointersFromChanges` prefers `iwePtrId` over `iweId` and stamps that name onto the element.
+ * Every lookup here has to make the identical choice, or it queries an attribute that was never
+ * written and the change silently disappears.
+ *
+ * Accepts both shapes because a change carries `iweId`/`iwePtrId` while its `parent` and `refNode`
+ * pointers carry `_iweId`/`_iwePtrId`.
+ */
+function pointerAttr(
+  p?: {
+    iweId?: string;
+    iwePtrId?: string;
+    _iweId?: string;
+    _iwePtrId?: string;
+  } | null,
+): string | undefined {
+  if (!p) return undefined;
+  return p._iwePtrId ?? p.iwePtrId ?? p._iweId ?? p.iweId;
+}
+
 export class WebEditorModificationHandler {
   style = async (change: Modification) => {
-    const { iweId, attributes } = change;
-    const targetEl = this.elementGetterByIweId(iweId);
+    const { attributes } = change;
+    const targetEl = this.elementGetterByIweId(pointerAttr(change));
 
     const { style } = attributes;
     if (!targetEl || !style) return;
@@ -12,10 +34,10 @@ export class WebEditorModificationHandler {
   };
 
   update = async (change: Modification) => {
-    const { html, parent, refNode, iweId } = change;
-    const parentEl = this.elementGetterByIweId(parent?._iweId);
-    const refEl = this.elementGetterByIweId(refNode?._iweId);
-    const targetEl = this.elementGetterByIweId(iweId);
+    const { html, parent, refNode } = change;
+    const parentEl = this.elementGetterByIweId(pointerAttr(parent));
+    const refEl = this.elementGetterByIweId(pointerAttr(refNode));
+    const targetEl = this.elementGetterByIweId(pointerAttr(change));
 
     if (!parentEl || !targetEl) return;
 
@@ -25,15 +47,15 @@ export class WebEditorModificationHandler {
   };
 
   insert = async (change: Modification) => {
-    const { html, parent, refNode, blockId, iweId, js } = change;
-    const parentEl = this.elementGetterByIweId(parent?._iweId);
-    const refEl = this.elementGetterByIweId(refNode?._iweId);
+    const { html, parent, refNode, blockId, js } = change;
+    const parentEl = this.elementGetterByIweId(pointerAttr(parent));
+    const refEl = this.elementGetterByIweId(pointerAttr(refNode));
 
     if (!parentEl) return;
     const { fragment } = this.htmlToFragment(html);
     parentEl.insertBefore(fragment, refEl);
     if (blockId === 'base') {
-      const targetEl = this.elementGetterByIweId(iweId);
+      const targetEl = this.elementGetterByIweId(pointerAttr(change));
       targetEl?.remove();
     }
 
@@ -43,8 +65,7 @@ export class WebEditorModificationHandler {
   };
 
   remove = (change: Modification) => {
-    const { iweId } = change;
-    const targetEl = this.elementGetterByIweId(iweId);
+    const targetEl = this.elementGetterByIweId(pointerAttr(change));
     if (!targetEl) return;
     targetEl.remove();
   };

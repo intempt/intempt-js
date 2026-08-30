@@ -106,26 +106,51 @@ export class ChoicesModule {
             _xPathSelector: c.xPathSelector,
             _xPathIndex: c.xPathIndex,
             _iweId: c.iweId,
+            _iwePtrId: (c as unknown as { iwePtrId?: string }).iwePtrId,
           } as XPtr,
         ].filter(Boolean);
 
         for (const p of pointers) {
-          const key = `${p._xPathSelector}|${p._xPathIndex}`;
-          if (seen.has(key)) continue;
+          // The attribute we are about to stamp. Prefer the page-scoped pointer when the
+          // payload carries one; `_iweId` is namespaced by variant id, so the same DOM
+          // element has a different one in every variant.
+          const attr = p._iwePtrId ?? p._iweId;
 
-          let el = cache.get(key);
+          // A pointer with no usable attribute name cannot be stamped or looked up. The
+          // self-pointer built above is always truthy even when `iweId` is undefined, so
+          // `.filter(Boolean)` does not catch this; without the guard it stamped a literal
+          // attribute called "undefined" that every such change then shared.
+          if (!attr) continue;
+
+          // The element cache is keyed by POSITION - resolving the same xPath twice is
+          // wasted work.
+          const posKey = `${p._xPathSelector}|${p._xPathIndex}`;
+
+          // Dedupe is keyed by POSITION + ATTRIBUTE, and that distinction is the whole fix.
+          //
+          // `seen` exists to avoid stamping the same attribute on the same element twice. It
+          // was keyed on position alone, which silently meant "one attribute per element per
+          // page". Two changes pointing at the same element with different `iweId`s - which
+          // is every pair of variants, and every pair of live experiences sharing a container
+          // - stamped only the first. The second's handler then resolved `[attr="true"]` to
+          // null and early-returned without throwing, so the change vanished with no error
+          // in dev or production.
+          const stampKey = `${posKey}|${attr}`;
+          if (seen.has(stampKey)) continue;
+
+          let el = cache.get(posKey);
           if (el === undefined) {
             el = resolver({
               xPathSelector: p._xPathSelector,
               xPathIndex: p._xPathIndex,
             }) as HTMLElement | null;
-            cache.set(key, el ?? null);
+            cache.set(posKey, el ?? null);
           }
           if (!el) continue;
 
-          el.setAttribute(p._iweId, 'true');
-          out.push({ el, iweId: p._iweId });
-          seen.add(key);
+          el.setAttribute(attr, 'true');
+          out.push({ el, iweId: attr });
+          seen.add(stampKey);
         }
       } catch (error) {
         log.warn(

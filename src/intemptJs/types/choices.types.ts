@@ -146,4 +146,13 @@ export type XPtr = {
   _xPathSelector: string;
   _xPathIndex: number;
   _iweId: string;
+  /**
+   * Page-scoped element pointer, `iwe-ptr-{pageUrlHash}-{nanoid}`.
+   *
+   * Optional because the editor does not publish it yet - `VariantChanges` drops it when
+   * building the wire payload. Preferred over `_iweId` when present, because `_iweId` is
+   * namespaced by variant id, so the same DOM element carries a different one in every
+   * variant. See `markPointersFromChanges`.
+   */
+  _iwePtrId?: string;
 };
