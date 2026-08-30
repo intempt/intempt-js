@@ -143,11 +143,15 @@ test('never contacts a third-party IP lookup from the browser', async ({
 }) => {
   await loadSdk(page);
 
-  await page.evaluate(() => {
-    (window as unknown as { intempt: { track: (n: string) => void } }).intempt.track(
-      'geo-guard',
-    );
-  });
+  // `track` rejects a bare string — the guard requires `{ eventTitle, data }`, and the
+  // whole point of the browser tier is calling it the way a customer must.
+  await page.evaluate(() =>
+    window.intempt?.track({
+      eventTitle: 'geo guard',
+      data: { tier: 'browser' },
+    }),
+  );
+  await harness.waitForEvent('geo guard');
   await page.goto(`${HOST}/second-page`, { waitUntil: 'load' });
 
   expect(
