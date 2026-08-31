@@ -1,1 +1,3 @@
-{}
+{
+  "src/shared/privacy/piiScrubber.ts:173": "Luhn (mod-10) checksum inside `passesLuhn`. `charCodeAt(i) - 48` reads a digit's numeric value to decide whether a candidate string is a real card number before it is REDACTED. It derives nothing about a person, produces no bucket, and its result never reaches the serving path — it only makes PII scrubbing precise enough not to redact every 16-digit order id."
+}

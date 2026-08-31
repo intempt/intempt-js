@@ -4,7 +4,10 @@ import {
   XPtr,
 } from '../../types/choices.types.ts';
 import { ChoicesService } from './choices.service.ts';
-import { WebEditorModificationHandler } from './models/WebEditorModificationHandler.ts';
+import {
+  pointerAttr,
+  WebEditorModificationHandler,
+} from './models/WebEditorModificationHandler.ts';
 
 import { createLogger } from '../../../shared/logger/logger.ts';
 
@@ -81,13 +84,18 @@ export class ChoicesModule {
     }
   }
 
+  /**
+   * Returns nothing on purpose. It used to hand back the `{ el, iweId }` pairs it stamped and
+   * `_applyChanges`, its only caller, discarded them — so the list existed solely for tests to
+   * assert on, and a test asserting a value production never reads proves nothing about
+   * production. The stamped DOM is the output; that is what the assertions read now.
+   */
   private markPointersFromChanges(
     changes: unknown[],
     resolver = ChoicesService.elementGetterByXpath,
-  ): Array<{ el: HTMLElement; iweId: string }> {
+  ): void {
     const cache = new Map<string, HTMLElement | null>();
     const seen = new Set<string>();
-    const out: Array<{ el: HTMLElement; iweId: string }> = [];
 
     for (const change of changes) {
       // D-7: this pass used to run entirely outside the per-change try/catch
@@ -106,21 +114,31 @@ export class ChoicesModule {
             _xPathSelector: c.xPathSelector,
             _xPathIndex: c.xPathIndex,
             _iweId: c.iweId,
-            _iwePtrId: (c as unknown as { iwePtrId?: string }).iwePtrId,
+            _iwePtrId: c.iwePtrId,
           } as XPtr,
         ].filter(Boolean);
 
         for (const p of pointers) {
-          // The attribute we are about to stamp. Prefer the page-scoped pointer when the
-          // payload carries one; `_iweId` is namespaced by variant id, so the same DOM
-          // element has a different one in every variant.
-          const attr = p._iwePtrId ?? p._iweId;
+          // The attribute we are about to stamp, resolved by the SAME function the handler
+          // looks it up with. Not a second expression that happens to agree — see
+          // `pointerAttr`.
+          const attr = pointerAttr(p);
 
           // A pointer with no usable attribute name cannot be stamped or looked up. The
           // self-pointer built above is always truthy even when `iweId` is undefined, so
           // `.filter(Boolean)` does not catch this; without the guard it stamped a literal
           // attribute called "undefined" that every such change then shared.
-          if (!attr) continue;
+          //
+          // Logged, not skipped in silence: an unstampable pointer means that change will not
+          // apply, and a change vanishing with no trace is the exact defect class this commit
+          // exists to remove.
+          if (!attr) {
+            log.warn(
+              'pointer has no iwePtrId or iweId; its change cannot be applied',
+              { change: c, pointer: p },
+            );
+            continue;
+          }
 
           // The element cache is keyed by POSITION - resolving the same xPath twice is
           // wasted work.
@@ -149,7 +167,6 @@ export class ChoicesModule {
           if (!el) continue;
 
           el.setAttribute(attr, 'true');
-          out.push({ el, iweId: attr });
           seen.add(stampKey);
         }
       } catch (error) {
@@ -159,7 +176,5 @@ export class ChoicesModule {
         );
       }
     }
-
-    return out;
   }
 }

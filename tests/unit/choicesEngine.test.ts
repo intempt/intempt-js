@@ -354,6 +354,95 @@ describe('choices engine', () => {
         expect(document.getElementById('b')).not.toBeNull();
       });
     });
+
+    /**
+     * The RESOLVER half of the `iwePtrId` fix.
+     *
+     * `markPointersFromChanges` stamps `pointerAttr(p)` and this handler looks up
+     * `pointerAttr(change)`. Until these tests existed, nothing outside the stamper's own suite
+     * referenced `iwePtrId` at all, so any `??` ordering that ended in `iweId` passed the whole
+     * gate — 1121 tests, coverage, lint, typecheck and Cypress all green — while every change on
+     * a page whose payload carries `iwePtrId` silently failed to apply.
+     *
+     * These stamp the DOM DIRECTLY rather than going through `markPointersFromChanges`, and that
+     * is the point: an end-to-end test cannot see a precedence error, because a stamper and a
+     * resolver that are wrong in the same direction still agree. Presetting the element with only
+     * the page-scoped attribute — which is what production's DOM looks like once the editor
+     * publishes `iwePtrId` — makes the lookup, and only the lookup, the thing under test.
+     *
+     * PROVEN: reorder `pointerAttr` to `p._iweId ?? p.iweId ?? p._iwePtrId ?? p.iwePtrId` and
+     * every test in this block fails.
+     */
+    describe('resolves by iwePtrId when the change carries one', () => {
+      const PTR = 'iwe-ptr-page1-abc';
+      const IWE = 'iwe-id-41-xyz';
+
+      it('remove targets the element stamped with the page-scoped pointer', () => {
+        setBody(
+          '<div><span id="t">gone</span><span id="keep">keep</span></div>',
+        );
+        // Only the ptr attribute is present, exactly as the stamper leaves it.
+        mark(document.getElementById('t')!, PTR);
+
+        handler.remove({ iweId: IWE, iwePtrId: PTR } as any);
+
+        expect(document.getElementById('t')).toBeNull();
+        expect(document.getElementById('keep')).not.toBeNull();
+      });
+
+      it('style targets the element stamped with the page-scoped pointer', async () => {
+        setBody('<p id="t" style="color: red">hi</p>');
+        const target = document.getElementById('t')!;
+        mark(target, PTR);
+
+        await handler.style({
+          iweId: IWE,
+          iwePtrId: PTR,
+          attributes: { style: 'color: blue' },
+        } as any);
+
+        expect(target.getAttribute('style')).toBe('color: blue');
+      });
+
+      it('update resolves target, parent and refNode by their page-scoped pointers', async () => {
+        setBody(
+          '<div id="p"><span id="ref">ref</span><span id="old">old</span></div>',
+        );
+        mark(document.getElementById('p')!, 'iwe-ptr-page1-parent');
+        mark(document.getElementById('ref')!, 'iwe-ptr-page1-ref');
+        mark(document.getElementById('old')!, PTR);
+
+        await handler.update({
+          html: '<b id="new">new</b>',
+          parent: {
+            _iweId: 'iwe-id-41-parent',
+            _iwePtrId: 'iwe-ptr-page1-parent',
+          },
+          refNode: { _iweId: 'iwe-id-41-ref', _iwePtrId: 'iwe-ptr-page1-ref' },
+          iweId: IWE,
+          iwePtrId: PTR,
+        } as any);
+
+        expect(document.getElementById('old')).toBeNull();
+        expect(document.getElementById('new')).not.toBeNull();
+        expect(document.getElementById('p')!.children[0]!.id).toBe('new');
+      });
+
+      it('two variants of one element resolve independently — the collision the fix removes', () => {
+        // Variant A and variant B carry different `iweId`s for the SAME element. Before the
+        // fix only one attribute was ever stamped, so the loser resolved to null and its
+        // change vanished. Here each variant carries its own ptr, and both must apply.
+        setBody('<div><span id="a">a</span><span id="b">b</span></div>');
+        mark(document.getElementById('a')!, 'iwe-ptr-page1-a');
+        mark(document.getElementById('b')!, 'iwe-ptr-page1-b');
+
+        handler.remove({ iweId: IWE, iwePtrId: 'iwe-ptr-page1-a' } as any);
+        handler.remove({ iweId: IWE, iwePtrId: 'iwe-ptr-page1-b' } as any);
+
+        expect(document.getElementById('a')).toBeNull();
+        expect(document.getElementById('b')).toBeNull();
+      });
+    });
   });
 
   // ────────────────────────────────────────────────────────────────────────────
@@ -533,13 +622,19 @@ describe('choices engine', () => {
       const mod = new ChoicesModule(config as any);
       const resolver = vi.fn(() => document.getElementById('t'));
 
-      const out = (mod as any).markPointersFromChanges(
+      (mod as any).markPointersFromChanges(
         [{ xPathSelector: '//span', xPathIndex: 0, iweId: 'myId' }],
         resolver,
       );
 
-      expect(document.getElementById('t')!.getAttribute('myId')).toBe('true');
-      expect(out).toHaveLength(1);
+      const target = document.getElementById('t')!;
+      expect(target.getAttribute('myId')).toBe('true');
+      // The stamped DOM is the output — `markPointersFromChanges` returns nothing, and a test
+      // asserting a return value production discards proves nothing about production. Exactly
+      // one attribute is added, so a stray stamp cannot hide behind a length check.
+      expect(target.getAttributeNames().filter((a) => a !== 'id')).toEqual([
+        'myid',
+      ]);
     });
 
     it('caches the resolver per xpath so one element is resolved once', () => {
@@ -601,7 +696,10 @@ describe('choices engine', () => {
       const mod = new ChoicesModule(config as any);
       const resolver = vi.fn(() => document.getElementById('t'));
 
-      const out = (mod as any).markPointersFromChanges(
+      const target = document.getElementById('t')!;
+      const setAttribute = vi.spyOn(target, 'setAttribute');
+
+      (mod as any).markPointersFromChanges(
         [
           { xPathSelector: '//span', xPathIndex: 0, iweId: 'sameId' },
           { xPathSelector: '//span', xPathIndex: 0, iweId: 'sameId' },
@@ -609,7 +707,11 @@ describe('choices engine', () => {
         resolver,
       );
 
-      expect(out).toHaveLength(1);
+      // The `seen` set is the thing under test, and the only place it is observable is the
+      // number of DOM writes. `getAttribute` cannot see the difference — stamping twice leaves
+      // the same attribute value as stamping once.
+      expect(setAttribute).toHaveBeenCalledTimes(1);
+      expect(target.getAttribute('sameId')).toBe('true');
     });
 
     it('prefers iwePtrId over iweId when the payload carries one', () => {
@@ -639,11 +741,13 @@ describe('choices engine', () => {
     it('skips pointers whose element cannot be resolved', () => {
       setBody('<div id="p"></div>');
       const mod = new ChoicesModule(config as any);
-      const out = (mod as any).markPointersFromChanges(
+      (mod as any).markPointersFromChanges(
         [{ xPathSelector: '//nope', xPathIndex: 0, iweId: 'x' }],
         vi.fn(() => null),
       );
-      expect(out).toEqual([]);
+      // Nothing anywhere in the document was stamped.
+      expect(document.querySelector('[x="true"]')).toBeNull();
+      expect(document.getElementById('p')!.getAttributeNames()).toEqual(['id']);
     });
 
     it('marks a change’s parent and refNode pointers too, not only its target', () => {
@@ -731,17 +835,29 @@ describe('choices engine', () => {
       // change carries no iweId — `.filter(Boolean)` cannot catch it. The element then got a
       // literal attribute called "undefined", which every such change shared, so they all
       // resolved to the same first match.
+      const diagnostics: string[] = [];
+      configureLogger({
+        level: 'debug',
+        sink: (r) => diagnostics.push(r.message),
+      });
+
       setBody('<div id="p"><span id="t">t</span></div>');
       const mod = new ChoicesModule(config as any);
 
-      const out = (mod as any).markPointersFromChanges(
+      (mod as any).markPointersFromChanges(
         [{ xPathSelector: '//span', xPathIndex: 0 }],
         vi.fn(() => document.getElementById('t')),
       );
 
       const target = document.getElementById('t')!;
       expect(target.hasAttribute('undefined')).toBe(false);
-      expect(out).toEqual([]);
+      expect(target.getAttributeNames()).toEqual(['id']);
+
+      // Skipping in silence is the same defect class this whole pass exists to remove: the
+      // change simply never applies and nothing anywhere says so.
+      expect(diagnostics.some((m) => m.includes('no iwePtrId or iweId'))).toBe(
+        true,
+      );
     });
   });
 

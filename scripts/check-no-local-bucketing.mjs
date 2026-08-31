@@ -9,7 +9,14 @@
  * same person a different variant depending on which channel they arrive through. Nothing in the
  * product surfaces it, because each side is internally consistent.
  *
- * This was true of all SDKs by accident before it was a rule. This guard makes it a fact.
+ * This was true of all SDKs by accident before it was a rule. This guard is what keeps it true.
+ *
+ * WHAT IT CAN AND CANNOT PROVE. It is a DENYLIST of names, so it catches bucket derivation
+ * written the way bucket derivation is normally written — a named hashing primitive, a digest
+ * construction, a per-character accumulation, or the platform's bucket modulus. It cannot prove
+ * ABSENCE: arithmetic that avoids every listed name still passes, and no pattern list closes that.
+ * A reduce over `codePointAt` taking `% 100` was the specific hole this list was widened to cover.
+ * Treat a green run as "nothing recognisable slipped in", not as a proof, and read the diff.
  *
  * Zero dependencies, so it runs before install and on a machine that cannot build this SDK.
  *
@@ -42,6 +49,14 @@ const PATTERNS = [
   [
     /createHash|MessageDigest|hashlib|CryptoKit|\bDigest\b/,
     'a hash construction',
+  ],
+  // Hand-rolled string hashing, which is what a local bucket looks like when nobody imports a
+  // hash library: accumulate character codes, then take a modulus. Named because the list above
+  // caught only borrowed primitives and the platform's own 10000 modulus — a `codePointAt`
+  // reduce taking `% 100` passed clean, which is exactly the shape someone reaches for.
+  [
+    /\bcharCodeAt\b|\bcodePointAt\b|\bhashCode\b|\bunicodeScalars\b|\bord\s*\(/,
+    'per-character accumulation, the shape of a hand-rolled hash',
   ],
 ];
 

@@ -19,7 +19,7 @@ import { GroupModel } from './models/group.model.ts';
 import { TrackModel } from './models/track.model.ts';
 import { RecordModel } from './models/record.model.ts';
 import { AliasModel } from './models/alias.model.ts';
-import { dispatchIntemptEvent } from '../shared/shared.utils.ts';
+import { detectDevice, dispatchIntemptEvent } from '../shared/shared.utils.ts';
 import { localStorageCache } from '../shared/storageHandler.ts';
 import { ConsentModel } from './models/consent.model.ts';
 import { ChoicesModule } from './modules/choices/choices.module.ts';
@@ -411,6 +411,19 @@ export class IntemptJs extends IntemptJsGuard {
    *
    * Ask for a KEY, never a mode. Whether the key names an experiment, a personalization or a flag
    * is the platform's business: its serving query filters on channel and status and never on mode.
+   *
+   * Gated on `isUserOptIn()` like every other public method that talks to the platform — see
+   * `_chooseOrEmpty`. An opted-out visitor gets `defaultValue` and no request is made.
+   *
+   * KNOWN LIMITATION, accepted deliberately: an unassigned key and an unreachable service are
+   * indistinguishable here. `choose-api` answers `200 {"choices":[]}` for a person with no
+   * assignment, and a transport failure also yields no choices, so both resolve to
+   * `defaultValue`. That ambiguity is the objection recorded in
+   * `intempt-swift/docs/SDK-API-CONTRACT.md` (decided 2026-08-15) against shipping this surface
+   * at all. It is accepted rather than answered because the consequence is bounded: the caller
+   * always receives the value they nominated, which is the behaviour a kill switch needs in both
+   * cases. Telling the two apart needs a `reason` on the wire; when the serving contract carries
+   * one, `_variationDetail` becomes public and the ambiguity goes away.
    */
   async variation<T>(
     key: string,
@@ -457,7 +470,18 @@ export class IntemptJs extends IntemptJsGuard {
     };
   }
 
-  /** Every key assigned to this person, in one call. */
+  /**
+   * Every key assigned to this person, in one call.
+   *
+   * OPEN, owner: platform. `EXP-SERVE-003` says every evaluation reports an exposure. If that is
+   * honoured server-side, one `allFlags` call on page load records an exposure for every
+   * experiment the person is in — including ones the page never renders — which inflates the live
+   * denominator of each. The other SDKs need the same answer: either a non-recording route or an
+   * `exposure: false` flag on the request. Until there is one, prefer `variation` per key at the
+   * point the value is actually used.
+   *
+   * Gated on `isUserOptIn()` via `_chooseOrEmpty`; an opted-out visitor gets `{}`.
+   */
   async allFlags(context: FlagContext): Promise<Record<string, unknown>> {
     const out: Record<string, unknown> = {};
     for (const choice of await this._chooseOrEmpty(context, undefined)) {
@@ -504,6 +528,11 @@ export class IntemptJs extends IntemptJsGuard {
    * Present so the cross-SDK surface is the same everywhere, and so a caller porting from an SDK
    * that polls a local flag store does not have to remove the call. Evaluation is remote: each
    * `variation` is a request, so there is no local state to wait for.
+   *
+   * `timeoutMs` is ACCEPTED AND IGNORED, on purpose: it exists so the ported call site compiles
+   * unchanged. There is nothing to time out on, so no value of it can change the outcome. It is
+   * not dropped from the signature because removing it would break exactly the callers this
+   * method exists for.
    */
   async waitForInitialization(timeoutMs?: number): Promise<void> {
     void timeoutMs;
@@ -515,6 +544,17 @@ export class IntemptJs extends IntemptJsGuard {
    * This is the entire reason `defaultValue` is required: a network failure, a 5xx or a timeout
    * must resolve to the value the caller chose. A flag SDK that throws when the service is
    * unreachable takes the page down with it, which is the opposite of what a kill switch is for.
+   *
+   * THE ONE PLACE the flag surface talks to the platform, which is why the opt-out gate lives
+   * here rather than repeated in five methods.
+   *
+   * AUTH, UNRESOLVED — owner: Sid (decision D4). This authenticates from the browser with the
+   * public `writeKey`, the same credential `choose-web` uses. `EXP-SERVE-004` (Critical) requires
+   * the SDK-surface evaluation endpoint to take a SERVER credential while the browser path stays
+   * on the public key. If that lands as written, every `variation()` call already shipped in a
+   * customer's page starts returning `defaultValue` behind a 401 — silently, because a non-2xx is
+   * absorbed here by design. Either `choose-api` keeps accepting the public key from a browser
+   * origin, or this surface needs a browser-specific route. Not settled in this PR.
    */
   private async _chooseOrEmpty(
     context: FlagContext,
@@ -522,9 +562,13 @@ export class IntemptJs extends IntemptJsGuard {
   ): Promise<
     Array<{ name?: string; group?: unknown; body?: unknown; reason?: unknown }>
   > {
+    // An evaluation reports an exposure (`EXP-SERVE-003`), and this request carries the
+    // visitor's `profileId` and `userId`. Both are tracking, so an opted-out visitor must
+    // produce no request at all — not merely a discarded response. Every caller of this method
+    // already has a caller-nominated default to fall back to.
+    if (!this.isUserOptIn()) return [];
+
     const { organization, sourceId, project, writeKey } = this._config;
-    const url = `${this._api}/${organization}/projects/${project}/optimization/choose-api`;
-    const [username, password] = writeKey.split('.');
 
     const identification: Record<string, unknown> = { sourceId };
     // The profile id the SDK already holds, unless the caller supplied one. It is the value that
@@ -534,10 +578,24 @@ export class IntemptJs extends IntemptJsGuard {
     if (profileId) identification.profileId = profileId;
     if (context?.userId) identification.userId = context.userId;
 
-    const body: Record<string, unknown> = { identification, device: 'all' };
+    // The real device, not `all`. The serving query filters on it
+    // (`and (device is null or device = 'ALL' or device = '<DEVICE>')`), so `all` matched every
+    // row and a mobile-only experience evaluated true for a desktop visitor here while
+    // `choose-web` correctly withheld it. Same helper as `choose-web`, so the two channels
+    // cannot drift.
+    const body: Record<string, unknown> = {
+      identification,
+      device: detectDevice(),
+    };
     if (names) body.names = names;
 
     try {
+      // Inside the try with the request: this method's contract is that transport-class
+      // failures resolve rather than throw, and `split`/`btoa` are part of building the
+      // request. `btoa` throws `InvalidCharacterError` on a non-Latin1 key, which outside the
+      // try would escape past a caller who was promised a default.
+      const [username, password] = String(writeKey ?? '').split('.');
+      const url = `${this._api}/${organization}/projects/${project}/optimization/choose-api`;
       const response = await fetch(url, {
         method: 'POST',
         headers: {

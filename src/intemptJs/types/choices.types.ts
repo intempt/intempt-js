@@ -119,6 +119,8 @@ export type SelectionPtr = {
   _name: string;
   _blockId: BlockId;
   _iweId: string;
+  /** See {@link XPtr._iwePtrId}. Optional for the same reason. */
+  _iwePtrId?: string;
   _xPathSelector: string;
   _xPathIndex: number;
   _text: string | null;
@@ -134,6 +136,12 @@ export type Modification = {
     [p: string]: string;
   };
   iweId: string;
+  /**
+   * See {@link XPtr._iwePtrId}. Declared here so `markPointersFromChanges` can read it off a
+   * change without an `as unknown as` cast — the cast silenced the compiler on the one field
+   * whose absence is the bug this type exists to prevent.
+   */
+  iwePtrId?: string;
   tag: string;
   html: string;
   js: string | undefined;

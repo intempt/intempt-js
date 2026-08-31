@@ -201,4 +201,111 @@ describe('variation', () => {
       ),
     ).toBe(false);
   });
+
+  /**
+   * The privacy gate.
+   *
+   * `intemptJs.ts` states, in the one comment that documents the exception, that `consent()` is
+   * the ONLY public method not gated on `isUserOptIn()` and that "every other public method skips
+   * work while opted out because that work is *tracking*". The flag surface posts the visitor's
+   * `profileId` and `userId`, and `EXP-SERVE-003` says every evaluation records an exposure — so
+   * it is tracking, and shipping it ungated would have made that comment false as well as leaking.
+   *
+   * Asserted as no REQUEST, not merely a discarded response: a request that reaches the platform
+   * has already identified the visitor, whatever the caller does with the answer.
+   */
+  describe('an opted-out visitor', () => {
+    const optedOut = () => {
+      const s = sdk();
+      s.optOut();
+      return s;
+    };
+
+    const noChooseApi = (fetchMock: ReturnType<typeof respond>) =>
+      expect(
+        fetchMock.mock.calls.some(([u]) =>
+          String(u).includes('/optimization/choose-api'),
+        ),
+        'an opted-out visitor must produce no evaluation request',
+      ).toBe(false);
+
+    it.each([
+      ['variation', (s: ReturnType<typeof sdk>) => s.variation('k', CTX, 'd')],
+      [
+        'boolVariation',
+        (s: ReturnType<typeof sdk>) => s.boolVariation('k', CTX, true),
+      ],
+      [
+        'stringVariation',
+        (s: ReturnType<typeof sdk>) => s.stringVariation('k', CTX, 'd'),
+      ],
+      [
+        'numberVariation',
+        (s: ReturnType<typeof sdk>) => s.numberVariation('k', CTX, 7),
+      ],
+      ['allFlags', (s: ReturnType<typeof sdk>) => s.allFlags(CTX)],
+    ])('%s makes no request', async (_name, call) => {
+      // The mock would answer if it were asked, so a default coming back is only meaningful
+      // alongside the assertion that nothing was sent.
+      const fetchMock = respond({ choices: [{ name: 'k', body: 'served' }] });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await call(optedOut());
+
+      noChooseApi(fetchMock);
+    });
+
+    it('still returns the caller’s default rather than undefined', async () => {
+      vi.stubGlobal(
+        'fetch',
+        respond({ choices: [{ name: 'k', body: 'served' }] }),
+      );
+      const s = optedOut();
+
+      await expect(s.variation('k', CTX, 'd')).resolves.toBe('d');
+      await expect(s.boolVariation('k', CTX, true)).resolves.toBe(true);
+      await expect(s.numberVariation('k', CTX, 7)).resolves.toBe(7);
+      await expect(s.allFlags(CTX)).resolves.toEqual({});
+    });
+  });
+
+  it('sends the real device, the same one choose-web derives', async () => {
+    // `device` is spliced into the serving query's
+    // `and (device is null or device = 'ALL' or <clause>)` predicate. `all` compiles to `1`, so
+    // it matched every row and a MOBILE-only experience evaluated true for a desktop visitor
+    // here while choose-web correctly withheld it — the same person served differently by
+    // channel, silently.
+    const fetchMock = respond({ choices: [] });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await sdk().variation('k', CTX, 'd');
+
+    // jsdom's default user agent is not a mobile one.
+    expect(JSON.parse(chooseCall(fetchMock)[1].body).device).toBe('desktop');
+  });
+
+  it('derives mobile from a mobile user agent', async () => {
+    const fetchMock = respond({ choices: [] });
+    vi.stubGlobal('fetch', fetchMock);
+    vi.stubGlobal('navigator', {
+      userAgent:
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15',
+    });
+
+    await sdk().variation('k', CTX, 'd');
+
+    expect(JSON.parse(chooseCall(fetchMock)[1].body).device).toBe('mobile');
+  });
+
+  it('resolves rather than throwing when the write key cannot be base64-encoded', async () => {
+    // `btoa` throws InvalidCharacterError on a non-Latin1 string. Building the Authorization
+    // header sits inside the try with the request precisely so this reaches the caller as their
+    // default, which is what the method's contract promises for every transport-class failure.
+    vi.stubGlobal('btoa', () => {
+      throw new DOMException('bad char', 'InvalidCharacterError');
+    });
+    vi.stubGlobal('fetch', respond({ choices: [{ name: 'k', body: 'x' }] }));
+
+    await expect(sdk().variation('k', CTX, 'safe')).resolves.toBe('safe');
+  });
 });

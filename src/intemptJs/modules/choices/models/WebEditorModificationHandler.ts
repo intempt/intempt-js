@@ -1,16 +1,22 @@
 import { Modification } from '../../../types/choices.types.ts';
 
 /**
- * The attribute name a pointer was stamped with, resolved the SAME way the stamper resolves it.
+ * The attribute name a pointer is stamped with, and the attribute name it is looked up by.
  *
- * `markPointersFromChanges` prefers `iwePtrId` over `iweId` and stamps that name onto the element.
- * Every lookup here has to make the identical choice, or it queries an attribute that was never
- * written and the change silently disappears.
+ * ONE function, called by BOTH sides. `ChoicesModule.markPointersFromChanges` stamps
+ * `pointerAttr(p)` onto the element and this handler queries `[pointerAttr(p)="true"]`. When the
+ * two were separate expressions they could disagree about precedence, and a disagreement is
+ * invisible: the lookup resolves to `null` and the handler early-returns without throwing, so the
+ * change vanishes with no error in dev or in production. Sharing the function makes the two
+ * orderings identical by construction rather than by review.
+ *
+ * Prefers the page-scoped `iwePtrId` over `iweId`, because `iweId` is namespaced by variant id so
+ * the same DOM element carries a different one in every variant.
  *
  * Accepts both shapes because a change carries `iweId`/`iwePtrId` while its `parent` and `refNode`
  * pointers carry `_iweId`/`_iwePtrId`.
  */
-function pointerAttr(
+export function pointerAttr(
   p?: {
     iweId?: string;
     iwePtrId?: string;
