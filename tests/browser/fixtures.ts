@@ -30,11 +30,6 @@ import {
 const HOST = 'https://sdk-browser-tier.example.com';
 const CDN = 'https://cdn.intempt.com/v1/intempt.min.js';
 const INGEST = 'https://api.intempt.com/v1';
-const GEO = 'https://ipapi.co/json/';
-
-// Populated only if the SDK regresses and calls the third-party lookup again.
-const thirdPartyGeoCalls: string[] = [];
-
 const BUNDLE = resolve(process.cwd(), 'dist/intempt.min.js');
 
 const CONFIG_QUERY =
@@ -43,8 +38,15 @@ const CONFIG_QUERY =
 export type Harness = {
   /** Every request the page made to ingest, in order, already JSON-parsed. */
   ingested: () => unknown[];
-  /** URLs of any third-party geo lookup the SDK attempted. Must stay empty. */
-  thirdPartyGeoCalls: () => string[];
+  /**
+   * Every URL the SDK requested that no fixture route handles. Must stay empty.
+   *
+   * Not a list of known geo vendors. An earlier version recorded `ipapi.co` alone, so a
+   * lookup pointed at any other host was aborted by the catch-all without ever being
+   * recorded, and the guard passed. This records whatever reaches the catch-all, which by
+   * construction is every host the fixtures do not serve.
+   */
+  unroutedRequests: () => string[];
   /**
    * Wait until an ingest request whose body mentions `name` has landed.
    *
@@ -80,6 +82,7 @@ export const test = base.extend<{ harness: Harness }>({
       const bundle = readBundle();
       const ingested: unknown[] = [];
       const pageErrors: string[] = [];
+      const unroutedRequests: string[] = [];
 
       page.on('pageerror', (error) => pageErrors.push(String(error)));
       page.on('console', (message) => {
@@ -91,7 +94,16 @@ export const test = base.extend<{ harness: Harness }>({
       // handlers or it swallows every request — including the fixture page itself.
       // Anything not matched below must not reach the network: a test that passes by
       // talking to real ingest is worse than one that fails.
-      await page.route('**', (route) => route.abort());
+      // Recorded before aborting. Every specific handler below is registered later and
+      // therefore wins, so a request arriving here is one no fixture serves — which is the
+      // definition of a third-party call, whoever the vendor turns out to be.
+      await page.route('**', (route) => {
+        const url = route.request().url();
+        if (url.startsWith('http://') || url.startsWith('https://')) {
+          unroutedRequests.push(url);
+        }
+        return route.abort();
+      });
 
       await page.route(`${CDN}*`, (route) =>
         route.fulfill({
@@ -184,17 +196,8 @@ ${stub}
         });
       });
 
-      // The SDK must never contact a third-party IP lookup from the end user's
-      // browser. This used to stub that call; it now fails the test if the call
-      // is ever made again. A stub would let a reintroduced lookup pass silently,
-      // which is exactly how the original one survived unnoticed.
-      await page.route(`${GEO}*`, (route) => {
-        thirdPartyGeoCalls.push(route.request().url());
-        return route.abort();
-      });
-
       await use({
-        thirdPartyGeoCalls: () => thirdPartyGeoCalls,
+        unroutedRequests: () => unroutedRequests,
         ingested: () => ingested,
         pageErrors: () => pageErrors,
         waitForEvent: async (name: string) => {

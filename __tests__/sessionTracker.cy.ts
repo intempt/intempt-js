@@ -197,20 +197,16 @@ describe('SessionTrackerModule', () => {
 
       const newTracker = new SessionTrackerModule();
 
-      // Just verify that the tracker is set up and can handle events
-      // The actual session creation depends on async location API calls
       expect(newTracker).to.not.be.undefined;
 
-      // Dispatch a foreground event - it might fail due to location API, but that's OK for this test
-      try {
-        document.dispatchEvent(
-          new CustomEvent('intempt:page', {
-            detail: { eventName: 'View Page' },
-          }),
-        );
-      } catch {
-        // Expected if location API is not available
-      }
+      // No try/catch. `_onNewSession` now awaits only `_getPlatform()`, so the location
+      // call this block used to guard against no longer exists -- catching here would
+      // swallow a real regression and read to the next person as expected flakiness.
+      document.dispatchEvent(
+        new CustomEvent('intempt:page', {
+          detail: { eventName: 'View Page' },
+        }),
+      );
 
       // Verify tracker still works
       const sessionId = newTracker.getId();

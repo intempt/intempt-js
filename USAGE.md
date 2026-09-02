@@ -418,10 +418,17 @@ payloads only:
 > Records created by `consent()` are **never** scrubbed — the email in a consent record
 > is the proof of consent.
 
+This is a different mechanism from `doNotCapture` above: `doNotCapture` hides one
+element's on-screen text, while PII scrubbing filters every outbound payload.
+
 ### Server-side geolocation
 
-On by default. Intempt derives country, region and city from the address the request
-already arrives on — the browser never handles it, and no third party is involved.
+On by default, and the browser never handles the address — no third party is involved.
+
+> **Rolling out.** Server-side derivation ships with `push-source-service#439`. Until that
+> is deployed, this SDK sends no address and the server does not yet derive one, so
+> `country`, `region` and `city` are empty for this source in the interim. The switch below
+> already works and will take effect the moment the server side is live.
 
 To turn it off, add `&use_ip_for_geolocation=false` to the script URL:
 
@@ -437,9 +444,6 @@ reports on those goes empty for this source, so check what depends on them first
 
 Earlier versions of this SDK called `ipapi.co` from the browser on session start and
 sent the resulting address as a user attribute. That call is gone.
-
-This is a different mechanism from `doNotCapture` above: `doNotCapture` hides one
-element's on-screen text, while PII scrubbing filters every outbound payload.
 
 ### Choosing where data is sent (data residency)
 

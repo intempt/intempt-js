@@ -130,11 +130,16 @@ function getIntemptConfig(): IntemptConfig {
     piiScrubbing: readBooleanParam(source.searchParams, 'pii_scrubbing'),
     // Absent means on, matching the platform: the ingestion side treats a missing
     // `?ip=` as "derive location", so an unset switch and an unpatched server agree.
-    // Only `use_ip_for_geolocation=false` turns it off.
-    useIpAddressForGeolocation: readBooleanParam(
-      source.searchParams,
-      'use_ip_for_geolocation',
-    ),
+    //
+    // Both spellings are accepted. The config field and the shipped Android key are
+    // `useIpAddressForGeolocation`, and the two adjacent switches keep the same words in
+    // both forms (`ignore_dnt`, `pii_scrubbing`) -- this is the only one that drops a
+    // word. Someone following the Android docs writes `use_ip_address_for_geolocation`,
+    // which an unrecognised param reads as `undefined`, which the send sites treat as ON:
+    // a silent failure in the privacy-unsafe direction.
+    useIpAddressForGeolocation:
+      readBooleanParam(source.searchParams, 'use_ip_for_geolocation') ??
+      readBooleanParam(source.searchParams, 'use_ip_address_for_geolocation'),
     // `?? undefined` alone is not enough: `.get()` returns `''` (not `null`)
     // for a present-but-empty `?api_host=`, so `?? undefined` never fires and
     // `resolveIngestBaseUrl` receives an empty string instead of falling

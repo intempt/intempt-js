@@ -51,9 +51,12 @@ npm run build:dev        # development, unminified
 npm test                 # cypress run (14 specs, __tests__/**/*.cy.ts)
 ```
 
-There is currently **no lint gate, no unit-test tier, and no typecheck gate
-separate from `build`**. Adding them is Phase 2/5 of the programme above — do not
-be surprised by their absence.
+`ci.yml` runs `unit`, `examples`, `static`, `build`, `audit` and `mutation` on every pull
+request; `browser-tests.yml` runs the Playwright suite on pull requests too, across two
+runners. Lint and typecheck live inside `static`, and `mutation` carries its own threshold.
+
+Read `mutation`'s configured file list before treating it as coverage of your change: it
+mutates a fixed set, so a green score can be silent about every line a PR adds.
 
 ## Branch & deploy model
 
