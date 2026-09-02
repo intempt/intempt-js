@@ -138,6 +138,33 @@ export type ProductParams = {
   quantity?: number;
 };
 
+/**
+ * Why an evaluation returned the value it did.
+ *
+ * Without a reason a caller cannot tell a deliberate off state from a request the service never
+ * answered. These strings are the wire contract, shared with every Intempt SDK.
+ */
+export type FlagReason = 'targeted' | 'holdout' | 'not_targeted' | 'off';
+
+/**
+ * Who is being evaluated.
+ *
+ * Both are optional: the SDK fills in the profile id it already holds when neither is given. That
+ * identifier is present before and after someone signs in, which is what keeps their assignment
+ * stable across the transition.
+ */
+export type FlagContext = {
+  userId?: string;
+  profileId?: string;
+};
+
+/** A value and why it was returned. `variant` is absent when nothing was served. */
+export type FlagDetail<T = unknown> = {
+  value: T;
+  reason: FlagReason;
+  variant?: string;
+};
+
 export type RecommendationParams = {
   id: number;
   quantity: number;

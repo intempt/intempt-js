@@ -80,3 +80,30 @@ export function debounce<A extends unknown[]>(
     timeout = setTimeout(() => func(...args), wait);
   };
 }
+
+/**
+ * The device class this browser reports, as the serving contract spells it.
+ *
+ * ONE implementation on purpose. `choose-web` and `choose-api` are two endpoints against the same
+ * `experience_outbox` rows, and the device the request carries is spliced straight into that
+ * query's `and (device is null or device = 'ALL' or <device clause>)` predicate. Two detections
+ * that disagree therefore serve the same visitor different experiences depending on which channel
+ * they arrived through, silently, because each side is internally consistent.
+ *
+ * Returns the lowercase form `choose-api` expects (`ExperienceDevice` is `all|desktop|mobile`).
+ * `choose-web` sends the uppercase form, so its caller upper-cases this — the wire text differs,
+ * the decision does not.
+ *
+ * This is a device CLASS, not a fingerprint: no entropy is derived from it and nothing is stored.
+ */
+export function detectDevice(): 'mobile' | 'desktop' {
+  const ua =
+    typeof navigator !== 'undefined' && navigator.userAgent
+      ? navigator.userAgent
+      : '';
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+    ua,
+  )
+    ? 'mobile'
+    : 'desktop';
+}
