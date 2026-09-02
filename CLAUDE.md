@@ -48,12 +48,27 @@ session trusts it.
 npm run build            # production (tsc && vite build --mode production)
 npm run build:staging    # staging, unminified
 npm run build:dev        # development, unminified
-npm test                 # cypress run (14 specs, __tests__/**/*.cy.ts)
+npm test                 # cypress run (__tests__/**/*.cy.ts)
+npm run test:unit        # vitest, tests/unit/**/*.test.ts
+npm run test:coverage    # vitest + the per-glob thresholds in vitest.config.ts
+npm run test:mutation    # stryker, the narrow scope in stryker.conf.json
+npm run lint             # eslint . --max-warnings=0
+npm run format:check     # prettier --check .
 ```
 
-There is currently **no lint gate, no unit-test tier, and no typecheck gate
-separate from `build`**. Adding them is Phase 2/5 of the programme above — do not
-be surprised by their absence.
+**These are gates, and they run on every push and every PR into `main`/`staging`**
+(`.github/workflows/ci.yml`): unit tests + coverage on Node 22 and 24, lint,
+prettier, typedoc, `tsc` via `build`, bundle size, secret scan, `npm audit`,
+mutation score, server-only-bucketing, and Cypress on PRs.
+
+This paragraph used to say there was **no lint gate, no unit-test tier, and no
+typecheck gate separate from `build`**. That was true before `ci.yml` landed and
+is not true now. It is corrected in place rather than annotated because a stale
+"these do not exist" is worse than silence — it tells the next reader not to
+bother looking, and they then write code expecting nothing to catch it.
+
+Note that `npm run build` is still the only typecheck: `tsc` is not wired to a
+script of its own.
 
 ## Branch & deploy model
 

@@ -10,6 +10,7 @@ import { ChoicesRequestModel } from './models/choicesRequest.model.ts';
 import { AuthRequest } from '../../models/auth.model.ts';
 import { AuthConfig, IntemptVariables } from '../../types/intemptJs.types.ts';
 import { localStorageCache } from '../../../shared/storageHandler.ts';
+import { detectDevice } from '../../../shared/shared.utils.ts';
 import { EnvConfig } from '../../../shared/envConfig.ts';
 
 import { createLogger } from '../../../shared/logger/logger.ts';
@@ -82,11 +83,11 @@ export const ChoicesService = {
     const project = config.project;
     const sourceId = config.sourceId;
     const url = location.href;
-    const deviceCondition =
-      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-        navigator.userAgent,
-      );
-    const device = deviceCondition ? 'MOBILE' : 'DESKTOP';
+    // Shared with `choose-api` (`IntemptJs._chooseOrEmpty`) rather than duplicated. Both
+    // endpoints filter the same `experience_outbox` rows on this value, so two detections that
+    // disagree serve the same visitor differently by channel. `choose-web` sends the uppercase
+    // form; the decision is identical.
+    const device = detectDevice().toUpperCase();
     const [username, password] = config.writeKey
       ? config.writeKey.split('.')
       : [null, null];
