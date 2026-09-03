@@ -29,7 +29,6 @@ describe('SDK Loader - Stub Functionality', () => {
       group: cy.stub(),
       track: cy.stub(),
       record: cy.stub(),
-      alias: cy.stub(),
       consent: cy.stub(),
       productAdd: cy.stub(),
       productOrdered: cy.stub(),
@@ -313,10 +312,6 @@ describe('SDK Loader - Stub Functionality', () => {
         { method: 'identify', args: [{ userId: 'user' }] },
         { method: 'group', args: [{ accountId: 'account' }] },
         { method: 'record', args: [{ eventTitle: 'Record' }] },
-        {
-          method: 'alias',
-          args: [{ userId: 'user1', anotherUserId: 'user2' }],
-        },
         {
           method: 'consent',
           args: [{ action: 'accept', validUntil: Date.now() }],

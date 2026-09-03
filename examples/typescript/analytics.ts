@@ -78,12 +78,6 @@ export function group(
   safely('group', () => s.group({ accountId, eventTitle, accountAttributes }));
 }
 
-export function alias(userId: string, anotherUserId: string): void {
-  const s = sdk();
-  if (!s) return;
-  safely('alias', () => s.alias({ userId, anotherUserId }));
-}
-
 /**
  * Records a consent decision as an event. It does NOT stop collection — call `optOut()`
  * for that. Gated on the opt-out flag itself, so a re-consent flow must `optIn()` first

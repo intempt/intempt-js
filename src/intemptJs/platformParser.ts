@@ -1,6 +1,5 @@
-import { DeviceType, LocationApi } from './types/autoTracker.types.ts';
+import { DeviceType } from './types/autoTracker.types.ts';
 import { DeviceTypeName } from './types/constants.types.ts';
-import { EnvConfig } from '../shared/envConfig.ts';
 
 export class PlatformParser {
   defaultPlatform = 'Unknown';
@@ -321,38 +320,6 @@ export class PlatformParser {
       // The parse failed on an exotic UA; the default platform is the answer, and
       // the error object was never read. `catch {}` says that.
       return this.defaultPlatform;
-    }
-  }
-
-  protected async _getLocation(): Promise<LocationApi> {
-    const locationApiUrl = EnvConfig.getLocationApiUrl();
-
-    if (!locationApiUrl) {
-      return {
-        ip: '',
-        region: '',
-        city: '',
-        country: '',
-      };
-    }
-
-    try {
-      const response = await fetch(locationApiUrl);
-      const data = await response.json();
-      const { ip, region, city, country_name } = data;
-      return {
-        ip: ip ?? '',
-        region: region ?? '',
-        city: city ?? '',
-        country: country_name ?? '',
-      };
-    } catch {
-      return {
-        ip: '',
-        region: '',
-        city: '',
-        country: '',
-      };
     }
   }
 

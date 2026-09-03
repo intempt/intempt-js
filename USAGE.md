@@ -32,7 +32,6 @@ There's no constructor — your account settings go in the SDK URL's query param
       'group',
       'track',
       'record',
-      'alias',
       'consent',
       'productAdd',
       'productOrdered',
@@ -114,18 +113,17 @@ other origins.
 
 ```
 script-src  'self' https://cdn.intempt.com;
-connect-src 'self' https://api.intempt.com https://ipapi.co;
+connect-src 'self' https://api.intempt.com;
 img-src     'self' data: https://cdn.intempt.com;
 style-src   'self' 'unsafe-inline';
 ```
 
-| Directive                             | Why the SDK needs it                                                                                                                               |
-| ------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `script-src https://cdn.intempt.com`  | Where the SDK bundle is served from. Also the origin of the visual web editor, which the SDK loads on demand.                                      |
-| `connect-src https://api.intempt.com` | Event ingest and the recommendations API.                                                                                                          |
-| `connect-src https://ipapi.co`        | Geo/IP enrichment. **If you don't want this call, block this origin** — the SDK degrades to sending events without geo fields rather than failing. |
-| `img-src data:`                       | Inline image data used by rendered experiences.                                                                                                    |
-| `style-src 'unsafe-inline'`           | **Only if you use experiences/recommendations that restyle the page.** If you use the SDK for event tracking alone, drop it.                       |
+| Directive                             | Why the SDK needs it                                                                                                         |
+| ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `script-src https://cdn.intempt.com`  | Where the SDK bundle is served from. Also the origin of the visual web editor, which the SDK loads on demand.                |
+| `connect-src https://api.intempt.com` | Event ingest and the recommendations API.                                                                                    |
+| `img-src data:`                       | Inline image data used by rendered experiences.                                                                              |
+| `style-src 'unsafe-inline'`           | **Only if you use experiences/recommendations that restyle the page.** If you use the SDK for event tracking alone, drop it. |
 
 Two practical notes:
 
@@ -230,12 +228,6 @@ window.intempt.identify({
   userAttributes: { email: 'user@example.com', plan: 'premium' },
   data: { signupSource: 'homepage' },
 });
-```
-
-If the same person was anonymous before logging in, link the two IDs with `alias`:
-
-```javascript
-window.intempt.alias({ userId: 'anon_abc', anotherUserId: 'user_123' });
 ```
 
 To associate the user with a company/account, use `group`:
@@ -421,6 +413,30 @@ payloads only:
 
 This is a different mechanism from `doNotCapture` above: `doNotCapture` hides one
 element's on-screen text, while PII scrubbing filters every outbound payload.
+
+### Server-side geolocation
+
+On by default, and the browser never handles the address — no third party is involved.
+
+> **Rolling out.** Server-side derivation ships with `push-source-service#439`. Until that
+> is deployed, this SDK sends no address and the server does not yet derive one, so
+> `country`, `region` and `city` are empty for this source in the interim. The switch below
+> already works and will take effect the moment the server side is live.
+
+To turn it off, add `&use_ip_for_geolocation=false` to the script URL:
+
+```html
+<script
+  async
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=…&use_ip_for_geolocation=false"
+></script>
+```
+
+With it off, events carry no `country`, `region` or `city`. Anything that segments or
+reports on those goes empty for this source, so check what depends on them first.
+
+Earlier versions of this SDK called `ipapi.co` from the browser on session start and
+sent the resulting address as a user attribute. That call is gone.
 
 ### Choosing where data is sent (data residency)
 

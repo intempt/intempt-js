@@ -38,7 +38,7 @@ const STUB = `
 (function () {
   if (window.intempt) return;
   var queue = [], pending = [];
-  var methods = ['identify','group','track','record','alias','consent',
+  var methods = ['identify','group','track','record','consent',
                  'productAdd','productOrdered','productView','logOut',
                  'optIn','optOut','isUserOptIn','recommendation'];
   var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };

@@ -128,3 +128,45 @@ test('flushes on page hide rather than losing the batch', async ({
     })
     .toBeGreaterThan(0);
 });
+
+// The removal of the browser-side IP lookup is the whole point of this change, and until
+// now nothing checked it. `fixtures.ts` routes the third-party host and records any call,
+// with a comment saying the test fails if one is made — but no spec read the recorder, so
+// the guard could not fail and the comment was not true. This is the read.
+//
+// It asserts on every host no fixture serves, not on a list of known geo vendors. Recording
+// `ipapi.co` by name was worse than useless: the catch-all aborted every other host without
+// recording it, so a lookup moved to any other vendor passed. That was demonstrated, not
+// assumed — a reintroduced call to a different vendor went green across the whole suite.
+//
+// It runs against the built bundle rather than the source, which matters: the source could
+// stop referencing the lookup while a stale `dist/` still shipped it, and that is the
+// artifact a customer actually loads.
+test('never contacts a third-party IP lookup from the browser', async ({
+  page,
+  harness,
+}) => {
+  await loadSdk(page);
+
+  // `track` rejects a bare string — the guard requires `{ eventTitle, data }`, and the
+  // whole point of the browser tier is calling it the way a customer must.
+  await page.evaluate(() =>
+    window.intempt?.track({
+      eventTitle: 'geo guard',
+      data: { tier: 'browser' },
+    }),
+  );
+  await harness.waitForEvent('geo guard');
+  await page.goto(`${HOST}/second-page`, { waitUntil: 'load' });
+
+  expect(
+    harness.unroutedRequests(),
+    'the SDK reached a host no fixture serves, from the end user browser',
+  ).toEqual([]);
+
+  // Near-redundant, not load-bearing: `loadSdk()` above already waits for
+  // `typeof window.intempt !== 'undefined'`, so a bundle that failed to load would
+  // have failed there, before the unroutedRequests() assertion. This just narrows
+  // 'not undefined' to 'object'.
+  expect(await page.evaluate(() => typeof window.intempt)).toBe('object');
+});

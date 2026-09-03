@@ -191,38 +191,22 @@ describe('SessionTrackerModule', () => {
     it('should create new session on foreground event', () => {
       clearCookies();
 
-      // Mock import.meta.env to avoid location API error
-      const _originalImportMeta = (globalThis as any).import?.meta;
-      if (!(globalThis as any).import) {
-        (globalThis as any).import = {
-          meta: { env: { VITE_LOCATION_API_URL: '' } },
-        };
-      } else if (!(globalThis as any).import.meta) {
-        (globalThis as any).import.meta = {
-          env: { VITE_LOCATION_API_URL: '' },
-        };
-      } else if (!(globalThis as any).import.meta.env) {
-        (globalThis as any).import.meta.env = { VITE_LOCATION_API_URL: '' };
-      } else {
-        (globalThis as any).import.meta.env.VITE_LOCATION_API_URL = '';
-      }
+      // The import.meta.env shim that used to live here existed only to stop the
+      // location API call erroring during the test. That call is gone, so the
+      // shim is too.
 
       const newTracker = new SessionTrackerModule();
 
-      // Just verify that the tracker is set up and can handle events
-      // The actual session creation depends on async location API calls
       expect(newTracker).to.not.be.undefined;
 
-      // Dispatch a foreground event - it might fail due to location API, but that's OK for this test
-      try {
-        document.dispatchEvent(
-          new CustomEvent('intempt:page', {
-            detail: { eventName: 'View Page' },
-          }),
-        );
-      } catch {
-        // Expected if location API is not available
-      }
+      // No try/catch. `_onNewSession` now awaits only `_getPlatform()`, so the location
+      // call this block used to guard against no longer exists -- catching here would
+      // swallow a real regression and read to the next person as expected flakiness.
+      document.dispatchEvent(
+        new CustomEvent('intempt:page', {
+          detail: { eventName: 'View Page' },
+        }),
+      );
 
       // Verify tracker still works
       const sessionId = newTracker.getId();
@@ -281,7 +265,6 @@ describe('SessionTrackerModule', () => {
         'intempt:track',
         'intempt:group',
         'intempt:record',
-        'intempt:alias',
         'intempt:product',
         'intempt:logOut',
         'intempt:consent',

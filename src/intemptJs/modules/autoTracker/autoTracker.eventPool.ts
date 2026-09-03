@@ -1,6 +1,7 @@
 import { IntemptConfig } from '../../types/intemptJs.types.ts';
 import { debounce } from '../../../shared/shared.utils.ts';
 import { createLogger } from '../../../shared/logger/logger.ts';
+import { buildTrackUrl } from './autoTracker.url.ts';
 
 const log = createLogger('AutoTracker');
 
@@ -86,9 +87,9 @@ export class AutoTrackerEventPool {
 
     this.clear();
 
-    const { organization, sourceId, project, writeKey } = this._config;
+    const { writeKey } = this._config;
 
-    const url = `${this._api}/${organization}/projects/${project}/sources/${sourceId}/track`;
+    const url = buildTrackUrl(this._api, this._config);
 
     const [username, password] = writeKey.split('.');
 

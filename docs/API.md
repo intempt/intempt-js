@@ -18,7 +18,7 @@ they will not change silently.
 - [Installing](#installing)
 - [Configuration](#configuration)
 - [Two rules that apply to every method](#two-rules-that-apply-to-every-method)
-- [Identity: `identify`, `alias`, `group`](#identity)
+- [Identity: `identify`, `group`](#identity)
 - [Events: `track`, `record`](#events)
 - [Consent and opt-out: `consent`, `optIn`, `optOut`, `isUserOptIn`](#consent-and-opt-out)
 - [Commerce: `productAdd`, `productView`, `productOrdered`](#commerce)
@@ -50,7 +50,6 @@ install method.
       'group',
       'track',
       'record',
-      'alias',
       'consent',
       'productAdd',
       'productOrdered',
@@ -208,30 +207,6 @@ Checks, in order:
 
 Note that the reserved-title check runs _before_ the `userId` check: a call with both a
 reserved title and no `userId` reports the title.
-
-### `alias(params)`
-
-Links two identifiers for the same person — typically an anonymous ID captured before
-signup and the authenticated ID issued after it.
-
-```javascript
-window.intempt.alias({ userId: 'anon_abc', anotherUserId: 'user_123' });
-```
-
-| Field           | Type     | Required | Notes                                                                |
-| --------------- | -------- | -------- | -------------------------------------------------------------------- |
-| `userId`        | `string` | yes      | Rejected only if `undefined` or `null`. An empty string is accepted. |
-| `anotherUserId` | `string` | yes      | Same rule.                                                           |
-
-Checks, in order:
-
-1. Empty `params` → `Parameters for the 'alias' method are required.`
-2. `userId` `undefined`/`null` → `Alias parameters are invalid: userId is required.`
-3. `anotherUserId` `undefined`/`null` →
-   `Alias parameters are invalid: anotherUserId is required.`
-
-`alias` does not take an `eventTitle` and attaches no session or page ID — only the
-profile ID.
 
 ### `group(params)`
 
@@ -546,7 +521,6 @@ mirror analytics into your own tooling without patching the SDK.
 | `intempt:identify` | `{ eventName }`                | `identify()`                                        |
 | `intempt:group`    | `{ eventName }`                | `group()`                                           |
 | `intempt:record`   | `{ eventName }`                | `record()`                                          |
-| `intempt:alias`    | `{ eventName }`                | `alias()`                                           |
 | `intempt:consent`  | `{ eventName }`                | `consent()`                                         |
 | `intempt:product`  | `{ eventName }`                | `productAdd()`, `productView()`, `productOrdered()` |
 | `intempt:logOut`   | `{ eventName: 'Log Out' }`     | `logOut()`                                          |

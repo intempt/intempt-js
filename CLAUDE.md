@@ -70,6 +70,9 @@ bother looking, and they then write code expecting nothing to catch it.
 Note that `npm run build` is still the only typecheck: `tsc` is not wired to a
 script of its own.
 
+Read `mutation`'s configured file list before treating it as coverage of your change: it
+mutates a fixed set, so a green score can be silent about every line a PR adds.
+
 ## Branch & deploy model
 
 `feature branch` → `staging` → `main`. **Production deploys only from `main`**
