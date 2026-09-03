@@ -4,7 +4,10 @@ import {
   XPtr,
 } from '../../types/choices.types.ts';
 import { ChoicesService } from './choices.service.ts';
-import { WebEditorModificationHandler } from './models/WebEditorModificationHandler.ts';
+import {
+  pointerAttr,
+  WebEditorModificationHandler,
+} from './models/WebEditorModificationHandler.ts';
 
 import { createLogger } from '../../../shared/logger/logger.ts';
 
@@ -81,13 +84,18 @@ export class ChoicesModule {
     }
   }
 
+  /**
+   * Returns nothing on purpose. It used to hand back the `{ el, iweId }` pairs it stamped and
+   * `_applyChanges`, its only caller, discarded them — so the list existed solely for tests to
+   * assert on, and a test asserting a value production never reads proves nothing about
+   * production. The stamped DOM is the output; that is what the assertions read now.
+   */
   private markPointersFromChanges(
     changes: unknown[],
     resolver = ChoicesService.elementGetterByXpath,
-  ): Array<{ el: HTMLElement; iweId: string }> {
+  ): void {
     const cache = new Map<string, HTMLElement | null>();
     const seen = new Set<string>();
-    const out: Array<{ el: HTMLElement; iweId: string }> = [];
 
     for (const change of changes) {
       // D-7: this pass used to run entirely outside the per-change try/catch
@@ -106,26 +114,60 @@ export class ChoicesModule {
             _xPathSelector: c.xPathSelector,
             _xPathIndex: c.xPathIndex,
             _iweId: c.iweId,
+            _iwePtrId: c.iwePtrId,
           } as XPtr,
         ].filter(Boolean);
 
         for (const p of pointers) {
-          const key = `${p._xPathSelector}|${p._xPathIndex}`;
-          if (seen.has(key)) continue;
+          // The attribute we are about to stamp, resolved by the SAME function the handler
+          // looks it up with. Not a second expression that happens to agree — see
+          // `pointerAttr`.
+          const attr = pointerAttr(p);
 
-          let el = cache.get(key);
+          // A pointer with no usable attribute name cannot be stamped or looked up. The
+          // self-pointer built above is always truthy even when `iweId` is undefined, so
+          // `.filter(Boolean)` does not catch this; without the guard it stamped a literal
+          // attribute called "undefined" that every such change then shared.
+          //
+          // Logged, not skipped in silence: an unstampable pointer means that change will not
+          // apply, and a change vanishing with no trace is the exact defect class this commit
+          // exists to remove.
+          if (!attr) {
+            log.warn(
+              'pointer has no iwePtrId or iweId; its change cannot be applied',
+              { change: c, pointer: p },
+            );
+            continue;
+          }
+
+          // The element cache is keyed by POSITION - resolving the same xPath twice is
+          // wasted work.
+          const posKey = `${p._xPathSelector}|${p._xPathIndex}`;
+
+          // Dedupe is keyed by POSITION + ATTRIBUTE, and that distinction is the whole fix.
+          //
+          // `seen` exists to avoid stamping the same attribute on the same element twice. It
+          // was keyed on position alone, which silently meant "one attribute per element per
+          // page". Two changes pointing at the same element with different `iweId`s - which
+          // is every pair of variants, and every pair of live experiences sharing a container
+          // - stamped only the first. The second's handler then resolved `[attr="true"]` to
+          // null and early-returned without throwing, so the change vanished with no error
+          // in dev or production.
+          const stampKey = `${posKey}|${attr}`;
+          if (seen.has(stampKey)) continue;
+
+          let el = cache.get(posKey);
           if (el === undefined) {
             el = resolver({
               xPathSelector: p._xPathSelector,
               xPathIndex: p._xPathIndex,
             }) as HTMLElement | null;
-            cache.set(key, el ?? null);
+            cache.set(posKey, el ?? null);
           }
           if (!el) continue;
 
-          el.setAttribute(p._iweId, 'true');
-          out.push({ el, iweId: p._iweId });
-          seen.add(key);
+          el.setAttribute(attr, 'true');
+          seen.add(stampKey);
         }
       } catch (error) {
         log.warn(
@@ -134,7 +176,5 @@ export class ChoicesModule {
         );
       }
     }
-
-    return out;
   }
 }

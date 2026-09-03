@@ -1,6 +1,9 @@
 import { AutoTrackerModule } from './modules/autoTracker/autoTracker.module.ts';
 import {
   ConsentParams,
+  FlagContext,
+  FlagDetail,
+  FlagReason,
   GroupParams,
   IdentifyParams,
   IntemptConfig,
@@ -14,7 +17,7 @@ import { IdentifyModel } from './models/identify.model.ts';
 import { GroupModel } from './models/group.model.ts';
 import { TrackModel } from './models/track.model.ts';
 import { RecordModel } from './models/record.model.ts';
-import { dispatchIntemptEvent } from '../shared/shared.utils.ts';
+import { detectDevice, dispatchIntemptEvent } from '../shared/shared.utils.ts';
 import { localStorageCache } from '../shared/storageHandler.ts';
 import { ConsentModel } from './models/consent.model.ts';
 import { ChoicesModule } from './modules/choices/choices.module.ts';
@@ -373,6 +376,221 @@ export class IntemptJs extends IntemptJsGuard {
     dispatchIntemptEvent('intempt:logOut', {
       eventName: 'Log Out',
     });
+  }
+
+  /**
+   * The value assigned to this person for `key`, or `defaultValue` if the service did not answer.
+   *
+   * This is the CODE path, distinct from the visual-editor path the rest of this SDK serves. The
+   * `ChoicesModule` fetches from `choose-web` and applies changes against the DOM without the
+   * caller branching; `variation` reads `choose-api` and hands back a value the caller branches on.
+   * Both are legitimate and they are not interchangeable — a React component gated on a flag needs
+   * a branch, not a DOM mutation.
+   *
+   * `choose-web` is deliberately untouched by this addition, so the visual editor keeps working
+   * exactly as it does today.
+   *
+   * Ask for a KEY, never a mode. Whether the key names an experiment, a personalization or a flag
+   * is the platform's business: its serving query filters on channel and status and never on mode.
+   *
+   * Gated on `isUserOptIn()` like every other public method that talks to the platform — see
+   * `_chooseOrEmpty`. An opted-out visitor gets `defaultValue` and no request is made.
+   *
+   * KNOWN LIMITATION, accepted deliberately: an unassigned key and an unreachable service are
+   * indistinguishable here. `choose-api` answers `200 {"choices":[]}` for a person with no
+   * assignment, and a transport failure also yields no choices, so both resolve to
+   * `defaultValue`. That ambiguity is the objection recorded in
+   * `intempt-swift/docs/SDK-API-CONTRACT.md` (decided 2026-08-15) against shipping this surface
+   * at all. It is accepted rather than answered because the consequence is bounded: the caller
+   * always receives the value they nominated, which is the behaviour a kill switch needs in both
+   * cases. Telling the two apart needs a `reason` on the wire; when the serving contract carries
+   * one, `_variationDetail` becomes public and the ambiguity goes away.
+   */
+  async variation<T>(
+    key: string,
+    context: FlagContext,
+    defaultValue: T,
+  ): Promise<T> {
+    const detail = await this._variationDetail<T>(key, context, defaultValue);
+    return detail.value;
+  }
+
+  /**
+   * Internal. NOT part of the public surface, and deliberately so.
+   *
+   * It would return a `reason`, and the platform does not send one yet: a held-back person's
+   * experience is absent from the evaluation response entirely rather than present with a cause.
+   * So every reason here would read `off` -- including for someone who WAS targeted and did
+   * receive the variant. That is not a missing answer, it is a wrong one, and a method whose
+   * entire purpose is explaining why must not guess.
+   *
+   * `variation` uses it for the value, which is correct either way. It becomes public when the
+   * serving contract carries a reason.
+   */
+  private async _variationDetail<T>(
+    key: string,
+    context: FlagContext,
+    defaultValue: T,
+  ): Promise<FlagDetail<T>> {
+    if (typeof key !== 'string' || !key.trim()) {
+      throw new TypeError('variation: key is required');
+    }
+    if (defaultValue === undefined) {
+      // Required, not optional. A caller who omits it has no answer during an outage, and the
+      // failure surfaces far from here as an undefined branch.
+      throw new TypeError('variation: defaultValue is required');
+    }
+
+    const choices = await this._chooseOrEmpty(context, [key]);
+    const choice = choices.find((c) => c?.name === key);
+    if (!choice) return { value: defaultValue, reason: 'off' };
+
+    return {
+      value: (choice.body ?? defaultValue) as T,
+      reason: (choice.reason as FlagReason) ?? 'off',
+    };
+  }
+
+  /**
+   * Every key assigned to this person, in one call.
+   *
+   * OPEN, owner: platform. `EXP-SERVE-003` says every evaluation reports an exposure. If that is
+   * honoured server-side, one `allFlags` call on page load records an exposure for every
+   * experiment the person is in — including ones the page never renders — which inflates the live
+   * denominator of each. The other SDKs need the same answer: either a non-recording route or an
+   * `exposure: false` flag on the request. Until there is one, prefer `variation` per key at the
+   * point the value is actually used.
+   *
+   * Gated on `isUserOptIn()` via `_chooseOrEmpty`; an opted-out visitor gets `{}`.
+   */
+  async allFlags(context: FlagContext): Promise<Record<string, unknown>> {
+    const out: Record<string, unknown> = {};
+    for (const choice of await this._chooseOrEmpty(context, undefined)) {
+      if (typeof choice?.name === 'string' && choice.name)
+        out[choice.name] = choice.body;
+    }
+    return out;
+  }
+
+  async boolVariation(
+    key: string,
+    context: FlagContext,
+    defaultValue: boolean,
+  ): Promise<boolean> {
+    const value = await this.variation<unknown>(key, context, defaultValue);
+    // A served value of the wrong type is a misconfiguration, not something to coerce:
+    // Boolean('false') is true, and a silent coercion is indistinguishable from a real answer.
+    return typeof value === 'boolean' ? value : defaultValue;
+  }
+
+  async stringVariation(
+    key: string,
+    context: FlagContext,
+    defaultValue: string,
+  ): Promise<string> {
+    const value = await this.variation<unknown>(key, context, defaultValue);
+    return typeof value === 'string' ? value : defaultValue;
+  }
+
+  async numberVariation(
+    key: string,
+    context: FlagContext,
+    defaultValue: number,
+  ): Promise<number> {
+    const value = await this.variation<unknown>(key, context, defaultValue);
+    return typeof value === 'number' && Number.isFinite(value)
+      ? value
+      : defaultValue;
+  }
+
+  /**
+   * Resolves immediately.
+   *
+   * Present so the cross-SDK surface is the same everywhere, and so a caller porting from an SDK
+   * that polls a local flag store does not have to remove the call. Evaluation is remote: each
+   * `variation` is a request, so there is no local state to wait for.
+   *
+   * `timeoutMs` is ACCEPTED AND IGNORED, on purpose: it exists so the ported call site compiles
+   * unchanged. There is nothing to time out on, so no value of it can change the outcome. It is
+   * not dropped from the signature because removing it would break exactly the callers this
+   * method exists for.
+   */
+  async waitForInitialization(timeoutMs?: number): Promise<void> {
+    void timeoutMs;
+  }
+
+  /**
+   * A transport failure yields no choices rather than throwing.
+   *
+   * This is the entire reason `defaultValue` is required: a network failure, a 5xx or a timeout
+   * must resolve to the value the caller chose. A flag SDK that throws when the service is
+   * unreachable takes the page down with it, which is the opposite of what a kill switch is for.
+   *
+   * THE ONE PLACE the flag surface talks to the platform, which is why the opt-out gate lives
+   * here rather than repeated in five methods.
+   *
+   * AUTH, UNRESOLVED — owner: Sid (decision D4). This authenticates from the browser with the
+   * public `writeKey`, the same credential `choose-web` uses. `EXP-SERVE-004` (Critical) requires
+   * the SDK-surface evaluation endpoint to take a SERVER credential while the browser path stays
+   * on the public key. If that lands as written, every `variation()` call already shipped in a
+   * customer's page starts returning `defaultValue` behind a 401 — silently, because a non-2xx is
+   * absorbed here by design. Either `choose-api` keeps accepting the public key from a browser
+   * origin, or this surface needs a browser-specific route. Not settled in this PR.
+   */
+  private async _chooseOrEmpty(
+    context: FlagContext,
+    names: string[] | undefined,
+  ): Promise<
+    Array<{ name?: string; group?: unknown; body?: unknown; reason?: unknown }>
+  > {
+    // An evaluation reports an exposure (`EXP-SERVE-003`), and this request carries the
+    // visitor's `profileId` and `userId`. Both are tracking, so an opted-out visitor must
+    // produce no request at all — not merely a discarded response. Every caller of this method
+    // already has a caller-nominated default to fall back to.
+    if (!this.isUserOptIn()) return [];
+
+    const { organization, sourceId, project, writeKey } = this._config;
+
+    const identification: Record<string, unknown> = { sourceId };
+    // The profile id the SDK already holds, unless the caller supplied one. It is the value that
+    // survives sign-in, so deriving on it keeps a visitor's assignment stable across the moment
+    // they log in.
+    const profileId = context?.profileId ?? this._autoTracker.getProfileId();
+    if (profileId) identification.profileId = profileId;
+    if (context?.userId) identification.userId = context.userId;
+
+    // The real device, not `all`. The serving query filters on it
+    // (`and (device is null or device = 'ALL' or device = '<DEVICE>')`), so `all` matched every
+    // row and a mobile-only experience evaluated true for a desktop visitor here while
+    // `choose-web` correctly withheld it. Same helper as `choose-web`, so the two channels
+    // cannot drift.
+    const body: Record<string, unknown> = {
+      identification,
+      device: detectDevice(),
+    };
+    if (names) body.names = names;
+
+    try {
+      // Inside the try with the request: this method's contract is that transport-class
+      // failures resolve rather than throw, and `split`/`btoa` are part of building the
+      // request. `btoa` throws `InvalidCharacterError` on a non-Latin1 key, which outside the
+      // try would escape past a caller who was promised a default.
+      const [username, password] = String(writeKey ?? '').split('.');
+      const url = `${this._api}/${organization}/projects/${project}/optimization/choose-api`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Basic ${btoa(`${username}:${password}`)}`,
+        },
+        body: JSON.stringify(body),
+      });
+      if (!response?.ok) return [];
+      const parsed = await response.json();
+      return Array.isArray(parsed?.choices) ? parsed.choices : [];
+    } catch {
+      return [];
+    }
   }
 
   async recommendation(params: RecommendationParams) {

@@ -154,7 +154,15 @@ export default tseslint.config(
 
   {
     // Build/config scripts run in Node, not the browser.
-    files: ['*.config.ts', '*.config.js', 'scripts/**/*.js', 'config/**/*.js'],
+    files: [
+      '*.config.ts',
+      '*.config.js',
+      'scripts/**/*.js',
+      // .mjs too: the bucketing guard is ESM so it can run with no build step, and the
+      // pattern above matched only .js, leaving it linted as browser code with no Node globals.
+      'scripts/**/*.mjs',
+      'config/**/*.js',
+    ],
     languageOptions: {
       globals: {
         console: 'readonly',

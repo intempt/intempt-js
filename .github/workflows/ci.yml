@@ -37,6 +37,25 @@ permissions:
   contents: read
 
 jobs:
+  # R36: the platform decides which variant a person gets. An SDK that derives its own
+  # bucket can disagree with the server, and the same person is then served differently
+  # depending on the channel they arrive through — silently, because each side is
+  # internally consistent. Runs without install so it cannot be skipped.
+  bucketing:
+    name: Server-only bucketing
+    runs-on: ubuntu-latest
+    steps:
+      # Pinned to a full commit SHA like every other action in this file — a mutable `@v4`
+      # tag means whoever controls the tag controls what runs with this repo's GITHUB_TOKEN.
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22.x
+      - name: No SDK derives buckets locally (R36)
+        run: node scripts/check-no-local-bucketing.mjs
+        env:
+          GUARD_SRC: src
+
   unit:
     name: Unit tests + coverage (node ${{ matrix.node-version }})
     runs-on: ubuntu-latest
