@@ -1,4 +1,4 @@
-import { DeviceType, Location } from '../types/autoTracker.types.ts';
+import { DeviceType } from '../types/autoTracker.types.ts';
 import { getCookie, setCookie } from '../../shared/storageHandler.ts';
 import { BaseURLParser } from '../_baseUrlParser.ts';
 
@@ -13,18 +13,23 @@ export class UserAttributeComponent {
   landingPage: string;
   browser: string;
   platform: string;
-  ipAddress: string;
-  country: string;
-  region: string;
-  city: string;
   private readonly utmCampaign: string;
   private readonly utmContent: string;
   private readonly utmMedium: string;
   private readonly utmSource: string;
   private readonly utmTerm: string;
 
+  /**
+   * Geo is not here on purpose. `country`, `region`, `city` and `ipAddress` used to be set from a
+   * per-session call to ipapi.co, which disclosed every visitor's address to a service the customer
+   * never contracted with. Intempt now derives country, region and city server-side from the
+   * connection the request already arrives on, so the browser never handles its own address.
+   *
+   * The `useIpAddressForGeolocation` option controls that derivation (see its TSDoc on
+   * `IntemptConfig` and `sdkLoader.ts`) — this class has no HTTP or config access, so it
+   * isn't where that switch is set.
+   */
   constructor(
-    { country, region, city, ip }: Location,
     utmParams: BaseURLParser,
     platform: string,
     _deviceType: DeviceType,
@@ -40,10 +45,6 @@ export class UserAttributeComponent {
 
     this.browser = _browser;
     this.platform = platform;
-    this.country = country;
-    this.region = region;
-    this.city = city;
-    this.ipAddress = ip;
 
     this.utmCampaign = utmParams.utmCampaign;
     this.utmContent = utmParams.utmContent;

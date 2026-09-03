@@ -33,7 +33,6 @@ anything you queued.
       'group',
       'track',
       'record',
-      'alias',
       'consent',
       'productAdd',
       'productOrdered',
@@ -139,7 +138,6 @@ All on `window.intempt`. Full rules in the [API reference](docs/API.md).
 
 ```
 identify({ userId, eventTitle?, userAttributes?, data? })   // userId must be truthy
-alias({ userId, anotherUserId })                            // link two IDs
 group({ accountId, eventTitle?, accountAttributes? })       // associate with an account
 
 track({ eventTitle, data })                                 // data required, non-empty

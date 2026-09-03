@@ -25,9 +25,7 @@ export function onSignIn(user: {
   });
 }
 
-export function onSignUp(anonymousId: string, newUserId: string): void {
-  // Link the pre-signup anonymous identity to the authenticated one.
-  analytics.alias(anonymousId, newUserId);
+export function onSignUp(newUserId: string): void {
   analytics.identify({ userId: newUserId });
 }
 

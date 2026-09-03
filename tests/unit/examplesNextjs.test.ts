@@ -41,7 +41,6 @@ beforeEach(() => {
         record('track')(params);
       },
       record: record('record'),
-      alias: record('alias'),
       consent: (params: never) => {
         guard.isConsentValid(params);
         record('consent')(params);
@@ -153,7 +152,6 @@ describe('consent', () => {
 
 describe('the rest of the surface', () => {
   it('reaches every remaining method', () => {
-    analytics.alias('u1', 'anon_1');
     analytics.record('invoice_paid', { userId: 'u1', data: { cents: 1 } });
     analytics.productView('sku_1');
     analytics.productAdd({ productId: 'sku_1', quantity: 2 });
@@ -164,7 +162,6 @@ describe('the rest of the surface', () => {
 
     expect(analytics.isUserOptIn()).toBe(true);
     expect(sent.map((call) => call.method)).toEqual([
-      'alias',
       'record',
       'productView',
       'productAdd',

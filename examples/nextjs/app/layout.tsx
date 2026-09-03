@@ -21,7 +21,7 @@ export const metadata: Metadata = {
 const QUEUE_STUB = `(function () {
   if (window.intempt) return;
   var queue = [], pending = [];
-  var methods = ['identify','group','track','record','alias','consent','productAdd','productOrdered','productView','logOut','optIn','optOut','isUserOptIn','recommendation'];
+  var methods = ['identify','group','track','record','consent','productAdd','productOrdered','productView','logOut','optIn','optOut','isUserOptIn','recommendation'];
   var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
   methods.forEach(function (m) {
     stub[m] = function () {

@@ -1,5 +1,4 @@
 import {
-  AliasModelPayload,
   GroupModelPayload,
   IdentifyModelPayload,
   ProductModelPayload,
@@ -34,11 +33,6 @@ export interface ModelGroup extends BaseModel {
 export interface ModelProduct extends BaseModel {
   readonly type: 'product';
   readonly payload: ProductModelPayload[];
-}
-
-export interface ModelAlias extends BaseModel {
-  readonly type: 'alias';
-  readonly payload: AliasModelPayload[];
 }
 
 export interface ModelRecord extends BaseModel {

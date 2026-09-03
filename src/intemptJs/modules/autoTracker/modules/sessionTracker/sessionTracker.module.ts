@@ -41,7 +41,6 @@ export class SessionTrackerModule extends PlatformParser {
     'intempt:group',
     'intempt:track',
     'intempt:record',
-    'intempt:alias',
     'intempt:product',
     'intempt:logOut',
     'intempt:consent',
@@ -174,10 +173,7 @@ export class SessionTrackerModule extends PlatformParser {
   private async _onNewSession(initializerEventName: string = this._eventName) {
     this.setSessionCookie();
 
-    const [location, platform] = await Promise.all([
-      this._getLocation(),
-      this._getPlatform(),
-    ]);
+    const platform = await this._getPlatform();
 
     const urlParams = new BaseURLParser();
 
@@ -188,7 +184,6 @@ export class SessionTrackerModule extends PlatformParser {
     });
 
     const userAttributes = new UserAttributeComponent(
-      location,
       urlParams,
       platform,
       this.deviceType,

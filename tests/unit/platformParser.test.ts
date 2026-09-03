@@ -1,7 +1,6 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { PlatformParser } from '../../src/intemptJs/platformParser.ts';
 import { DeviceTypeName } from '../../src/intemptJs/types/constants.types.ts';
-import { EnvConfig } from '../../src/shared/envConfig.ts';
 
 /**
  * `platformParser.ts` — the worst-tested file in the SDK on arrival
@@ -33,9 +32,6 @@ class Probe extends PlatformParser {
   }
   handleEntropy() {
     return this._handleUserAgentEntropyValue();
-  }
-  getLocation() {
-    return this._getLocation();
   }
   getPlatform() {
     return this._getPlatform();
@@ -457,87 +453,50 @@ describe('_getPlatform — which of the two paths runs', () => {
   });
 });
 
-describe('_getLocation', () => {
-  const EMPTY = { ip: '', region: '', city: '', country: '' };
+describe('geolocation', () => {
+  // The SDK used to call ipapi.co from the end user's browser on every session start.
+  // It is gone: Intempt derives country, region and city server-side from the address the
+  // request already arrives on. Pinned as an absence so re-adding a browser-side lookup is a
+  // deliberate act with a failing test in front of it.
+  //
+  // Two earlier versions of this block did not do that job, and both are worth naming because
+  // they looked fine:
+  //
+  //  - `expect(probe._getLocation).toBeUndefined()` on its own passes for a MISSPELLED key just
+  //    as happily as for a removed method, so it could never fail. The check below anchors on
+  //    the surface rather than one name: it fails if ANY method appears whose name suggests a
+  //    location lookup, which a typo cannot satisfy.
+  //  - A fetch spy around `getPlatform()` asserted nothing, because `getPlatform` never called
+  //    the lookup even before the removal — `_getLocation` was called from the session tracker.
+  //    A spy on the wrong path is green on the old code and the new one alike.
+  it('exposes no location-shaped method on the platform surface', () => {
+    const probe = new Probe() as unknown as Record<string, unknown>;
 
-  afterEach(() => {
-    vi.unstubAllGlobals();
+    const names = new Set<string>();
+    for (
+      let proto = Object.getPrototypeOf(probe);
+      proto && proto !== Object.prototype;
+      proto = Object.getPrototypeOf(proto)
+    ) {
+      Object.getOwnPropertyNames(proto).forEach((n) => names.add(n));
+    }
+
+    // The set is non-empty, so an assertion over it cannot pass by looking at nothing.
+    expect(names.size).toBeGreaterThan(0);
+
+    const locationish = [...names].filter((n) => /location|geo|ipapi/i.test(n));
+    expect(locationish).toEqual([]);
   });
 
-  it('returns empty fields without a request when no location API is configured', async () => {
-    vi.spyOn(EnvConfig, 'getLocationApiUrl').mockReturnValue('');
-    const fetchSpy = vi.fn();
-    vi.stubGlobal('fetch', fetchSpy);
-
-    await expect(new Probe().getLocation()).resolves.toEqual(EMPTY);
-    expect(fetchSpy).not.toHaveBeenCalled();
-  });
-
-  it('maps `country_name` onto `country` and passes the rest through', async () => {
-    vi.spyOn(EnvConfig, 'getLocationApiUrl').mockReturnValue(
-      'https://geo.example.com/json',
-    );
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        json: () =>
-          Promise.resolve({
-            ip: '203.0.113.7',
-            region: 'California',
-            city: 'San Francisco',
-            country_name: 'United States',
-            // Extra fields the API sends must not reach the payload.
-            latitude: 37.77,
-          }),
-      }),
-    );
-
-    await expect(new Probe().getLocation()).resolves.toEqual({
-      ip: '203.0.113.7',
-      region: 'California',
-      city: 'San Francisco',
-      country: 'United States',
-    });
-  });
-
-  it('substitutes empty strings for fields the API omits', async () => {
-    vi.spyOn(EnvConfig, 'getLocationApiUrl').mockReturnValue(
-      'https://geo.example.com/json',
-    );
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        json: () => Promise.resolve({ ip: '203.0.113.7' }),
-      }),
-    );
-
-    await expect(new Probe().getLocation()).resolves.toEqual({
-      ...EMPTY,
-      ip: '203.0.113.7',
-    });
-  });
-
-  it('degrades to empty fields when the request fails', async () => {
-    vi.spyOn(EnvConfig, 'getLocationApiUrl').mockReturnValue(
-      'https://geo.example.com/json',
-    );
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')));
-
-    // A geo lookup failing must never fail the event — it is decoration.
-    await expect(new Probe().getLocation()).resolves.toEqual(EMPTY);
-  });
-
-  it('degrades to empty fields when the response is not JSON', async () => {
-    vi.spyOn(EnvConfig, 'getLocationApiUrl').mockReturnValue(
-      'https://geo.example.com/json',
-    );
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        json: () => Promise.reject(new SyntaxError('Unexpected token <')),
-      }),
-    );
-
-    await expect(new Probe().getLocation()).resolves.toEqual(EMPTY);
-  });
+  // REMOVED, deliberately, rather than repaired: a fetch spy around the parser's own
+  // methods is green on `staging` too. The only `fetch(` in this file was inside
+  // `_getLocation`, and none of `_getPlatform`, `_handleUserAgent` or
+  // `_handleUserAgentEntropyValue` ever reached it -- `_getLocation` was called from
+  // the session tracker. A spy that passes identically before and after the change it
+  // claims to guard is not a weaker test, it is not a test, and leaving it in place
+  // would say this behaviour is covered when it is not.
+  //
+  // What actually guards the removal:
+  //   - the surface check above, proven to fail by planting `_getLocation` back
+  //   - `sdkSmoke.spec.ts` asserting zero third-party geo calls from the built bundle
 });

@@ -31,7 +31,10 @@ const CONFIG = {
   magento: false,
 } as IntemptConfig;
 
-const TRACK_URL = `${API}/acme/projects/proj-1/sources/src-1/track`;
+// `?ip=1` asks the platform to derive country/region/city from the address the request
+// arrives on. The browser no longer looks that up itself. `?ip=0` when the customer sets
+// useIpAddressForGeolocation: false.
+const TRACK_URL = `${API}/acme/projects/proj-1/sources/src-1/track?ip=1`;
 
 function okResponse() {
   return { ok: true, status: 200 };
@@ -145,6 +148,27 @@ describe('flush — the request it builds', () => {
 
     expect(fetchMock.mock.calls[0][0]).toBe(TRACK_URL);
     expect(fetchMock.mock.calls[0][1].method).toBe('POST');
+  });
+
+  it('sends ip=0 when the customer turns geolocation off', async () => {
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, useIpAddressForGeolocation: false } as IntemptConfig,
+      API,
+    );
+    pool.push({ name: 'Page view' });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      `${API}/acme/projects/proj-1/sources/src-1/track?ip=0`,
+    );
+  });
+
+  it('sends ip=1 when the option is absent, so the default is geolocation on', async () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'Page view' });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(fetchMock.mock.calls[0][0]).toContain('?ip=1');
   });
 
   it('splits the write key on the dot into Basic credentials', async () => {

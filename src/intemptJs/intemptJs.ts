@@ -1,6 +1,5 @@
 import { AutoTrackerModule } from './modules/autoTracker/autoTracker.module.ts';
 import {
-  AliasParams,
   ConsentParams,
   FlagContext,
   FlagDetail,
@@ -18,7 +17,6 @@ import { IdentifyModel } from './models/identify.model.ts';
 import { GroupModel } from './models/group.model.ts';
 import { TrackModel } from './models/track.model.ts';
 import { RecordModel } from './models/record.model.ts';
-import { AliasModel } from './models/alias.model.ts';
 import { detectDevice, dispatchIntemptEvent } from '../shared/shared.utils.ts';
 import { localStorageCache } from '../shared/storageHandler.ts';
 import { ConsentModel } from './models/consent.model.ts';
@@ -267,23 +265,6 @@ export class IntemptJs extends IntemptJsGuard {
     });
 
     dispatchIntemptEvent('intempt:record', {
-      eventName: eventData._name,
-    });
-    dispatchIntemptEvent('intempt:event', { event: eventData });
-  }
-
-  alias(params: AliasParams) {
-    if (!this.isUserOptIn()) return;
-    if (!this.isAliasValid(params)) return;
-
-    const profileId = this._autoTracker.getProfileId();
-
-    const eventData = new AliasModel({
-      ...params,
-      profileId,
-    });
-
-    dispatchIntemptEvent('intempt:alias', {
       eventName: eventData._name,
     });
     dispatchIntemptEvent('intempt:event', { event: eventData });

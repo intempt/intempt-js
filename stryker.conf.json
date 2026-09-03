@@ -10,10 +10,12 @@
   "concurrency": 8,
   "coverageAnalysis": "perTest",
   "_comment_mutate": "THIS IS THE CORE SCOPE, and it is deliberately NOT all of src/. `stryker.full.conf.json` mutates everything and measured 58.83% on 2026-08-12; this narrow scope measured 86.57%. Both numbers are real -- they have different denominators. The split exists because the CI job took 24m36s on THIS scope on a GitHub runner (vs 3.5 min locally on 8 cores), so the full scope would be 40+ minutes on every PR. So: this config is the blocking gate and keeps the 85 floor on the well-tested core; the full config is run on demand. A single wide gate at 57 was the alternative and was rejected -- `shared/**` is the majority of all mutants, so it could regress ten points and a 57 threshold would still pass.",
+  "_comment_pr205": "PR #205 (server-side geolocation) removed the browser-side ipapi.co lookup and added `?ip=` to both /track senders plus the shared `buildTrackUrl` helper that builds it. `autoTracker.url.ts` is added below: measured 100% in isolation and the combined score with it in scope is 86.54%, still above the 85 floor -- an honest, non-lowering widen. `sdkLoader.ts` (68.14%), `autoTracker.eventPool.ts` (78.13%) and `autoTracker.transport.ts` (29.55%, the weakest -- 63 survived mutants, mostly in the retry/keepalive/beacon fallback paths this PR did not touch) were measured too but are NOT added here: folding them in as-is drops the combined score to 82.31%, below the floor, and the rule above is never lower it. They stay covered only by `stryker.full.conf.json` until enough tests land to clear 85 without lowering this gate -- tracked as H3 in the PR #205 review (see PR_REVIEW.md / the PR's pr-review comment).",
   "mutate": [
     "src/shared/**/*.ts",
     "src/guard/**/*.ts",
     "src/intemptJs/guards/**/*.ts",
+    "src/intemptJs/modules/autoTracker/autoTracker.url.ts",
     "!src/**/*.d.ts",
     "!src/**/types/**",
     "!src/shared/version.ts"
