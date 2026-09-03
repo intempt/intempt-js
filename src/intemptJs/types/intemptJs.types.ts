@@ -48,6 +48,13 @@ export type IntemptConfig = {
    * never handles its own address and no third party is involved. Set `false` to store no location
    * at all. Named to match Mixpanel's `UseIpAddressForGeolocation`, so a customer migrating does
    * not have to look it up.
+   *
+   * This is the one privacy switch of the three that defaults ON, so it stays tri-state
+   * (`?`) on purpose: `undefined` means "unset, derive" both here and on the wire
+   * (`autoTracker.url.ts`'s `buildTrackUrl` sends `?ip=1` unless this is exactly `false`).
+   * Do NOT read it with `!config.useIpAddressForGeolocation` — `!undefined === true` would
+   * silently disable derivation for every customer who never set it. Always compare with
+   * `=== false`, as the two send sites and `sdkLoader.ts`'s parser already do.
    */
   useIpAddressForGeolocation?: boolean;
 

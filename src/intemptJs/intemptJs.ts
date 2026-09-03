@@ -267,7 +267,6 @@ export class IntemptJs extends IntemptJsGuard {
     dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-
   /**
    * Use for consent validation
    * Optional params { email: string, message: string, category: string }

@@ -228,7 +228,6 @@ describe('IntemptJsGuard', () => {
     });
   });
 
-
   describe('forbidden event titles', () => {
     /**
      * These names are the ones the SDK's own autotracker emits. A customer

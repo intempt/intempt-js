@@ -353,7 +353,6 @@ describe('IntemptJs — the public API class', () => {
     });
   });
 
-
   describe('record', () => {
     it('carries every optional field the caller supplied', () => {
       sdk.record({

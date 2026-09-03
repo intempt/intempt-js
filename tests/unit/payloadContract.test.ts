@@ -437,7 +437,6 @@ describe('outbound payload contract', () => {
       expectMatchesGolden('group', trackBodyFor(call!, 'Joined Org'));
     });
 
-
     it('records the record payload', async () => {
       sdk.record({
         eventTitle: 'Order Completed',

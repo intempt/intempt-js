@@ -49,7 +49,6 @@ const IDENTITY_FIELDS = [
  */
 const NO_PAGE_ID = new Set(['Session start']);
 
-
 type Entry = {
   name?: string;
   type?: string;

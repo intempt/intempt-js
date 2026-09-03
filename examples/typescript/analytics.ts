@@ -78,7 +78,6 @@ export function group(
   safely('group', () => s.group({ accountId, eventTitle, accountAttributes }));
 }
 
-
 /**
  * Records a consent decision as an event. It does NOT stop collection — call `optOut()`
  * for that. Gated on the opt-out flag itself, so a re-consent flow must `optIn()` first

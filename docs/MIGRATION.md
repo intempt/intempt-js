@@ -223,11 +223,11 @@ all, which is an ID-scheme migration, not something an integration should call.
 It was also unsafe in a way that was easy to miss. A wrong `alias()` call permanently fuses
 two real people into one profile, and there is no unmerge.
 
-| You were using it to | Do this instead |
-| --- | --- |
-| Link an anonymous visitor to the user they became at signup | Nothing. Call `identify({ userId })` as usual — the SDK stamps the anonymous profile ID on that event, so the pre-signup history follows automatically. This already worked; `alias()` was never required for it. |
-| Attach a second ID you hold for a known user (CRM ID, billing ID) | Send it as a user attribute: `identify({ userId, eventTitle, userAttributes: { crm_id } })`. Email and phone attributes are resolution keys in their own right. |
-| Migrate an entire user base from an old ID scheme to a new one | Ask Intempt to run it as a server-side backfill. A bulk re-keying is not a client-side operation. |
+| You were using it to                                              | Do this instead                                                                                                                                                                                                   |
+| ----------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Link an anonymous visitor to the user they became at signup       | Nothing. Call `identify({ userId })` as usual — the SDK stamps the anonymous profile ID on that event, so the pre-signup history follows automatically. This already worked; `alias()` was never required for it. |
+| Attach a second ID you hold for a known user (CRM ID, billing ID) | Send it as a user attribute: `identify({ userId, eventTitle, userAttributes: { crm_id } })`. Email and phone attributes are resolution keys in their own right.                                                   |
+| Migrate an entire user base from an old ID scheme to a new one    | Ask Intempt to run it as a server-side backfill. A bulk re-keying is not a client-side operation.                                                                                                                 |
 
 If you had a `try`/`catch` around an `alias()` call, remove the call — the `TypeError` is
 thrown synchronously and an unremoved call will surface in your own stack.

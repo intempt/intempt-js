@@ -3,6 +3,7 @@ import { PersistentStore } from '../../../shared/storage/persistentStore.ts';
 import { IntemptConfig } from '../../types/intemptJs.types.ts';
 import { createLogger } from '../../../shared/logger/logger.ts';
 import { MetricsSnapshot } from '../../../shared/logger/metrics.ts';
+import { buildTrackUrl } from './autoTracker.url.ts';
 
 const log = createLogger('AutoTracker');
 
@@ -147,10 +148,8 @@ export class AutoTrackerTransport {
     data: unknown[],
     options: BatchSendOptions,
   ): Promise<BatchSendResult> {
-    const { organization, sourceId, project, writeKey } = this._config;
-    const url =
-      `${this._api}/${organization}/projects/${project}/sources/${sourceId}/track` +
-      `?ip=${this._config.useIpAddressForGeolocation === false ? '0' : '1'}`;
+    const { writeKey } = this._config;
+    const url = buildTrackUrl(this._api, this._config);
     const [username, password] = writeKey.split('.');
     const encodedCredentials = btoa(`${username}:${password}`);
     const authHeader = `Basic ${encodedCredentials}`;

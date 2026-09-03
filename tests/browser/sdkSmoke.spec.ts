@@ -164,7 +164,9 @@ test('never contacts a third-party IP lookup from the browser', async ({
     'the SDK reached a host no fixture serves, from the end user browser',
   ).toEqual([]);
 
-  // Without this the assertion above is satisfied by an SDK that never started: a bundle
-  // that failed to load also requests nothing.
+  // Near-redundant, not load-bearing: `loadSdk()` above already waits for
+  // `typeof window.intempt !== 'undefined'`, so a bundle that failed to load would
+  // have failed there, before the unroutedRequests() assertion. This just narrows
+  // 'not undefined' to 'object'.
   expect(await page.evaluate(() => typeof window.intempt)).toBe('object');
 });

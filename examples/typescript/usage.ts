@@ -25,7 +25,7 @@ export function onSignIn(user: {
   });
 }
 
-export function onSignUp(anonymousId: string, newUserId: string): void {
+export function onSignUp(newUserId: string): void {
   analytics.identify({ userId: newUserId });
 }
 

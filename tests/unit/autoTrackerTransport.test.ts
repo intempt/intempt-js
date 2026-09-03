@@ -183,7 +183,9 @@ describe('AutoTrackerTransport geolocation flag', () => {
 
     await send(makeTransport({ useIpAddressForGeolocation: false }));
 
-    expect(String(fetchMock.mock.calls[0]![0])).toContain('?ip=0');
+    // Exact match, not .toContain: '?ip=0' would also pass for a stray '?ip=00'
+    // or '?ip=01' -- toContain has no word boundary.
+    expect(String(fetchMock.mock.calls[0]![0])).toMatch(/\?ip=0$/);
   });
 
   it('sends ?ip=1 when the switch is absent, matching what ingestion assumes', async () => {
@@ -197,6 +199,7 @@ describe('AutoTrackerTransport geolocation flag', () => {
 
     await send(makeTransport());
 
-    expect(String(fetchMock.mock.calls[0]![0])).toContain('?ip=1');
+    // Exact match, not .toContain: '?ip=1' would also pass for '?ip=10' etc.
+    expect(String(fetchMock.mock.calls[0]![0])).toMatch(/\?ip=1$/);
   });
 });

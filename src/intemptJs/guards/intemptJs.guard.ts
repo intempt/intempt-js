@@ -178,5 +178,4 @@ export class IntemptJsGuard {
 
     return true;
   }
-
 }

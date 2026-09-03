@@ -25,7 +25,9 @@ export class UserAttributeComponent {
    * never contracted with. Intempt now derives country, region and city server-side from the
    * connection the request already arrives on, so the browser never handles its own address.
    *
-   * Send `?ip=0` on the events endpoint to switch that derivation off.
+   * The `useIpAddressForGeolocation` option controls that derivation (see its TSDoc on
+   * `IntemptConfig` and `sdkLoader.ts`) — this class has no HTTP or config access, so it
+   * isn't where that switch is set.
    */
   constructor(
     utmParams: BaseURLParser,
