@@ -101,7 +101,6 @@ const ALL_EVENT_NAMES = [
   'intempt:identify',
   'intempt:group',
   'intempt:record',
-  'intempt:alias',
   'intempt:consent',
   'intempt:product',
   'intempt:logOut',
@@ -207,7 +206,6 @@ describe('IntemptJs — the public API class', () => {
       ['identify', () => sdk.identify({ userId: 'u1' } as any)],
       ['group', () => sdk.group({ accountId: 'a1' } as any)],
       ['record', () => sdk.record({ eventTitle: 'Rec', userId: 'u1' } as any)],
-      ['alias', () => sdk.alias({ userId: 'u1', anotherUserId: 'u2' } as any)],
       ['productAdd', () => sdk.productAdd({ productId: 'p1' } as any)],
       [
         'productOrdered',
@@ -355,31 +353,6 @@ describe('IntemptJs — the public API class', () => {
     });
   });
 
-  describe('alias', () => {
-    it('carries both user ids and deliberately omits session and page', () => {
-      // Aliasing merges two identities; it is not a page-scoped act, so the
-      // model has no sessionId/pageId. Asserted so a well-meaning "consistency"
-      // refactor that adds them has to justify the wire change.
-      sdk.alias({ userId: 'u-new', anotherUserId: 'u-old' } as any);
-      const model = lastModel();
-      expect(model.type).toBe('alias');
-      expect(model.payload[0]).toMatchObject({
-        userId: 'u-new',
-        anotherUserId: 'u-old',
-        profileId: 'profile-1',
-      });
-      expect(model.payload[0]).not.toHaveProperty('sessionId');
-      expect(model.payload[0]).not.toHaveProperty('pageId');
-    });
-
-    it('is always named "Identify"', () => {
-      sdk.alias({ userId: 'u-new', anotherUserId: 'u-old' } as any);
-      expect(lastModel().name).toBe('Identify');
-      expect(dispatched('intempt:alias')[0]!.detail).toEqual({
-        eventName: 'Identify',
-      });
-    });
-  });
 
   describe('record', () => {
     it('carries every optional field the caller supplied', () => {

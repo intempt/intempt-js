@@ -20,8 +20,7 @@ export function SignupForm() {
         event.preventDefault();
 
         // `identify` is enough here: the SDK stamps the anonymous profile id on
-        // the event itself, so the history follows without an explicit alias.
-        // `alias` is for merging two ids you already hold — see Surface.tsx.
+        // the event itself, so the history follows.
         analytics.identify(email, {
           plan: 'pro',
           signup_source: 'nextjs-example',

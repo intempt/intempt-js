@@ -27,7 +27,6 @@ declare global {
     'intempt:identify': CustomEvent<IntemptEventDetail>;
     'intempt:group': CustomEvent<IntemptEventDetail>;
     'intempt:record': CustomEvent<IntemptEventDetail>;
-    'intempt:alias': CustomEvent<IntemptEventDetail>;
     'intempt:consent': CustomEvent<IntemptEventDetail>;
     'intempt:product': CustomEvent<IntemptEventDetail>;
     'intempt:logOut': CustomEvent<IntemptEventDetail>;

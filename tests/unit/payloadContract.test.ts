@@ -437,11 +437,6 @@ describe('outbound payload contract', () => {
       expectMatchesGolden('group', trackBodyFor(call!, 'Joined Org'));
     });
 
-    it('records the alias payload — the one model with no session or page', async () => {
-      sdk.alias({ userId: 'u-new', anotherUserId: 'u-old' } as any);
-      const [call] = await flushAndCapture('/track', 'Identify');
-      expectMatchesGolden('alias', trackBody(call!));
-    });
 
     it('records the record payload', async () => {
       sdk.record({
@@ -494,7 +489,7 @@ describe('outbound payload contract', () => {
       // DEFECT, and the most consequential thing in this file. Every model has
       // its `timestamp: new Date().getTime()` line **commented out**
       // (track.model.ts:16, identify.model.ts:17, group.model.ts:16,
-      // alias.model.ts:16, record.model.ts:16, product.model.ts:17,
+      // record.model.ts:16, product.model.ts:17,
       // session.model.ts:15, consent.model.ts:25). So no event carries a
       // client-side timestamp and ingest can only use its own receive time.
       //
@@ -557,7 +552,7 @@ describe('outbound payload contract', () => {
 
     it('auto-tracked events carry NO type field, unlike every manual event — recorded', () => {
       // DEFECT / asymmetry worth stating to ingest. `TrackModel`, `IdentifyModel`,
-      // `GroupModel`, `AliasModel`, `RecordModel`, `ProductModel` and
+      // `GroupModel`, `RecordModel`, `ProductModel` and
       // `ConsentModel` all declare `readonly type`. `SessionEventModel`,
       // `PageEventModel` and `HtmlEventModel` do not. So ingest cannot switch on
       // `type` to classify an event — it is present on manual events and absent

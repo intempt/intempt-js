@@ -57,9 +57,6 @@ export const analytics = {
   },
 
   /** Links an anonymous id to an authenticated one. */
-  alias(userId: string, anotherUserId: string) {
-    sdk().alias({ userId, anotherUserId });
-  },
 
   /** Same `eventTitle` rule as `identify`, for `accountAttributes`. */
   group(

@@ -1,5 +1,4 @@
 import {
-  AliasParams,
   ConsentParams,
   GroupParams,
   IdentifyParams,
@@ -180,25 +179,4 @@ export class IntemptJsGuard {
     return true;
   }
 
-  isAliasValid(params: AliasParams) {
-    if (
-      params === undefined ||
-      params === null ||
-      Object.keys(params).length === 0
-    ) {
-      throw new Error("Parameters for the 'alias' method are required.");
-    }
-
-    if (params.userId === undefined || params.userId === null) {
-      throw new Error('Alias parameters are invalid: userId is required.');
-    }
-
-    if (params.anotherUserId === undefined || params.anotherUserId === null) {
-      throw new Error(
-        'Alias parameters are invalid: anotherUserId is required.',
-      );
-    }
-
-    return true;
-  }
 }

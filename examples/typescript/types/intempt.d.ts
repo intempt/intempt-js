@@ -44,11 +44,6 @@ export interface RecordParams {
   data?: Record<string, unknown>;
 }
 
-export interface AliasParams {
-  userId: string;
-  anotherUserId: string;
-}
-
 export interface ConsentParams {
   /** Case-sensitive at runtime: `'Accept'` throws. */
   action: ConsentAction;
@@ -82,7 +77,6 @@ export interface Intempt {
   group(params: GroupParams): void;
   track(params: TrackParams): void;
   record(params: RecordParams): void;
-  alias(params: AliasParams): void;
   consent(params: ConsentParams): void;
 
   productAdd(product: ProductParams): void;

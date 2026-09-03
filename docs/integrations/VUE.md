@@ -25,7 +25,6 @@ Vue 3, Composition API. Notes for Nuxt are at [the end](#nuxt).
         'group',
         'track',
         'record',
-        'alias',
         'consent',
         'productAdd',
         'productOrdered',

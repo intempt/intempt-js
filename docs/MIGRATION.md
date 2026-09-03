@@ -14,6 +14,7 @@ happened in the shipped SDK.
 - [4. Opt-out now persists across reloads](#4-opt-out-now-persists-across-reloads)
 - [5. `VERSION` is available](#5-version-is-available)
 - [6. Queued events now survive a reload differently](#6-queued-events-now-survive-a-reload-differently)
+- [7. `alias()` was removed](#7-alias-was-removed)
 - [Forthcoming: the module build](#forthcoming-the-module-build)
 - [Checklist](#checklist)
 
@@ -82,7 +83,6 @@ worse, called `window.intempt.track(...)` and hoped. Add the stub _before_ the S
       'group',
       'track',
       'record',
-      'alias',
       'consent',
       'productAdd',
       'productOrdered',
@@ -208,6 +208,30 @@ listener to observe what the SDK sends.
 
 ---
 
+## 7. `alias()` was removed
+
+`window.intempt.alias({ userId, anotherUserId })` is **gone**. Calling it now throws
+`TypeError: window.intempt.alias is not a function`. The `AliasParams` type is removed from
+the TypeScript definitions, and the `intempt:alias` DOM event is no longer dispatched.
+
+**There is nothing to replace it with, because identity resolution is the platform's job.**
+Intempt already merges profiles server-side: if two identities ever share any identifier — the
+same device, the same email, the same phone — they converge on one profile without anyone
+declaring the link. `alias()` only ever added reach for two user IDs that share nothing at
+all, which is an ID-scheme migration, not something an integration should call.
+
+It was also unsafe in a way that was easy to miss. A wrong `alias()` call permanently fuses
+two real people into one profile, and there is no unmerge.
+
+| You were using it to | Do this instead |
+| --- | --- |
+| Link an anonymous visitor to the user they became at signup | Nothing. Call `identify({ userId })` as usual — the SDK stamps the anonymous profile ID on that event, so the pre-signup history follows automatically. This already worked; `alias()` was never required for it. |
+| Attach a second ID you hold for a known user (CRM ID, billing ID) | Send it as a user attribute: `identify({ userId, eventTitle, userAttributes: { crm_id } })`. Email and phone attributes are resolution keys in their own right. |
+| Migrate an entire user base from an old ID scheme to a new one | Ask Intempt to run it as a server-side backfill. A bulk re-keying is not a client-side operation. |
+
+If you had a `try`/`catch` around an `alias()` call, remove the call — the `TypeError` is
+thrown synchronously and an unremoved call will surface in your own stack.
+
 ## Forthcoming: the module build
 
 **None of this exists today. Do not write code against it yet.** It is here so you can plan,
@@ -250,7 +274,7 @@ Run through this against a page that has the SDK on it:
    bad config, and a guard (localhost or a bot user agent) respectively.
 5. Does `window.intempt._isStub` come back `undefined`, and `window.intempt.VERSION` a
    version string? If `_isStub` is still `true` after a few seconds, the SDK never took over.
-6. Any call to `getProfileId()` left in your code?
+6. Any call to `getProfileId()` or `alias()` left in your code?
 7. Any of your own opt-out-on-every-load workaround left in your bootstrap?
 8. Does your consent flow call `consent()` **before** `optOut()`?
 9. Any SRI `integrity` attribute on the CDN URL? Remove it or self-host.

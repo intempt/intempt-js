@@ -8,7 +8,7 @@ import { IntemptJsGuard } from '../../src/intemptJs/guards/intemptJs.guard.ts';
  * that "the guards already have 91 Cypress assertions" was about
  * `src/guard/**` (tracking guards); `src/intemptJs/guards/**` was never covered
  * by either tier, despite being the validation layer every public method calls
- * first — `track`, `identify`, `group`, `alias`, `record`, `consent`.
+ * first — `track`, `identify`, `group`, `record`, `consent`.
  *
  * These guards throw rather than return false, and those throws surface in the
  * customer's own call stack, so the message text is part of the public contract.
@@ -228,31 +228,6 @@ describe('IntemptJsGuard', () => {
     });
   });
 
-  describe('isAliasValid', () => {
-    it('accepts both ids', () => {
-      expect(
-        guard.isAliasValid({ userId: 'a', anotherUserId: 'b' } as never),
-      ).toBe(true);
-    });
-
-    it.each([undefined, null, {}])('rejects %s params', (params) => {
-      expect(() => guard.isAliasValid(params as never)).toThrow(
-        "Parameters for the 'alias' method are required.",
-      );
-    });
-
-    it('rejects a missing userId', () => {
-      expect(() => guard.isAliasValid({ anotherUserId: 'b' } as never)).toThrow(
-        'Alias parameters are invalid: userId is required.',
-      );
-    });
-
-    it('rejects a missing anotherUserId', () => {
-      expect(() => guard.isAliasValid({ userId: 'a' } as never)).toThrow(
-        'Alias parameters are invalid: anotherUserId is required.',
-      );
-    });
-  });
 
   describe('forbidden event titles', () => {
     /**

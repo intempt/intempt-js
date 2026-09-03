@@ -181,11 +181,6 @@ export type RecordParams = {
   data?: AttributeBag;
 };
 
-export type AliasParams = {
-  userId: string;
-  anotherUserId: string;
-};
-
 export type AuthConfig = {
   username: string;
   password: string;

@@ -163,15 +163,6 @@ export type RecordModelPayload = {
   userAttributes?: AttributeBag;
 };
 
-export type AliasModelPayload = {
-  eventId: string;
-  //timestamp: number;
-  profileId: string;
-  //sessionId: string;
-  userId: string;
-  anotherUserId: string;
-};
-
 export type ProductModelPayload = {
   eventId: string;
   sessionId: string;

@@ -31,7 +31,6 @@ page.
         'group',
         'track',
         'record',
-        'alias',
         'consent',
         'productAdd',
         'productOrdered',

@@ -32,7 +32,6 @@ There's no constructor — your account settings go in the SDK URL's query param
       'group',
       'track',
       'record',
-      'alias',
       'consent',
       'productAdd',
       'productOrdered',
@@ -229,12 +228,6 @@ window.intempt.identify({
   userAttributes: { email: 'user@example.com', plan: 'premium' },
   data: { signupSource: 'homepage' },
 });
-```
-
-If the same person was anonymous before logging in, link the two IDs with `alias`:
-
-```javascript
-window.intempt.alias({ userId: 'anon_abc', anotherUserId: 'user_123' });
 ```
 
 To associate the user with a company/account, use `group`:

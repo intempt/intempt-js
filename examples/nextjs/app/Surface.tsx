@@ -23,11 +23,10 @@ export function Surface() {
         onClick={() => {
           // Identity
           analytics.identify('user_1', { plan: 'pro' });
-          analytics.alias('user_1', 'anonymous_1');
           analytics.group('acct_1', { company_name: 'Acme' });
         }}
       >
-        identify / alias / group
+        identify / group
       </button>
 
       <button

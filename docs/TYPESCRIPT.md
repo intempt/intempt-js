@@ -55,11 +55,6 @@ export interface RecordParams {
   data?: Record<string, unknown>;
 }
 
-export interface AliasParams {
-  userId: string;
-  anotherUserId: string;
-}
-
 export interface ConsentParams {
   action: ConsentAction;
   validUntil: number;
@@ -89,7 +84,6 @@ export interface Intempt {
   group(params: GroupParams): void;
   track(params: TrackParams): void;
   record(params: RecordParams): void;
-  alias(params: AliasParams): void;
   consent(params: ConsentParams): void;
 
   productAdd(product: ProductParams): void;
@@ -225,7 +219,6 @@ declare global {
     'intempt:identify': CustomEvent<IntemptEventDetail>;
     'intempt:group': CustomEvent<IntemptEventDetail>;
     'intempt:record': CustomEvent<IntemptEventDetail>;
-    'intempt:alias': CustomEvent<IntemptEventDetail>;
     'intempt:consent': CustomEvent<IntemptEventDetail>;
     'intempt:product': CustomEvent<IntemptEventDetail>;
     'intempt:logOut': CustomEvent<IntemptEventDetail>;

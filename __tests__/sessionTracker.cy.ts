@@ -265,7 +265,6 @@ describe('SessionTrackerModule', () => {
         'intempt:track',
         'intempt:group',
         'intempt:record',
-        'intempt:alias',
         'intempt:product',
         'intempt:logOut',
         'intempt:consent',
