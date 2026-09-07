@@ -384,6 +384,24 @@ should take precedence, add `&ignore_dnt=1` to the SDK script URL:
 > This switch disables **GPC as well as DNT**. Setting it moves the obligation to
 > honour GPC onto you.
 
+### Allowing bots and crawlers
+
+By default the SDK does not load at all for known crawler, bot, and monitoring user
+agents (Googlebot, Bingbot, Yandex, Ahrefs, Pingdom, UptimeRobot, and similar) or for user
+agents with no browser signature. To count them on purpose — for example to see what a
+search-engine render triggers — add `&allow_bots=1` to the script URL:
+
+```html
+<script
+  async
+  src="https://cdn.intempt.com/v1/intempt.min.js?organization=…&allow_bots=1"
+></script>
+```
+
+> A bot that gets through receives a full SDK footprint: a visitor cookie, a profile, and
+> every event it triggers. Expect inflated visitor counts while this is on. The localhost
+> guard is unaffected.
+
 ### Redacting PII before it leaves the browser
 
 Off by default. Add `&pii_scrubbing=1` to the script URL and the SDK redacts, in event
