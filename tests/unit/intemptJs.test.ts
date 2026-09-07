@@ -184,6 +184,20 @@ describe('IntemptJs — the public API class', () => {
     });
   });
 
+  describe('allowBots', () => {
+    // Read-only mirror of the `?allow_bots` script-URL flag, so a customer or
+    // support can see from the console why crawler traffic is being counted.
+    // The flag itself is consumed in main.ts before this class exists; this is
+    // the inspection surface, not the switch.
+    it('is false when the config does not set it', () => {
+      expect(sdk.allowBots).toBe(false);
+    });
+    it('is true when the config sets it', () => {
+      const instance = new IntemptJs({ ...CONFIG, allowBots: true });
+      expect(instance.allowBots).toBe(true);
+    });
+  });
+
   describe('opt-in / opt-out', () => {
     it('optOut sets doNotTrack on the tracker, which is where it gets persisted', () => {
       sdk.optOut();

@@ -71,6 +71,13 @@ export type IntemptConfig = {
   ignore_dnt?: boolean;
 
   /**
+   * Mirror of the `?allow_bots` script-URL flag. Read-only inspection surface
+   * (`window.intempt.allowBots`): the flag itself is consumed by the guard layer
+   * in `main.ts` before the SDK instance exists. Default `false`.
+   */
+  allowBots?: boolean;
+
+  /**
    * PII redaction on outbound event payloads. **Off unless set**, because turning
    * redaction on rewrites data irreversibly before it leaves the browser — there
    * is no server-side undo, so it can never be a default.

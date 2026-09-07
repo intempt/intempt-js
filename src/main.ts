@@ -9,6 +9,7 @@ import {
   createDomainBlockGuard,
   createCrawlerBotBlockGuard,
 } from './guard/trackingGuard.conditions.ts';
+import { readAllowBotsFlag } from './guard/trackingGuard.flags.ts';
 
 import { createLogger } from './shared/logger/logger.ts';
 
@@ -28,13 +29,23 @@ function setupDefaultGuards() {
     enabled: true,
   });
 
-  // Block crawler/bot user agents
+  // Block crawler/bot user agents — unless the host opted out with
+  // `?allow_bots=1` on the script URL (see trackingGuard.flags.ts).
+  const allowBots = readAllowBotsFlag();
+  if (allowBots) {
+    // `warn`, not `info`: the production logger drops `info`, and a host that
+    // switched off a guard protecting its own visitor counts should be able to
+    // see that on the page. One line per load, only while the flag is on.
+    log.warn(
+      'allow_bots is set — crawler/bot guard disabled; bot traffic will be tracked',
+    );
+  }
   guardManager.register({
     id: 'block-crawler-bots',
     name: 'Block Crawler/Bot User Agents',
     description: 'Prevent tracking from crawlers, bots, and automated tools',
     condition: createCrawlerBotBlockGuard(),
-    enabled: true,
+    enabled: !allowBots,
   });
 }
 

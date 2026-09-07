@@ -206,6 +206,16 @@ describe('createCrawlerBotBlockGuard', () => {
         'YandexBot',
         'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)',
       ],
+      // Bare `yandex` entry (mixpanel-js parity): variants the two specific
+      // spellings never matched.
+      [
+        'YandexMobileBot',
+        'Mozilla/5.0 (iPhone; CPU iPhone OS 12_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/12.0 Mobile/15E148 Safari/604.1 (compatible; YandexMobileBot/3.0; +http://yandex.com/bots)',
+      ],
+      [
+        'YandexAccessibilityBot',
+        'Mozilla/5.0 (compatible; YandexAccessibilityBot/3.0; +http://yandex.com/bots)',
+      ],
       [
         'Yahoo! Slurp',
         'Mozilla/5.0 (compatible; Yahoo! Slurp; http://help.yahoo.com/help/us/ysearch/slurp)',
