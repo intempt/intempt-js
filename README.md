@@ -111,7 +111,8 @@ captured.
 
 - **Tracking is blocked on `localhost` and `127.0.0.1`**, and for bot user agents, by design.
   Nothing is broken; use a real or staging hostname. [How to develop against
-  it](examples/README.md#2-localhost-is-blocked-by-design).
+  it](examples/README.md#2-localhost-is-blocked-by-design). To count crawlers and
+  monitors on purpose, add `&allow_bots=1` to the script URL ([details](USAGE.md#allowing-bots-and-crawlers)).
 - **Validation throws.** A missing required field or a [reserved event
   title](docs/API.md#reserved-event-titles) raises an `Error` on your own stack. Wrap calls if
   a bad payload must not break the page.

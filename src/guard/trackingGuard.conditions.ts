@@ -149,6 +149,10 @@ export function createCrawlerBotBlockGuard(): GuardCondition {
     'googlebot',
     'petalbot',
     'sogou',
+    // Bare `yandex` — the spelling mixpanel-js uses — catches YandexBot,
+    // YandexImages, YandexMobileBot and every other Yandex crawler in one entry.
+    // The two specific spellings stay so a reader grepping for them still finds them.
+    'yandex',
     'yandexbot',
     'yandeximages',
     'yahoo! slurp',

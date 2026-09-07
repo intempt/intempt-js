@@ -42,6 +42,14 @@ export class IntemptJs extends IntemptJsGuard {
   readonly VERSION: string = SDK_VERSION;
 
   /**
+   * Whether the crawler/bot guard was disabled with `?allow_bots=1` on the
+   * script URL. Read-only, for `window.intempt.allowBots` — the way a customer
+   * or support checks why crawler traffic is being counted. Not a switch: the
+   * guard decision was made in `main.ts` before this instance existed.
+   */
+  readonly allowBots: boolean;
+
+  /**
    * Ingest base URL. `config.apiHost` wins over the build-time default so a
    * data-residency customer can name their own regional endpoint — see
    * `resolveIngestBaseUrl` for why there is no `region` shorthand. Assigned in the
@@ -55,6 +63,7 @@ export class IntemptJs extends IntemptJsGuard {
   constructor(config: IntemptConfig) {
     super();
     this._config = { ...config };
+    this.allowBots = config.allowBots === true;
 
     // Logger first, before validation, on purpose: `isValidConfig` throws on a
     // bad config, and a customer debugging that throw wants the SDK's own

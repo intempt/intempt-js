@@ -286,6 +286,21 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       expect(config.useIpAddressForGeolocation).toBeUndefined();
     });
 
+    it('allow_bots is false when absent and true when set', async () => {
+      appendScript(REQUIRED_QUERY);
+      SDK.init();
+      await vi.runAllTimersAsync();
+      expect(autoTrackerInstances[0]!.config.allowBots).toBe(false);
+
+      document.querySelectorAll('script').forEach((s) => s.remove());
+      autoTrackerInstances.length = 0;
+      delete (window as any).intempt;
+      appendScript(`${REQUIRED_QUERY}&allow_bots=1`);
+      SDK.init();
+      await vi.runAllTimersAsync();
+      expect(autoTrackerInstances[0]!.config.allowBots).toBe(true);
+    });
+
     it('ignore_dnt=false correctly disables the flag', async () => {
       // §3h gave ignore_dnt/pii_scrubbing a real boolean parse specifically
       // because a privacy switch defaulting the wrong way is a regulator-grade

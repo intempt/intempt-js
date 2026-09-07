@@ -26,3 +26,4 @@ export type {
   GuardConfig,
   GuardResult,
 } from './trackingGuard.types.ts';
+export { readAllowBotsFlag } from './trackingGuard.flags.ts';
