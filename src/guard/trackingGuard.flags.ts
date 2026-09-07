@@ -1,4 +1,4 @@
-import { EnvConfig } from '../shared/envConfig.ts';
+import { findSdkScript } from '../shared/findSdkScript.ts';
 import { readBooleanParam } from '../shared/readBooleanParam.ts';
 
 /**
@@ -17,8 +17,9 @@ import { readBooleanParam } from '../shared/readBooleanParam.ts';
  * "CAN'T FIND SCRIPT" on its own.
  */
 export function readAllowBotsFlag(doc: Document = document): boolean {
-  const cdnLink = EnvConfig.getCdnLink();
-  const script = Array.from(doc.scripts).find((s) => s.src.includes(cdnLink));
+  const script = findSdkScript(doc);
   if (!script) return false;
-  return readBooleanParam(new URL(script.src).searchParams, 'allow_bots') ?? false;
+  return (
+    readBooleanParam(new URL(script.src).searchParams, 'allow_bots') ?? false
+  );
 }

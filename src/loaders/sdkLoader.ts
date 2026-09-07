@@ -4,6 +4,7 @@ import { EnvConfig } from '../shared/envConfig.ts';
 // Lives in shared/ so the guard layer (which runs before this loader) can use the
 // same parser; re-exported here because tests and the guard flags import it.
 import { readBooleanParam } from '../shared/readBooleanParam.ts';
+import { findSdkScript } from '../shared/findSdkScript.ts';
 export { readBooleanParam };
 
 import { createLogger } from '../shared/logger/logger.ts';
@@ -49,12 +50,7 @@ type IntemptStub = {
 };
 
 function getIntemptConfig(): IntemptConfig {
-  const cdnLink = EnvConfig.getCdnLink();
-  const scripts = document.scripts;
-
-  const intemptScript = Array.from(scripts).find((s) =>
-    s.src.includes(cdnLink),
-  );
+  const intemptScript = findSdkScript();
   if (!intemptScript) {
     // Deliberately a raw, unconditional console.error and NOT routed through the
     // logger.
