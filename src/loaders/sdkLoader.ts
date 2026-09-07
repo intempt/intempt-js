@@ -113,6 +113,9 @@ function getIntemptConfig(): IntemptConfig {
     // through to the build-time default (D-27). Treat an empty value the same
     // as an absent one.
     apiHost: source.searchParams.get('api_host') || undefined,
+    // Same parse the guard layer used in main.ts (trackingGuard.flags.ts); kept
+    // here so `window.intempt.allowBots` reports what the guard actually did.
+    allowBots: readBooleanParam(source.searchParams, 'allow_bots') ?? false,
   };
 }
 

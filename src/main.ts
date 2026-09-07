@@ -33,7 +33,12 @@ function setupDefaultGuards() {
   // `?allow_bots=1` on the script URL (see trackingGuard.flags.ts).
   const allowBots = readAllowBotsFlag();
   if (allowBots) {
-    log.info('allow_bots set — crawler/bot guard disabled');
+    // `warn`, not `info`: the production logger drops `info`, and a host that
+    // switched off a guard protecting its own visitor counts should be able to
+    // see that on the page. One line per load, only while the flag is on.
+    log.warn(
+      'allow_bots is set — crawler/bot guard disabled; bot traffic will be tracked',
+    );
   }
   guardManager.register({
     id: 'block-crawler-bots',

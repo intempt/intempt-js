@@ -401,6 +401,9 @@ search-engine render triggers — add `&allow_bots=1` to the script URL:
 > A bot that gets through receives a full SDK footprint: a visitor cookie, a profile, and
 > every event it triggers. Expect inflated visitor counts while this is on. The localhost
 > guard is unaffected.
+>
+> While the flag is on the SDK logs one `warn` line per page load, and
+> `window.intempt.allowBots` reads `true`, so anyone debugging a traffic jump can see why.
 
 ### Redacting PII before it leaves the browser
 
