@@ -599,12 +599,15 @@ describe('IntemptJs — the public API class', () => {
       expect((init.headers as Record<string, string>).Authorization).toBe(
         `Basic ${btoa('user:pass')}`,
       );
-      expect(JSON.parse(init.body as string)).toMatchObject({
-        profileId: 'profile-1',
+      const body = JSON.parse(init.body as string);
+      expect(body).toMatchObject({
+        id: 'profile-1',
+        type: 'profile',
         sourceId: 'src-1',
         limit: 5,
         fields: ['a'],
       });
+      expect(body).not.toHaveProperty('profileId');
     });
 
     it('returns null instead of throwing when the network fails', async () => {

@@ -612,7 +612,8 @@ export class IntemptJs extends IntemptJsGuard {
     const profileId = this._autoTracker.getProfileId();
     const productId = localStorageCache.get('productId');
     const body = {
-      profileId,
+      id: profileId,
+      type: 'profile',
       sourceId,
       limit: quantity,
       fields,
