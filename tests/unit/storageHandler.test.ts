@@ -1,4 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+
+const secure = vi.hoisted(() => ({ value: false }));
+vi.mock('../../src/shared/secureContext.ts', () => ({
+  isSecureContext: () => secure.value,
+}));
 import {
   getCookie,
   handleDomain,
@@ -55,6 +60,22 @@ describe('setCookie — string construction', () => {
 
   afterEach(() => {
     stub.restore();
+  });
+
+  it('always writes SameSite=Lax', () => {
+    setCookie({ name: 'a', value: 'b', path: '/' });
+    expect(stub.written[0]).toContain('SameSite=Lax;');
+  });
+
+  it('writes Secure only in a secure context', () => {
+    secure.value = false;
+    setCookie({ name: 'a', value: 'b', path: '/' });
+    expect(stub.written[0]).not.toContain('Secure');
+
+    secure.value = true;
+    setCookie({ name: 'a', value: 'b', path: '/' });
+    expect(stub.written[1]).toContain('Secure;');
+    secure.value = false;
   });
 
   it('writes the path segment', () => {
