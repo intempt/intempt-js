@@ -19,6 +19,21 @@ describe('SharedLock', () => {
     localStorage.clear();
   });
 
+  it('delegates to the Web Locks API when the browser has one', async () => {
+    const request = vi.fn(async (_name: string, fn: () => Promise<unknown>) =>
+      fn(),
+    );
+    vi.stubGlobal('navigator', { ...navigator, locks: { request } });
+    try {
+      const result = await makeLock('a').withLock(async () => 'held');
+      expect(result).toBe('held');
+      expect(request).toHaveBeenCalledWith(STORAGE_KEY, expect.any(Function));
+      expect(localStorage.getItem(STORAGE_KEY)).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('runs the critical section and releases afterwards', async () => {
     const result = await makeLock('pid-a').withLock(async () => 'done');
 

@@ -1,6 +1,7 @@
 import { SetCookieParams } from '../intemptJs/types/autoTracker.types.ts';
 import { LocalStorageCache } from '../intemptJs/types/intemptJs.types.ts';
 import { extractEtldPlusOne, isHostOnlyTarget } from './publicSuffix.ts';
+import { isSecureContext } from './secureContext.ts';
 
 // In-memory mirror of the cookie jar. Cookie values are raw strings — the JSON
 // parsing happens at the two readers below — so `string`, not `any`: it is a
@@ -34,7 +35,8 @@ export function setCookie({
   // malformed attribute rather than an absent one.
   const resolvedDomain = domain ? handleDomain(domain) : '';
   const cookieDomain = resolvedDomain ? `domain=${resolvedDomain};` : '';
-  document.cookie = `${cookieValue}${expires}${cookiePath}${cookieDomain}`;
+  const secure = isSecureContext() ? 'Secure;' : '';
+  document.cookie = `${cookieValue}${expires}${cookiePath}${cookieDomain}SameSite=Lax;${secure}`;
 
   appLocalCookie[name] = value;
 
