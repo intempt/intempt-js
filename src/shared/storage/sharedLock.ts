@@ -30,6 +30,10 @@ export class SharedLock {
   }
 
   async withLock<T>(fn: () => Promise<T>): Promise<T> {
+    const locks = this.webLocks();
+    if (locks) {
+      return locks.request(this.lockKey, fn);
+    }
     const lockAcquired = await this.acquireLock();
     if (!lockAcquired) {
       throw new Error('Failed to acquire lock');
@@ -39,6 +43,16 @@ export class SharedLock {
       return await fn();
     } finally {
       this.releaseLock();
+    }
+  }
+
+  private webLocks(): LockManager | null {
+    try {
+      return typeof navigator !== 'undefined' && navigator.locks
+        ? navigator.locks
+        : null;
+    } catch {
+      return null;
     }
   }
 

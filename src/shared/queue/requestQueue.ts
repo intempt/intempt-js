@@ -311,12 +311,11 @@ export class RequestQueue {
     this.migrated = true;
 
     try {
-      const legacy = await this.queueStorage.getItem(this.storageKey);
-      if (!Array.isArray(legacy) || legacy.length === 0) {
-        return;
-      }
-
       const importLegacy = async () => {
+        const legacy = await this.queueStorage.getItem(this.storageKey);
+        if (!Array.isArray(legacy) || legacy.length === 0) {
+          return;
+        }
         for (const entry of legacy) {
           if (!entry || typeof entry !== 'object' || !entry.id) continue;
           // The fallback deadline has to land in the *record* as well as the key.
