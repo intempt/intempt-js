@@ -626,6 +626,23 @@ describe('IntemptJs — the public API class', () => {
       ).resolves.toBeNull();
     });
 
+    it('returns null instead of rejecting when the body is not JSON', async () => {
+      // `return response.json()` (no await) handed the caller a promise that
+      // rejected OUTSIDE the try/catch, so an HTML error page from the gateway
+      // surfaced as an unhandled rejection in the customer's render code.
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async () => ({
+          json: async () => {
+            throw new SyntaxError('Unexpected token < in JSON');
+          },
+        })),
+      );
+      await expect(
+        sdk.recommendation({ id: 'feed-7', quantity: 5, fields: [] } as any),
+      ).resolves.toBeNull();
+    });
+
     it('is gated on opt-out, fixed (D-4): no identifier leaves the page', async () => {
       // FIX (D-4): `recommendation()` used to be the one public method with no
       // `isUserOptIn()` check, so an opted-out visitor still had their
