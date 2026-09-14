@@ -66,7 +66,6 @@ export function consentCookieDomain(hostname?: string): string {
   return registrable ? `.${registrable}` : '';
 }
 
-
 /**
  * Read a cookie by name. Returns `null` when absent or unreadable.
  *

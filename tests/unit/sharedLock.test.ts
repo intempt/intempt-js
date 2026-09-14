@@ -20,8 +20,8 @@ describe('SharedLock', () => {
   });
 
   it('delegates to the Web Locks API when the browser has one', async () => {
-    const request = vi.fn(
-      async (_name: string, fn: () => Promise<unknown>) => fn(),
+    const request = vi.fn(async (_name: string, fn: () => Promise<unknown>) =>
+      fn(),
     );
     vi.stubGlobal('navigator', { ...navigator, locks: { request } });
     try {
