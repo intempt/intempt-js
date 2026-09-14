@@ -54,15 +54,24 @@ describe('SharedLock', () => {
     });
 
     it('should release lock after operation', async () => {
+      // SharedLock takes the Web Locks API when the browser has one and only
+      // falls back to the localStorage key otherwise, so "held" is observed
+      // through whichever mechanism this browser actually used.
+      const storageKey = `__intempt_lock_${lockKey}__`;
+      const isHeld = async (): Promise<boolean> => {
+        if (navigator.locks) {
+          const { held = [] } = await navigator.locks.query();
+          return held.some((lock) => lock.name === storageKey);
+        }
+        return localStorage.getItem(storageKey) !== null;
+      };
+
       await lock1.withLock(async () => {
-        // Lock should be held
-        expect(localStorage.getItem(`__intempt_lock_${lockKey}__`)).to.not.be
-          .null;
+        expect(await isHeld()).to.be.true;
       });
 
-      // Lock should be released
-      cy.wait(50);
-      expect(localStorage.getItem(`__intempt_lock_${lockKey}__`)).to.be.null;
+      expect(await isHeld()).to.be.false;
+      expect(localStorage.getItem(storageKey)).to.be.null;
     });
   });
 

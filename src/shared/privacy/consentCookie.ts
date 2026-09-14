@@ -1,4 +1,5 @@
 import { extractEtldPlusOne, isHostOnlyTarget } from '../publicSuffix.ts';
+import { isSecureContext } from '../secureContext.ts';
 
 /**
  * Cookie primitives for consent state, scoped to the eTLD+1.
@@ -63,16 +64,6 @@ export function consentCookieDomain(hostname?: string): string {
   const registrable = extractEtldPlusOne(host);
 
   return registrable ? `.${registrable}` : '';
-}
-
-function isSecureContext(): boolean {
-  try {
-    return (
-      typeof window !== 'undefined' && window.location?.protocol === 'https:'
-    );
-  } catch {
-    return false;
-  }
 }
 
 /**
