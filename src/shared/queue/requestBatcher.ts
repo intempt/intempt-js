@@ -681,7 +681,9 @@ export class RequestBatcher {
         this.unmarkEventIdsSent(eventIdsInBatch);
         // Same path as every other retry (INT-3793): an immediate `flush()`
         // here hammered a server that had just timed out.
-        this.scheduleFlush(jitterAroundBase(this.libConfig.batchFlushIntervalMs));
+        this.scheduleFlush(
+          jitterAroundBase(this.libConfig.batchFlushIntervalMs),
+        );
         return;
       }
 

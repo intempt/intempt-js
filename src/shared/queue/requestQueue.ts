@@ -12,7 +12,8 @@ function randomBase36(length: number): string {
     for (let i = 0; i < length; i++) out += BASE36[bytes[i] % 36];
     return out;
   }
-  for (let i = 0; i < length; i++) out += BASE36[Math.floor(Math.random() * 36)];
+  for (let i = 0; i < length; i++)
+    out += BASE36[Math.floor(Math.random() * 36)];
   return out;
 }
 
