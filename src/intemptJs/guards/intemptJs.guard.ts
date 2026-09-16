@@ -72,6 +72,15 @@ export class IntemptJsGuard {
         'Consent parameters are invalid: action should be either "reject" or "accept".',
       );
     }
+    if (
+      typeof params.validUntil !== 'number' ||
+      !Number.isFinite(params.validUntil) ||
+      params.validUntil <= 0
+    ) {
+      throw new Error(
+        'Consent parameters are invalid: validUntil must be a positive epoch-milliseconds number.',
+      );
+    }
     return true;
   }
 
@@ -118,7 +127,7 @@ export class IntemptJsGuard {
       throw new Error(`The '${params.eventTitle}' event title is forbidden`);
     }
 
-    if (params.accountId === undefined || params.accountId === null) {
+    if (!params.accountId) {
       throw new Error("Group parameters are invalid: 'accountId' is required.");
     }
 

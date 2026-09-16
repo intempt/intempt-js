@@ -131,7 +131,11 @@ export function theTraps(): void {
   // 3. `userId` must be truthy — '' is rejected:
   //    window.intempt?.identify({ userId: '' });
   //    -> Error: Identify parameters are invalid: 'userId' is required.
-  // 4. `validUntil` is typed required but never validated, so this succeeds and sends a
-  //    consent event with validUntil 0:
+  // 4. `validUntil` must be a positive epoch-milliseconds number — 0, a negative, a
+  //    NaN or a numeric string are all rejected (INT-3722 / INT-3807; before that fix
+  //    it was typed required but never checked, so a consent event went out with
+  //    validUntil 0):
   //    window.intempt?.consent({ action: 'accept', validUntil: 0 });
+  //    -> Error: Consent parameters are invalid: validUntil must be a positive
+  //       epoch-milliseconds number.
 }

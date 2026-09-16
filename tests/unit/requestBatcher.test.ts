@@ -1539,7 +1539,7 @@ describe('RequestBatcher', () => {
   });
 
   describe('handleResponse — timeout branch guard', () => {
-    it('retries immediately on a timeout that has actually elapsed', async () => {
+    it('schedules a retry on a timeout that has actually elapsed (INT-3793)', async () => {
       // Kills the ConditionalExpression/LogicalOperator/EqualityOperator/
       // ArithmeticOperator mutants on `response?.error === 'timeout' &&
       // Date.now() - startTime >= timeoutMS`.
@@ -1562,12 +1562,15 @@ describe('RequestBatcher', () => {
       const start = Date.now();
       vi.spyOn(Date, 'now').mockImplementation(() => start + call++ * 200);
       responses = [{ error: 'timeout' }, { httpStatusCode: 200, ok: true }];
+      const schedule = vi.spyOn(b as never, 'scheduleFlush' as never);
 
       await b.flush();
 
-      // A real timeout retries synchronously (a second send in the same
-      // flush), not via the jittered backoff schedule.
-      expect(sendCalls.length).toBeGreaterThanOrEqual(2);
+      // A real timeout goes through the same scheduler as every other retry:
+      // exactly one send in this flush, and a flush scheduled for later. An
+      // immediate second send would hammer a server that just timed out.
+      expect(sendCalls.length).toBe(1);
+      expect(schedule).toHaveBeenCalled();
     });
 
     it('does not take the immediate-retry path before the timeout has elapsed', async () => {

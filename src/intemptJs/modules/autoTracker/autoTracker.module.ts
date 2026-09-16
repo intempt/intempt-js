@@ -115,9 +115,9 @@ export class AutoTrackerModule {
 
     const eventData = new HtmlEventModel({
       name: eventName,
-      sessionId: this.getSessionId(),
-      profileId: this.getProfileId(),
-      pageId: this._getPageId(),
+      sessionId,
+      profileId,
+      pageId,
       data: new HtmlElementDataComponent(target, domEventName),
     });
 

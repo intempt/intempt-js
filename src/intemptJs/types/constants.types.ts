@@ -4,7 +4,7 @@ export enum IntemptEventName {
   CLICK_ON = 'Click On',
   SUBMIT_ON = 'Submit On',
   CHANGE_ON = 'Change On',
-  SESSION_START = 'Session Start',
+  SESSION_START = 'Session start',
   PRODUCT_VIEW = 'Product viewed',
   PRODUCT_ADD = 'Added to cart',
   PRODUCT_ORDER = 'Product ordered',
