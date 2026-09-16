@@ -89,6 +89,14 @@ export class PageTrackerModule {
   }
 
   private _patchHistoryForSpa() {
+    // A second SDK init (or two SDK copies on one page) must not wrap the
+    // already-wrapped History methods, or every navigation fires twice
+    // (INT-3783). The sentinel lives on `history` because that is the object
+    // being patched, not on this instance.
+    const h = history as History & { __intemptPatched?: boolean };
+    if (h.__intemptPatched) return;
+    h.__intemptPatched = true;
+
     const fire = () => window.dispatchEvent(new Event('locationchange'));
 
     // pushState and replaceState share an identical signature, so a single

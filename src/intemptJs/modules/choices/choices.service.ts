@@ -217,7 +217,7 @@ export const ChoicesService = {
         setTimeout(resolve, responseMaxTime),
       );
 
-      await Promise.race([timeoutPromise, await changesPromise]);
+      await Promise.race([timeoutPromise, changesPromise]);
     } catch (error) {
       log.error('setChangesData failed', error);
       localStorageCache.set(key, { changes: [] });

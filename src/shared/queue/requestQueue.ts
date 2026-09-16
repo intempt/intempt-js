@@ -1,6 +1,21 @@
 import { QueueStorage, QueueStorageLike } from '../storage/queueStorage.ts';
 import { SharedLock } from '../storage/sharedLock.ts';
 
+const BASE36 = '0123456789abcdefghijklmnopqrstuvwxyz';
+
+function randomBase36(length: number): string {
+  const cryptoObj = (globalThis as { crypto?: Crypto }).crypto;
+  let out = '';
+  if (cryptoObj && typeof cryptoObj.getRandomValues === 'function') {
+    const bytes = new Uint8Array(length);
+    cryptoObj.getRandomValues(bytes);
+    for (let i = 0; i < length; i++) out += BASE36[bytes[i] % 36];
+    return out;
+  }
+  for (let i = 0; i < length; i++) out += BASE36[Math.floor(Math.random() * 36)];
+  return out;
+}
+
 export interface QueueEntry {
   id: string;
   flushAfter: number; // Timestamp when item can be considered orphaned
@@ -462,9 +477,10 @@ export class RequestQueue {
   }
 
   private generateId(): string {
-    // padEnd: Math.random().toString(36) drops trailing zeros, so substring(2, 11) returns
-    // fewer than 9 characters roughly 0.019% of the time (39 in 200k draws). That is a real
-    // loss of entropy in an id used for uniqueness, not just a flaky length assertion.
-    return `${Date.now()}_${Math.random().toString(36).substring(2, 11).padEnd(9, '0')}`;
+    // Nine base-36 characters after the timestamp, drawn from
+    // `crypto.getRandomValues` where available (INT-3937). `Math.random` is
+    // only the fallback for environments without WebCrypto. The shape is
+    // unchanged, so nothing parsing these ids notices.
+    return `${Date.now()}_${randomBase36(9)}`;
   }
 }

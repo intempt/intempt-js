@@ -631,9 +631,12 @@ export class IntemptJs extends IntemptJsGuard {
         body: JSON.stringify({ ...body }),
         keepalive: true,
       });
+      // A non-2xx (INT-3772) is not a recommendation payload, whatever the
+      // body parses to.
+      if (!response?.ok) return null;
       // `await` keeps a non-JSON body (HTML error page, empty 204) inside this
       // try. Without it the returned promise rejects after the catch is gone.
-      return await response?.json();
+      return await response.json();
     } catch {
       // Swallowed deliberately: a failed consent POST must not throw into the
       // customer's own click handler. The binding is omitted rather than named

@@ -89,6 +89,13 @@ if (typeof window !== 'undefined') {
     cameFromOpener,
   });
 
+  // The web editor is an authoring tool, not tracking: it must load even when
+  // the guard would block tracking (INT-3767), so it is decided first.
+  if (cameFromOpener) {
+    WEB_EDITOR.init();
+    return;
+  }
+
   // Check guard conditions before initializing
   const blocked = await shouldBlockTracking(guardManager);
 
@@ -98,9 +105,5 @@ if (typeof window !== 'undefined') {
   }
 
   // Guard check passed, proceed with initialization
-  if (cameFromOpener) {
-    WEB_EDITOR.init();
-  } else {
-    SDK.init();
-  }
+  SDK.init();
 })();

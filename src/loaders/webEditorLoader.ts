@@ -85,7 +85,7 @@ class WebEditor {
       const p = msg.payload || {};
       editorPayload = { ...p };
 
-      if (this.CHANNEL && msg.channel && msg.channel !== this.CHANNEL)
+      if (this.CHANNEL && msg.channel !== this.CHANNEL)
         chOk = false;
     }
 

@@ -111,9 +111,10 @@ export class ShopifyTrackerModule {
   }
 
   private getBtnByTextContent(btnText: string): HTMLButtonElement | null {
+    if (!btnText) return null;
     const buttons = document.querySelectorAll<HTMLButtonElement>('button');
     for (const button of buttons) {
-      if (button.textContent?.trim().toLowerCase().includes(btnText)) {
+      if (button.textContent?.trim().toLowerCase().includes(btnText.toLowerCase())) {
         return button;
       }
     }
