@@ -89,8 +89,32 @@ export class PageTrackerModule {
   }
 
   private _patchHistoryForSpa() {
+    // A second SDK init (or two SDK copies on one page) must not wrap the
+    // already-wrapped History methods, or every navigation fires twice
+    // (INT-3783). The sentinel lives on `history` because that is the object
+    // being patched, not on this instance.
     const fire = () => window.dispatchEvent(new Event('locationchange'));
 
+    // The listeners below are per-instance and cheap; only the History
+    // wrapping is guarded, because wrapping twice is what double-fires. The
+    // mark sits on the wrapper FUNCTION, not on `history`: if something swaps
+    // the method back (a test harness restoring a stub, a host page
+    // re-installing its own router shim) the mark goes with it and we wrap again.
+    const current = history.pushState as History['pushState'] & {
+      __intemptPatched?: boolean;
+    };
+    if (!current.__intemptPatched) {
+      this._wrapHistory(fire);
+    }
+
+    window.addEventListener('popstate', fire);
+    // Hash-only routers change the URL without ever touching the History API
+    // and never fire 'popstate', so without this listener a hash-routed SPA
+    // (a large share of real sites) recorded no navigation at all (D-11).
+    window.addEventListener('hashchange', fire);
+  }
+
+  private _wrapHistory(fire: () => void) {
     // pushState and replaceState share an identical signature, so a single
     // alias lets both be patched without a union-typed rest parameter.
     type HistoryMutator = History['pushState'];
@@ -99,18 +123,14 @@ export class PageTrackerModule {
       // bind to avoid using `this` inside the wrapper
       const orig = history[fn].bind(history) as HistoryMutator;
 
-      history[fn] = ((...args: Parameters<HistoryMutator>) => {
+      const wrapped = ((...args: Parameters<HistoryMutator>) => {
         const ret = orig(...args);
         fire();
         return ret;
-      }) as HistoryMutator;
+      }) as HistoryMutator & { __intemptPatched?: boolean };
+      wrapped.__intemptPatched = true;
+      history[fn] = wrapped;
     });
-
-    window.addEventListener('popstate', fire);
-    // Hash-only routers change the URL without ever touching the History API
-    // and never fire 'popstate', so without this listener a hash-routed SPA
-    // (a large share of real sites) recorded no navigation at all (D-11).
-    window.addEventListener('hashchange', fire);
   }
 
   start() {

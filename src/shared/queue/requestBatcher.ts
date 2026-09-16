@@ -679,7 +679,11 @@ export class RequestBatcher {
       ) {
         this.reportError('Network timeout; retrying');
         this.unmarkEventIdsSent(eventIdsInBatch);
-        await this.flush();
+        // Same path as every other retry (INT-3793): an immediate `flush()`
+        // here hammered a server that had just timed out.
+        this.scheduleFlush(
+          jitterAroundBase(this.libConfig.batchFlushIntervalMs),
+        );
         return;
       }
 

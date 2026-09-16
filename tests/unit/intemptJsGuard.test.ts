@@ -76,9 +76,19 @@ describe('IntemptJsGuard', () => {
 
   describe('isConsentValid', () => {
     it('accepts accept and reject', () => {
-      expect(guard.isConsentValid({ action: 'accept' } as never)).toBe(true);
-      expect(guard.isConsentValid({ action: 'reject' } as never)).toBe(true);
+      const validUntil = Date.now() + 1000;
+      expect(guard.isConsentValid({ action: 'accept', validUntil })).toBe(true);
+      expect(guard.isConsentValid({ action: 'reject', validUntil })).toBe(true);
     });
+
+    it.each([undefined, null, 0, -1, NaN, '123'])(
+      'rejects validUntil %s (INT-3722 / INT-3807)',
+      (validUntil) => {
+        expect(() =>
+          guard.isConsentValid({ action: 'accept', validUntil } as never),
+        ).toThrow('validUntil must be a positive epoch-milliseconds number');
+      },
+    );
 
     it.each([undefined, null, {}])('rejects %s params', (params) => {
       expect(() => guard.isConsentValid(params as never)).toThrow(
@@ -149,12 +159,16 @@ describe('IntemptJsGuard', () => {
       expect(guard.isGroupValid({ accountId: 'a1' } as never)).toBe(true);
     });
 
-    it('accepts accountId 0 and empty string, unlike identify', () => {
-      // Group checks `=== undefined || === null` while identify checks
-      // falsiness, so these two methods disagree about 0 and ''. Pinned because
-      // it is a real inconsistency in the public API, not a typo in the test.
-      expect(guard.isGroupValid({ accountId: 0 } as never)).toBe(true);
-      expect(guard.isGroupValid({ accountId: '' } as never)).toBe(true);
+    it('rejects accountId 0 and empty string, like identify (INT-3800)', () => {
+      // Group used to check only `=== undefined || === null` while identify
+      // checks falsiness, so an empty-string accountId produced a group call
+      // against nothing. Both now agree.
+      expect(() => guard.isGroupValid({ accountId: 0 } as never)).toThrow(
+        "Group parameters are invalid: 'accountId' is required.",
+      );
+      expect(() => guard.isGroupValid({ accountId: '' } as never)).toThrow(
+        "Group parameters are invalid: 'accountId' is required.",
+      );
     });
 
     it.each([undefined, null, {}])('rejects %s params', (params) => {

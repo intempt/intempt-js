@@ -578,7 +578,26 @@ describe('IntemptJs — the public API class', () => {
   });
 
   describe('recommendation', () => {
-    const okResponse = (body: unknown) => ({ json: async () => body });
+    const okResponse = (body: unknown) => ({
+      ok: true,
+      json: async () => body,
+    });
+
+    it('returns null on a non-2xx response instead of parsing its body (INT-3772)', async () => {
+      const fetchSpy = vi.fn(async () => ({
+        ok: false,
+        status: 500,
+        json: async () => ({ items: [1] }),
+      }));
+      vi.stubGlobal('fetch', fetchSpy);
+
+      const result = await sdk.recommendation({
+        id: 'feed-7',
+        quantity: 3,
+      } as never);
+
+      expect(result).toBeNull();
+    });
 
     it('posts to the feed endpoint with basic auth built from the write key', async () => {
       const fetchSpy = vi.fn(async () => okResponse({ items: [1] }));

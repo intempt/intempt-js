@@ -90,7 +90,13 @@ export class WebEditorModificationHandler {
   private elementGetterByIweId(key?: string): HTMLElement | null {
     if (!key) return null;
 
-    const selector = `[${key}="true"]`;
+    // `key` arrives from a postMessage payload; escape it so a malformed key
+    // cannot widen or break the selector (INT-3821).
+    const escaped =
+      typeof CSS !== 'undefined' && typeof CSS.escape === 'function'
+        ? CSS.escape(key)
+        : key.replace(/[^a-zA-Z0-9_-]/g, '');
+    const selector = `[${escaped}="true"]`;
 
     return document.querySelector(selector) || null;
   }
