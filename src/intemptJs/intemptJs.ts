@@ -512,6 +512,17 @@ export class IntemptJs extends IntemptJsGuard {
       : defaultValue;
   }
 
+  async jsonVariation<T extends object>(
+    key: string,
+    context: FlagContext,
+    defaultValue: T,
+  ): Promise<T> {
+    const value = await this.variation<unknown>(key, context, defaultValue);
+    return value !== null && typeof value === 'object'
+      ? (value as T)
+      : defaultValue;
+  }
+
   /**
    * Resolves immediately.
    *
