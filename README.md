@@ -77,6 +77,7 @@ There is no constructor. Configuration goes in the script URL's query string:
 | `key`          | API key, in `username.password` form                                    |
 | `shopify`      | Shopify tracking — add `&shopify=1` to enable, omit to disable          |
 | `magento`      | Magento product detection — add `&magento=1` to enable, omit to disable |
+| `autocapture`  | Autocapture: on when omitted, `&autocapture=false` turns it off         |
 
 > **The `/v1/` path segment is required.** The SDK finds its own `<script>` tag by matching
 > that URL. Without it, it reads an empty configuration and never starts — the console shows
@@ -170,6 +171,11 @@ its captured text is masked. Password inputs are masked automatically.
 
 It masks the captured **text** only — not the element's tag, id or classes, and not values
 submitted through a form.
+
+To turn auto-tracking off, add `&autocapture=false` to the script URL. Page views, page exits,
+clicks and form events stop. Sessions keep running, and `track()`, `record()` and the other
+explicit calls still deliver. Opting a visitor out with `optOut()` is different: it stops
+everything.
 
 ## Integrations
 

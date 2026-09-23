@@ -78,6 +78,7 @@ export class AutoTrackerModule {
   private readonly _eventPool: AutoTrackerEventPool;
   private readonly _transport: AutoTrackerTransport;
   private _disposed: boolean = false;
+  private readonly _autocapture: boolean;
 
   private readonly _onShopifyEvent = (event: Event): void => {
     if (!this.isUserOptIn()) return;
@@ -102,7 +103,7 @@ export class AutoTrackerModule {
   };
 
   private readonly _onHtmlEvent = (event: Event): void => {
-    if (!this.isUserOptIn()) return;
+    if (!this.isUserOptIn() || !this._autocapture) return;
 
     const { detail } = event as CustomEvent;
     const { eventName, domEventName, target } = detail;
@@ -138,6 +139,8 @@ export class AutoTrackerModule {
     } = detail;
 
     this.handleShopifyEvent(eventName);
+
+    if (!this._autocapture) return;
 
     const eventData = new PageEventDataComponent({
       duration,
@@ -208,6 +211,7 @@ export class AutoTrackerModule {
   constructor(intemptConfig: IntemptConfig, api: string) {
     this._config = { ...intemptConfig };
     this._api = api;
+    this._autocapture = intemptConfig.autocapture !== false;
     this._transport = new AutoTrackerTransport(this._config, this._api);
     this._consent = new AutoTrackerConsent(this._config, this._api);
     this._eventPool = new AutoTrackerEventPool(this._config, this._api);

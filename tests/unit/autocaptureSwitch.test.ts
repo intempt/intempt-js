@@ -13,7 +13,10 @@ function build(config: Record<string, unknown>): {
   tracker: AutoTrackerModule;
   delivered: ReturnType<typeof vi.fn>;
 } {
-  const created = new AutoTrackerModule(config as any, 'https://api.example.com');
+  const created = new AutoTrackerModule(
+    config as any,
+    'https://api.example.com',
+  );
   const delivered = vi.fn();
   vi.spyOn(created as unknown as Private, '_onTrackData').mockImplementation(
     delivered,

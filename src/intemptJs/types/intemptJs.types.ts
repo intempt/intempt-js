@@ -87,6 +87,8 @@ export type IntemptConfig = {
    */
   piiScrubbing?: boolean | PiiScrubberOptions;
 
+  autocapture?: boolean;
+
   /**
    * Ingest base URL override, for data residency.
    *
