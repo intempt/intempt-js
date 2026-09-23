@@ -169,8 +169,13 @@ its captured text is masked. Password inputs are masked automatically.
 <span doNotCapture>Balance: $12,500</span>
 ```
 
-It masks the captured **text** only — not the element's tag, id or classes, and not values
-submitted through a form.
+It masks the captured **text** only, not the element's tag, id or classes.
+
+**What a visitor types is never captured.** Text, email, number, date and every other typed
+input, textareas and `contenteditable` regions come through as `********`, on change and on
+submit, and so does a pre-filled `value` attribute. The field name is kept. Choices are not
+typed, so a checkbox, radio or select value still comes through, and so does a button's label.
+To send a value on purpose, pass it in a `track()` or `record()` call.
 
 To turn auto-tracking off, add `&autocapture=false` to the script URL. Page views, page exits,
 clicks and form events stop. Sessions keep running, and `track()`, `record()` and the other

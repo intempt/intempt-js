@@ -86,6 +86,40 @@ describe('typed values are never captured', () => {
 });
 
 describe('choices and labels are still captured', () => {
+  it.each([
+    'checkbox',
+    'radio',
+    'range',
+    'color',
+    'button',
+    'submit',
+    'reset',
+    'image',
+    'hidden',
+  ])('keeps the value of a %s input, which is not typed', (type) => {
+    const input = mount(`<input type="${type}" value="author-set" />`);
+    const captured = new HtmlElementDataComponent(input, CLICK);
+    expect(captured.hierarchy).toContain("value='author-set'");
+  });
+
+  it('reads the input type case-insensitively', () => {
+    const input = mount('<input type="EMAIL" value="ada@example.com" />');
+    expect(new HtmlElementDataComponent(input, CHANGE).targetText).toBe(
+      REDACTED,
+    );
+    const box = mount('<input type="CHECKBOX" value="accepted" />');
+    expect(new HtmlElementDataComponent(box, CHANGE).targetText).toBe(
+      'accepted',
+    );
+  });
+
+  it('keeps the text of an element marked contenteditable="false"', () => {
+    const block = mount('<div contenteditable="false">Read only copy</div>');
+    expect(new HtmlElementDataComponent(block, CLICK).targetText).toBe(
+      'Read only copy',
+    );
+  });
+
   it('keeps a select value on submit', () => {
     const form = mount(
       '<form action="/x"><select name="plan"><option value="pro" selected>Pro</option></select></form>',
