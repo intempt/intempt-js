@@ -77,7 +77,7 @@ There is no constructor. Configuration goes in the script URL's query string:
 | `key`          | API key, in `username.password` form                                    |
 | `shopify`      | Shopify tracking — add `&shopify=1` to enable, omit to disable          |
 | `magento`      | Magento product detection — add `&magento=1` to enable, omit to disable |
-| `autocapture`  | Autocapture: on when omitted, `&autocapture=false` turns it off         |
+| `autocapture`  | On when omitted. `false` for none, or a list, e.g. `pageview,submit`    |
 
 > **The `/v1/` path segment is required.** The SDK finds its own `<script>` tag by matching
 > that URL. Without it, it reads an empty configuration and never starts — the console shows
@@ -177,10 +177,21 @@ submit, and so does a pre-filled `value` attribute. The field name is kept. Choi
 typed, so a checkbox, radio or select value still comes through, and so does a button's label.
 To send a value on purpose, pass it in a `track()` or `record()` call.
 
-To turn auto-tracking off, add `&autocapture=false` to the script URL. Page views, page exits,
-clicks and form events stop. Sessions keep running, and `track()`, `record()` and the other
-explicit calls still deliver. Opting a visitor out with `optOut()` is different: it stops
-everything.
+Auto-tracking is four families, all on by default:
+
+| Family     | Events                |
+| ---------- | --------------------- |
+| `pageview` | View Page, Leave Page |
+| `click`    | Click On              |
+| `input`    | Change On             |
+| `submit`   | Submit On             |
+
+`&autocapture=false` turns all four off. `&autocapture=pageview,submit` keeps only those two.
+An unknown name is ignored with a console warning, and a list with no valid name turns
+everything off. Sessions keep running either way, and `track()`, `record()` and the other
+explicit calls still deliver. Shopify and Magento are integrations, not families: they are off
+until `&shopify=1` or `&magento=1`, and `autocapture` does not affect them. Opting a visitor
+out with `optOut()` is different: it stops everything.
 
 ## Integrations
 

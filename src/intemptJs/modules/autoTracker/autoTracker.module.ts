@@ -1,3 +1,7 @@
+import {
+  type AutocaptureFamily,
+  enabledAutocaptureFamilies,
+} from '../../../shared/autocaptureFamilies.ts';
 import { HtmlElementDataComponent } from '../../component/HtmlEventData.component.ts';
 import { SessionTrackerModule } from './modules/sessionTracker/sessionTracker.module.ts';
 import { ProfileTrackerModule } from './modules/profileTracker/profileTracker.module.ts';
@@ -31,6 +35,12 @@ import { createLogger } from '../../../shared/logger/logger.ts';
 import { MetricsSnapshot } from '../../../shared/logger/metrics.ts';
 
 const log = createLogger('AutoTracker');
+
+const HTML_EVENT_FAMILY: Record<string, AutocaptureFamily> = {
+  [IntemptEventName.CLICK_ON]: 'click',
+  [IntemptEventName.CHANGE_ON]: 'input',
+  [IntemptEventName.SUBMIT_ON]: 'submit',
+};
 
 /**
  * Shape common to every event model this module hands to the transport or
@@ -78,7 +88,7 @@ export class AutoTrackerModule {
   private readonly _eventPool: AutoTrackerEventPool;
   private readonly _transport: AutoTrackerTransport;
   private _disposed: boolean = false;
-  private readonly _autocapture: boolean;
+  private readonly _autocapture: Set<AutocaptureFamily>;
 
   private readonly _onShopifyEvent = (event: Event): void => {
     if (!this.isUserOptIn()) return;
@@ -103,10 +113,13 @@ export class AutoTrackerModule {
   };
 
   private readonly _onHtmlEvent = (event: Event): void => {
-    if (!this.isUserOptIn() || !this._autocapture) return;
+    if (!this.isUserOptIn()) return;
 
     const { detail } = event as CustomEvent;
     const { eventName, domEventName, target } = detail;
+
+    const family = HTML_EVENT_FAMILY[eventName as string];
+    if (!family || !this._autocapture.has(family)) return;
 
     const profileId = this.getProfileId();
     const sessionId = this.getSessionId();
@@ -140,7 +153,7 @@ export class AutoTrackerModule {
 
     this.handleShopifyEvent(eventName);
 
-    if (!this._autocapture) return;
+    if (!this._autocapture.has('pageview')) return;
 
     const eventData = new PageEventDataComponent({
       duration,
@@ -211,7 +224,7 @@ export class AutoTrackerModule {
   constructor(intemptConfig: IntemptConfig, api: string) {
     this._config = { ...intemptConfig };
     this._api = api;
-    this._autocapture = intemptConfig.autocapture !== false;
+    this._autocapture = enabledAutocaptureFamilies(intemptConfig.autocapture);
     this._transport = new AutoTrackerTransport(this._config, this._api);
     this._consent = new AutoTrackerConsent(this._config, this._api);
     this._eventPool = new AutoTrackerEventPool(this._config, this._api);

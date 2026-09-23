@@ -4,6 +4,10 @@ import { EnvConfig } from '../shared/envConfig.ts';
 // Lives in shared/ so the guard layer (which runs before this loader) can use the
 // same parser; re-exported here because tests and the guard flags import it.
 import { readBooleanParam } from '../shared/readBooleanParam.ts';
+import {
+  type AutocaptureSetting,
+  parseAutocaptureParam,
+} from '../shared/autocaptureFamilies.ts';
 import { findSdkScript } from '../shared/findSdkScript.ts';
 export { readBooleanParam };
 
@@ -48,6 +52,18 @@ type IntemptStub = {
   __queue?: unknown;
   _pendingPromises?: unknown;
 };
+
+function readAutocapture(
+  params: URLSearchParams,
+): AutocaptureSetting | undefined {
+  const { setting, unknown } = parseAutocaptureParam(params);
+  if (unknown.length) {
+    log.warn(
+      `Ignoring unknown autocapture families: ${unknown.join(', ')}. Valid: pageview, click, input, submit.`,
+    );
+  }
+  return setting;
+}
 
 function getIntemptConfig(): IntemptConfig {
   const intemptScript = findSdkScript();
@@ -95,7 +111,7 @@ function getIntemptConfig(): IntemptConfig {
     // redaction rule is worse than none.
     ignore_dnt: readBooleanParam(source.searchParams, 'ignore_dnt'),
     piiScrubbing: readBooleanParam(source.searchParams, 'pii_scrubbing'),
-    autocapture: readBooleanParam(source.searchParams, 'autocapture'),
+    autocapture: readAutocapture(source.searchParams),
     // Absent means on, matching the platform: the ingestion side treats a missing
     // `?ip=` as "derive location", so an unset switch and an unpatched server agree.
     //
