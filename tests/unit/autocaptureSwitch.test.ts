@@ -117,6 +117,57 @@ describe('web autocapture switch', () => {
     expect(delivered).toHaveBeenCalledTimes(1);
   });
 
+  function html(eventName: string, domEventName: string): () => void {
+    return () => {
+      const target = document.createElement('input');
+      document.body.appendChild(target);
+      document.dispatchEvent(
+        new CustomEvent(IntemptEventListenerName.HTML, {
+          detail: { eventName, domEventName, target },
+        }),
+      );
+    };
+  }
+
+  it.each([
+    ['pageview', 1, 0, 0, 0],
+    ['click', 0, 1, 0, 0],
+    ['input', 0, 0, 1, 0],
+    ['submit', 0, 0, 0, 1],
+  ])(
+    'with only %s enabled, captures exactly that family',
+    (family, pages, clicks, inputs, submits) => {
+      build({ autocapture: [family] });
+      expect(capturedNames(pageView)).toHaveLength(pages);
+      expect(capturedNames(click)).toHaveLength(clicks);
+      expect(
+        capturedNames(html(IntemptEventName.CHANGE_ON, 'change')),
+      ).toHaveLength(inputs);
+      expect(
+        capturedNames(html(IntemptEventName.SUBMIT_ON, 'submit')),
+      ).toHaveLength(submits);
+    },
+  );
+
+  it('captures nothing autocaptured when the family list is empty', () => {
+    build({ autocapture: [] });
+    expect(capturedNames(pageView)).toHaveLength(0);
+    expect(capturedNames(click)).toHaveLength(0);
+  });
+
+  it('still runs Shopify detection when pageview is off', () => {
+    const { tracker: created } = build({
+      autocapture: ['click'],
+      shopify: true,
+    });
+    const shopify = vi.fn();
+    (
+      created as unknown as { _shopifyTrackerModule: { track: () => void } }
+    )._shopifyTrackerModule.track = shopify;
+    pageView();
+    expect(shopify).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the session running when autocapture is false', () => {
     build({ autocapture: false });
     const names = capturedNames(() =>

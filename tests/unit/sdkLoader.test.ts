@@ -315,6 +315,16 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       expect(autoTrackerInstances[0]!.config.autocapture).toBe(false);
     });
 
+    it('autocapture=pageview,submit reaches the tracker as that list', async () => {
+      appendScript(`${REQUIRED_QUERY}&autocapture=pageview,submit`);
+      SDK.init();
+      await vi.runAllTimersAsync();
+      expect(autoTrackerInstances[0]!.config.autocapture).toEqual([
+        'pageview',
+        'submit',
+      ]);
+    });
+
     it('ignore_dnt=false correctly disables the flag', async () => {
       // §3h gave ignore_dnt/pii_scrubbing a real boolean parse specifically
       // because a privacy switch defaulting the wrong way is a regulator-grade
