@@ -1,3 +1,4 @@
+import type { AutocaptureSetting } from '../../shared/autocaptureFamilies.ts';
 import { PiiScrubberOptions } from '../../shared/privacy/piiScrubber.ts';
 
 import { DiagnosticSink, LogThreshold } from '../../shared/logger/logger.ts';
@@ -86,6 +87,8 @@ export type IntemptConfig = {
    * a list of sensitive field names). Pass an object to tune them.
    */
   piiScrubbing?: boolean | PiiScrubberOptions;
+
+  autocapture?: AutocaptureSetting;
 
   /**
    * Ingest base URL override, for data residency.
