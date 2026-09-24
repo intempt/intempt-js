@@ -223,11 +223,22 @@ function replayQueuedCalls(
 
   for (const call of queue) {
     try {
-      // Indexed by a string that came off the page, so the lookup is unavoidably
-      // dynamic; `unknown` then forces the `typeof` check below rather than
-      // trusting it to be callable.
-      const fn = (realIntempt as unknown as Record<string, unknown>)[
-        call.method
+      // `call.method` came off the page as a string, so the lookup is
+      // unavoidably dynamic. It may be dotted (`autoCapture.init`) for a
+      // method that hangs off a nested object rather than `IntemptJs`
+      // itself — walk the path and call on whichever object actually owns
+      // it, not on `realIntempt`, so a nested method needing its own `this`
+      // stays correct.
+      const parts = call.method.split('.');
+      let receiver: unknown = realIntempt;
+      for (let i = 0; i < parts.length - 1; i++) {
+        receiver = (receiver as Record<string, unknown> | null | undefined)?.[
+          parts[i]
+        ];
+        if (receiver == null) break;
+      }
+      const fn = (receiver as Record<string, unknown> | null | undefined)?.[
+        parts[parts.length - 1]
       ];
       if (typeof fn !== 'function') {
         log.warn(`method ${call.method} not found on IntemptJs instance`);
@@ -235,7 +246,7 @@ function replayQueuedCalls(
       }
 
       const result = (fn as (...args: unknown[]) => unknown).apply(
-        realIntempt,
+        receiver,
         call.args,
       );
 
