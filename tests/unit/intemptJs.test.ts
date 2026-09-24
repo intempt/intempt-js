@@ -29,6 +29,7 @@ const autoTrackerInstances: MockAutoTracker[] = [];
 class MockAutoTracker {
   doNotTrack = false;
   init = vi.fn();
+  startAutocapture = vi.fn();
   refresh = vi.fn();
   getProfileId = vi.fn(() => 'profile-1');
   getSessionId = vi.fn(() => 'session-1');
@@ -128,13 +129,19 @@ describe('IntemptJs — the public API class', () => {
   const lastModel = () => dispatched('intempt:event').at(-1)!.detail.event;
 
   describe('construction', () => {
-    it('builds the auto-tracker and starts it before anything else can be tracked', () => {
-      // `init()` wires the page and HTML trackers. If the constructor ever stops
-      // calling it, automatic page/click tracking silently disappears while
-      // manual `track()` calls keep working — a partial failure that looks fine
-      // in a smoke test.
+    it('builds the auto-tracker but does not start autocapture on its own', () => {
+      // Auto-tracked events (page view/click/etc.) are off until the host page
+      // calls `autoCapture.init(...)` itself. If the constructor ever starts
+      // calling `startAutocapture` on its own, autocapture is on by default
+      // again — the opt-in contract this method exists to enforce.
       expect(autoTrackerInstances).toHaveLength(1);
-      expect(tracker().init).toHaveBeenCalledTimes(1);
+      expect(tracker().startAutocapture).not.toHaveBeenCalled();
+    });
+
+    it('exposes autoCapture.init(), which starts the gate on demand', () => {
+      sdk.autoCapture.init(['click']);
+      expect(tracker().startAutocapture).toHaveBeenCalledTimes(1);
+      expect(tracker().startAutocapture).toHaveBeenCalledWith(['click']);
     });
 
     it('passes a copy of the config, not the caller’s object', () => {

@@ -1,4 +1,5 @@
 import { AutoTrackerModule } from './modules/autoTracker/autoTracker.module.ts';
+import type { AutocaptureFamily } from '../shared/autocaptureFamilies.ts';
 import {
   ConsentParams,
   FlagContext,
@@ -99,7 +100,11 @@ export class IntemptJs extends IntemptJsGuard {
 
     this._autoTracker = new AutoTrackerModule(this._config, this._api);
 
-    this._autoTracker.init();
+    // Auto-tracked events (page view/exit, click, form change, form submit)
+    // are off until the host page calls `autoCapture.init(...)` itself — see
+    // that method below. Sessions are unaffected: `SessionTrackerModule` (a
+    // field of `_autoTracker`, constructed above) already listens for the
+    // internal events independently of this gate.
 
     this._choices = new ChoicesModule({
       ...config,
@@ -122,6 +127,19 @@ export class IntemptJs extends IntemptJsGuard {
   getDiagnostics(): MetricsSnapshot | null {
     return this._autoTracker ? this._autoTracker.getDiagnostics() : null;
   }
+
+  /**
+   * Auto-tracked events (page view/exit, click, form change, form submit) are
+   * off by default — nothing is captured until this is called. `init()` with
+   * no arguments turns on every family; `init(['click', 'submit'])` turns on
+   * only the named ones. Sessions, and explicit `track()`/`record()`/commerce/
+   * consent calls, are never gated by this.
+   */
+  readonly autoCapture = {
+    init: (families?: AutocaptureFamily[]): void => {
+      this._autoTracker.startAutocapture(families);
+    },
+  };
 
   /**
    * Allow tracking

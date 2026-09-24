@@ -9,7 +9,7 @@ type Private = { _onTrackData: (event: unknown) => void };
 
 let tracker: AutoTrackerModule | undefined;
 
-function build(config: Record<string, unknown>): {
+function build(config: Record<string, unknown> = {}): {
   tracker: AutoTrackerModule;
   delivered: ReturnType<typeof vi.fn>;
 } {
@@ -82,33 +82,30 @@ afterEach(() => {
 });
 
 describe('web autocapture switch', () => {
-  it('captures a click when autocapture is not configured', () => {
-    build({});
-    expect(capturedNames(click)).toHaveLength(1);
-  });
-
-  it('captures a page view when autocapture is not configured', () => {
-    build({});
-    expect(capturedNames(pageView)).toHaveLength(1);
-  });
-
-  it('captures no click when autocapture is false', () => {
-    build({ autocapture: false });
+  it('captures no click before autoCapture.init() is called', () => {
+    build();
     expect(capturedNames(click)).toHaveLength(0);
   });
 
-  it('captures no page view when autocapture is false', () => {
-    build({ autocapture: false });
+  it('captures no page view before autoCapture.init() is called', () => {
+    build();
     expect(capturedNames(pageView)).toHaveLength(0);
   });
 
-  it('still captures a click when autocapture is explicitly true', () => {
-    build({ autocapture: true });
+  it('captures a click once autoCapture.init() runs with no arguments', () => {
+    const { tracker: created } = build();
+    created.startAutocapture();
     expect(capturedNames(click)).toHaveLength(1);
   });
 
-  it('still delivers an explicit track event when autocapture is false', () => {
-    const { delivered } = build({ autocapture: false });
+  it('captures a page view once autoCapture.init() runs with no arguments', () => {
+    const { tracker: created } = build();
+    created.startAutocapture();
+    expect(capturedNames(pageView)).toHaveLength(1);
+  });
+
+  it('still delivers an explicit track event when autoCapture.init() was never called', () => {
+    const { delivered } = build();
     document.dispatchEvent(
       new CustomEvent(IntemptEventListenerName.EVENT, {
         detail: { event: { type: 'custom', payload: [] } },
@@ -135,9 +132,10 @@ describe('web autocapture switch', () => {
     ['input', 0, 0, 1, 0],
     ['submit', 0, 0, 0, 1],
   ])(
-    'with only %s enabled, captures exactly that family',
+    'autoCapture.init([%s]) captures exactly that family',
     (family, pages, clicks, inputs, submits) => {
-      build({ autocapture: [family] });
+      const { tracker: created } = build();
+      created.startAutocapture([family as never]);
       expect(capturedNames(pageView)).toHaveLength(pages);
       expect(capturedNames(click)).toHaveLength(clicks);
       expect(
@@ -149,17 +147,16 @@ describe('web autocapture switch', () => {
     },
   );
 
-  it('captures nothing autocaptured when the family list is empty', () => {
-    build({ autocapture: [] });
+  it('captures nothing autocaptured when autoCapture.init([]) names no family', () => {
+    const { tracker: created } = build();
+    created.startAutocapture([]);
     expect(capturedNames(pageView)).toHaveLength(0);
     expect(capturedNames(click)).toHaveLength(0);
   });
 
   it('still runs Shopify detection when pageview is off', () => {
-    const { tracker: created } = build({
-      autocapture: ['click'],
-      shopify: true,
-    });
+    const { tracker: created } = build({ shopify: true });
+    created.startAutocapture(['click']);
     const shopify = vi.fn();
     (
       created as unknown as { _shopifyTrackerModule: { track: () => void } }
@@ -168,8 +165,8 @@ describe('web autocapture switch', () => {
     expect(shopify).toHaveBeenCalledTimes(1);
   });
 
-  it('keeps the session running when autocapture is false', () => {
-    build({ autocapture: false });
+  it('keeps the session running before autoCapture.init() is ever called', () => {
+    build();
     const names = capturedNames(() =>
       document.dispatchEvent(
         new CustomEvent(IntemptEventListenerName.SESSION, {

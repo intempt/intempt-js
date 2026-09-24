@@ -7,46 +7,20 @@ export const AUTOCAPTURE_FAMILIES = [
 
 export type AutocaptureFamily = (typeof AUTOCAPTURE_FAMILIES)[number];
 
-export type AutocaptureSetting = boolean | AutocaptureFamily[];
-
-const ALL_VALUES = new Set(['', 'true', '1', 'yes', 'all']);
-const NONE_VALUES = new Set(['false', '0', 'no', 'none', 'off']);
-
-function isFamily(name: string): name is AutocaptureFamily {
+export function isFamily(name: string): name is AutocaptureFamily {
   return (AUTOCAPTURE_FAMILIES as readonly string[]).includes(name);
 }
 
-export function parseAutocaptureParam(params: URLSearchParams): {
-  setting: AutocaptureSetting | undefined;
-  unknown: string[];
-} {
-  const raw = params.get('autocapture');
-  if (raw === null) return { setting: undefined, unknown: [] };
-
-  const normalized = raw.trim().toLowerCase();
-  if (ALL_VALUES.has(normalized)) return { setting: true, unknown: [] };
-  if (NONE_VALUES.has(normalized)) return { setting: false, unknown: [] };
-
-  const families: AutocaptureFamily[] = [];
-  const unknown: string[] = [];
-  for (const entry of normalized.split(',')) {
-    const name = entry.trim();
-    if (!name) continue;
-    if (isFamily(name)) {
-      if (!families.includes(name)) families.push(name);
-    } else if (!unknown.includes(name)) {
-      unknown.push(name);
-    }
-  }
-  return { setting: families, unknown };
-}
-
+/**
+ * Resolves what `autoCapture.init(...)` was called with into the family set
+ * the gate checks against. No arguments (`undefined`) means every family —
+ * `autoCapture.init()` is "capture everything". An explicit list is filtered
+ * to known names, silently dropping anything else: an unrecognised name in a
+ * customer's list should not turn the whole call into a no-op.
+ */
 export function enabledAutocaptureFamilies(
-  setting: AutocaptureSetting | undefined,
+  families?: AutocaptureFamily[],
 ): Set<AutocaptureFamily> {
-  if (setting === undefined || setting === true) {
-    return new Set(AUTOCAPTURE_FAMILIES);
-  }
-  if (setting === false) return new Set();
-  return new Set(setting.filter((name) => isFamily(name)));
+  if (families === undefined) return new Set(AUTOCAPTURE_FAMILIES);
+  return new Set(families.filter(isFamily));
 }
