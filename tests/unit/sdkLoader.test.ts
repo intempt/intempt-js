@@ -22,11 +22,16 @@ import { EnvConfig } from '../../src/shared/envConfig.ts';
  * into it available from outside the module.
  */
 
-const autoTrackerInstances: { config: any; api: string }[] = [];
+const autoTrackerInstances: {
+  config: any;
+  api: string;
+  instance: MockAutoTracker;
+}[] = [];
 
 class MockAutoTracker {
   doNotTrack = false;
   init = vi.fn();
+  startAutocapture = vi.fn();
   refresh = vi.fn();
   getProfileId = vi.fn(() => 'profile-1');
   getSessionId = vi.fn(() => 'session-1');
@@ -35,7 +40,7 @@ class MockAutoTracker {
     public config: any,
     public api: string,
   ) {
-    autoTrackerInstances.push({ config, api });
+    autoTrackerInstances.push({ config, api, instance: this });
   }
 }
 
@@ -301,30 +306,6 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       expect(autoTrackerInstances[0]!.config.allowBots).toBe(true);
     });
 
-    it('autocapture is undefined when absent, leaving web autocapture on', async () => {
-      appendScript(REQUIRED_QUERY);
-      SDK.init();
-      await vi.runAllTimersAsync();
-      expect(autoTrackerInstances[0]!.config.autocapture).toBeUndefined();
-    });
-
-    it('autocapture=false reaches the tracker as false', async () => {
-      appendScript(`${REQUIRED_QUERY}&autocapture=false`);
-      SDK.init();
-      await vi.runAllTimersAsync();
-      expect(autoTrackerInstances[0]!.config.autocapture).toBe(false);
-    });
-
-    it('autocapture=pageview,submit reaches the tracker as that list', async () => {
-      appendScript(`${REQUIRED_QUERY}&autocapture=pageview,submit`);
-      SDK.init();
-      await vi.runAllTimersAsync();
-      expect(autoTrackerInstances[0]!.config.autocapture).toEqual([
-        'pageview',
-        'submit',
-      ]);
-    });
-
     it('ignore_dnt=false correctly disables the flag', async () => {
       // §3h gave ignore_dnt/pii_scrubbing a real boolean parse specifically
       // because a privacy switch defaulting the wrong way is a regulator-grade
@@ -432,6 +413,30 @@ describe('sdkLoader — building IntemptConfig from the script URL', () => {
       // was replaced.
       expect(seen.some((d) => d.event?.name === 'queued-event')).toBe(true);
       // The queue array is drained in place after replay.
+      expect(queue).toHaveLength(0);
+    });
+
+    it('replays a queued autoCapture.init(...) call, a dotted method the stub cannot flatten', async () => {
+      // `autoCapture.init` hangs off a nested object on `IntemptJs`, not a flat
+      // method, so the stub queues it as the dotted string `'autoCapture.init'`.
+      // If the replay ever regresses to a flat `realIntempt[call.method]`
+      // lookup, this silently no-ops instead of starting autocapture.
+      const queue: { method: string; args: any[] }[] = [
+        { method: 'autoCapture.init', args: [['click']] },
+      ];
+      (window as any).intempt = { _queue: queue };
+
+      appendScript(REQUIRED_QUERY);
+      SDK.init();
+      await vi.runAllTimersAsync();
+
+      expect(autoTrackerInstances).toHaveLength(1);
+      expect(
+        autoTrackerInstances[0]!.instance.startAutocapture,
+      ).toHaveBeenCalledTimes(1);
+      expect(
+        autoTrackerInstances[0]!.instance.startAutocapture,
+      ).toHaveBeenCalledWith(['click']);
       expect(queue).toHaveLength(0);
     });
 

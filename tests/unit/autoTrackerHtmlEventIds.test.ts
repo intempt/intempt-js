@@ -57,6 +57,9 @@ async function captureEvent(run: () => void) {
 
 beforeEach(() => {
   tracker = new AutoTrackerModule({} as any, 'https://api.example.com');
+  // Autocapture is off until started — this file tests the html-event gate
+  // itself, so it has to turn that gate on first.
+  tracker.startAutocapture();
   // Keep the event inside this test: no batcher, no queue, no fetch.
   vi.spyOn(tracker as unknown as Private, '_onTrackData').mockImplementation(
     () => {},

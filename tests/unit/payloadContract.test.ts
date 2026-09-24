@@ -537,11 +537,14 @@ describe('outbound payload contract', () => {
       expect(event.payload[0]).not.toHaveProperty('name');
     });
 
-    it('records the auto-tracked bootstrap payloads — session start and page view', () => {
-      // These are what the SDK sends with no customer code involved at all, and
-      // for most sources they outnumber manual events. `BACKEND.md` item 4 wants
-      // `$lib_version` on `SessionEventModel` specifically (CHECKPOINT §2 task 2
-      // names that file), so this golden is the one that change lands against.
+    it('records the auto-tracked bootstrap payloads — session start only, autocapture is opt-in now', () => {
+      // "Page view" no longer appears here: autocapture (pageview/click/input/
+      // submit) is off until the host page calls `autoCapture.init(...)`, which
+      // this bootstrap harness never does. "Session start" still fires with no
+      // customer code involved — session tracking is not gated by autocapture.
+      // `BACKEND.md` item 4 wants `$lib_version` on `SessionEventModel`
+      // specifically (CHECKPOINT §2 task 2 names that file), so this golden is
+      // the one that change lands against.
       expect(bootstrapCalls.length).toBeGreaterThan(0);
       const bodies = bootstrapCalls
         .filter((c) => c.url.includes('/track'))
