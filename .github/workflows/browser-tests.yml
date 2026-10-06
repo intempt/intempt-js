@@ -42,7 +42,7 @@ jobs:
         # differently, and differently is the entire value of the second leg. macOS
         # runner minutes bill at 10x on private repos, which is affordable at
         # pull_request cadence and would not be on push.
-        os: [ubuntu-latest, macos-latest]
+        os: [intempt-ubuntu-github-runner, macos-latest]
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
