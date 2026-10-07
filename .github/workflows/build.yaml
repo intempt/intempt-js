@@ -10,7 +10,7 @@ on:
 jobs:
   Build-and-Test:
     if: github.ref != 'refs/heads/main' && github.ref != 'refs/heads/staging'
-    runs-on: intempt-ubuntu-github-runner
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     strategy:
@@ -36,7 +36,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    runs-on: intempt-ubuntu-github-runner
+    runs-on: ubuntu-latest
 
     env:
       AWS_DEPLOYER_ROLE: 'arn:aws:iam::253548970387:role/GithubActionsIntemptJSDeployer'
@@ -93,7 +93,7 @@ jobs:
     permissions:
       id-token: write
       contents: read
-    runs-on: intempt-ubuntu-github-runner
+    runs-on: ubuntu-latest
 
     env:
       AWS_DEPLOYER_ROLE: 'arn:aws:iam::763337247345:role/GithubActionsIntemptJSDeployer'
