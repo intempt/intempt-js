@@ -50,7 +50,7 @@ permissions:
 jobs:
   release:
     name: Publish to npm
-    runs-on: intempt-ubuntu-github-runner
+    runs-on: ubuntu-latest
     # `environment` is the place to require a human approval before the publish
     # step runs. Create an `npm-publish` environment with required reviewers in
     # repo settings; until it exists this line is inert, not blocking.
