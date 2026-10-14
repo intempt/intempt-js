@@ -1,0 +1,29 @@
+name: Run Cypress
+description: >
+  Ensures the Linux system dependencies Cypress needs (a display server plus
+  the GTK/ATK/NSS libs its Electron browser links against) are present, then
+  runs the given npm script. Shared by ci.yml's PR-time "Cypress e2e" job and
+  build.yaml's push-time deploy jobs so the dependency list is fixed in one
+  place instead of drifting between two copies.
+inputs:
+  npm-script:
+    description: The npm script to run under xvfb-run (e.g. test, test:e2e)
+    required: false
+    default: test
+runs:
+  using: composite
+  steps:
+    - name: Ensure Cypress system dependencies are installed
+      shell: bash
+      run: |
+        PKGS="xvfb libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libnss3 libxss1 libasound2t64 libxtst6 xauth"
+        MISSING=""
+        for pkg in $PKGS; do
+          dpkg -s "$pkg" >/dev/null 2>&1 || MISSING="$MISSING $pkg"
+        done
+        if [ -n "$MISSING" ]; then
+          sudo apt-get update && sudo apt-get install -y $MISSING
+        fi
+    - name: Run Cypress under xvfb-run
+      shell: bash
+      run: xvfb-run -a npm run ${{ inputs.npm-script }}
