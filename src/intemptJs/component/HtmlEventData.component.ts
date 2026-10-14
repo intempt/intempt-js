@@ -185,7 +185,15 @@ export class HtmlElementDataComponent {
       element.tagName.toLowerCase() === 'form' &&
       domEventName === 'submit'
     ) {
-      return (element as HTMLFormElement)?.action || '';
+      // `getAttribute`, not `.action` — a form control named "action" (e.g.
+      // `<input name="action">`, common in WordPress AJAX forms) shadows the
+      // IDL property and turns it into that element instead of a string. Per
+      // spec `.action` also defaults to the document's URL when the attribute
+      // is absent, which `getAttribute` doesn't, so that fallback is kept here.
+      const actionAttr = element.getAttribute('action');
+      return actionAttr !== null
+        ? new URL(actionAttr, document.baseURI).toString()
+        : document.URL;
     }
 
     return element.getAttribute('href') || '';
