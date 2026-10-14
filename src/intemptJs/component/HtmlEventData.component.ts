@@ -214,7 +214,10 @@ export class HtmlElementDataComponent {
       element.tagName.toLowerCase() === 'form' &&
       domEventName === 'submit'
     ) {
-      return (element as HTMLFormElement)?.action || '';
+      const actionAttr = element.getAttribute('action');
+      return actionAttr !== null
+        ? new URL(actionAttr, document.baseURI).toString()
+        : document.URL;
     }
 
     return element.getAttribute('href') || '';
