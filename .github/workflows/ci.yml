@@ -360,7 +360,7 @@ jobs:
       - run: npm ci
       - name: Ensure Cypress system dependencies are installed
         run: |
-          PKGS="xvfb libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2t64 libxtst6 xauth"
+          PKGS="xvfb libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libnss3 libxss1 libasound2t64 libxtst6 xauth"
           MISSING=""
           for pkg in $PKGS; do
             dpkg -s "$pkg" >/dev/null 2>&1 || MISSING="$MISSING $pkg"
