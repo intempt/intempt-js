@@ -67,10 +67,10 @@ describe('the redaction — the one privacy control on auto-tracked DOM data', (
     );
   });
 
-  it('does not redact an ordinary text input', () => {
+  it('redacts an ordinary text input, because what a user types is never captured', () => {
     const input = mount('<input type="text" value="Tokyo" />');
     expect(new HtmlElementDataComponent(input, CHANGE).targetText).toBe(
-      'Tokyo',
+      '********',
     );
   });
 
@@ -108,7 +108,7 @@ describe('the redaction — the one privacy control on auto-tracked DOM data', (
         '<form action="/login"><input name="user" value="ada" /><input name="pw" type="password" value="hunter2" /></form>',
       );
       expect(new HtmlElementDataComponent(form, SUBMIT).formDataText).toEqual([
-        { key: 'user', value: 'ada' },
+        { key: 'user', value: '********' },
         { key: 'pw', value: '********' },
       ]);
     });
@@ -148,10 +148,10 @@ describe('the redaction — the one privacy control on auto-tracked DOM data', (
 
     it('redacts by field, not by form — one password does not blank the others', () => {
       const form = mount(
-        '<form action="/login"><input name="user" value="ada" /><input name="pw" type="password" value="x" /><input name="remember" value="yes" /></form>',
+        '<form action="/login"><input name="user" value="ada" /><input name="pw" type="password" value="x" /><input name="remember" type="checkbox" value="yes" checked /></form>',
       );
       expect(new HtmlElementDataComponent(form, SUBMIT).formDataText).toEqual([
-        { key: 'user', value: 'ada' },
+        { key: 'user', value: '********' },
         { key: 'pw', value: '********' },
         { key: 'remember', value: 'yes' },
       ]);
@@ -179,8 +179,8 @@ describe('getSubmittedData', () => {
       '<form action="/x"><input value="first" /><input value="second" /></form>',
     );
     expect(new HtmlElementDataComponent(form, SUBMIT).formDataText).toEqual([
-      { key: 'input-0', value: 'first' },
-      { key: 'input-1', value: 'second' },
+      { key: 'input-0', value: '********' },
+      { key: 'input-1', value: '********' },
     ]);
   });
 
@@ -210,7 +210,7 @@ describe('getSubmittedData', () => {
         '</form>',
     );
     expect(new HtmlElementDataComponent(form, SUBMIT).formDataText).toEqual([
-      { key: 'input-0', value: 'kept' },
+      { key: 'input-0', value: '********' },
     ]);
   });
 
@@ -244,16 +244,14 @@ describe('getHtmlElementText', () => {
     ).toBeUndefined();
   });
 
-  it('prefers textContent, falling back to a control value', () => {
+  it('prefers textContent, falling back to a button input label', () => {
     const link = mount('<a href="/pricing">  Pricing  </a>');
     expect(new HtmlElementDataComponent(link, CLICK).targetText).toBe(
       'Pricing',
     );
 
-    const input = mount('<input type="text" value="  Tokyo  " />');
-    expect(new HtmlElementDataComponent(input, CHANGE).targetText).toBe(
-      'Tokyo',
-    );
+    const button = mount('<input type="button" value="  Go  " />');
+    expect(new HtmlElementDataComponent(button, CLICK).targetText).toBe('Go');
   });
 
   it('flattens the text of descendants, since the click target is the ancestor', () => {

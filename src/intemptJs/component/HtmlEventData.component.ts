@@ -31,6 +31,31 @@ export class HtmlElementDataComponent {
    */
   private static readonly REDACTED = '********';
 
+  private static readonly UNTYPED_INPUT_TYPES = new Set([
+    'checkbox',
+    'radio',
+    'range',
+    'color',
+    'button',
+    'submit',
+    'reset',
+    'image',
+    'hidden',
+  ]);
+
+  private isTypedControl(element: Element): boolean {
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'textarea') return true;
+    if (tag === 'input') {
+      const type = (element.getAttribute('type') || 'text').toLowerCase();
+      return !HtmlElementDataComponent.UNTYPED_INPUT_TYPES.has(type);
+    }
+    return (
+      element.closest('[contenteditable]:not([contenteditable="false"])') !==
+      null
+    );
+  }
+
   /**
    * Names of controls whose value must never leave the page, read off the form
    * itself: `type="password"` and anything the author marked `doNotCapture`.
@@ -47,12 +72,12 @@ export class HtmlElementDataComponent {
    * while its value never is.
    */
   private redactedNames(form: HTMLFormElement): Set<string> {
-    const selector = 'input[type="password"], [doNotCapture]';
+    const selector = 'input, textarea, [doNotCapture]';
     const names = new Set<string>();
 
     form.querySelectorAll(selector).forEach((control) => {
       const name = control.getAttribute('name');
-      if (name) names.add(name);
+      if (name && this.shouldRedact(control as HTMLElement)) names.add(name);
     });
 
     return names;
@@ -60,7 +85,11 @@ export class HtmlElementDataComponent {
 
   private shouldRedact(element: HTMLElement): boolean {
     const control = element as HTMLElement & { type?: string };
-    return element.hasAttribute('doNotCapture') || control.type === 'password';
+    return (
+      element.hasAttribute('doNotCapture') ||
+      control.type === 'password' ||
+      this.isTypedControl(element)
+    );
   }
 
   private getSubmittedData(element: HTMLElement, domEventName: DomEventName) {

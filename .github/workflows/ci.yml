@@ -43,7 +43,7 @@ jobs:
   # internally consistent. Runs without install so it cannot be skipped.
   bucketing:
     name: Server-only bucketing
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     steps:
       # Pinned to a full commit SHA like every other action in this file — a mutable `@v4`
       # tag means whoever controls the tag controls what runs with this repo's GITHUB_TOKEN.
@@ -58,7 +58,7 @@ jobs:
 
   unit:
     name: Unit tests + coverage (node ${{ matrix.node-version }})
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     strategy:
       fail-fast: false
       matrix:
@@ -119,7 +119,7 @@ jobs:
 
   examples:
     name: Examples typecheck
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -149,7 +149,7 @@ jobs:
 
   static:
     name: Lint & format
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -198,7 +198,7 @@ jobs:
 
   build:
     name: Typecheck & build
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -246,7 +246,7 @@ jobs:
 
   audit:
     name: Dependency audit
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -303,7 +303,7 @@ jobs:
     # regression below the floor. It is a ratchet, raised only to just under a
     # measured score, and reached 85 on 2026-08-12 at a measured 86.57% (86.68%
     # on the PR #191 run).
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -336,7 +336,7 @@ jobs:
     # the same 122 assertions twice. The gap it does not cover is the PR into
     # staging/main — that is exactly what this job closes.
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: intempt-ubuntu-github-runner
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
