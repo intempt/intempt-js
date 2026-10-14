@@ -60,6 +60,9 @@
     "docs:api": "typedoc",
     "scan:secrets": "node scripts/scanBundleSecrets.js"
   },
+  "overrides": {
+    "qs": "^6.16.0"
+  },
   "devDependencies": {
     "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.62.1",
