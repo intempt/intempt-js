@@ -358,10 +358,15 @@ jobs:
       # reproducible for whoever runs npm locally.
       - run: npm i -g npm@11
       - run: npm ci
-      - name: Ensure Xvfb is installed
+      - name: Ensure Cypress system dependencies are installed
         run: |
-          if ! command -v Xvfb >/dev/null 2>&1; then
-            sudo apt-get update && sudo apt-get install -y xvfb
+          PKGS="xvfb libgtk2.0-0 libgtk-3-0 libgbm-dev libnotify-dev libgconf-2-4 libnss3 libxss1 libasound2t64 libxtst6 xauth"
+          MISSING=""
+          for pkg in $PKGS; do
+            dpkg -s "$pkg" >/dev/null 2>&1 || MISSING="$MISSING $pkg"
+          done
+          if [ -n "$MISSING" ]; then
+            sudo apt-get update && sudo apt-get install -y $MISSING
           fi
       - run: xvfb-run -a npm run test:e2e
 
