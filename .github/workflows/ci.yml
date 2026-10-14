@@ -358,7 +358,12 @@ jobs:
       # reproducible for whoever runs npm locally.
       - run: npm i -g npm@11
       - run: npm ci
-      - run: npm run test:e2e
+      - name: Ensure Xvfb is installed
+        run: |
+          if ! command -v Xvfb >/dev/null 2>&1; then
+            sudo apt-get update && sudo apt-get install -y xvfb
+          fi
+      - run: xvfb-run -a npm run test:e2e
 
       - name: Upload failure screenshots
         if: failure()
