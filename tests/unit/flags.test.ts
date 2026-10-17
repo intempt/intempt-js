@@ -186,6 +186,44 @@ describe('variation', () => {
     await expect(sdk().numberVariation('f', CTX, 0)).resolves.toBe(42);
   });
 
+  it('serves each type as itself, refusing the others', async () => {
+    const served = async (body: unknown) => {
+      vi.stubGlobal('fetch', respond({ choices: [{ name: 'f', body }] }));
+      return sdk();
+    };
+
+    await expect(
+      (await served(true)).boolVariation('f', CTX, false),
+    ).resolves.toBe(true);
+    await expect(
+      (await served('true')).boolVariation('f', CTX, false),
+    ).resolves.toBe(false);
+
+    await expect(
+      (await served('cortex')).stringVariation('f', CTX, 'd'),
+    ).resolves.toBe('cortex');
+    await expect(
+      (await served(42)).stringVariation('f', CTX, 'd'),
+    ).resolves.toBe('d');
+
+    await expect(
+      (await served(42.5)).numberVariation('f', CTX, 0),
+    ).resolves.toBe(42.5);
+    await expect(
+      (await served('42')).numberVariation('f', CTX, 0),
+    ).resolves.toBe(0);
+
+    await expect(
+      (await served({ a: 1 })).jsonVariation('f', CTX, {}),
+    ).resolves.toEqual({ a: 1 });
+    await expect(
+      (await served(true)).jsonVariation('f', CTX, { d: 1 }),
+    ).resolves.toEqual({ d: 1 });
+    await expect(
+      (await served(null)).jsonVariation('f', CTX, { d: 1 }),
+    ).resolves.toEqual({ d: 1 });
+  });
+
   it('waitForInitialization resolves without a request', async () => {
     const fetchMock = respond({ choices: [] });
     vi.stubGlobal('fetch', fetchMock);
@@ -242,6 +280,10 @@ describe('variation', () => {
       [
         'numberVariation',
         (s: ReturnType<typeof sdk>) => s.numberVariation('k', CTX, 7),
+      ],
+      [
+        'jsonVariation',
+        (s: ReturnType<typeof sdk>) => s.jsonVariation('k', CTX, {}),
       ],
       ['allFlags', (s: ReturnType<typeof sdk>) => s.allFlags(CTX)],
     ])('%s makes no request', async (_name, call) => {
