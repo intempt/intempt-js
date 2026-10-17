@@ -88,7 +88,11 @@ export class AutoTrackerModule {
   private readonly _eventPool: AutoTrackerEventPool;
   private readonly _transport: AutoTrackerTransport;
   private _disposed: boolean = false;
-  private readonly _autocapture: Set<AutocaptureFamily>;
+  // Empty until `startAutocapture` runs: no query param and no config flag
+  // starts this any more, only the explicit `autoCapture.init(...)` call the
+  // host page makes from its own code. See `startAutocapture` below.
+  private _autocapture: Set<AutocaptureFamily> = new Set();
+  private _autocaptureStarted = false;
 
   private readonly _onShopifyEvent = (event: Event): void => {
     if (!this.isUserOptIn()) return;
@@ -224,7 +228,6 @@ export class AutoTrackerModule {
   constructor(intemptConfig: IntemptConfig, api: string) {
     this._config = { ...intemptConfig };
     this._api = api;
-    this._autocapture = enabledAutocaptureFamilies(intemptConfig.autocapture);
     this._transport = new AutoTrackerTransport(this._config, this._api);
     this._consent = new AutoTrackerConsent(this._config, this._api);
     this._eventPool = new AutoTrackerEventPool(this._config, this._api);
@@ -321,7 +324,21 @@ export class AutoTrackerModule {
     this._pagesTrackerModule.refresh();
   }
 
-  init() {
+  /**
+   * The public `autoCapture.init(...)` entry point, via `IntemptJs`. Off by
+   * default: nothing here runs until a host page calls this. `families`
+   * omitted means every family (`pageview`, `click`, `input`, `submit`);
+   * passing a list narrows the gate to only those.
+   *
+   * Idempotent on the listener-attach side — a second call (e.g. narrowing
+   * the families after already capturing everything) only updates the gate,
+   * it does not attach `_pagesTrackerModule`/`_htmlTrackerModule`'s DOM
+   * listeners a second time.
+   */
+  startAutocapture(families?: AutocaptureFamily[]): void {
+    this._autocapture = enabledAutocaptureFamilies(families);
+    if (this._autocaptureStarted) return;
+    this._autocaptureStarted = true;
     this._pagesTrackerModule.init();
     this._htmlTrackerModule.init();
   }

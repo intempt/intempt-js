@@ -48,6 +48,17 @@ Vue 3, Composition API. Notes for Nuxt are at [the end](#nuxt).
           queue.push({ method: m, args: args });
         };
       });
+      // autoCapture.init(...) hangs off a nested object, so it can't be
+      // flattened into `methods` above like the rest — queue it under a
+      // dotted method name instead.
+      stub.autoCapture = {
+        init: function () {
+          queue.push({
+            method: 'autoCapture.init',
+            args: [].slice.call(arguments),
+          });
+        },
+      };
       window.intempt = stub;
     })();
   </script>
