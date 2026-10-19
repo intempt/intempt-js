@@ -151,7 +151,7 @@ class EnvConfigManager {
 
   /**
    * Returns allowed opener origins from VITE_OPENER_LINKS.
-   * Each entry is a normalized origin (e.g. "https://app.intempt.com").
+   * Each entry is a normalized origin (e.g. "https://intempt.com").
    */
   static getOpenerOrigins(): string[] {
     const config = this.get();
