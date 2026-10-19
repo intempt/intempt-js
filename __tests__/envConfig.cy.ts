@@ -23,11 +23,11 @@ describe('EnvConfig - getOpenerOrigins', () => {
     EnvConfig.initFromValues({
       ...DEFAULT_TEST_CONFIG,
       VITE_OPENER_LINKS:
-        '["https://app.intempt.com/", "https://app.staging.intempt.com/"]',
+        '["https://intempt.com/", "https://app.staging.intempt.com/"]',
     });
     const origins = EnvConfig.getOpenerOrigins();
     expect(origins).to.deep.equal([
-      'https://app.intempt.com',
+      'https://intempt.com',
       'https://app.staging.intempt.com',
     ]);
   });
