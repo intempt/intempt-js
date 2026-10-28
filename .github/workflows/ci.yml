@@ -59,6 +59,8 @@ jobs:
   unit:
     name: Unit tests + coverage (node ${{ matrix.node-version }})
     runs-on: intempt-ubuntu-github-runner
+    env:
+      CYPRESS_INSTALL_BINARY: '0'
     strategy:
       fail-fast: false
       matrix:
@@ -150,6 +152,8 @@ jobs:
   static:
     name: Lint & format
     runs-on: intempt-ubuntu-github-runner
+    env:
+      CYPRESS_INSTALL_BINARY: '0'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -199,6 +203,8 @@ jobs:
   build:
     name: Typecheck & build
     runs-on: intempt-ubuntu-github-runner
+    env:
+      CYPRESS_INSTALL_BINARY: '0'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -247,6 +253,8 @@ jobs:
   audit:
     name: Dependency audit
     runs-on: intempt-ubuntu-github-runner
+    env:
+      CYPRESS_INSTALL_BINARY: '0'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -304,6 +312,8 @@ jobs:
     # measured score, and reached 85 on 2026-08-12 at a measured 86.57% (86.68%
     # on the PR #191 run).
     runs-on: intempt-ubuntu-github-runner
+    env:
+      CYPRESS_INSTALL_BINARY: '0'
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
