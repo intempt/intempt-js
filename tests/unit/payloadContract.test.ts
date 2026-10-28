@@ -484,30 +484,46 @@ describe('outbound payload contract', () => {
       expectMatchesGolden('mixed-batch', body);
     });
 
-    it('emits NO timestamp on any event — a defect, recorded not fixed', async () => {
-      // DEFECT, and the most consequential thing in this file. Every model has
-      // its `timestamp: new Date().getTime()` line **commented out**
-      // (track.model.ts:16, identify.model.ts:17, group.model.ts:16,
-      // record.model.ts:16, product.model.ts:17,
-      // session.model.ts:15, consent.model.ts:25). So no event carries a
-      // client-side timestamp and ingest can only use its own receive time.
-      //
-      // That matters more than it looks: events sit in the queue across a
-      // circuit-breaker window (60s, CHECKPOINT §3b), across backoff, and across
-      // page reloads via persisted storage. An event generated before a reload
-      // and delivered minutes later is attributed to the delivery moment. Event
-      // ordering within a session is therefore not recoverable from the payload.
-      //
-      // Recorded rather than fixed: adding `timestamp` is precisely the kind of
-      // new field CHECKPOINT §2 forbids shipping blind, and it belongs with
-      // `BACKEND.md` item 4 as one conversation with ingest.
-      sdk.track({ eventTitle: 'A', data: { n: 1 } } as any);
-      const [call] = await flushAndCapture('/track');
-      const body = trackBody(call!);
+    it('stamps every event with the time it happened, not the time it is flushed (INT-5947)', async () => {
+      // push-source reads a top-level `timestamp` (UNIX ms) on each payload entry
+      // as the event's primary time and only stamps its own receive time when the
+      // key is missing (CustomJsonDecoder / JsonDataItemData.updateDateTimeFields).
+      // Before INT-5947 every model had the line commented out, so events that sat
+      // in the queue (offline, breaker open, backoff, reload) were all dated at
+      // delivery. The clock is moved forward between creating and flushing the
+      // events: the wire must carry the creation time.
+      const happenedAt = 1_760_000_000_000;
+      const now = vi.spyOn(Date, 'now').mockReturnValue(happenedAt);
+      try {
+        sdk.track({ eventTitle: 'A', data: { n: 1 } } as any);
+        sdk.identify({ userId: 'user-ts' } as any);
+        sdk.productView('p-ts');
+      } finally {
+        now.mockRestore();
+      }
+      const [call] = await flushAndCapture(
+        '/track',
+        'A',
+        'Identify',
+        'Product viewed',
+      );
+      const body = trackBodyFor(call!, 'A', 'Identify', 'Product viewed');
+      expect(body.track.length).toBeGreaterThanOrEqual(3);
       for (const event of body.track) {
         for (const entry of event.payload ?? []) {
-          expect(entry).not.toHaveProperty('timestamp');
+          expect(entry.timestamp).toBe(happenedAt);
         }
+      }
+    });
+
+    it('auto-tracked bootstrap events carry a numeric timestamp too', () => {
+      const entries = bootstrapCalls
+        .filter((c) => c.url.includes('/track'))
+        .flatMap((c) => JSON.parse(c.init.body as string).track as any[])
+        .flatMap((event) => event.payload ?? []);
+      expect(entries.length).toBeGreaterThan(0);
+      for (const entry of entries) {
+        expect(typeof entry.timestamp).toBe('number');
       }
     });
 

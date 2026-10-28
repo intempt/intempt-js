@@ -1,3 +1,4 @@
+import { eventTimestamp } from '../../../../shared/shared.utils.ts';
 import {
   IntemptPageEventName,
   PageEventModelParams,
@@ -18,7 +19,7 @@ export class PageEventModel {
     this.name = name;
     this.payload.push({
       eventId: pageId,
-      // timestamp: new Date().getTime(),
+      timestamp: eventTimestamp(),
       sessionId,
       profileId,
       pageId,

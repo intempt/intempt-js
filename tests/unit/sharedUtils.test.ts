@@ -3,6 +3,7 @@ import {
   debounce,
   detectDevice,
   dispatchIntemptEvent,
+  eventTimestamp,
   generateId,
 } from '../../src/shared/shared.utils.ts';
 import { SDK_VERSION } from '../../src/shared/version.ts';
@@ -339,5 +340,28 @@ describe('detectDevice', () => {
 
     vi.stubGlobal('navigator', { userAgent: '' });
     expect(detectDevice()).toBe('desktop');
+  });
+});
+
+describe('eventTimestamp (INT-5947)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('returns the current UNIX time in milliseconds', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_760_000_000_123);
+    expect(eventTimestamp()).toBe(1_760_000_000_123);
+  });
+
+  it('accepts the lowest time ingest takes (2010-01-01T00:00:00Z)', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_262_304_000_000);
+    expect(eventTimestamp()).toBe(1_262_304_000_000);
+  });
+
+  it('omits the time when the device clock is before 2010, which ingest would reject', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(1_262_303_999_999);
+    expect(eventTimestamp()).toBeUndefined();
+    vi.spyOn(Date, 'now').mockReturnValue(0);
+    expect(eventTimestamp()).toBeUndefined();
   });
 });

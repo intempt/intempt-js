@@ -1,5 +1,5 @@
 import { IdentifyParams, IntemptIdsParams } from '../types/intemptJs.types.ts';
-import { generateId } from '../../shared/shared.utils.ts';
+import { generateId, eventTimestamp } from '../../shared/shared.utils.ts';
 import { IdentifyModelPayload } from '../types/autoTracker.types.ts';
 import { ModelIdentify } from '../interfaces/baseModel.interface.ts';
 
@@ -13,7 +13,7 @@ export class IdentifyModel implements ModelIdentify {
 
     this.payload.push({
       eventId: generateId('ev'),
-      //timestamp: new Date().getTime(),
+      timestamp: eventTimestamp(),
       profileId: params.profileId!,
       sessionId: params.sessionId!,
       pageId: params.pageId!,

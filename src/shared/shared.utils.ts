@@ -47,6 +47,29 @@ function generateUniqueId() {
   return `${timestamp}_${timestampNum}_${randomSuffix(10)}`;
 }
 
+/**
+ * Lowest event time ingest accepts (push-source `DataUtils.LOW_TIMESTAMP_LIMIT`,
+ * 2010-01-01T00:00:00Z). Ingest rejects anything older, and the rejection fails
+ * the record instead of falling back to its own receive time.
+ */
+const LOWEST_ACCEPTED_EVENT_TIME = 1_262_304_000_000;
+
+/**
+ * When an event happened, as UNIX milliseconds, for its payload `timestamp`.
+ *
+ * Ingest takes this as the event's time and only stamps its receive time when
+ * the key is missing, so an event that waits in the queue (offline, breaker
+ * open, backoff, a reload) keeps the moment it occurred. A device clock set
+ * before 2010 is clearly wrong and would get the record rejected; the key is
+ * left out then (`JSON.stringify` drops `undefined`), which hands the event the
+ * receive time exactly as before. A clock in the far future needs no guard:
+ * ingest clamps that to its own time.
+ */
+export function eventTimestamp(): number | undefined {
+  const now = Date.now();
+  return now >= LOWEST_ACCEPTED_EVENT_TIME ? now : undefined;
+}
+
 export function generateId(type?: IdType) {
   const uuid = generateUniqueId();
   return type ? `${type}_${uuid}` : uuid;
