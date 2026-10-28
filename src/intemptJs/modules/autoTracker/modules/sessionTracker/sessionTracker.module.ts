@@ -136,35 +136,51 @@ export class SessionTrackerModule extends PlatformParser {
     this._allTrackingEvents.forEach((domEventName) => {
       document.addEventListener(domEventName, (event) => {
         const { detail } = event as CustomEvent;
-        const { eventName } = detail;
-
-        const sessionCookie = getCookie(this.intemptSession) as SessionCookie;
-
-        // No cookie exists - create new session (unless it's Leave Page)
-        if (!sessionCookie && eventName.toLowerCase() !== 'leave page') {
-          return this._onNewSession(eventName);
-        }
-
-        // Cookie exists - try to parse it
-        let session = { id: null as string | null };
-        if (sessionCookie?.[this.intemptSession]) {
-          try {
-            session = { ...JSON.parse(sessionCookie[this.intemptSession]) };
-          } catch (error) {
-            log.error('error parsing session cookie in handler', error);
-            // Cookie is corrupted - create new session (unless it's Leave Page)
-            if (eventName.toLowerCase() !== 'leave page') {
-              return this._onNewSession(eventName);
-            }
-            // For 'Leave Page' event, just skip (don't create new session)
-            return;
-          }
-        }
-
-        // Refresh session cookie with existing ID (or undefined to generate new)
-        this.setSessionCookie(session.id ?? undefined);
+        this.touch(detail.eventName);
       });
     });
+  }
+
+  /**
+   * Record activity for `eventName`: open a new session when there is no live
+   * session cookie (unless it is a Leave Page), otherwise slide the existing
+   * one's expiry.
+   *
+   * Public so `IntemptJs` can run it BEFORE it reads the ids for an event
+   * (INT-5992 SDK-15). The activity DOM event is dispatched after the ids are
+   * read, so when the cookie had expired the event fell back to the in-memory
+   * mirror of the cookie (`getLocalId`), i.e. the expired session, and only the
+   * next event got the new one. Running it twice is harmless: the second call
+   * finds the cookie the first one wrote and only refreshes it.
+   */
+  touch(eventName: string) {
+    const isLeavePage = eventName.toLowerCase() === 'leave page';
+    const sessionCookie = getCookie(this.intemptSession) as SessionCookie;
+
+    // No cookie exists - create new session (unless it's Leave Page)
+    if (!sessionCookie && !isLeavePage) {
+      void this._onNewSession(eventName);
+      return;
+    }
+
+    // Cookie exists - try to parse it
+    let session = { id: null as string | null };
+    if (sessionCookie?.[this.intemptSession]) {
+      try {
+        session = { ...JSON.parse(sessionCookie[this.intemptSession]) };
+      } catch (error) {
+        log.error('error parsing session cookie in handler', error);
+        // Cookie is corrupted - create new session (unless it's Leave Page)
+        if (!isLeavePage) {
+          void this._onNewSession(eventName);
+        }
+        // For 'Leave Page' event, just skip (don't create new session)
+        return;
+      }
+    }
+
+    // Refresh session cookie with existing ID (or undefined to generate new)
+    this.setSessionCookie(session.id ?? undefined);
   }
 
   /**

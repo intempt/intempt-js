@@ -32,6 +32,7 @@ class MockAutoTracker {
   refresh = vi.fn();
   getProfileId = vi.fn(() => 'profile-1');
   getSessionId = vi.fn(() => 'session-1');
+  touchSession = vi.fn();
   getPageId = vi.fn(() => 'page-1');
   constructor(
     public config: unknown,

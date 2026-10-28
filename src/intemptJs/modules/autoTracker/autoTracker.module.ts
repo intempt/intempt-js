@@ -349,6 +349,14 @@ export class AutoTrackerModule {
     this._consent.forgetConsentDecision();
   }
 
+  /**
+   * Session activity for an event that is about to read its ids; see
+   * `SessionTrackerModule.touch` (INT-5992 SDK-15).
+   */
+  touchSession(eventName: string) {
+    this._sessionTrackerModule.touch(eventName);
+  }
+
   getSessionId() {
     const browserSessionId = this._sessionTrackerModule.getId();
     const localSessionId = this._sessionTrackerModule.getLocalId();
