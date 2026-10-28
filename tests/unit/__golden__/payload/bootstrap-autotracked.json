@@ -62,6 +62,7 @@
         "payload": [
           {
             "eventId": "<eventId>",
+            "timestamp": "<timestamp>",
             "sessionId": "<sessionId>",
             "profileId": "<profileId>",
             "pageId": "<pageId>",
