@@ -56,6 +56,9 @@ const VOLATILE_KEYS = new Set([
   'pageId',
   'timestamp',
   'validUntil',
+  // Whole seconds the bootstrap page was open before the drain's beforeunload:
+  // 0 on a fast runner, 1 on a slow one. Its presence is the contract.
+  'timeOnPage',
   // Varies per test for queue isolation (see `sourceSeq` below), not because the
   // field is uninteresting — its *presence* on the consent body is contract.
   'sourceId',
