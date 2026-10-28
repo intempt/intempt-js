@@ -1,3 +1,4 @@
+import { eventTimestamp } from '../../../../shared/shared.utils.ts';
 import {
   IntemptSessionEventNames,
   SessionEventParams,
@@ -18,7 +19,7 @@ export class SessionEventModel {
     this.name = name;
     this.payload.push({
       eventId: sessionId,
-      //timestamp: new Date().getTime(),
+      timestamp: eventTimestamp(),
       sessionId,
       profileId,
       userAttributes,

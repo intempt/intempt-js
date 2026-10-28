@@ -6,6 +6,7 @@
       "payload": [
         {
           "eventId": "<eventId>",
+          "timestamp": "<timestamp>",
           "sessionId": "<sessionId>",
           "pageId": "<pageId>",
           "profileId": "<profileId>",
@@ -21,6 +22,7 @@
       "payload": [
         {
           "eventId": "<eventId>",
+          "timestamp": "<timestamp>",
           "profileId": "<profileId>",
           "sessionId": "<sessionId>",
           "pageId": "<pageId>",
@@ -34,6 +36,7 @@
       "payload": [
         {
           "eventId": "<eventId>",
+          "timestamp": "<timestamp>",
           "profileId": "<profileId>",
           "sessionId": "<sessionId>",
           "pageId": "<pageId>",
@@ -48,6 +51,7 @@
       "payload": [
         {
           "eventId": "<eventId>",
+          "timestamp": "<timestamp>",
           "sessionId": "<sessionId>",
           "profileId": "<profileId>",
           "userAttributes": {
