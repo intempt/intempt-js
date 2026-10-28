@@ -636,6 +636,40 @@ describe('outbound payload contract', () => {
       expectMatchesGolden('consent', body);
     });
 
+    it('still posts a consent record while the visitor is opted out (D-5, INT-5992 SDK-16)', async () => {
+      // `IntemptJs.consent()` is deliberately not gated on opt-out (D-5): a
+      // refusal is an audit record and must survive `optOut()`. The model was
+      // dispatched, but the auto-tracker's pooled-event listener dropped every
+      // event while opted out, consent included, so no POST was ever made.
+      sdk.optOut();
+      try {
+        sdk.consent({ action: 'reject', validUntil: 1893456000000 } as any);
+        const consentCalls = await flushAndCapture('/consents/data');
+        expect(consentCalls).toHaveLength(1);
+        expect(JSON.parse(consentCalls[0]!.init.body as string)).toMatchObject({
+          type: 'consent',
+          action: 'reject',
+        });
+      } finally {
+        sdk.optIn();
+      }
+    });
+
+    it('still drops tracking events while opted out — only consent is exempt', async () => {
+      sdk.optOut();
+      try {
+        sdk.track({ eventTitle: 'OptedOutEvent' } as any);
+        sdk.consent({ action: 'reject', validUntil: 1893456000000 } as any);
+        await flushAndCapture('/consents/data');
+        const tracked = calls
+          .filter((c) => c.url.includes('/track'))
+          .flatMap((c) => JSON.parse(c.init.body as string).track as any[]);
+        expect(tracked.map((e) => e.name)).not.toContain('OptedOutEvent');
+      } finally {
+        sdk.optIn();
+      }
+    });
+
     /**
      * D-2 regression test. Must run last in this file: constructing a second
      * `IntemptJs` disposes whichever instance is currently active (see

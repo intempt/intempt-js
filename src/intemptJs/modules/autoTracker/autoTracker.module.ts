@@ -203,7 +203,6 @@ export class AutoTrackerModule {
   };
 
   private readonly _onPooledEvent = (customDomEvent: Event): void => {
-    if (!this.isUserOptIn()) return;
     const { detail } = customDomEvent as CustomEvent;
     const { event } = detail;
     const { type } = event;
@@ -213,9 +212,14 @@ export class AutoTrackerModule {
         // Not scrubbed and not batched, both deliberately: a consent record's
         // `email` field IS the record, and an audit record must not queue behind
         // analytics. See `autoTracker.consent.ts`.
+        //
+        // Not gated on opt-out either (D-5): `IntemptJs.consent()` is ungated so
+        // that a refusal made while opted out is still recorded, and this
+        // listener used to drop it anyway (INT-5992 SDK-16).
         void this._consent.sendConsentRecord(event);
         break;
       default:
+        if (!this.isUserOptIn()) return;
         this._onTrackData(event);
         break;
     }
