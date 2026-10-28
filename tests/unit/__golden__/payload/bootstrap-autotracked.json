@@ -54,5 +54,31 @@
         ]
       }
     ]
+  },
+  {
+    "track": [
+      {
+        "name": "Leave Page",
+        "payload": [
+          {
+            "eventId": "<eventId>",
+            "sessionId": "<sessionId>",
+            "profileId": "<profileId>",
+            "pageId": "<pageId>",
+            "data": {
+              "previousPage": "",
+              "windowWidth": 1024,
+              "timeOnPage": "<timeOnPage>",
+              "domain": "localhost",
+              "query": "",
+              "title": "",
+              "path": "/",
+              "hash": "",
+              "url": "http://localhost:3000/"
+            }
+          }
+        ]
+      }
+    ]
   }
 ]
