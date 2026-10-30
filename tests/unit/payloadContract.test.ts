@@ -56,6 +56,9 @@ const VOLATILE_KEYS = new Set([
   'pageId',
   'timestamp',
   'validUntil',
+  // Whole seconds the bootstrap page was open before the drain's beforeunload:
+  // 0 on a fast runner, 1 on a slow one. Its presence is the contract.
+  'timeOnPage',
   // Varies per test for queue isolation (see `sourceSeq` below), not because the
   // field is uninteresting — its *presence* on the consent body is contract.
   'sourceId',
@@ -484,30 +487,46 @@ describe('outbound payload contract', () => {
       expectMatchesGolden('mixed-batch', body);
     });
 
-    it('emits NO timestamp on any event — a defect, recorded not fixed', async () => {
-      // DEFECT, and the most consequential thing in this file. Every model has
-      // its `timestamp: new Date().getTime()` line **commented out**
-      // (track.model.ts:16, identify.model.ts:17, group.model.ts:16,
-      // record.model.ts:16, product.model.ts:17,
-      // session.model.ts:15, consent.model.ts:25). So no event carries a
-      // client-side timestamp and ingest can only use its own receive time.
-      //
-      // That matters more than it looks: events sit in the queue across a
-      // circuit-breaker window (60s, CHECKPOINT §3b), across backoff, and across
-      // page reloads via persisted storage. An event generated before a reload
-      // and delivered minutes later is attributed to the delivery moment. Event
-      // ordering within a session is therefore not recoverable from the payload.
-      //
-      // Recorded rather than fixed: adding `timestamp` is precisely the kind of
-      // new field CHECKPOINT §2 forbids shipping blind, and it belongs with
-      // `BACKEND.md` item 4 as one conversation with ingest.
-      sdk.track({ eventTitle: 'A', data: { n: 1 } } as any);
-      const [call] = await flushAndCapture('/track');
-      const body = trackBody(call!);
+    it('stamps every event with the time it happened, not the time it is flushed (INT-5947)', async () => {
+      // push-source reads a top-level `timestamp` (UNIX ms) on each payload entry
+      // as the event's primary time and only stamps its own receive time when the
+      // key is missing (CustomJsonDecoder / JsonDataItemData.updateDateTimeFields).
+      // Before INT-5947 every model had the line commented out, so events that sat
+      // in the queue (offline, breaker open, backoff, reload) were all dated at
+      // delivery. The clock is moved forward between creating and flushing the
+      // events: the wire must carry the creation time.
+      const happenedAt = 1_760_000_000_000;
+      const now = vi.spyOn(Date, 'now').mockReturnValue(happenedAt);
+      try {
+        sdk.track({ eventTitle: 'A', data: { n: 1 } } as any);
+        sdk.identify({ userId: 'user-ts' } as any);
+        sdk.productView('p-ts');
+      } finally {
+        now.mockRestore();
+      }
+      const [call] = await flushAndCapture(
+        '/track',
+        'A',
+        'Identify',
+        'Product viewed',
+      );
+      const body = trackBodyFor(call!, 'A', 'Identify', 'Product viewed');
+      expect(body.track.length).toBeGreaterThanOrEqual(3);
       for (const event of body.track) {
         for (const entry of event.payload ?? []) {
-          expect(entry).not.toHaveProperty('timestamp');
+          expect(entry.timestamp).toBe(happenedAt);
         }
+      }
+    });
+
+    it('auto-tracked bootstrap events carry a numeric timestamp too', () => {
+      const entries = bootstrapCalls
+        .filter((c) => c.url.includes('/track'))
+        .flatMap((c) => JSON.parse(c.init.body as string).track as any[])
+        .flatMap((event) => event.payload ?? []);
+      expect(entries.length).toBeGreaterThan(0);
+      for (const entry of entries) {
+        expect(typeof entry.timestamp).toBe('number');
       }
     });
 
@@ -618,6 +637,40 @@ describe('outbound payload contract', () => {
       const body = JSON.parse(call.init.body as string);
       expect(body).not.toHaveProperty('track');
       expectMatchesGolden('consent', body);
+    });
+
+    it('still posts a consent record while the visitor is opted out (D-5, INT-5992 SDK-16)', async () => {
+      // `IntemptJs.consent()` is deliberately not gated on opt-out (D-5): a
+      // refusal is an audit record and must survive `optOut()`. The model was
+      // dispatched, but the auto-tracker's pooled-event listener dropped every
+      // event while opted out, consent included, so no POST was ever made.
+      sdk.optOut();
+      try {
+        sdk.consent({ action: 'reject', validUntil: 1893456000000 } as any);
+        const consentCalls = await flushAndCapture('/consents/data');
+        expect(consentCalls).toHaveLength(1);
+        expect(JSON.parse(consentCalls[0]!.init.body as string)).toMatchObject({
+          type: 'consent',
+          action: 'reject',
+        });
+      } finally {
+        sdk.optIn();
+      }
+    });
+
+    it('still drops tracking events while opted out — only consent is exempt', async () => {
+      sdk.optOut();
+      try {
+        sdk.track({ eventTitle: 'OptedOutEvent' } as any);
+        sdk.consent({ action: 'reject', validUntil: 1893456000000 } as any);
+        await flushAndCapture('/consents/data');
+        const tracked = calls
+          .filter((c) => c.url.includes('/track'))
+          .flatMap((c) => JSON.parse(c.init.body as string).track as any[]);
+        expect(tracked.map((e) => e.name)).not.toContain('OptedOutEvent');
+      } finally {
+        sdk.optIn();
+      }
     });
 
     /**

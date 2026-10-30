@@ -97,14 +97,16 @@ export type SessionEventPayload = {
   eventId: string;
   sessionId: string;
   profileId: string;
-  //timestamp: number;
+  /** UNIX ms when the event happened; see `eventTimestamp`. */
+  timestamp?: number;
   data: SessionEventDataComponent;
   userAttributes: UserAttributeComponent;
 };
 
 export type HtmlEventPayload = {
   eventId: string;
-  //timestamp: number;
+  /** UNIX ms when the event happened; see `eventTimestamp`. */
+  timestamp?: number;
   sessionId: string;
   profileId: string;
   pageId: string;
@@ -116,13 +118,15 @@ export type PageEventPayload = {
   profileId: string;
   pageId: string;
   eventId: string;
-  //timestamp: number;
+  /** UNIX ms when the event happened; see `eventTimestamp`. */
+  timestamp?: number;
   data: PageEventDataComponent;
 };
 
 export type IdentifyModelPayload = {
   eventId: string;
-  //timestamp: number;
+  /** UNIX ms when the event happened; see `eventTimestamp`. */
+  timestamp?: number;
   profileId: string;
   sessionId: string;
   pageId: string;
@@ -133,7 +137,8 @@ export type IdentifyModelPayload = {
 
 export type GroupModelPayload = {
   eventId: string;
-  //timestamp: number;
+  /** UNIX ms when the event happened; see `eventTimestamp`. */
+  timestamp?: number;
   profileId: string;
   sessionId: string;
   pageId: string;
@@ -143,7 +148,8 @@ export type GroupModelPayload = {
 
 export type TrackModelPayload = {
   eventId: string;
-  //timestamp: number;
+  /** UNIX ms when the event happened; see `eventTimestamp`. */
+  timestamp?: number;
   profileId: string;
   sessionId: string;
   pageId: string;
@@ -152,7 +158,8 @@ export type TrackModelPayload = {
 
 export type RecordModelPayload = {
   eventId: string;
-  //timestamp: number;
+  /** UNIX ms when the event happened; see `eventTimestamp`. */
+  timestamp?: number;
   profileId: string;
   pageId?: string;
   sessionId?: string;
@@ -166,7 +173,8 @@ export type RecordModelPayload = {
 export type ProductModelPayload = {
   eventId: string;
   sessionId: string;
-  //timestamp: number;
+  /** UNIX ms when the event happened; see `eventTimestamp`. */
+  timestamp?: number;
   profileId: string;
   pageId: string;
   data: { productId: string; quantity?: number };

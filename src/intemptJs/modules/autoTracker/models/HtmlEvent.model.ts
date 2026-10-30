@@ -3,7 +3,7 @@ import {
   HtmlEventPayload,
   IntemptHtmlEventNames,
 } from '../../../types/autoTracker.types.ts';
-import { generateId } from '../../../../shared/shared.utils.ts';
+import { generateId, eventTimestamp } from '../../../../shared/shared.utils.ts';
 
 export class HtmlEventModel {
   private readonly name: IntemptHtmlEventNames;
@@ -19,7 +19,7 @@ export class HtmlEventModel {
     this.name = name;
     this.payload.push({
       eventId: generateId('ev'),
-      //timestamp: new Date().getTime(),
+      timestamp: eventTimestamp(),
       sessionId,
       profileId,
       pageId,

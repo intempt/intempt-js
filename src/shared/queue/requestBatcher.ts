@@ -190,6 +190,15 @@ export class RequestBatcher {
    */
   private retryCeilingMS: number = 0;
   private requestInProgress: boolean = false;
+  /**
+   * An unload flush asked for while another flush was running. It used to be
+   * dropped by the `requestInProgress` guard, so an event queued on the way out
+   * — a Leave Page from `pagehide`/`beforeunload`, which the transport's own
+   * unload flush had already started ahead of — waited for the next interval
+   * flush, which an unloading page never reaches (INT-5942). It now runs as
+   * soon as the running flush finishes.
+   */
+  private unloadFlushPending: boolean = false;
   private timeoutID: number | null = null;
   private consecutiveRemovalFailures: number = 0;
   /**
@@ -486,7 +495,18 @@ export class RequestBatcher {
   }
 
   async flush(options: { unloading?: boolean } = {}): Promise<void> {
+    await this.flushOnce(options);
+    if (this.unloadFlushPending && !this.requestInProgress) {
+      this.unloadFlushPending = false;
+      await this.flush({ unloading: true });
+    }
+  }
+
+  private async flushOnce(options: { unloading?: boolean }): Promise<void> {
     if (this.requestInProgress) {
+      if (options.unloading) {
+        this.unloadFlushPending = true;
+      }
       return;
     }
 
