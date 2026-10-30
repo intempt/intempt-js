@@ -19,7 +19,7 @@
     "type": "git",
     "url": "git+https://github.com/intempt/intempt-js.git"
   },
-  "license": "MIT",
+  "license": "Apache-2.0",
   "author": "Intempt",
   "type": "module",
   "browser": "./dist/intempt.min.js",
