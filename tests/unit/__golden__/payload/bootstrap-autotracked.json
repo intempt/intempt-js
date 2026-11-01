@@ -6,6 +6,7 @@
         "payload": [
           {
             "eventId": "<eventId>",
+            "timestamp": "<timestamp>",
             "sessionId": "<sessionId>",
             "profileId": "<profileId>",
             "pageId": "<pageId>",
@@ -27,6 +28,7 @@
         "payload": [
           {
             "eventId": "<eventId>",
+            "timestamp": "<timestamp>",
             "sessionId": "<sessionId>",
             "profileId": "<profileId>",
             "userAttributes": {
@@ -47,6 +49,33 @@
               "landingPageQuery": "",
               "landingPageHash": "",
               "source": "web"
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "track": [
+      {
+        "name": "Leave Page",
+        "payload": [
+          {
+            "eventId": "<eventId>",
+            "timestamp": "<timestamp>",
+            "sessionId": "<sessionId>",
+            "profileId": "<profileId>",
+            "pageId": "<pageId>",
+            "data": {
+              "previousPage": "",
+              "windowWidth": 1024,
+              "timeOnPage": "<timeOnPage>",
+              "domain": "localhost",
+              "query": "",
+              "title": "",
+              "path": "/",
+              "hash": "",
+              "url": "http://localhost:3000/"
             }
           }
         ]

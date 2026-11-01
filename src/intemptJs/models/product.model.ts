@@ -1,7 +1,7 @@
 import { ProductModelPayload } from '../types/autoTracker.types.ts';
 import { ModelProduct } from '../interfaces/baseModel.interface.ts';
 import { IntemptIdsParams, ProductParams } from '../types/intemptJs.types.ts';
-import { generateId } from '../../shared/shared.utils.ts';
+import { generateId, eventTimestamp } from '../../shared/shared.utils.ts';
 
 export class ProductModel implements ModelProduct {
   readonly name: string;
@@ -18,7 +18,7 @@ export class ProductModel implements ModelProduct {
     this.payload.push(
       ...params.products.map((product) => ({
         eventId: generateId('ev'),
-        //timestamp: new Date().getTime(),
+        timestamp: eventTimestamp(),
         profileId: params.profileId!,
         sessionId: params.sessionId!,
         pageId: params.pageId!,

@@ -34,6 +34,6 @@
     "low": 75,
     "break": 85
   },
-  "tempDirName": "node_modules/.stryker-tmp",
+  "tempDirName": ".stryker-tmp",
   "ignoreStatic": true
 }

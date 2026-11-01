@@ -23,7 +23,11 @@ export class PageTrackerModule {
   private readonly idType = 'pag';
   private readonly keys = ['page_session'];
   private _lastStartUrl = '';
-  private _started = false;
+  // True between a View Page and the Leave Page that ends it. An unload fires
+  // both `beforeunload` and `pagehide`, and each ends the page, so without this
+  // one page view would get two Leave Pages (INT-5942). It also lets a bfcache
+  // restore of the same URL open a new view after the page was left.
+  private _viewOpen = false;
 
   private readonly pageSession = 'page_session';
 
@@ -75,7 +79,13 @@ export class PageTrackerModule {
       if (e.persisted) this.safeStart();
     });
 
+    // A hard navigation or tab close ends the page view (INT-5942).
+    // `beforeunload` alone missed it: mobile browsers skip it for most unloads
+    // and it never fires when the page goes into the bfcache. `pagehide` fires
+    // on every unload, persisted or not; `end()` sends once per view, so a page
+    // that fires both still gets a single Leave Page.
     window.addEventListener('beforeunload', () => this.end());
+    window.addEventListener('pagehide', () => this.end());
 
     // SPA navigations. `_patchHistoryForSpa()` already registers its own
     // `popstate` listener that fires 'locationchange' (handled below), so a
@@ -135,8 +145,8 @@ export class PageTrackerModule {
 
   start() {
     const href = window.location.href;
-    if (this._started && this._lastStartUrl === href) return;
-    this._started = true;
+    if (this._viewOpen && this._lastStartUrl === href) return;
+    this._viewOpen = true;
     this._lastStartUrl = href;
 
     this.setPageSession();
@@ -154,13 +164,19 @@ export class PageTrackerModule {
   }
 
   end() {
+    if (!this._viewOpen) return;
+    this._viewOpen = false;
+
     const currentEventName = 'Leave Page';
     const startTime = this.getPageSessionStartTime();
     const previousPage = this.getPreviousPage();
 
     dispatchIntemptEvent('intempt:page', {
       eventName: currentEventName,
-      fullUrl: window.location.href,
+      // The page being left. On an SPA navigation this runs after
+      // pushState/replaceState/popstate has already changed the location, so
+      // `window.location.href` is the NEXT page.
+      fullUrl: this._lastStartUrl || window.location.href,
       title: document.title,
       windowWidth: window.innerWidth,
       pageId: this.getId(),

@@ -187,7 +187,19 @@ export class IntemptJs extends IntemptJsGuard {
    * every call rather than cached, so a session rollover or page change is
    * reflected immediately instead of drifting on a long-lived SPA tab.
    */
-  private _ids(): { profileId: string; sessionId: string; pageId: string } {
+  /**
+   * The ids for an event named `eventName`, read AFTER recording its session
+   * activity. When the session cookie has expired that opens the new session
+   * first, so the event carries the new session id rather than the expired one
+   * (INT-5992 SDK-15). `eventName` is the name the event is dispatched under,
+   * which becomes the new session's `sessionStartEventName`.
+   */
+  private _ids(eventName: string): {
+    profileId: string;
+    sessionId: string;
+    pageId: string;
+  } {
+    this._autoTracker.touchSession(eventName);
     return {
       profileId: this._autoTracker.getProfileId(),
       sessionId: this._autoTracker.getSessionId(),
@@ -207,7 +219,9 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isIdentifyValid(params)) return;
 
-    const { profileId, sessionId, pageId } = this._ids();
+    const { profileId, sessionId, pageId } = this._ids(
+      params.eventTitle ?? 'Identify',
+    );
 
     const eventData = new IdentifyModel({
       ...params,
@@ -227,7 +241,9 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isGroupValid(params)) return;
 
-    const { profileId, sessionId, pageId } = this._ids();
+    const { profileId, sessionId, pageId } = this._ids(
+      params.eventTitle ?? 'Identify',
+    );
 
     const eventData = new GroupModel({
       ...params,
@@ -245,7 +261,7 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isTrackValid(params)) return;
 
-    const { profileId, sessionId, pageId } = this._ids();
+    const { profileId, sessionId, pageId } = this._ids(params.eventTitle);
 
     const eventData = new TrackModel({
       ...params,
@@ -264,7 +280,7 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return;
     if (!this.isRecordValid(params)) return;
 
-    const { profileId, sessionId, pageId } = this._ids();
+    const { profileId, sessionId, pageId } = this._ids(params.eventTitle);
 
     const eventData = new RecordModel({
       ...params,
@@ -325,7 +341,9 @@ export class IntemptJs extends IntemptJsGuard {
   productAdd(params: ProductParams) {
     if (!this.isUserOptIn()) return;
 
-    const { profileId, sessionId, pageId } = this._ids();
+    const { profileId, sessionId, pageId } = this._ids(
+      IntemptEventName.PRODUCT_ADD,
+    );
 
     const eventData = new ProductModel({
       eventTitle: IntemptEventName.PRODUCT_ADD,
@@ -344,7 +362,9 @@ export class IntemptJs extends IntemptJsGuard {
   productOrdered(params: ProductParams[]) {
     if (!this.isUserOptIn()) return;
 
-    const { profileId, sessionId, pageId } = this._ids();
+    const { profileId, sessionId, pageId } = this._ids(
+      IntemptEventName.PRODUCT_ORDER,
+    );
 
     const eventData = new ProductModel({
       eventTitle: IntemptEventName.PRODUCT_ORDER,
@@ -362,7 +382,9 @@ export class IntemptJs extends IntemptJsGuard {
 
   productView(productId: string) {
     if (!this.isUserOptIn()) return;
-    const { profileId, sessionId, pageId } = this._ids();
+    const { profileId, sessionId, pageId } = this._ids(
+      IntemptEventName.PRODUCT_VIEW,
+    );
 
     const eventData = new ProductModel({
       eventTitle: IntemptEventName.PRODUCT_VIEW,

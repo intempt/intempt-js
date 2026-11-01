@@ -46,6 +46,37 @@ describe('RequestBatcher', () => {
     batcher = makeBatcher();
   });
 
+  // --- Unload flush requested mid-flush (INT-5942) ---------------------------
+
+  describe('an unload flush that arrives while a flush is running', () => {
+    it('runs after the running flush instead of being dropped', async () => {
+      await batcher.enqueue(event('evt-first'));
+
+      // Hold the first send open, the way the transport's own unload flush is
+      // still in flight when the Leave Page queued by the same unload arrives.
+      let release!: () => void;
+      const held = new Promise<void>((r) => (release = r));
+      batcher = makeBatcher({
+        sendRequestFunc: async (data: unknown[], options: unknown) => {
+          sendCalls.push({ data, options });
+          if (sendCalls.length === 1) await held;
+          return defaultResponse;
+        },
+      });
+      const running = batcher.flush({ unloading: true });
+      await vi.waitFor(() => expect(sendCalls).toHaveLength(1));
+
+      await batcher.enqueue(event('evt-leave'));
+      const late = batcher.flush({ unloading: true });
+      release();
+      await Promise.all([running, late]);
+
+      expect(sendCalls).toHaveLength(2);
+      expect(sendCalls[1].data[0].payload[0].eventId).toBe('evt-leave');
+      expect(sendCalls[1].options.unloading).toBe(true);
+    });
+  });
+
   // --- Dedupe structure lifecycle (memory-leak defect) -----------------------
 
   describe('dedupe bookkeeping', () => {
