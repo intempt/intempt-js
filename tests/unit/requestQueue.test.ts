@@ -817,6 +817,95 @@ describe('RequestQueue', () => {
     });
   });
 
+  describe('peekUnsent — the synchronous view for the unload send (INT-5942)', () => {
+    it('includes an event whose storage write has not landed, in order', async () => {
+      const queue = makeQueue();
+      await queue.enqueue({ n: 1 }, 1000);
+      const pending = queue.enqueue({ n: 2 }, 1000);
+
+      expect(queue.peekUnsent(10).map((i) => pl(i).n)).toEqual([1, 2]);
+      await pending;
+      // Landed: listed once, from memQueue.
+      expect(queue.peekUnsent(10).map((i) => pl(i).n)).toEqual([1, 2]);
+    });
+
+    it('honours the limit across memQueue and pending writes', async () => {
+      const queue = makeQueue();
+      await queue.enqueue({ n: 1 }, 1000);
+      void queue.enqueue({ n: 2 }, 1000);
+      void queue.enqueue({ n: 3 }, 1000);
+
+      expect(queue.peekUnsent(1).map((i) => pl(i).n)).toEqual([1]);
+      expect(queue.peekUnsent(2).map((i) => pl(i).n)).toEqual([1, 2]);
+    });
+
+    it('drops a record removed while its write was pending, once it lands', async () => {
+      const queue = makeQueue();
+      const pending = queue.enqueue({ n: 1 }, 1000);
+      const [entry] = queue.peekUnsent(10);
+
+      expect(await queue.removeItemsByID([entry!.id])).toBe(true);
+      await pending;
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+      expect(await makeQueue().fillBatch(10)).toHaveLength(0);
+    });
+
+    it('drops a removed pending record whose write failed', async () => {
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'setItem').mockRejectedValue(new Error('quota'));
+      const queue = makeQueue({ queueStorage: storage });
+      const pending = queue.enqueue({ n: 1 }, 1000);
+      const [entry] = queue.peekUnsent(10);
+      await queue.removeItemsByID([entry!.id]);
+      await pending;
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+    });
+
+    it('drops a removed pending record when init downgrades to memory', async () => {
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'init').mockRejectedValue(new Error('no storage'));
+      const queue = makeQueue({ queueStorage: storage });
+      const pending = queue.enqueue({ n: 1 }, 1000);
+      const [entry] = queue.peekUnsent(10);
+      await queue.removeItemsByID([entry!.id]);
+      await pending;
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+    });
+
+    it('still removes stored items listed alongside a pending one', async () => {
+      const queue = makeQueue();
+      await queue.enqueue({ n: 1 }, 1000);
+      const pending = queue.enqueue({ n: 2 }, 1000);
+      const ids = queue.peekUnsent(10).map((i) => i.id);
+
+      await queue.removeItemsByID(ids);
+      await pending;
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+      expect(await makeQueue().fillBatch(10)).toHaveLength(0);
+    });
+
+    it('clear() also discards writes still pending', async () => {
+      const queue = makeQueue();
+      const pending = queue.enqueue({ n: 1 }, 1000);
+      await queue.clear();
+      await pending;
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+      expect(await makeQueue().fillBatch(10)).toHaveLength(0);
+    });
+
+    it('a landed write that was not removed joins the queue', async () => {
+      const queue = makeQueue();
+      await queue.enqueue({ n: 1 }, 1000);
+      expect(await makeQueue().fillBatch(10)).toHaveLength(1);
+      expect((queue as any).pendingWrites.size).toBe(0);
+    });
+  });
+
   describe('readFromStorage — direct guard', () => {
     it('returns an empty array, not a placeholder, when persistence is off', async () => {
       // Kills the NoCoverage ArrayDeclaration mutant on `return [];`. Nothing

@@ -406,11 +406,16 @@ export class AutoTrackerModule {
       const name = data.name.toLowerCase();
       const batcher = this._transport.batcher;
 
-      // For "Leave Page" events, flush immediately
+      // A Leave Page is sent right here, inside the pagehide/beforeunload (or
+      // SPA navigation) handler that produced it, together with whatever else
+      // is queued and not already on the wire. It used to wait for the queue
+      // write and then for any request still in flight, which an unloading page
+      // never finishes, so it arrived late or not at all (INT-5942). enqueue()
+      // makes the event visible to the unload send synchronously, and still
+      // persists it, so a send that fails is retried by the next flush.
       if (name === 'leave page') {
-        batcher.enqueue(data).then(() => {
-          batcher.flush({ unloading: true });
-        });
+        void batcher.enqueue(data);
+        void batcher.flush({ unloading: true });
       } else {
         // Enqueue normally - batcher will handle batching
         batcher.enqueue(data);

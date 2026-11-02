@@ -44,8 +44,13 @@ export class AutoTrackerTransport {
     }
   };
 
-  private readonly _onPageHide = (ev: PageTransitionEvent): void => {
-    if (ev.persisted && this._requestBatcher) {
+  // Every pagehide, not only a bfcache one (INT-5942): mobile browsers skip
+  // `beforeunload` for most unloads, and pagehide is the one event every unload
+  // fires. A page that fires both sends once — the second call finds everything
+  // already on the wire. The unload flush hands its request over synchronously,
+  // inside this handler.
+  private readonly _onPageHide = (): void => {
+    if (this._requestBatcher) {
       this._requestBatcher.flush({ unloading: true });
     }
   };
