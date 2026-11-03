@@ -170,6 +170,135 @@ describe('AutoTrackerTransport fetch -> XHR fallback', () => {
   });
 });
 
+describe('AutoTrackerTransport unload sends (INT-5942)', () => {
+  const originalFetch = globalThis.fetch;
+  const originalXHR = globalThis.XMLHttpRequest;
+
+  beforeEach(() => {
+    FakeXHR.instances = [];
+    (globalThis as any).XMLHttpRequest = FakeXHR;
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    (globalThis as any).XMLHttpRequest = originalXHR;
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it('does not re-send by XHR after a keepalive fetch that was started and aborted', async () => {
+    const abort = new DOMException('aborted', 'AbortError');
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(abort) as unknown as typeof fetch;
+
+    const result = await send(makeTransport(), {
+      unloading: true,
+      keepalive: true,
+    });
+
+    // The first request may have reached ingest; a second one would be a
+    // duplicate. The batcher gets a failure and keeps the items queued.
+    expect(FakeXHR.instances.length).toBe(0);
+    expect(result).toEqual({ error: 'timeout', httpStatusCode: 0 });
+  });
+
+  it('does not re-send by XHR after a started keepalive fetch fails at the network layer', async () => {
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(
+        new TypeError('Failed to fetch'),
+      ) as unknown as typeof fetch;
+
+    const result = await send(makeTransport(), { unloading: true });
+
+    expect(FakeXHR.instances.length).toBe(0);
+    expect(result).toEqual({ error: 'network error', httpStatusCode: 0 });
+  });
+
+  it('falls back to XHR when fetch throws before starting a request', async () => {
+    globalThis.fetch = vi.fn(() => {
+      throw new TypeError('keepalive not supported');
+    }) as unknown as typeof fetch;
+
+    const result = await send(makeTransport(), { unloading: true });
+
+    expect(FakeXHR.instances.length).toBe(1);
+    expect(result.httpStatusCode).toBe(200);
+  });
+
+  it('falls back to XHR when fetch is unavailable', async () => {
+    (globalThis as any).fetch = undefined;
+
+    const result = await send(makeTransport(), { unloading: true });
+
+    expect(FakeXHR.instances.length).toBe(1);
+    expect(result.httpStatusCode).toBe(200);
+  });
+
+  describe('unload triggers', () => {
+    function withFakeBatcher() {
+      const transport = makeTransport();
+      const flush = vi.fn(() => Promise.resolve());
+      (transport as any)._requestBatcher = { flush };
+      const fire = (name: string) => (transport as any)[name]();
+      return { flush, fire };
+    }
+    function hide() {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'hidden',
+      });
+    }
+    afterEach(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'visible',
+      });
+    });
+
+    it('a visibilitychange after pagehide is the same unload: one flush', () => {
+      const { flush, fire } = withFakeBatcher();
+      fire('_onPageHide');
+      hide();
+      fire('_onVisibilityChange');
+      fire('_onBeforeUnload');
+      fire('_onPageHide');
+
+      expect(flush).toHaveBeenCalledTimes(1);
+      expect(flush).toHaveBeenCalledWith({ unloading: true });
+    });
+
+    it('beforeunload then pagehide flush twice; the batcher sends only what is new', () => {
+      const { flush, fire } = withFakeBatcher();
+      fire('_onBeforeUnload');
+      fire('_onPageHide');
+      hide();
+      fire('_onVisibilityChange');
+
+      expect(flush).toHaveBeenCalledTimes(2);
+    });
+
+    it('a bfcache restore re-arms the triggers', () => {
+      const { flush, fire } = withFakeBatcher();
+      fire('_onPageHide');
+      fire('_onPageShow');
+      fire('_onPageHide');
+
+      expect(flush).toHaveBeenCalledTimes(2);
+    });
+
+    it('tab switches are not coalesced: each hidden tab flushes', () => {
+      const { flush, fire } = withFakeBatcher();
+      hide();
+      fire('_onVisibilityChange');
+      fire('_onVisibilityChange');
+
+      expect(flush).toHaveBeenCalledTimes(2);
+    });
+  });
+});
+
 // The `?ip=` flag is written in two places -- the event pool and here. Only the pool
 // copy was covered, so this one could have drifted or been dropped without a single
 // test noticing, on the batch path that carries most production traffic.

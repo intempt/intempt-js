@@ -839,6 +839,40 @@ describe('RequestQueue', () => {
       expect(queue.peekUnsent(2).map((i) => pl(i).n)).toEqual([1, 2]);
     });
 
+    it('applies the filter before the limit', async () => {
+      const queue = makeQueue();
+      for (const n of [1, 2, 3]) await queue.enqueue({ n }, 1000);
+      void queue.enqueue({ n: 4 }, 1000);
+
+      // Entries the caller cannot send do not use up the limit.
+      const sendable = (i: { payload: unknown }) => pl(i).n > 2;
+      expect(queue.peekUnsent(2, sendable).map((i) => pl(i).n)).toEqual([3, 4]);
+      expect(queue.peekUnsent(1, sendable).map((i) => pl(i).n)).toEqual([3]);
+    });
+
+    it('does not re-queue a delivered entry when removing its landed record throws', async () => {
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'removeItems').mockRejectedValue(new Error('gone'));
+      const queue = makeQueue({ queueStorage: storage });
+      const pending = queue.enqueue({ n: 1 }, 1000);
+      const [entry] = queue.peekUnsent(10);
+      await queue.removeItemsByID([entry!.id]);
+
+      expect(await pending).toBe(false);
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+    });
+
+    it('queues an entry once when the cap check throws after it joined', async () => {
+      const queue = makeQueue();
+      vi.spyOn(queue as any, 'enforceQueueCap').mockRejectedValue(
+        new Error('keys failed'),
+      );
+
+      expect(await queue.enqueue({ n: 1 }, 1000)).toBe(false);
+      expect(queue.peekUnsent(10).map((i) => pl(i).n)).toEqual([1]);
+      expect((queue as any).memQueue).toHaveLength(1);
+    });
+
     it('drops a record removed while its write was pending, once it lands', async () => {
       const queue = makeQueue();
       const pending = queue.enqueue({ n: 1 }, 1000);

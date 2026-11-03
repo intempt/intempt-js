@@ -215,10 +215,17 @@ export class RequestQueue {
     }
 
     const key = this.makeItemKey(queueEntry.id, now);
+    // The pending write is retired exactly once and the entry joins `memQueue`
+    // at most once, whichever step below throws. `landPending` consumes the
+    // `discardOnLand` mark, so a second call would wrongly answer "keep it" and
+    // put an already-delivered entry back into the queue for a second send.
+    let joins: boolean | null = null;
+    let pushed = false;
     try {
       // No lock: the key is unique to this event, so there is nothing to race.
       await this.queueStorage.setItem(key, { ...queueEntry, key });
-      if (!this.landPending(queueEntry.id)) {
+      joins = this.landPending(queueEntry.id);
+      if (!joins) {
         // Delivered by an unload send while the write was in progress.
         await this.queueStorage.removeItems([key]);
         return true;
@@ -226,15 +233,18 @@ export class RequestQueue {
       this.memQueue.push({ ...queueEntry, key } as QueueEntry & {
         key: string;
       });
+      pushed = true;
       this.approxQueuedCount =
         this.approxQueuedCount < 0 ? -1 : this.approxQueuedCount + 1;
       await this.enforceQueueCap();
       return true;
     } catch (error) {
       this.reportError('Error enqueueing item', error);
+      if (joins === null) joins = this.landPending(queueEntry.id);
       // Keep the event in memory rather than dropping it — a failed write must
-      // not also mean a lost event.
-      if (this.landPending(queueEntry.id)) {
+      // not also mean a lost event. Not when it was delivered meanwhile, and not
+      // a second time when it already joined before the failure.
+      if (joins && !pushed) {
         this.memQueue.push(queueEntry);
       }
       return false;
@@ -263,13 +273,22 @@ export class RequestQueue {
    * storage, which an unloading page may never get back from (INT-5942). Items
    * only in storage (another tab's, a previous load's) are not included; the
    * next load's regular flush delivers those.
+   *
+   * `include` is applied before `limit`, so entries the caller cannot send
+   * (already on the wire, for instance) never use up the limit and crowd out
+   * the ones it can — the Leave Page behind a full batch of in-flight items.
    */
-  peekUnsent(limit: number): QueueEntry[] {
-    const out = this.memQueue.slice(0, limit);
-    const seen = new Set(out.map((item) => item.id));
-    for (const entry of this.pendingWrites.values()) {
+  peekUnsent(
+    limit: number,
+    include: (entry: QueueEntry) => boolean = () => true,
+  ): QueueEntry[] {
+    const out: QueueEntry[] = [];
+    const seen = new Set<string>();
+    for (const entry of [...this.memQueue, ...this.pendingWrites.values()]) {
       if (out.length >= limit) break;
-      if (!seen.has(entry.id)) out.push(entry);
+      if (seen.has(entry.id)) continue;
+      seen.add(entry.id);
+      if (include(entry)) out.push(entry);
     }
     return out;
   }

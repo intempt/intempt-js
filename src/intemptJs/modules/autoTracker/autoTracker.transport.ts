@@ -38,26 +38,45 @@ export class AutoTrackerTransport {
   private _requestBatcher: RequestBatcher | null = null;
   private _batcherInitialized: boolean = false;
 
+  /**
+   * Set by `pagehide`, cleared by `pageshow`. After a pagehide the page is
+   * either gone or in the bfcache, so the `visibilitychange: hidden` (and any
+   * repeat pagehide/beforeunload) that follows in the same navigation is the
+   * same unload and is skipped instead of starting another unload flush.
+   *
+   * `beforeunload` followed by `pagehide` is not skipped: something may have
+   * been queued in between, and that second flush sends only what is not
+   * already on the wire (the batcher skips in-flight items), so it costs no
+   * duplicate.
+   */
+  private _pageHidden: boolean = false;
+
+  private _flushForUnload(): void {
+    if (!this._requestBatcher || this._pageHidden) return;
+    // flushUnload never rejects; `void` documents that nothing waits for it.
+    void this._requestBatcher.flush({ unloading: true });
+  }
+
   private readonly _onBeforeUnload = (): void => {
-    if (this._requestBatcher) {
-      this._requestBatcher.flush({ unloading: true });
-    }
+    this._flushForUnload();
   };
 
   // Every pagehide, not only a bfcache one (INT-5942): mobile browsers skip
   // `beforeunload` for most unloads, and pagehide is the one event every unload
-  // fires. A page that fires both sends once — the second call finds everything
-  // already on the wire. The unload flush hands its request over synchronously,
-  // inside this handler.
+  // fires. The unload flush hands its request over synchronously, inside this
+  // handler.
   private readonly _onPageHide = (): void => {
-    if (this._requestBatcher) {
-      this._requestBatcher.flush({ unloading: true });
-    }
+    this._flushForUnload();
+    this._pageHidden = true;
+  };
+
+  private readonly _onPageShow = (): void => {
+    this._pageHidden = false;
   };
 
   private readonly _onVisibilityChange = (): void => {
-    if (document.visibilityState === 'hidden' && this._requestBatcher) {
-      this._requestBatcher.flush({ unloading: true });
+    if (document.visibilityState === 'hidden') {
+      this._flushForUnload();
     }
   };
 
@@ -119,6 +138,7 @@ export class AutoTrackerTransport {
       if (typeof window !== 'undefined') {
         window.addEventListener('beforeunload', this._onBeforeUnload);
         window.addEventListener('pagehide', this._onPageHide);
+        window.addEventListener('pageshow', this._onPageShow);
         window.addEventListener('visibilitychange', this._onVisibilityChange);
       }
     } catch (error) {
@@ -139,6 +159,7 @@ export class AutoTrackerTransport {
     if (typeof window !== 'undefined') {
       window.removeEventListener('beforeunload', this._onBeforeUnload);
       window.removeEventListener('pagehide', this._onPageHide);
+      window.removeEventListener('pageshow', this._onPageShow);
       window.removeEventListener('visibilitychange', this._onVisibilityChange);
     }
 
@@ -178,7 +199,8 @@ export class AutoTrackerTransport {
       // fetchResult === null means the transport itself did not deliver
       // (fetch threw, or was aborted with nothing received) — fall through to
       // the XHR leg below. An actual HTTP response, of any status, returns
-      // above and never reaches here.
+      // above and never reaches here. On an unload send it only means fetch
+      // threw synchronously, i.e. no request was started.
     }
 
     // Fallback leg: XHR. Only reached when fetch is unavailable or the
@@ -200,11 +222,10 @@ export class AutoTrackerTransport {
     options: BatchSendOptions,
     timeout: number,
   ): Promise<BatchSendResult | null> {
+    const controller = new AbortController();
+    let pending: Promise<Response>;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-      const response = await fetch(url, {
+      pending = fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -214,7 +235,14 @@ export class AutoTrackerTransport {
         keepalive: options.keepalive !== false,
         signal: controller.signal,
       });
+    } catch {
+      // Thrown before any request was started: the XHR leg is safe to try.
+      return null;
+    }
 
+    try {
+      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      const response = await pending;
       clearTimeout(timeoutId);
 
       return {
@@ -222,9 +250,27 @@ export class AutoTrackerTransport {
         ok: response.ok,
         retryAfter: response.headers.get('Retry-After') || undefined,
       };
-    } catch {
+    } catch (error) {
       // Transport-layer failure only (network error, CORS failure, abort) —
-      // no HTTP response exists to report. Signal the fallback to try XHR.
+      // no HTTP response exists to report.
+      //
+      // An unload send does not fall back to XHR here: its keepalive request
+      // was started and may well have reached ingest (an abort on the 5 s
+      // unload timeout says nothing about the server), and a second,
+      // non-keepalive request with the same payload would deliver it twice.
+      // Unload sends also run on live pages now (hidden tab, SPA Leave Page),
+      // where that XHR would complete. The failure goes back to the batcher,
+      // which keeps the items queued for the next flush.
+      if (options.unloading) {
+        return {
+          error:
+            (error as { name?: unknown } | null)?.name === 'AbortError'
+              ? 'timeout'
+              : 'network error',
+          httpStatusCode: 0,
+        };
+      }
+      // Regular send: signal the fallback to try XHR.
       return null;
     }
   }

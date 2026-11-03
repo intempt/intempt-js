@@ -1,4 +1,4 @@
-import { RequestQueue } from './requestQueue.ts';
+import { QueueEntry, RequestQueue } from './requestQueue.ts';
 import { QueueStorageLike } from '../storage/queueStorage.ts';
 import { createLogger } from '../logger/logger.ts';
 import { MetricsSnapshot, SdkMetrics } from '../logger/metrics.ts';
@@ -154,6 +154,20 @@ const MAX_SENT_EVENT_IDS = 1000;
 /**
  * Manages batching, flushing, and retrying of tracking requests
  */
+/** What `buildBatch` makes of a list of queue items. */
+interface BuiltBatch {
+  /** The request body, in queue order. */
+  dataForRequest: unknown[];
+  /** Queue item id -> payload, for the items in `dataForRequest`. */
+  payloads: Map<string, unknown>;
+  /** eventIds of the items in `dataForRequest`. */
+  eventIds: string[];
+  /** Already delivered: evict from the queue. */
+  alreadySentItemIds: string[];
+  /** Neither sent nor to be dequeued on this request's success. */
+  excludedFromOutcome: Set<string>;
+}
+
 export class RequestBatcher {
   private queue: RequestQueue;
   private libConfig: BatcherConfig;
@@ -506,17 +520,17 @@ export class RequestBatcher {
     // post-success continuation) that would otherwise walk straight past an open
     // breaker.
     //
-    // An unload flush (`flushUnload`) bypasses it deliberately. That is the last
-    // chance these events ever get, and one keepalive request from a dying page
-    // is not the load the breaker exists to shed.
+    // An unload flush (`flushUnload`) checks it too: unload sends also run on
+    // live pages (hidden tab, SPA Leave Page), and what it holds back stays
+    // queued for the next flush or the next load.
     if (this.breakerOpenUntilMS > Date.now()) {
       return;
     }
 
     // Getting here with an open-until timestamp still set means the window has
     // just expired and this flush IS the half-open probe. Recorded rather than
-    // inferred, so the transition count reflects what happened. Unload flushes
-    // bypass the breaker entirely and so are not probes.
+    // inferred, so the transition count reflects what happened. Unload sends
+    // are not probes: they are not scheduled for the window's end.
     if (this.breakerOpenUntilMS > 0) {
       this.metrics.setBreakerState('half-open');
     }
@@ -532,62 +546,12 @@ export class RequestBatcher {
     try {
       const batch = await this.queue.fillBatch(currentBatchSize);
       const attemptSecondaryFlush = batch.length === currentBatchSize;
-      const dataForRequest: unknown[] = [];
-      const alreadySentItemIds: string[] = []; // Queue items to evict, not just skip
-      const skippedInFlight: Set<string> = new Set();
-
-      // Process batch items
-      for (const item of batch) {
-        // On the wire in an unload send. Not re-sent, and not evicted as
-        // "already sent" either: if that send fails, the item must still be
-        // queued for the retry.
-        if (this.inFlightItemIds.has(item.id)) {
-          skippedInFlight.add(item.id);
-          continue;
-        }
-        let payload = item.payload;
-
-        // Extract eventIds from payload to check if already sent
-        const eventIds = this.extractEventIds(payload);
-
-        // Filter out items that have already been sent (by eventId)
-        const alreadySent = eventIds.some((id) => this.sentEventIds.has(id));
-        if (alreadySent) {
-          // Skipping is not enough: the item stays at the head of the queue and
-          // fillBatch hands it back on every future flush, so the queue head is
-          // permanently blocked and each flush burns part of its batch on
-          // garbage. Worse, if its eventId later ages out of the capped
-          // sentEventIds window, the item becomes eligible again and IS resent.
-          // It can never legitimately be sent, so evict it.
-          alreadySentItemIds.push(item.id);
-          continue;
-        }
-
-        if (this.beforeSendHook && !item.orphaned) {
-          payload = this.beforeSendHook(payload);
-        }
-
-        if (payload) {
-          // Deduplication check (by queue item ID)
-          const itemId = item.id;
-          const timesSent = this.itemIdsSentSuccessfully.get(itemId) || 0;
-
-          if (timesSent > 5) {
-            this.reportError(
-              '[dupe] item ID sent too many times, not sending',
-              {
-                item,
-                timesSent,
-              },
-            );
-            continue;
-          }
-
-          dataForRequest.push(payload);
-          transformedItems.set(itemId, payload);
-          eventIdsInBatch.push(...eventIds); // Collect eventIds for this batch
-        }
+      const built = this.buildBatch(batch);
+      const { dataForRequest, alreadySentItemIds } = built;
+      for (const [id, payload] of built.payloads) {
+        transformedItems.set(id, payload);
       }
+      eventIdsInBatch.push(...built.eventIds);
 
       // Claimed before the first await below, so an unload send that runs
       // meanwhile does not put the same items into a second request.
@@ -609,14 +573,13 @@ export class RequestBatcher {
       this.markEventIdsSent(eventIdsInBatch);
       this.saveSentEventIds(); // Persist immediately
 
-      // The already-sent items were just evicted above, and the in-flight ones
-      // belong to another request, so neither counts in this batch's outcome
-      // (a 413 halving decision, for instance, should reflect what was
-      // actually sent).
-      const evicted = new Set(alreadySentItemIds);
+      // The already-sent items were just evicted above, the in-flight ones
+      // belong to another request, and the ones whose hook threw stay queued,
+      // so none of them counts in this batch's outcome (a 413 halving
+      // decision, for instance, should reflect what was actually sent).
       const outcomeItemIds = batch
         .map((item) => item.id)
-        .filter((id) => !evicted.has(id) && !skippedInFlight.has(id));
+        .filter((id) => !built.excludedFromOutcome.has(id));
 
       // Send request
       // Use fetch with keepalive for all requests (including page unload)
@@ -659,6 +622,82 @@ export class RequestBatcher {
   }
 
   /**
+   * Turn queue items into request payloads. Shared by `flush` and
+   * `flushUnload`, so the two cannot drift on what is sent, skipped or evicted.
+   *
+   * - On the wire in another request: skipped. Not re-sent, and not evicted as
+   *   "already sent" either: if that send fails, the item must still be queued
+   *   for the retry.
+   * - eventId already delivered: listed in `alreadySentItemIds` for eviction.
+   *   Skipping alone is not enough — the item stays at the head of the queue
+   *   and comes back on every future flush, so the head is permanently blocked
+   *   and each flush burns part of its batch on garbage. Worse, if its eventId
+   *   later ages out of the capped `sentEventIds` window, the item becomes
+   *   eligible again and IS resent. It can never legitimately be sent.
+   * - `beforeSendHook` throws: reported and left queued, so one bad payload (or
+   *   a broken hook) loses neither that event nor the rest of the batch — on
+   *   unload, that rest includes the Leave Page.
+   * - Hook returns nothing, or the item was sent more than 5 times: not sent.
+   *
+   * `limit` caps the payloads, counting only items that are actually sent.
+   */
+  private buildBatch(
+    items: QueueEntry[],
+    limit: number = Infinity,
+  ): BuiltBatch {
+    const built: BuiltBatch = {
+      dataForRequest: [],
+      payloads: new Map(),
+      eventIds: [],
+      alreadySentItemIds: [],
+      excludedFromOutcome: new Set(),
+    };
+
+    for (const item of items) {
+      if (built.dataForRequest.length >= limit) break;
+      if (this.inFlightItemIds.has(item.id)) {
+        built.excludedFromOutcome.add(item.id);
+        continue;
+      }
+
+      const eventIds = this.extractEventIds(item.payload);
+      if (eventIds.some((id) => this.sentEventIds.has(id))) {
+        built.alreadySentItemIds.push(item.id);
+        built.excludedFromOutcome.add(item.id);
+        continue;
+      }
+
+      let payload = item.payload;
+      if (this.beforeSendHook && !item.orphaned) {
+        try {
+          payload = this.beforeSendHook(payload);
+        } catch (error) {
+          this.reportError('beforeSendHook threw; item left queued', error);
+          built.excludedFromOutcome.add(item.id);
+          continue;
+        }
+      }
+      if (!payload) continue;
+
+      // Deduplication check (by queue item ID)
+      const timesSent = this.itemIdsSentSuccessfully.get(item.id) || 0;
+      if (timesSent > 5) {
+        this.reportError('[dupe] item ID sent too many times, not sending', {
+          item,
+          timesSent,
+        });
+        continue;
+      }
+
+      built.dataForRequest.push(payload);
+      built.payloads.set(item.id, payload);
+      built.eventIds.push(...eventIds);
+    }
+
+    return built;
+  }
+
+  /**
    * Hand everything this page has queued — minus what is already on the wire —
    * to the transport, **synchronously**, for `pagehide` / `beforeunload` /
    * `visibilitychange: hidden` and for a Leave Page.
@@ -673,39 +712,52 @@ export class RequestBatcher {
    * the persisted queue, or not at all.
    *
    * Items on the wire in another request are skipped, so nothing is sent twice
-   * in parallel. The breaker is bypassed: this is the last chance these events
-   * get. The returned promise settles once the outcome has been applied to the
-   * queue, which is what tests (and a page that survives, e.g. a hidden tab)
-   * observe.
+   * in parallel. They are filtered out before the batch size applies, so a
+   * full batch of them cannot crowd out the Leave Page.
+   *
+   * It does not wait for `requestInProgress`, but it respects an open breaker,
+   * and a failed response counts towards the breaker and backoff exactly as a
+   * regular flush's does. Unload sends also run on live pages (a hidden tab, an
+   * SPA Leave Page), which must not keep hitting an endpoint that is down. What
+   * the breaker holds back stays queued and persisted for the next flush or the
+   * next load.
+   *
+   * Never rejects. The returned promise settles once the outcome has been
+   * applied to the queue, which is what tests (and a page that survives, e.g.
+   * a hidden tab) observe.
    */
   flushUnload(): Promise<void> {
-    const startTime = Date.now();
-    const entries = this.queue
-      .peekUnsent(this.batchSize)
-      .filter((item) => !this.inFlightItemIds.has(item.id));
-
-    const dataForRequest: unknown[] = [];
-    const itemIds: string[] = [];
-    const eventIdsInBatch: string[] = [];
-    for (const item of entries) {
-      const eventIds = this.extractEventIds(item.payload);
-      // Already delivered; the next regular flush evicts it.
-      if (eventIds.some((id) => this.sentEventIds.has(id))) continue;
-      if ((this.itemIdsSentSuccessfully.get(item.id) || 0) > 5) continue;
-
-      const payload =
-        this.beforeSendHook && !item.orphaned
-          ? this.beforeSendHook(item.payload)
-          : item.payload;
-      if (!payload) continue;
-
-      dataForRequest.push(payload);
-      itemIds.push(item.id);
-      eventIdsInBatch.push(...eventIds);
+    if (this.breakerOpenUntilMS > Date.now()) {
+      return Promise.resolve();
     }
 
-    if (dataForRequest.length === 0) {
+    const startTime = Date.now();
+    let built: BuiltBatch;
+    try {
+      const entries = this.queue.peekUnsent(
+        Infinity,
+        (item) => !this.inFlightItemIds.has(item.id),
+      );
+      built = this.buildBatch(entries, this.batchSize);
+    } catch (error) {
+      this.reportError('Error building unload request', error);
       return Promise.resolve();
+    }
+
+    const { dataForRequest, eventIds: eventIdsInBatch } = built;
+    const itemIds = Array.from(built.payloads.keys());
+    // The same eviction as a regular flush's, started only after the request
+    // below so the send never waits on storage.
+    const evict = (): Promise<void> =>
+      built.alreadySentItemIds.length > 0
+        ? this.removeItemsFromQueue(built.alreadySentItemIds).then(
+            () => undefined,
+            (error) => this.reportError('Error evicting sent items', error),
+          )
+        : Promise.resolve();
+
+    if (dataForRequest.length === 0) {
+      return evict();
     }
 
     // Mark before the request leaves: the page can die mid-request.
@@ -724,8 +776,9 @@ export class RequestBatcher {
     } catch (error) {
       sending = Promise.reject(error);
     }
+    const evicting = evict();
 
-    return sending.then(
+    const outcome = sending.then(
       async (response) => {
         this.metrics.recordFlush(Date.now() - startTime);
         this.releaseInFlight(itemIds);
@@ -739,6 +792,7 @@ export class RequestBatcher {
         this.reportError('Error flushing request queue', error);
       },
     );
+    return Promise.all([outcome, evicting]).then(() => undefined);
   }
 
   private async handleUnloadResponse(
@@ -763,7 +817,9 @@ export class RequestBatcher {
         this.closeCircuit();
         const succeeded = await this.removeItemsFromQueue(itemIds);
         this.recordDeliveryAttempts(itemIds, succeeded);
-      } else if (response) {
+        return;
+      }
+      if (response) {
         // We got an answer and it was not a success, so the batch was not
         // ingested. Roll the pre-send mark back, otherwise the next page load
         // finds these items queued but marked and evicts them — silent loss on
@@ -771,9 +827,108 @@ export class RequestBatcher {
         // network. Only a *missing* response (page died first) keeps the mark.
         this.unmarkEventIdsSent(eventIdsInBatch);
       }
+      if (this.isRetryableFailure(response)) {
+        // Counted like a regular flush's failure, so the breaker can trip on
+        // these sends too. A regular flush still running owns the schedule and
+        // reschedules when it finishes; only the counters move meanwhile.
+        this.backOffAfterFailure(response, !this.requestInProgress);
+      }
     } catch (error) {
       this.reportError('Error handling unload response', error);
     }
+  }
+
+  /**
+   * True when the batch was definitely not ingested and should be retried.
+   *
+   * `response.error` is set by the transport when the request never completed
+   * (network failure, abort, timeout). Such a batch was NOT ingested, so it
+   * must be retried.
+   *
+   * This used to require `!navigator.onLine` alongside a <=0 status, which
+   * meant a network error while the browser still believed it was online
+   * fell through every branch and was treated as a SUCCESS — the events were
+   * dequeued having never been delivered. navigator.onLine only reports
+   * link-layer state: it is true on a captive portal, a dead VPN, or when the
+   * API itself is unreachable. Found by the property tests in
+   * tests/unit/queueInvariants.test.ts.
+   *
+   * A delivered response with NO `httpStatusCode` counts as retryable, and that
+   * is a deliberate decision forced by typing the response. Under `any`,
+   * `undefined >= 500`, `undefined === 429` and `undefined <= 0` are all false,
+   * so such a response fell past every branch and was treated as a SUCCESS —
+   * the batch dequeued having never been confirmed. That directly contradicted
+   * `isDefiniteSuccess`, which requires `ok === true` or a 2xx and therefore
+   * calls the same response inconclusive. Two classifiers disagreeing about the
+   * same input is the bug; retrying is the safe side of it, because the
+   * alternative is silent loss. `?? 0` also keeps the existing `<= 0` intent
+   * ("no usable status" and "status 0" are the same case).
+   */
+  private isRetryableFailure(response: BatchSendResult | null): boolean {
+    const transportFailed = !response || !!response.error;
+    const rawStatus: unknown = response?.httpStatusCode;
+    const status = typeof rawStatus === 'number' ? rawStatus : 0;
+    return transportFailed || status >= 500 || status === 429 || status <= 0;
+  }
+
+  /**
+   * Record a delivery failure: count it, grow the backoff, and trip the
+   * breaker once failures are consistent enough to call it an outage. With
+   * `schedule`, also set the timer for the retry (or the half-open probe).
+   */
+  private backOffAfterFailure(
+    response: BatchSendResult | null,
+    schedule: boolean,
+  ): void {
+    this.metrics.markFlushFailed();
+    // Retry with exponential backoff, spread across the fleet with full
+    // jitter. The ceiling doubles deterministically; the sleep is a random
+    // point below it. See `fullJitter` for why.
+    // Base off the *configured* interval, not `flushInterval` — the latter
+    // now carries the steady-state jitter, and the backoff schedule should
+    // not inherit an unrelated random draw.
+    let ceilingMS = Math.min(
+      MAX_RETRY_INTERVAL_MS,
+      (this.retryCeilingMS || this.libConfig.batchFlushIntervalMs) * 2,
+    );
+    let retryMS = fullJitter(ceilingMS);
+
+    if (response?.retryAfter) {
+      // NOT jittered, deliberately. The server named a time and we honour it
+      // exactly. This leaves every client told "come back in 30s" returning
+      // in the same 30th second — the same herd, just server-scheduled — so
+      // it is arguably wrong. It stays as-is pending confirmation from the
+      // ingest team on whether /track emits Retry-After at all, and on which
+      // statuses; the branch may well be dead code today. See BACKEND.md.
+      const retryAfterMS = parseInt(response.retryAfter, 10) * 1000;
+      if (retryAfterMS) {
+        ceilingMS = Math.min(MAX_RETRY_INTERVAL_MS, retryAfterMS);
+        retryMS = ceilingMS;
+      }
+    }
+
+    this.retryCeilingMS = ceilingMS;
+
+    // Trip the breaker once failures are consistent enough to call it an
+    // outage rather than a blip. A send that fails while half-open lands
+    // here too and re-opens, which is the intended behaviour: one probe
+    // failing means the service is still down.
+    if (++this.consecutiveSendFailures >= CIRCUIT_BREAKER_THRESHOLD) {
+      const openMS = jitterAroundBase(CIRCUIT_BREAKER_OPEN_MS);
+      this.breakerOpenUntilMS = Date.now() + openMS;
+      this.metrics.setBreakerState('open');
+      this.reportError(
+        `${this.consecutiveSendFailures} consecutive failures; ` +
+          `circuit breaker open for ${openMS} ms`,
+      );
+      // Schedule the half-open probe for when the window expires. Events
+      // keep queueing meanwhile; only sending stops.
+      if (schedule) this.scheduleFlush(openMS);
+      return;
+    }
+
+    this.reportError(`Error; retry in ${retryMS} ms`);
+    if (schedule) this.scheduleFlush(retryMS);
   }
 
   private async handleResponse(
@@ -803,85 +958,12 @@ export class RequestBatcher {
         return;
       }
 
-      // Check for retryable errors.
-      //
-      // `response.error` is set by the transport when the request never
-      // completed (network failure, abort, timeout). Such a batch was NOT
-      // ingested, so it must be retried.
-      //
-      // This used to require `!navigator.onLine` alongside a <=0 status, which
-      // meant a network error while the browser still believed it was online
-      // fell through every branch below and was treated as a SUCCESS — the
-      // events were dequeued having never been delivered. navigator.onLine only
-      // reports link-layer state: it is true on a captive portal, a dead VPN, or
-      // when the API itself is unreachable. Found by the property tests in
-      // tests/unit/queueInvariants.test.ts.
-      // A delivered response with NO `httpStatusCode` counts as retryable, and that
-      // is a deliberate decision forced by typing the response. Under `any`,
-      // `undefined >= 500`, `undefined === 429` and `undefined <= 0` are all false,
-      // so such a response fell past every branch and was treated as a SUCCESS —
-      // the batch dequeued having never been confirmed. That directly contradicted
-      // `isDefiniteSuccess`, which requires `ok === true` or a 2xx and therefore
-      // calls the same response inconclusive. Two classifiers disagreeing about the
-      // same input is the bug; retrying is the safe side of it, because the
-      // alternative is silent loss. `?? 0` also keeps the existing `<= 0` intent
-      // ("no usable status" and "status 0" are the same case).
-      const transportFailed = !response || !!response.error;
-      const rawStatus: unknown = response?.httpStatusCode;
-      const status = typeof rawStatus === 'number' ? rawStatus : 0;
-      if (transportFailed || status >= 500 || status === 429 || status <= 0) {
-        this.metrics.markFlushFailed();
-        // Retry with exponential backoff, spread across the fleet with full
-        // jitter. The ceiling doubles deterministically; the sleep is a random
-        // point below it. See `fullJitter` for why.
-        // Base off the *configured* interval, not `flushInterval` — the latter
-        // now carries the steady-state jitter, and the backoff schedule should
-        // not inherit an unrelated random draw.
-        let ceilingMS = Math.min(
-          MAX_RETRY_INTERVAL_MS,
-          (this.retryCeilingMS || this.libConfig.batchFlushIntervalMs) * 2,
-        );
-        let retryMS = fullJitter(ceilingMS);
-
-        if (response?.retryAfter) {
-          // NOT jittered, deliberately. The server named a time and we honour it
-          // exactly. This leaves every client told "come back in 30s" returning
-          // in the same 30th second — the same herd, just server-scheduled — so
-          // it is arguably wrong. It stays as-is pending confirmation from the
-          // ingest team on whether /track emits Retry-After at all, and on which
-          // statuses; the branch may well be dead code today. See BACKEND.md.
-          const retryAfterMS = parseInt(response.retryAfter, 10) * 1000;
-          if (retryAfterMS) {
-            ceilingMS = Math.min(MAX_RETRY_INTERVAL_MS, retryAfterMS);
-            retryMS = ceilingMS;
-          }
-        }
-
-        this.retryCeilingMS = ceilingMS;
+      // Check for retryable errors (see `isRetryableFailure`).
+      if (this.isRetryableFailure(response)) {
         // Definitely not ingested — release the pre-send mark so the retry can
         // actually send these rather than evicting them as duplicates.
         this.unmarkEventIdsSent(eventIdsInBatch);
-
-        // Trip the breaker once failures are consistent enough to call it an
-        // outage rather than a blip. A send that fails while half-open lands
-        // here too and re-opens, which is the intended behaviour: one probe
-        // failing means the service is still down.
-        if (++this.consecutiveSendFailures >= CIRCUIT_BREAKER_THRESHOLD) {
-          const openMS = jitterAroundBase(CIRCUIT_BREAKER_OPEN_MS);
-          this.breakerOpenUntilMS = Date.now() + openMS;
-          this.metrics.setBreakerState('open');
-          this.reportError(
-            `${this.consecutiveSendFailures} consecutive failures; ` +
-              `circuit breaker open for ${openMS} ms`,
-          );
-          // Schedule the half-open probe for when the window expires. Events
-          // keep queueing meanwhile; only sending stops.
-          this.scheduleFlush(openMS);
-          return;
-        }
-
-        this.reportError(`Error; retry in ${retryMS} ms`);
-        this.scheduleFlush(retryMS);
+        this.backOffAfterFailure(response, true);
         return;
       }
 

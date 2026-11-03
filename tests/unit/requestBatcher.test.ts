@@ -236,13 +236,178 @@ describe('RequestBatcher', () => {
       expect(sendCalls[0].options.method).toBe('POST');
     });
 
-    it('sends even while the breaker is open', async () => {
+    it('sends nothing while the breaker is open', async () => {
       (batcher as any).breakerOpenUntilMS = Date.now() + 60_000;
       await batcher.enqueue(event('evt-breaker'));
 
       await batcher.flush({ unloading: true });
 
+      expect(sendCalls).toHaveLength(0);
+    });
+
+    it('sends once the breaker window has passed', async () => {
+      (batcher as any).breakerOpenUntilMS = Date.now() - 1;
+      await batcher.enqueue(event('evt-breaker-over'));
+
+      await batcher.flush({ unloading: true });
+
       expect(sendCalls).toHaveLength(1);
+    });
+
+    it('records a failed response: counter, failure metric and backoff', async () => {
+      defaultResponse = { httpStatusCode: 500, ok: false };
+      await batcher.enqueue(event('evt-unload-500'));
+      const failuresBefore = batcher.getMetrics().flushFailureCount;
+
+      await batcher.flush({ unloading: true });
+
+      expect((batcher as any).consecutiveSendFailures).toBe(1);
+      expect((batcher as any).retryCeilingMS).toBeGreaterThan(0);
+      expect(batcher.getMetrics().flushFailureCount).toBe(failuresBefore + 1);
+      // Rolled back, so the regular flush retries it rather than evicting it.
+      expect((batcher as any).sentEventIds.has('evt-unload-500')).toBe(false);
+    });
+
+    it('does not count a 400 as a delivery failure', async () => {
+      defaultResponse = { httpStatusCode: 400, ok: false };
+      await batcher.enqueue(event('evt-unload-400'));
+
+      await batcher.flush({ unloading: true });
+
+      expect((batcher as any).consecutiveSendFailures).toBe(0);
+    });
+
+    it('does not wait for a regular request in flight, and leaves its schedule alone', async () => {
+      let release!: (r: unknown) => void;
+      const b = makeBatcher({
+        sendRequestFunc: (data: unknown[], options: any) => {
+          sendCalls.push({ data, options });
+          if (sendCalls.length === 1) return new Promise((r) => (release = r));
+          if (!options.unloading) return Promise.resolve(defaultResponse);
+          return Promise.resolve({ httpStatusCode: 500, ok: false });
+        },
+      });
+      const scheduled = vi.spyOn(b as any, 'scheduleFlush');
+      await b.enqueue(event('evt-regular'));
+      const regular = b.flush();
+      await vi.waitFor(() => expect(sendCalls).toHaveLength(1));
+
+      await b.enqueue(event('evt-unload'));
+      await b.flush({ unloading: true });
+
+      expect(sendCalls).toHaveLength(2);
+      expect((b as any).consecutiveSendFailures).toBe(1);
+      // The running flush owns the timer and resets it when it finishes.
+      expect(scheduled).not.toHaveBeenCalled();
+      release({ httpStatusCode: 200, ok: true });
+      await regular;
+    });
+
+    it('a full batch of items in flight does not crowd out the Leave Page', async () => {
+      const b = makeBatcher({
+        libConfig: {
+          batchSize: 2,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 5000,
+          batchAutostart: false,
+        },
+        sendRequestFunc: (data: unknown[], options: any) => {
+          sendCalls.push({ data, options });
+          if (!options.unloading) return new Promise(() => {});
+          return Promise.resolve(defaultResponse);
+        },
+      });
+      for (const id of ['a', 'b', 'c', 'd']) await b.enqueue(event(id));
+      void b.flush(); // a, b on the wire
+      await vi.waitFor(() => expect(sendCalls).toHaveLength(1));
+      void b.enqueue(event('evt-leave'));
+
+      void b.flush({ unloading: true });
+
+      expect(sendCalls).toHaveLength(2);
+      expect(ids(sendCalls[1])).toEqual(['c', 'd']);
+      // And once those are on the wire too, the next unload send has it.
+      void b.flush({ unloading: true });
+      expect(ids(sendCalls[2])).toEqual(['evt-leave']);
+    });
+
+    it('a throwing beforeSendHook loses neither the unload send nor the item', async () => {
+      const errors: string[] = [];
+      const b = makeBatcher({
+        beforeSendHook: (p: any) => {
+          if (p.payload[0].eventId === 'evt-bad') throw new Error('hook boom');
+          return p;
+        },
+        errorReporter: (m: string) => errors.push(m),
+      });
+      await b.enqueue(event('evt-bad'));
+      await b.enqueue(event('evt-leave'));
+
+      await expect(b.flush({ unloading: true })).resolves.toBeUndefined();
+
+      expect(sendCalls).toHaveLength(1);
+      expect(ids(sendCalls[0])).toEqual(['evt-leave']);
+      expect(errors).toContain('beforeSendHook threw; item left queued');
+      // Left queued, not dropped.
+      const queued = await (b as any).queue.fillBatch(10);
+      expect(queued.map((i: any) => i.payload.payload[0].eventId)).toEqual([
+        'evt-bad',
+      ]);
+    });
+
+    it('a throwing beforeSendHook on a regular flush keeps the item queued and sends the rest', async () => {
+      const b = makeBatcher({
+        beforeSendHook: (p: any) => {
+          if (p.payload[0].eventId === 'evt-bad') throw new Error('hook boom');
+          return p;
+        },
+      });
+      await b.enqueue(event('evt-bad'));
+      await b.enqueue(event('evt-good'));
+
+      await b.flush();
+
+      expect(sendCalls.flatMap(ids)).toEqual(['evt-good']);
+      const queued = await (b as any).queue.fillBatch(10);
+      expect(queued.map((i: any) => i.payload.payload[0].eventId)).toEqual([
+        'evt-bad',
+      ]);
+    });
+
+    it('never rejects, even when building the request throws', async () => {
+      const errors: string[] = [];
+      const b = makeBatcher({ errorReporter: (m: string) => errors.push(m) });
+      await b.enqueue(event('evt-x'));
+      (b as any).queue.peekUnsent = () => {
+        throw new Error('peek boom');
+      };
+
+      await expect(b.flush({ unloading: true })).resolves.toBeUndefined();
+      expect(errors).toContain('Error building unload request');
+    });
+
+    it('evicts an already-delivered item, as a regular flush does', async () => {
+      await batcher.enqueue(event('evt-done'));
+      await batcher.enqueue(event('evt-new'));
+      (batcher as any).markEventIdsSent(['evt-done']);
+
+      await batcher.flush({ unloading: true });
+
+      expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(0);
+    });
+
+    it('reports a looping item with the [dupe] error, as a regular flush does', async () => {
+      const errors: string[] = [];
+      const b = makeBatcher({ errorReporter: (m: string) => errors.push(m) });
+      await b.enqueue(event('evt-loop'));
+      const [loop] = await (b as any).queue.fillBatch(10);
+      (b as any).itemIdsSentSuccessfully.set(loop.id, 6);
+
+      await b.flush({ unloading: true });
+
+      expect(errors).toContain(
+        '[dupe] item ID sent too many times, not sending',
+      );
     });
 
     it('keeps the mark and releases the item when the transport throws synchronously', async () => {
@@ -649,18 +814,36 @@ describe('RequestBatcher', () => {
       expect((batcher as any).breakerOpenUntilMS).toBeGreaterThan(Date.now());
     });
 
-    it('lets an unload flush through even with the breaker open', async () => {
+    it('holds an unload send back while the breaker is open, keeping it queued', async () => {
       vi.useFakeTimers();
       defaultResponse = { httpStatusCode: 500, ok: false };
       await failTimes(5, 'unload');
       const beforeUnload = sendCalls.length;
 
-      // Last chance these events ever get. One keepalive request from a dying
-      // page is not the load the breaker exists to shed.
+      // Unload sends also run on live pages (hidden tab, SPA Leave Page), so
+      // they must not keep hitting an endpoint the breaker says is down.
       await batcher.enqueue(event('evt-unload-final'));
       await batcher.flush({ unloading: true });
 
-      expect(sendCalls.length).toBeGreaterThan(beforeUnload);
+      expect(sendCalls.length).toBe(beforeUnload);
+      const queued = await (batcher as any).queue.fillBatch(100);
+      expect(queued.map((i: any) => i.payload.payload[0].eventId)).toContain(
+        'evt-unload-final',
+      );
+    });
+
+    it('trips the breaker on failed unload sends, as on regular ones', async () => {
+      vi.useFakeTimers();
+      defaultResponse = { httpStatusCode: 503, ok: false };
+
+      for (let i = 0; i < 5; i++) {
+        await batcher.enqueue(event(`evt-unload-fail-${i}`));
+        await batcher.flush({ unloading: true });
+      }
+
+      expect((batcher as any).consecutiveSendFailures).toBe(5);
+      expect((batcher as any).breakerOpenUntilMS).toBeGreaterThan(Date.now());
+      expect(batcher.getMetrics().breakerState).toBe('open');
     });
 
     it('counts only consecutive failures, so blips do not accumulate', async () => {
