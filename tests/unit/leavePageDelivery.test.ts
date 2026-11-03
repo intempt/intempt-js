@@ -211,4 +211,65 @@ describe('Leave Page delivery (INT-5939, INT-5942)', () => {
 
     expect(entriesNamed('Leave Page')).toHaveLength(1);
   });
+
+  it('INT-5942: tab close with nothing in flight sends the Leave Page inside the pagehide handler', async () => {
+    pageTransition('pageshow', true);
+    await sleep(20);
+    await visibilityFlush();
+    await waitFor(() => entriesNamed('View Page').length > 0);
+    calls.length = 0;
+
+    window.dispatchEvent(new Event('beforeunload'));
+    // Synchronous: the old path awaited the queue write first, which a closing
+    // tab may never get back from.
+    expect(entriesNamed('Leave Page')).toHaveLength(1);
+    pageTransition('pagehide', false);
+    await sleep(50);
+    expect(entriesNamed('Leave Page')).toHaveLength(1);
+  });
+
+  it('INT-5942: track then unload with the track request still in flight sends the Leave Page in the unload request', async () => {
+    // A fresh view to leave (bfcache restore), its View Page already out.
+    pageTransition('pageshow', true);
+    await sleep(20);
+    await visibilityFlush();
+    await waitFor(() => entriesNamed('View Page').length > 0);
+    calls.length = 0;
+
+    // From here every request hangs, the way a request from a page that is
+    // being torn down never reports back.
+    vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
+      calls.push({ url, init });
+      return new Promise(() => {});
+    });
+
+    sdk.track({ eventTitle: 'e1', data: { step: 2 } });
+    await sleep(20);
+    // The tab is hidden first, as on every real navigation: e1 goes out and
+    // stays in flight.
+    await visibilityFlush();
+    expect(entriesNamed('e1')).toHaveLength(1);
+
+    // pagehide, nothing awaited: whatever is sent must be handed over inside
+    // the handler.
+    const before = calls.length;
+    pageTransition('pagehide', false);
+
+    const unloadCalls = calls.slice(before);
+    const names = unloadCalls.flatMap((c) =>
+      (JSON.parse(c.init.body as string).track as WireEvent[]).map(
+        (e) => e.name,
+      ),
+    );
+    expect(names).toEqual(['Leave Page']);
+    expect(unloadCalls[0]!.init.keepalive).toBe(true);
+    const leave = entriesNamed('Leave Page')[0]!;
+    expect(typeof leave.data?.timeOnPage).toBe('number');
+
+    // e1 is not re-sent by any later unload event.
+    window.dispatchEvent(new Event('beforeunload'));
+    await sleep(50);
+    expect(entriesNamed('e1')).toHaveLength(1);
+    expect(entriesNamed('Leave Page')).toHaveLength(1);
+  });
 });

@@ -84,6 +84,16 @@ describe('push and the debounce window', () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
+  it('sends "Leave Page" inside the call, without waiting for any timer (INT-5942)', () => {
+    // push() runs inside a pagehide/beforeunload handler. An unloading page may
+    // never reach the next task, so even a 0 ms timer can be too late.
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'Leave Page' });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(pool.size).toBe(0);
+  });
+
   it('matches the leave-page name case-insensitively', () => {
     // `data.name.toLowerCase()` is compared against the lowercase literal. A
     // customer-visible event name is capitalised, so dropping the `toLowerCase()`

@@ -7,6 +7,18 @@ import { buildTrackUrl } from './autoTracker.url.ts';
 
 const log = createLogger('AutoTracker');
 
+/**
+ * The keepalive budget: browsers reject a keepalive request whose body would
+ * take the page's in-flight keepalive bodies over 64 KiB.
+ */
+const KEEPALIVE_BUDGET_BYTES = 64 * 1024;
+
+function utf8Length(text: string): number {
+  return typeof TextEncoder === 'function'
+    ? new TextEncoder().encode(text).length
+    : text.length * 3; // Worst case, so the budget is never overrun.
+}
+
 /** What `RequestBatcher.sendRequestFunc` is called with. */
 export type BatchSendOptions = {
   unloading?: boolean;
@@ -38,21 +50,67 @@ export class AutoTrackerTransport {
   private _requestBatcher: RequestBatcher | null = null;
   private _batcherInitialized: boolean = false;
 
+  /**
+   * Set by `pagehide`; cleared when the page is live again (`pageshow`, or
+   * `visibilitychange: visible` after a frozen page resumes or a navigation is
+   * called off). After a pagehide the page is either gone or in the bfcache,
+   * so the `visibilitychange: hidden` (and any repeat pagehide/beforeunload)
+   * that follows in the same navigation is the same unload and is skipped
+   * instead of starting another unload flush.
+   *
+   * `beforeunload` followed by `pagehide` is not skipped: something may have
+   * been queued in between, and that second flush sends only what is not
+   * already on the wire (the batcher skips in-flight items), so it costs no
+   * duplicate.
+   */
+  private _pageHidden: boolean = false;
+
+  /**
+   * Bytes of keepalive request bodies this transport has in flight. Browsers
+   * cap the keepalive bodies a page may have in flight at 64 KiB and reject a
+   * request that would go over, so a send is checked against the budget up
+   * front instead of finding out from a rejection.
+   */
+  private _keepaliveBytesInFlight: number = 0;
+
+  /**
+   * `terminal`: the page is going away (beforeunload, a pagehide that is not
+   * a bfcache entry), so the batcher bypasses its breaker for this send.
+   */
+  private _flushForUnload(terminal: boolean): void {
+    if (!this._requestBatcher || this._pageHidden) return;
+    // flushUnload never rejects; `void` documents that nothing waits for it.
+    void this._requestBatcher.flush({ unloading: true, terminal });
+  }
+
+  private _pageLiveAgain(): void {
+    this._pageHidden = false;
+    this._requestBatcher?.pageResumed();
+  }
+
   private readonly _onBeforeUnload = (): void => {
-    if (this._requestBatcher) {
-      this._requestBatcher.flush({ unloading: true });
-    }
+    this._flushForUnload(true);
   };
 
-  private readonly _onPageHide = (ev: PageTransitionEvent): void => {
-    if (ev.persisted && this._requestBatcher) {
-      this._requestBatcher.flush({ unloading: true });
-    }
+  // Every pagehide, not only a bfcache one (INT-5942): mobile browsers skip
+  // `beforeunload` for most unloads, and pagehide is the one event every unload
+  // fires. The unload flush hands its request over synchronously, inside this
+  // handler.
+  private readonly _onPageHide = (ev?: PageTransitionEvent): void => {
+    this._flushForUnload(!ev?.persisted);
+    this._pageHidden = true;
+  };
+
+  private readonly _onPageShow = (): void => {
+    this._pageLiveAgain();
   };
 
   private readonly _onVisibilityChange = (): void => {
-    if (document.visibilityState === 'hidden' && this._requestBatcher) {
-      this._requestBatcher.flush({ unloading: true });
+    if (document.visibilityState === 'hidden') {
+      // A hidden tab is still a live page: not terminal.
+      this._flushForUnload(false);
+    } else if (document.visibilityState === 'visible') {
+      this._pageLiveAgain();
     }
   };
 
@@ -114,6 +172,7 @@ export class AutoTrackerTransport {
       if (typeof window !== 'undefined') {
         window.addEventListener('beforeunload', this._onBeforeUnload);
         window.addEventListener('pagehide', this._onPageHide);
+        window.addEventListener('pageshow', this._onPageShow);
         window.addEventListener('visibilitychange', this._onVisibilityChange);
       }
     } catch (error) {
@@ -134,6 +193,7 @@ export class AutoTrackerTransport {
     if (typeof window !== 'undefined') {
       window.removeEventListener('beforeunload', this._onBeforeUnload);
       window.removeEventListener('pagehide', this._onPageHide);
+      window.removeEventListener('pageshow', this._onPageShow);
       window.removeEventListener('visibilitychange', this._onVisibilityChange);
     }
 
@@ -160,20 +220,35 @@ export class AutoTrackerTransport {
     // Primary leg: fetch with keepalive. This ensures the Authorization header
     // is included and requests are reliable during unload.
     if (typeof fetch === 'function') {
-      const fetchResult = await this._sendViaFetch(
-        url,
-        authHeader,
-        body,
-        options,
-        timeout,
-      );
+      // Over the keepalive budget, the browser would reject the request
+      // outright; send it without keepalive instead. That still completes on
+      // a live page (hidden tab, SPA Leave Page). The batcher sends the newest
+      // batch first on unload, so the Leave Page gets the budget.
+      const bytes = utf8Length(body);
+      const keepalive =
+        options.keepalive !== false &&
+        this._keepaliveBytesInFlight + bytes <= KEEPALIVE_BUDGET_BYTES;
+      if (keepalive) this._keepaliveBytesInFlight += bytes;
+      let fetchResult: BatchSendResult | null;
+      try {
+        fetchResult = await this._sendViaFetch(
+          url,
+          authHeader,
+          body,
+          { ...options, keepalive },
+          timeout,
+        );
+      } finally {
+        if (keepalive) this._keepaliveBytesInFlight -= bytes;
+      }
       if (fetchResult) {
         return fetchResult;
       }
       // fetchResult === null means the transport itself did not deliver
       // (fetch threw, or was aborted with nothing received) — fall through to
       // the XHR leg below. An actual HTTP response, of any status, returns
-      // above and never reaches here.
+      // above and never reaches here. On an unload send it only means fetch
+      // threw synchronously, i.e. no request was started.
     }
 
     // Fallback leg: XHR. Only reached when fetch is unavailable or the
@@ -195,11 +270,16 @@ export class AutoTrackerTransport {
     options: BatchSendOptions,
     timeout: number,
   ): Promise<BatchSendResult | null> {
+    const controller = new AbortController();
+    // Whether the request can have left the page yet. A rejection that comes
+    // before the next task (the keepalive quota check, a bad header) was
+    // decided synchronously inside fetch, before anything was dispatched; a
+    // network error or an abort arrives later, from the network.
+    let dispatched = false;
+    const dispatchTimer = setTimeout(() => (dispatched = true), 0);
+    let pending: Promise<Response>;
     try {
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
-
-      const response = await fetch(url, {
+      pending = fetch(url, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -209,18 +289,48 @@ export class AutoTrackerTransport {
         keepalive: options.keepalive !== false,
         signal: controller.signal,
       });
+    } catch {
+      clearTimeout(dispatchTimer);
+      // Thrown before any request was started: the XHR leg is safe to try.
+      return null;
+    }
 
-      clearTimeout(timeoutId);
-
+    // Armed before the await and cleared however it ends, so a rejected
+    // request does not leave a 90 s timer behind.
+    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    try {
+      const response = await pending;
       return {
         httpStatusCode: response.status,
         ok: response.ok,
         retryAfter: response.headers.get('Retry-After') || undefined,
       };
-    } catch {
+    } catch (error) {
       // Transport-layer failure only (network error, CORS failure, abort) —
-      // no HTTP response exists to report. Signal the fallback to try XHR.
+      // no HTTP response exists to report.
+      //
+      // An unload send does not fall back to XHR here: its keepalive request
+      // was started and may well have reached ingest (an abort on the 5 s
+      // unload timeout says nothing about the server), and a second,
+      // non-keepalive request with the same payload would deliver it twice.
+      // Unload sends also run on live pages now (hidden tab, SPA Leave Page),
+      // where that XHR would complete. The failure goes back to the batcher,
+      // which keeps the items queued for the next flush.
+      if (options.unloading && dispatched) {
+        return {
+          error:
+            (error as { name?: unknown } | null)?.name === 'AbortError'
+              ? 'timeout'
+              : 'network error',
+          httpStatusCode: 0,
+        };
+      }
+      // Regular send, or rejected before dispatch: signal the fallback to
+      // try XHR.
       return null;
+    } finally {
+      clearTimeout(timeoutId);
+      clearTimeout(dispatchTimer);
     }
   }
 

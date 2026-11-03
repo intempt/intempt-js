@@ -98,6 +98,20 @@ export class RequestQueue {
   private queueStorage: QueueStorageLike;
   private lock: SharedLock | null = null;
   private memQueue: QueueEntry[] = [];
+  /**
+   * Entries whose storage write has not landed yet. `enqueue` only adds an
+   * entry to `memQueue` after the write resolves, which on the IndexedDB tier is
+   * a later task — so an event tracked just before an unload was invisible to
+   * the synchronous unload send (`peekUnsent`) and waited for a page that never
+   * came back (INT-5942).
+   */
+  private pendingWrites: Map<string, QueueEntry> = new Map();
+  /**
+   * Pending entries removed (delivered) before their write landed. The write
+   * still lands, so its record is deleted as soon as it does instead of being
+   * queued for a second send.
+   */
+  private discardOnLand: Set<string> = new Set();
   private initialized: boolean = false;
   private migrated: boolean = false;
   private reportError: (msg: string, err?: unknown) => void;
@@ -187,32 +201,99 @@ export class RequestQueue {
       return true;
     }
 
+    // Visible to `peekUnsent` from this synchronous point on, before any await.
+    this.pendingWrites.set(queueEntry.id, queueEntry);
+
     await this.ensureInit();
     if (!this.usePersistence) {
       // ensureInit downgraded us to memory-only.
-      this.memQueue.push(queueEntry);
-      this.capMemQueue();
+      if (this.landPending(queueEntry.id)) {
+        this.memQueue.push(queueEntry);
+        this.capMemQueue();
+      }
       return true;
     }
 
     const key = this.makeItemKey(queueEntry.id, now);
+    // The pending write is retired exactly once and the entry joins `memQueue`
+    // at most once, whichever step below throws. `landPending` consumes the
+    // `discardOnLand` mark, so a second call would wrongly answer "keep it" and
+    // put an already-delivered entry back into the queue for a second send.
+    let joins: boolean | null = null;
+    let pushed = false;
     try {
       // No lock: the key is unique to this event, so there is nothing to race.
       await this.queueStorage.setItem(key, { ...queueEntry, key });
+      joins = this.landPending(queueEntry.id);
+      if (!joins) {
+        // Delivered by an unload send while the write was in progress.
+        await this.queueStorage.removeItems([key]);
+        return true;
+      }
       this.memQueue.push({ ...queueEntry, key } as QueueEntry & {
         key: string;
       });
+      pushed = true;
       this.approxQueuedCount =
         this.approxQueuedCount < 0 ? -1 : this.approxQueuedCount + 1;
       await this.enforceQueueCap();
       return true;
     } catch (error) {
       this.reportError('Error enqueueing item', error);
+      if (joins === null) joins = this.landPending(queueEntry.id);
       // Keep the event in memory rather than dropping it — a failed write must
-      // not also mean a lost event.
-      this.memQueue.push(queueEntry);
+      // not also mean a lost event. Not when it was delivered meanwhile, and not
+      // a second time when it already joined before the failure.
+      if (joins && !pushed) {
+        this.memQueue.push(queueEntry);
+      }
       return false;
     }
+  }
+
+  /**
+   * Retire a pending write. Returns false when the entry was removed while its
+   * write was in flight, i.e. it must not join the queue.
+   */
+  private landPending(id: string): boolean {
+    this.pendingWrites.delete(id);
+    if (this.discardOnLand.has(id)) {
+      this.discardOnLand.delete(id);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Synchronous view of what this page has queued: `memQueue` plus entries whose
+   * storage write has not landed, oldest first.
+   *
+   * For the unload send only. It must hand its request to the browser inside
+   * the `pagehide`/`visibilitychange` handler, and `fillBatch` cannot: it awaits
+   * storage, which an unloading page may never get back from (INT-5942). Items
+   * only in storage (another tab's, a previous load's) are not included; the
+   * next load's regular flush delivers those.
+   *
+   * `include` is applied before `limit`, so entries the caller cannot send
+   * (already on the wire, for instance) never use up the limit and crowd out
+   * the ones it can — the Leave Page behind a full batch of in-flight items.
+   */
+  peekUnsent(
+    limit: number,
+    include: (entry: QueueEntry) => boolean = () => true,
+  ): QueueEntry[] {
+    const out: QueueEntry[] = [];
+    const seen = new Set<string>();
+    for (const entry of [...this.memQueue, ...this.pendingWrites.values()]) {
+      if (out.length >= limit) break;
+      if (seen.has(entry.id)) continue;
+      seen.add(entry.id);
+      // Removed (delivered) or cleared while its write is still pending: it
+      // stays in `pendingWrites` until the write lands, but is no longer queued.
+      if (this.discardOnLand.has(entry.id)) continue;
+      if (include(entry)) out.push(entry);
+    }
+    return out;
   }
 
   /** Events dropped to stay under the cap, since this page loaded. */
@@ -413,6 +494,15 @@ export class RequestQueue {
   async removeItemsByID(ids: string[]): Promise<boolean> {
     const idSet = new Set(ids);
 
+    // Not written yet: drop the record when its write lands instead.
+    for (const id of ids) {
+      if (this.pendingWrites.has(id)) {
+        this.discardOnLand.add(id);
+        idSet.delete(id);
+      }
+    }
+    if (idSet.size === 0) return true;
+
     // Resolve storage keys before dropping the items from memory.
     const keysFromMemory = this.memQueue
       .filter((item) => idSet.has(item.id))
@@ -463,6 +553,7 @@ export class RequestQueue {
 
   async clear(): Promise<void> {
     this.memQueue = [];
+    for (const id of this.pendingWrites.keys()) this.discardOnLand.add(id);
     this.approxQueuedCount = 0;
     if (this.usePersistence) {
       await this.ensureInit();

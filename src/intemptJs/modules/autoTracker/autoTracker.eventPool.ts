@@ -52,8 +52,8 @@ export class AutoTrackerEventPool {
   /**
    * Add an event and schedule a flush.
    *
-   * "Leave Page" debounces at 0 ms rather than 1000 ms because the page is on its
-   * way out and a one-second wait means the event is never sent at all.
+   * "Leave Page" skips the debounce and flushes synchronously, because the page
+   * is on its way out and even a 0 ms timer may never fire.
    */
   push(data: PooledEvent) {
     const name = data.name.toLowerCase();
@@ -65,10 +65,15 @@ export class AutoTrackerEventPool {
     // fixed, because the flush drains the whole pool, so the observable effect is
     // extra no-op flushes rather than lost or duplicated events. Do not "fix" this
     // without a test that pins the resulting request count.
-    const debouncedSendEvents = debounce(
-      () => this.flush(),
-      name === 'leave page' ? 0 : 1000,
-    );
+    //
+    // "Leave Page" is flushed synchronously, not through a 0 ms timer: it runs
+    // inside an unload handler, and a page on its way out may never get to the
+    // next task (INT-5942). `flush()` issues its fetch before its first await.
+    if (name === 'leave page') {
+      void this.flush();
+      return;
+    }
+    const debouncedSendEvents = debounce(() => this.flush(), 1000);
 
     return debouncedSendEvents();
   }

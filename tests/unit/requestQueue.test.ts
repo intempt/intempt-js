@@ -817,6 +817,156 @@ describe('RequestQueue', () => {
     });
   });
 
+  describe('peekUnsent — the synchronous view for the unload send (INT-5942)', () => {
+    it('includes an event whose storage write has not landed, in order', async () => {
+      const queue = makeQueue();
+      await queue.enqueue({ n: 1 }, 1000);
+      const pending = queue.enqueue({ n: 2 }, 1000);
+
+      expect(queue.peekUnsent(10).map((i) => pl(i).n)).toEqual([1, 2]);
+      await pending;
+      // Landed: listed once, from memQueue.
+      expect(queue.peekUnsent(10).map((i) => pl(i).n)).toEqual([1, 2]);
+    });
+
+    it('honours the limit across memQueue and pending writes', async () => {
+      const queue = makeQueue();
+      await queue.enqueue({ n: 1 }, 1000);
+      void queue.enqueue({ n: 2 }, 1000);
+      void queue.enqueue({ n: 3 }, 1000);
+
+      expect(queue.peekUnsent(1).map((i) => pl(i).n)).toEqual([1]);
+      expect(queue.peekUnsent(2).map((i) => pl(i).n)).toEqual([1, 2]);
+    });
+
+    it('applies the filter before the limit', async () => {
+      const queue = makeQueue();
+      for (const n of [1, 2, 3]) await queue.enqueue({ n }, 1000);
+      void queue.enqueue({ n: 4 }, 1000);
+
+      // Entries the caller cannot send do not use up the limit.
+      const sendable = (i: { payload: unknown }) => pl(i).n > 2;
+      expect(queue.peekUnsent(2, sendable).map((i) => pl(i).n)).toEqual([3, 4]);
+      expect(queue.peekUnsent(1, sendable).map((i) => pl(i).n)).toEqual([3]);
+    });
+
+    it('does not re-queue a delivered entry when removing its landed record throws', async () => {
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'removeItems').mockRejectedValue(new Error('gone'));
+      const queue = makeQueue({ queueStorage: storage });
+      const pending = queue.enqueue({ n: 1 }, 1000);
+      const [entry] = queue.peekUnsent(10);
+      await queue.removeItemsByID([entry!.id]);
+
+      expect(await pending).toBe(false);
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+    });
+
+    it('queues an entry once when the cap check throws after it joined', async () => {
+      const queue = makeQueue();
+      vi.spyOn(queue as any, 'enforceQueueCap').mockRejectedValue(
+        new Error('keys failed'),
+      );
+
+      expect(await queue.enqueue({ n: 1 }, 1000)).toBe(false);
+      expect(queue.peekUnsent(10).map((i) => pl(i).n)).toEqual([1]);
+      expect((queue as any).memQueue).toHaveLength(1);
+    });
+
+    it('stops listing a pending record as soon as it is removed, before its write lands', async () => {
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'setItem').mockImplementation(
+        () => new Promise(() => {}),
+      );
+      const queue = makeQueue({ queueStorage: storage });
+      void queue.enqueue({ n: 1 }, 1000);
+      const [entry] = queue.peekUnsent(10);
+
+      await queue.removeItemsByID([entry!.id]);
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+    });
+
+    it('stops listing pending records as soon as clear() runs', async () => {
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'setItem').mockImplementation(
+        () => new Promise(() => {}),
+      );
+      const queue = makeQueue({ queueStorage: storage });
+      void queue.enqueue({ n: 1 }, 1000);
+
+      await queue.clear();
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+    });
+
+    it('drops a record removed while its write was pending, once it lands', async () => {
+      const queue = makeQueue();
+      const pending = queue.enqueue({ n: 1 }, 1000);
+      const [entry] = queue.peekUnsent(10);
+
+      expect(await queue.removeItemsByID([entry!.id])).toBe(true);
+      await pending;
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+      expect(await makeQueue().fillBatch(10)).toHaveLength(0);
+    });
+
+    it('drops a removed pending record whose write failed', async () => {
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'setItem').mockRejectedValue(new Error('quota'));
+      const queue = makeQueue({ queueStorage: storage });
+      const pending = queue.enqueue({ n: 1 }, 1000);
+      const [entry] = queue.peekUnsent(10);
+      await queue.removeItemsByID([entry!.id]);
+      await pending;
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+    });
+
+    it('drops a removed pending record when init downgrades to memory', async () => {
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'init').mockRejectedValue(new Error('no storage'));
+      const queue = makeQueue({ queueStorage: storage });
+      const pending = queue.enqueue({ n: 1 }, 1000);
+      const [entry] = queue.peekUnsent(10);
+      await queue.removeItemsByID([entry!.id]);
+      await pending;
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+    });
+
+    it('still removes stored items listed alongside a pending one', async () => {
+      const queue = makeQueue();
+      await queue.enqueue({ n: 1 }, 1000);
+      const pending = queue.enqueue({ n: 2 }, 1000);
+      const ids = queue.peekUnsent(10).map((i) => i.id);
+
+      await queue.removeItemsByID(ids);
+      await pending;
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+      expect(await makeQueue().fillBatch(10)).toHaveLength(0);
+    });
+
+    it('clear() also discards writes still pending', async () => {
+      const queue = makeQueue();
+      const pending = queue.enqueue({ n: 1 }, 1000);
+      await queue.clear();
+      await pending;
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+      expect(await makeQueue().fillBatch(10)).toHaveLength(0);
+    });
+
+    it('a landed write that was not removed joins the queue', async () => {
+      const queue = makeQueue();
+      await queue.enqueue({ n: 1 }, 1000);
+      expect(await makeQueue().fillBatch(10)).toHaveLength(1);
+      expect((queue as any).pendingWrites.size).toBe(0);
+    });
+  });
+
   describe('readFromStorage — direct guard', () => {
     it('returns an empty array, not a placeholder, when persistence is off', async () => {
       // Kills the NoCoverage ArrayDeclaration mutant on `return [];`. Nothing
