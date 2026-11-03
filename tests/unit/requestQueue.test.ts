@@ -873,6 +873,33 @@ describe('RequestQueue', () => {
       expect((queue as any).memQueue).toHaveLength(1);
     });
 
+    it('stops listing a pending record as soon as it is removed, before its write lands', async () => {
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'setItem').mockImplementation(
+        () => new Promise(() => {}),
+      );
+      const queue = makeQueue({ queueStorage: storage });
+      void queue.enqueue({ n: 1 }, 1000);
+      const [entry] = queue.peekUnsent(10);
+
+      await queue.removeItemsByID([entry!.id]);
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+    });
+
+    it('stops listing pending records as soon as clear() runs', async () => {
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'setItem').mockImplementation(
+        () => new Promise(() => {}),
+      );
+      const queue = makeQueue({ queueStorage: storage });
+      void queue.enqueue({ n: 1 }, 1000);
+
+      await queue.clear();
+
+      expect(queue.peekUnsent(10)).toHaveLength(0);
+    });
+
     it('drops a record removed while its write was pending, once it lands', async () => {
       const queue = makeQueue();
       const pending = queue.enqueue({ n: 1 }, 1000);

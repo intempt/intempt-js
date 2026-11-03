@@ -186,11 +186,17 @@ describe('AutoTrackerTransport unload sends (INT-5942)', () => {
     vi.useRealTimers();
   });
 
+  /** A fetch whose request left: it fails later, from the network. */
+  const failsInFlight = (error: unknown) =>
+    vi.fn(
+      () =>
+        new Promise<Response>((_, reject) =>
+          setTimeout(() => reject(error), 5),
+        ),
+    ) as unknown as typeof fetch;
+
   it('does not re-send by XHR after a keepalive fetch that was started and aborted', async () => {
-    const abort = new DOMException('aborted', 'AbortError');
-    globalThis.fetch = vi
-      .fn()
-      .mockRejectedValue(abort) as unknown as typeof fetch;
+    globalThis.fetch = failsInFlight(new DOMException('aborted', 'AbortError'));
 
     const result = await send(makeTransport(), {
       unloading: true,
@@ -204,16 +210,83 @@ describe('AutoTrackerTransport unload sends (INT-5942)', () => {
   });
 
   it('does not re-send by XHR after a started keepalive fetch fails at the network layer', async () => {
-    globalThis.fetch = vi
-      .fn()
-      .mockRejectedValue(
-        new TypeError('Failed to fetch'),
-      ) as unknown as typeof fetch;
+    globalThis.fetch = failsInFlight(new TypeError('Failed to fetch'));
 
     const result = await send(makeTransport(), { unloading: true });
 
     expect(FakeXHR.instances.length).toBe(0);
     expect(result).toEqual({ error: 'network error', httpStatusCode: 0 });
+  });
+
+  it('falls back to XHR when the keepalive fetch is rejected before it is dispatched', async () => {
+    // The browser's keepalive quota check rejects inside fetch(), before any
+    // request leaves: the same task, so nothing can have reached ingest.
+    globalThis.fetch = vi
+      .fn()
+      .mockRejectedValue(
+        new TypeError('keepalive quota exceeded'),
+      ) as unknown as typeof fetch;
+
+    const result = await send(makeTransport(), { unloading: true });
+
+    expect(FakeXHR.instances.length).toBe(1);
+    expect(result.httpStatusCode).toBe(200);
+  });
+
+  it('sends a body over the keepalive budget without keepalive instead of having it rejected', async () => {
+    const fetchMock = vi.fn(
+      async (_url: RequestInfo | URL, _init?: RequestInit) =>
+        new Response('{}', { status: 200 }),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const transport = makeTransport();
+    const fn = (transport as unknown as { _sendBatchRequest: PrivateSend })
+      ._sendBatchRequest;
+
+    const big = [{ eventId: 'big', blob: 'x'.repeat(70 * 1024) }];
+    await fn.call(transport, big, { unloading: true, keepalive: true });
+    await fn.call(transport, [{ eventId: 'small' }], {
+      unloading: true,
+      keepalive: true,
+    });
+
+    expect(fetchMock.mock.calls[0]![1]!.keepalive).toBe(false);
+    expect(fetchMock.mock.calls[1]![1]!.keepalive).toBe(true);
+    expect(FakeXHR.instances.length).toBe(0);
+  });
+
+  it('counts keepalive bodies still in flight against the budget, and frees them after', async () => {
+    const pending: Array<(r: Response) => void> = [];
+    const fetchMock = vi.fn(
+      (_url: RequestInfo | URL, _init?: RequestInit) =>
+        new Promise<Response>((resolve) => pending.push(resolve)),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const transport = makeTransport();
+    const fn = (transport as unknown as { _sendBatchRequest: PrivateSend })
+      ._sendBatchRequest;
+    const forty = [{ eventId: 'a', blob: 'x'.repeat(40 * 1024) }];
+
+    const first = fn.call(transport, forty, { keepalive: true });
+    const second = fn.call(transport, forty, { keepalive: true });
+    expect(fetchMock.mock.calls[0]![1]!.keepalive).toBe(true);
+    // 40 + 40 KiB in flight would exceed 64 KiB.
+    expect(fetchMock.mock.calls[1]![1]!.keepalive).toBe(false);
+
+    pending.forEach((resolve) => resolve(new Response('{}', { status: 200 })));
+    await Promise.all([first, second]);
+    void fn.call(transport, forty, { keepalive: true });
+    expect(fetchMock.mock.calls[2]![1]!.keepalive).toBe(true);
+  });
+
+  it('clears the abort timer when the request rejects', async () => {
+    vi.useFakeTimers();
+    globalThis.fetch = failsInFlight(new TypeError('Failed to fetch'));
+    const pendingSend = send(makeTransport(), { unloading: true });
+    await vi.advanceTimersByTimeAsync(10);
+    await pendingSend;
+
+    expect(vi.getTimerCount()).toBe(0);
   });
 
   it('falls back to XHR when fetch throws before starting a request', async () => {
@@ -240,9 +313,10 @@ describe('AutoTrackerTransport unload sends (INT-5942)', () => {
     function withFakeBatcher() {
       const transport = makeTransport();
       const flush = vi.fn(() => Promise.resolve());
-      (transport as any)._requestBatcher = { flush };
+      const pageResumed = vi.fn();
+      (transport as any)._requestBatcher = { flush, pageResumed };
       const fire = (name: string) => (transport as any)[name]();
-      return { flush, fire };
+      return { flush, pageResumed, fire };
     }
     function hide() {
       Object.defineProperty(document, 'visibilityState', {
@@ -266,7 +340,7 @@ describe('AutoTrackerTransport unload sends (INT-5942)', () => {
       fire('_onPageHide');
 
       expect(flush).toHaveBeenCalledTimes(1);
-      expect(flush).toHaveBeenCalledWith({ unloading: true });
+      expect(flush).toHaveBeenCalledWith({ unloading: true, terminal: true });
     });
 
     it('beforeunload then pagehide flush twice; the batcher sends only what is new', () => {
@@ -285,6 +359,44 @@ describe('AutoTrackerTransport unload sends (INT-5942)', () => {
       fire('_onPageShow');
       fire('_onPageHide');
 
+      expect(flush).toHaveBeenCalledTimes(2);
+    });
+
+    it('a hidden tab is a live page; beforeunload and a non-bfcache pagehide are terminal', () => {
+      const { flush, fire } = withFakeBatcher();
+      hide();
+      fire('_onVisibilityChange');
+      fire('_onBeforeUnload');
+      (fire as any)('_onPageHide');
+
+      expect(flush.mock.calls).toEqual([
+        [{ unloading: true, terminal: false }],
+        [{ unloading: true, terminal: true }],
+        [{ unloading: true, terminal: true }],
+      ]);
+    });
+
+    it('a bfcache pagehide is not terminal', () => {
+      const transport = makeTransport();
+      const flush = vi.fn(() => Promise.resolve());
+      (transport as any)._requestBatcher = { flush, pageResumed: vi.fn() };
+      (transport as any)._onPageHide({ persisted: true });
+
+      expect(flush).toHaveBeenCalledWith({ unloading: true, terminal: false });
+    });
+
+    it('the page coming back into view re-arms the triggers and ends the terminal state (frozen page, cancelled navigation)', () => {
+      const { flush, pageResumed, fire } = withFakeBatcher();
+      fire('_onPageHide');
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'visible',
+      });
+      fire('_onVisibilityChange');
+      hide();
+      fire('_onVisibilityChange');
+
+      expect(pageResumed).toHaveBeenCalledTimes(1);
       expect(flush).toHaveBeenCalledTimes(2);
     });
 

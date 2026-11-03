@@ -218,7 +218,7 @@ describe('RequestBatcher', () => {
       expect(sendCalls).toHaveLength(1);
     });
 
-    it('sends at most one batch', async () => {
+    it('sends in batch-size chunks, newest first', async () => {
       const b = makeBatcher({
         libConfig: {
           batchSize: 2,
@@ -231,7 +231,9 @@ describe('RequestBatcher', () => {
 
       await b.flush({ unloading: true });
 
-      expect(sendCalls.flatMap(ids)).toEqual(['a', 'b']);
+      // The newest chunk first: that is where the Leave Page is, and the first
+      // request is the one that gets the keepalive budget.
+      expect(sendCalls.map(ids)).toEqual([['b', 'c'], ['a']]);
       expect(sendCalls[0].options.timeout_ms).toBe(5000);
       expect(sendCalls[0].options.method).toBe('POST');
     });
@@ -324,11 +326,7 @@ describe('RequestBatcher', () => {
 
       void b.flush({ unloading: true });
 
-      expect(sendCalls).toHaveLength(2);
-      expect(ids(sendCalls[1])).toEqual(['c', 'd']);
-      // And once those are on the wire too, the next unload send has it.
-      void b.flush({ unloading: true });
-      expect(ids(sendCalls[2])).toEqual(['evt-leave']);
+      expect(sendCalls.slice(1).map(ids)).toEqual([['d', 'evt-leave'], ['c']]);
     });
 
     it('a throwing beforeSendHook loses neither the unload send nor the item', async () => {
@@ -410,7 +408,198 @@ describe('RequestBatcher', () => {
       );
     });
 
-    it('keeps the mark and releases the item when the transport throws synchronously', async () => {
+    // --- Second review (INT-5942): regressions 1-5 and 9 ------------------
+
+    it('[1] does not re-send a delivered unload item while its removal is still settling', async () => {
+      // No eventId: nothing but the in-flight claim protects it.
+      await batcher.enqueue({ name: 'No Id', payload: [{}] });
+      const queue = (batcher as any).queue;
+      const original = queue.removeItemsByID.bind(queue);
+      let open!: () => void;
+      const gate = new Promise<void>((r) => (open = r));
+      const removal = vi
+        .spyOn(queue, 'removeItemsByID')
+        .mockImplementation(async (ids: unknown) => {
+          await gate;
+          return original(ids);
+        });
+
+      const first = batcher.flush({ unloading: true });
+      await vi.waitFor(() => expect(removal).toHaveBeenCalled());
+      void batcher.flush({ unloading: true }); // pagehide during the removal
+
+      expect(sendCalls).toHaveLength(1);
+      open();
+      await first;
+    });
+
+    it('[1] does not re-send a delivered regular-flush item while its removal is still settling', async () => {
+      await batcher.enqueue({ name: 'No Id', payload: [{}] });
+      const queue = (batcher as any).queue;
+      const original = queue.removeItemsByID.bind(queue);
+      let open!: () => void;
+      const gate = new Promise<void>((r) => (open = r));
+      const removal = vi
+        .spyOn(queue, 'removeItemsByID')
+        .mockImplementation(async (ids: unknown) => {
+          await gate;
+          return original(ids);
+        });
+
+      const regular = batcher.flush();
+      await vi.waitFor(() => expect(removal).toHaveBeenCalled());
+      void batcher.flush({ unloading: true });
+
+      expect(sendCalls).toHaveLength(1);
+      open();
+      await regular;
+    });
+
+    it('[2] does not re-send a delivered item whose queue write has not landed yet', async () => {
+      const storage = new QueueStorage();
+      let land!: () => void;
+      const landed = new Promise<void>((r) => (land = r));
+      const realSet = storage.setItem.bind(storage);
+      vi.spyOn(storage, 'setItem').mockImplementation(async (k, v) => {
+        await landed;
+        return realSet(k, v);
+      });
+      const b = makeBatcher({ queueStorage: storage });
+      const enqueued = b.enqueue({ name: 'No Id', payload: [{}] });
+
+      await b.flush({ unloading: true }); // delivered, write still pending
+      await b.flush({ unloading: true }); // a second unload trigger
+
+      expect(sendCalls).toHaveLength(1);
+      land();
+      await enqueued;
+    });
+
+    it('[2] does not send what clear() discarded while its write was pending', async () => {
+      const storage = new QueueStorage();
+      vi.spyOn(storage, 'setItem').mockImplementation(
+        () => new Promise(() => {}),
+      );
+      const b = makeBatcher({ queueStorage: storage });
+      void b.enqueue(event('evt-cleared'));
+      await b.clear();
+
+      await b.flush({ unloading: true });
+
+      expect(sendCalls).toHaveLength(0);
+    });
+
+    it('[3] a rejected unload send leaves its items to the next regular flush instead of evicting them', async () => {
+      let n = 0;
+      const b = makeBatcher({
+        sendRequestFunc: (data: unknown[], options: unknown) => {
+          sendCalls.push({ data, options });
+          return n++ === 0
+            ? Promise.reject(new Error('gone'))
+            : Promise.resolve(defaultResponse);
+        },
+      });
+      await b.enqueue(event('evt-rejected'));
+
+      await b.flush({ unloading: true }); // hidden tab, request rejected
+      await b.flush(); // the page is still alive
+
+      expect(sendCalls.flatMap(ids)).toEqual(['evt-rejected', 'evt-rejected']);
+      expect(await (b as any).queue.fillBatch(10)).toHaveLength(0);
+    });
+
+    it('[4] a terminal unload bypasses an open breaker', async () => {
+      (batcher as any).breakerOpenUntilMS = Date.now() + 60_000;
+      await batcher.enqueue(event('evt-dying'));
+
+      await batcher.flush({ unloading: true, terminal: true });
+
+      expect(sendCalls.flatMap(ids)).toEqual(['evt-dying']);
+    });
+
+    it('[4] the Leave Page queued by a terminal unload bypasses the breaker too', async () => {
+      (batcher as any).breakerOpenUntilMS = Date.now() + 60_000;
+      await batcher.flush({ unloading: true, terminal: true }); // pagehide
+      // The page tracker's Leave Page, flushed by the auto tracker.
+      void batcher.enqueue(event('evt-leave'));
+      await batcher.flush({ unloading: true });
+
+      expect(sendCalls.flatMap(ids)).toEqual(['evt-leave']);
+    });
+
+    it('[4] once the page is live again, unload sends respect the breaker again', async () => {
+      (batcher as any).breakerOpenUntilMS = Date.now() + 60_000;
+      await batcher.flush({ unloading: true, terminal: true });
+      batcher.pageResumed(); // bfcache restore / tab shown
+      await batcher.enqueue(event('evt-spa-leave'));
+
+      await batcher.flush({ unloading: true });
+
+      expect(sendCalls).toHaveLength(0);
+    });
+
+    it('[5] the Leave Page is in the unload send however much is queued ahead of it', async () => {
+      const b = makeBatcher({
+        libConfig: {
+          batchSize: 2,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 5000,
+          batchAutostart: false,
+        },
+      });
+      for (const id of ['a', 'b', 'c', 'd', 'e']) await b.enqueue(event(id));
+      void b.enqueue(event('evt-leave'));
+
+      void b.flush({ unloading: true, terminal: true });
+
+      // Synchronously, in the first request.
+      expect(ids(sendCalls[0])).toContain('evt-leave');
+    });
+
+    it('[5] caps an unload send at MAX_UNLOAD_REQUESTS requests, newest first', async () => {
+      const b = makeBatcher({
+        libConfig: {
+          batchSize: 1,
+          batchFlushIntervalMs: 1000,
+          batchRequestTimeoutMs: 5000,
+          batchAutostart: false,
+        },
+      });
+      for (const id of ['a', 'b', 'c', 'd', 'e', 'f']) {
+        await b.enqueue(event(id));
+      }
+
+      await b.flush({ unloading: true });
+
+      expect(sendCalls.flatMap(ids)).toEqual(['f', 'e', 'd', 'c']);
+      // The rest stays queued for the next flush or load.
+      expect(await (b as any).queue.fillBatch(10)).toHaveLength(2);
+    });
+
+    it('[9] a 413 on an unload send halves the batch size and keeps the items', async () => {
+      defaultResponse = { httpStatusCode: 413, ok: false };
+      await batcher.enqueue(event('evt-big-1'));
+      await batcher.enqueue(event('evt-big-2'));
+
+      await batcher.flush({ unloading: true });
+
+      expect((batcher as any).batchSize).toBe(1);
+      expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(2);
+      expect((batcher as any).sentEventIds.has('evt-big-1')).toBe(false);
+    });
+
+    it('[9] a 400 on an unload send drops the batch, as on a regular flush', async () => {
+      defaultResponse = { httpStatusCode: 400, ok: false };
+      await batcher.enqueue(event('evt-rejected-payload'));
+
+      await batcher.flush({ unloading: true });
+      await batcher.flush();
+
+      expect(sendCalls).toHaveLength(1);
+      expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(0);
+    });
+
+    it('releases the mark and the item when the transport throws synchronously', async () => {
       const errors: string[] = [];
       const b = makeBatcher({
         sendRequestFunc: () => {
@@ -422,12 +611,12 @@ describe('RequestBatcher', () => {
 
       await expect(b.flush({ unloading: true })).resolves.toBeUndefined();
 
-      expect((b as any).sentEventIds.has('evt-throw')).toBe(true);
+      expect((b as any).sentEventIds.has('evt-throw')).toBe(false);
       expect((b as any).inFlightItemIds.size).toBe(0);
       expect(errors).toContain('Error flushing request queue');
     });
 
-    it('keeps the mark and releases the item when the request rejects', async () => {
+    it('releases the mark and the item when the request rejects', async () => {
       const b = makeBatcher({
         sendRequestFunc: () => Promise.reject(new Error('gone')),
       });
@@ -435,7 +624,7 @@ describe('RequestBatcher', () => {
 
       await b.flush({ unloading: true });
 
-      expect((b as any).sentEventIds.has('evt-reject')).toBe(true);
+      expect((b as any).sentEventIds.has('evt-reject')).toBe(false);
       expect((b as any).inFlightItemIds.size).toBe(0);
     });
 
@@ -461,7 +650,7 @@ describe('RequestBatcher', () => {
       };
 
       await expect(b.flush({ unloading: true })).resolves.toBeUndefined();
-      expect(errors).toContain('Error handling unload response');
+      expect(errors).toContain('Error handling API response');
     });
 
     it('a regular flush releases its items once its response is in', async () => {
@@ -1151,50 +1340,9 @@ describe('RequestBatcher', () => {
   // --- Response classification: the branch set that decides deliver vs retry --
   //
   // 132 of the 363 remaining mutants live in handleResponse and
-  // isDefiniteSuccess. Every one of them is a wrong answer to "was this batch
+  // isRetryableFailure. Every one of them is a wrong answer to "was this batch
   // ingested?", and both wrong answers are data bugs: a false success dequeues
   // undelivered events, a false failure re-sends delivered ones.
-
-  describe('isDefiniteSuccess', () => {
-    // Tested directly: it is the single predicate the unload path trusts, and
-    // driving it through flush() cannot reach every shape a transport returns.
-    function classify(response: any): boolean {
-      return (batcher as any).isDefiniteSuccess(response);
-    }
-
-    it.each([
-      ['a missing response', undefined],
-      ['a null response', null],
-      ['a transport error', { error: 'network' }],
-      ['an error alongside a 200', { error: 'timeout', httpStatusCode: 200 }],
-      ['a zero status', { httpStatusCode: 0 }],
-      ['a 500', { httpStatusCode: 500 }],
-      ['a 429', { httpStatusCode: 429 }],
-      ['a 400', { httpStatusCode: 400 }],
-      ['a 199', { httpStatusCode: 199 }],
-      ['a 300', { httpStatusCode: 300 }],
-      ['a numeric-looking string status', { httpStatusCode: '200' }],
-      ['no status at all', {}],
-    ])('does not call %s a definite success', (_name, response) => {
-      expect(classify(response)).toBe(false);
-    });
-
-    it.each([
-      ['an explicit ok', { ok: true }],
-      ['a 200', { httpStatusCode: 200 }],
-      ['a 204', { httpStatusCode: 204 }],
-      ['a 299', { httpStatusCode: 299 }],
-    ])('accepts %s', (_name, response) => {
-      expect(classify(response)).toBe(true);
-    });
-
-    it('requires ok to be literally true, not merely truthy', () => {
-      // `response.ok === true` — a strict check. A transport returning ok: 'yes'
-      // must not be read as confirmed delivery.
-      expect(classify({ ok: 'yes' })).toBe(false);
-      expect(classify({ ok: 1 })).toBe(false);
-    });
-  });
 
   describe('retryable outcomes keep the batch', () => {
     /** Every case here must leave the events queued AND their marks released. */
@@ -1952,7 +2100,8 @@ describe('RequestBatcher', () => {
 
       await batcher.flush();
 
-      const idsArg = spy.mock.calls[0][1] as string[];
+      const idsArg = (spy.mock.calls[0][1] as { outcomeItemIds: string[] })
+        .outcomeItemIds;
       expect(idsArg).not.toContain(
         (await (batcher as any).queue.fillBatch(0)) && undefined, // placeholder, real check below
       );
@@ -1963,21 +2112,19 @@ describe('RequestBatcher', () => {
   });
 
   describe('handleResponse — unload path only rolls back on a definite answer', () => {
-    it('leaves the pre-send mark standing when no response ever arrived', async () => {
-      // Kills the ConditionalExpression mutant `else if (response)` → `else
-      // if (true)`. With no response at all, the mark must be left exactly as
-      // it was (still "sent") — a later attempt cannot tell whether the
-      // keepalive request actually landed, and unmarking would let it be
-      // treated as a fresh send and duplicated.
+    it('releases the pre-send mark when no response arrived on a live page', async () => {
+      // Unload sends also run on live pages (hidden tab, SPA Leave Page). A
+      // page still running to see the missing response retries, so a mark
+      // left standing would make the next regular flush evict the items as
+      // already sent. A page that died mid-request never gets here.
       await batcher.enqueue(event('evt-unload-nomark'));
       defaultResponse = undefined;
 
       await batcher.flush({ unloading: true });
 
-      expect(
-        (batcher as any).sentEventIds.has('evt-unload-nomark'),
-        'mark must stand',
-      ).toBe(true);
+      expect((batcher as any).sentEventIds.has('evt-unload-nomark')).toBe(
+        false,
+      );
     });
 
     it('releases the pre-send mark when the response is a definite non-success', async () => {

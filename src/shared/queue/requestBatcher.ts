@@ -35,8 +35,8 @@ export interface BatchSendOptions {
 /**
  * What a send reports back. **Every field is optional and the whole result may be
  * `null`**, which is the point: `null` means the transport never delivered at all,
- * and that is a different outcome from any HTTP status. `isDefiniteSuccess` and the
- * retry classification both depend on being able to tell those apart — under `any`
+ * and that is a different outcome from any HTTP status. The retry classification
+ * (`isRetryableFailure`) depends on being able to tell those apart — under `any`
  * they were indistinguishable, and a missing `httpStatusCode` read as `undefined`
  * silently took the "not retryable" branch.
  */
@@ -154,19 +154,52 @@ const MAX_SENT_EVENT_IDS = 1000;
 /**
  * Manages batching, flushing, and retrying of tracking requests
  */
+/** One queue item, ready for the request. */
+interface BuiltItem {
+  id: string;
+  payload: unknown;
+  eventIds: string[];
+}
+
 /** What `buildBatch` makes of a list of queue items. */
 interface BuiltBatch {
-  /** The request body, in queue order. */
-  dataForRequest: unknown[];
-  /** Queue item id -> payload, for the items in `dataForRequest`. */
-  payloads: Map<string, unknown>;
-  /** eventIds of the items in `dataForRequest`. */
-  eventIds: string[];
+  /** What goes into the request, in queue order. */
+  items: BuiltItem[];
   /** Already delivered: evict from the queue. */
   alreadySentItemIds: string[];
   /** Neither sent nor to be dequeued on this request's success. */
   excludedFromOutcome: Set<string>;
 }
+
+/** How `dispatch` sends one batch and applies its outcome. */
+interface SendContext {
+  /** An unload send: does not own the flush schedule, never continues. */
+  unloading: boolean;
+  /** Queue items this request's success dequeues. */
+  outcomeItemIds: string[];
+  attemptSecondaryFlush: boolean;
+  /** Batch size the request was built with, for a 413 halving. */
+  currentBatchSize: number;
+  startTime: number;
+  timeoutMS: number;
+}
+
+export interface FlushOptions {
+  /** Send synchronously, for an unload or a Leave Page (`flushUnload`). */
+  unloading?: boolean;
+  /**
+   * The page is going away (`beforeunload`, a non-bfcache `pagehide`), so the
+   * unload send bypasses the breaker. Ignored without `unloading`.
+   */
+  terminal?: boolean;
+}
+
+/**
+ * Most requests one unload send makes. Each is one batch, newest first, so the
+ * Leave Page is always in the first; what is older than these stays queued
+ * for the next flush or the next load.
+ */
+const MAX_UNLOAD_REQUESTS = 4;
 
 export class RequestBatcher {
   private queue: RequestQueue;
@@ -210,6 +243,12 @@ export class RequestBatcher {
    * re-sends nor evicts them, so one event is never in two requests at once.
    */
   private inFlightItemIds: Set<string> = new Set();
+  /**
+   * A terminal unload (`beforeunload`, non-bfcache `pagehide`) has started and
+   * the page has not been seen live since. Unload sends bypass the breaker
+   * while it is set. See `flushUnload`.
+   */
+  private pageTerminating: boolean = false;
   private timeoutID: number | null = null;
   private consecutiveRemovalFailures: number = 0;
   /**
@@ -505,11 +544,14 @@ export class RequestBatcher {
     return eventIds;
   }
 
-  async flush(options: { unloading?: boolean } = {}): Promise<void> {
+  async flush(options: FlushOptions = {}): Promise<void> {
     if (options.unloading) {
       // Not awaited before the send: see `flushUnload`.
-      return this.flushUnload();
+      return this.flushUnload(options.terminal === true);
     }
+    // A regular flush only runs on a live page, so a terminal unload that was
+    // started here was called off (a "stay on page" answer to beforeunload).
+    this.pageTerminating = false;
     if (this.requestInProgress) {
       return;
     }
@@ -520,9 +562,8 @@ export class RequestBatcher {
     // post-success continuation) that would otherwise walk straight past an open
     // breaker.
     //
-    // An unload flush (`flushUnload`) checks it too: unload sends also run on
-    // live pages (hidden tab, SPA Leave Page), and what it holds back stays
-    // queued for the next flush or the next load.
+    // An unload send checks it too, unless the page is going away: see
+    // `flushUnload`.
     if (this.breakerOpenUntilMS > Date.now()) {
       return;
     }
@@ -539,39 +580,26 @@ export class RequestBatcher {
     const timeoutMS = this.libConfig.batchRequestTimeoutMs;
     const startTime = Date.now();
     const currentBatchSize = this.batchSize;
-    // Declared outside the try so the catch can roll the pre-send mark back.
-    const eventIdsInBatch: string[] = [];
-    const transformedItems: Map<string, unknown> = new Map();
+    let claimed: string[] = [];
 
     try {
       const batch = await this.queue.fillBatch(currentBatchSize);
       const attemptSecondaryFlush = batch.length === currentBatchSize;
       const built = this.buildBatch(batch);
-      const { dataForRequest, alreadySentItemIds } = built;
-      for (const [id, payload] of built.payloads) {
-        transformedItems.set(id, payload);
-      }
-      eventIdsInBatch.push(...built.eventIds);
-
       // Claimed before the first await below, so an unload send that runs
       // meanwhile does not put the same items into a second request.
-      for (const id of transformedItems.keys()) this.inFlightItemIds.add(id);
+      claimed = this.claim(built.items);
 
       // Evict items that can never be sent, whether or not this flush has work.
-      if (alreadySentItemIds.length > 0) {
-        await this.removeItemsFromQueue(alreadySentItemIds);
+      if (built.alreadySentItemIds.length > 0) {
+        await this.removeItemsFromQueue(built.alreadySentItemIds);
       }
 
-      if (dataForRequest.length === 0) {
+      if (built.items.length === 0) {
         this.requestInProgress = false;
         this.resetFlush();
         return;
       }
-
-      // CRITICAL: Mark eventIds as sent BEFORE sending request
-      // This prevents duplicates even if request is canceled during navigation
-      this.markEventIdsSent(eventIdsInBatch);
-      this.saveSentEventIds(); // Persist immediately
 
       // The already-sent items were just evicted above, the in-flight ones
       // belong to another request, and the ones whose hook threw stay queued,
@@ -581,40 +609,28 @@ export class RequestBatcher {
         .map((item) => item.id)
         .filter((id) => !built.excludedFromOutcome.has(id));
 
-      // Send request
-      // Use fetch with keepalive for all requests (including page unload)
-      // This ensures Authorization header is included and requests are reliable during unload
-      const requestOptions: BatchSendOptions = {
-        method: 'POST',
-        timeout_ms: timeoutMS,
-        keepalive: true,
+      await this.dispatch(built.items, {
         unloading: false,
-      };
-
-      const response = await this.sendRequest(dataForRequest, requestOptions);
-      this.metrics.recordFlush(Date.now() - startTime);
-      this.releaseInFlight(transformedItems.keys());
-
-      await this.handleResponse(
-        response,
         outcomeItemIds,
         attemptSecondaryFlush,
         currentBatchSize,
         startTime,
         timeoutMS,
-        eventIdsInBatch,
-      );
+      });
     } catch (error) {
+      // Only reached before the request (`dispatch` never rejects).
       this.metrics.recordFlush(Date.now() - startTime, true);
       this.reportError('Error flushing request queue', error);
-      this.releaseInFlight(transformedItems.keys());
-      // The transport threw rather than returning a response. On a live page we
-      // will retry, so the pre-send mark has to come off or the retry evicts the
-      // events instead of sending them.
-      this.unmarkEventIdsSent(eventIdsInBatch);
+      this.releaseInFlight(claimed);
       this.requestInProgress = false;
       this.resetFlush();
     }
+  }
+
+  private claim(items: BuiltItem[]): string[] {
+    const ids = items.map((item) => item.id);
+    for (const id of ids) this.inFlightItemIds.add(id);
+    return ids;
   }
 
   private releaseInFlight(ids: Iterable<string>): void {
@@ -638,23 +654,15 @@ export class RequestBatcher {
    *   a broken hook) loses neither that event nor the rest of the batch — on
    *   unload, that rest includes the Leave Page.
    * - Hook returns nothing, or the item was sent more than 5 times: not sent.
-   *
-   * `limit` caps the payloads, counting only items that are actually sent.
    */
-  private buildBatch(
-    items: QueueEntry[],
-    limit: number = Infinity,
-  ): BuiltBatch {
+  private buildBatch(items: QueueEntry[]): BuiltBatch {
     const built: BuiltBatch = {
-      dataForRequest: [],
-      payloads: new Map(),
-      eventIds: [],
+      items: [],
       alreadySentItemIds: [],
       excludedFromOutcome: new Set(),
     };
 
     for (const item of items) {
-      if (built.dataForRequest.length >= limit) break;
       if (this.inFlightItemIds.has(item.id)) {
         built.excludedFromOutcome.add(item.id);
         continue;
@@ -689,20 +697,26 @@ export class RequestBatcher {
         continue;
       }
 
-      built.dataForRequest.push(payload);
-      built.payloads.set(item.id, payload);
-      built.eventIds.push(...eventIds);
+      built.items.push({ id: item.id, payload, eventIds });
     }
 
     return built;
   }
 
   /**
-   * Hand everything this page has queued — minus what is already on the wire —
-   * to the transport, **synchronously**, for `pagehide` / `beforeunload` /
+   * The page is live again (a bfcache restore, the tab shown again): unload
+   * sends respect the breaker again. Called by the transport.
+   */
+  pageResumed(): void {
+    this.pageTerminating = false;
+  }
+
+  /**
+   * Hand what this page has queued — minus what is already on the wire — to
+   * the transport, **synchronously**, for `pagehide` / `beforeunload` /
    * `visibilitychange: hidden` and for a Leave Page.
    *
-   * The request is started before this method returns: nothing here awaits
+   * The requests are started before this method returns: nothing here awaits
    * before `sendRequest`, whose fetch is likewise issued before its first
    * await. That is the whole point (INT-5942). The previous unload flush went
    * through `fillBatch`, which awaits storage, and when another request was in
@@ -712,130 +726,134 @@ export class RequestBatcher {
    * the persisted queue, or not at all.
    *
    * Items on the wire in another request are skipped, so nothing is sent twice
-   * in parallel. They are filtered out before the batch size applies, so a
-   * full batch of them cannot crowd out the Leave Page.
+   * in parallel. The rest goes out in batch-size chunks, **newest first**, up
+   * to `MAX_UNLOAD_REQUESTS`: the Leave Page is the newest item, so it is
+   * always in the first request, which is also the one that gets the browser's
+   * keepalive budget. Anything older than those chunks stays queued and
+   * persisted for the next flush or the next load.
    *
-   * It does not wait for `requestInProgress`, but it respects an open breaker,
-   * and a failed response counts towards the breaker and backoff exactly as a
-   * regular flush's does. Unload sends also run on live pages (a hidden tab, an
-   * SPA Leave Page), which must not keep hitting an endpoint that is down. What
-   * the breaker holds back stays queued and persisted for the next flush or the
-   * next load.
+   * The breaker: an unload send on a live page (a hidden tab, an SPA Leave
+   * Page) respects it, so a page that stays open does not keep hitting an
+   * endpoint that is down. A **terminal** unload (`beforeunload`, a `pagehide`
+   * that is not a bfcache entry) bypasses it: that is the last chance these
+   * events get, and one keepalive request from a dying page is not the load
+   * the breaker exists to shed. Terminal stays in force for every unload send
+   * until the page is live again (`pageResumed`, or a regular flush), so a
+   * Leave Page queued by the same unload bypasses it too.
    *
-   * Never rejects. The returned promise settles once the outcome has been
-   * applied to the queue, which is what tests (and a page that survives, e.g.
-   * a hidden tab) observe.
+   * Each request goes through `dispatch`, the same send and response handling
+   * as a regular flush. Never rejects.
    */
-  flushUnload(): Promise<void> {
-    if (this.breakerOpenUntilMS > Date.now()) {
+  flushUnload(terminal: boolean = false): Promise<void> {
+    if (terminal) this.pageTerminating = true;
+    if (!this.pageTerminating && this.breakerOpenUntilMS > Date.now()) {
       return Promise.resolve();
     }
 
     const startTime = Date.now();
+    const chunkSize = Math.max(1, this.batchSize);
     let built: BuiltBatch;
     try {
       const entries = this.queue.peekUnsent(
         Infinity,
         (item) => !this.inFlightItemIds.has(item.id),
       );
-      built = this.buildBatch(entries, this.batchSize);
+      built = this.buildBatch(entries.slice(-MAX_UNLOAD_REQUESTS * chunkSize));
     } catch (error) {
       this.reportError('Error building unload request', error);
       return Promise.resolve();
     }
 
-    const { dataForRequest, eventIds: eventIdsInBatch } = built;
-    const itemIds = Array.from(built.payloads.keys());
-    // The same eviction as a regular flush's, started only after the request
-    // below so the send never waits on storage.
-    const evict = (): Promise<void> =>
-      built.alreadySentItemIds.length > 0
-        ? this.removeItemsFromQueue(built.alreadySentItemIds).then(
-            () => undefined,
-            (error) => this.reportError('Error evicting sent items', error),
-          )
-        : Promise.resolve();
-
-    if (dataForRequest.length === 0) {
-      return evict();
+    const sends: Promise<unknown>[] = [];
+    for (
+      let end = built.items.length;
+      end > 0 && sends.length < MAX_UNLOAD_REQUESTS;
+      end -= chunkSize
+    ) {
+      const chunk = built.items.slice(Math.max(0, end - chunkSize), end);
+      const outcomeItemIds = this.claim(chunk);
+      sends.push(
+        this.dispatch(chunk, {
+          unloading: true,
+          outcomeItemIds,
+          attemptSecondaryFlush: false,
+          currentBatchSize: chunkSize,
+          startTime,
+          timeoutMS: this.libConfig.batchRequestTimeoutMs,
+        }),
+      );
     }
 
-    // Mark before the request leaves: the page can die mid-request.
-    this.markEventIdsSent(eventIdsInBatch);
-    this.saveSentEventIds();
-    for (const id of itemIds) this.inFlightItemIds.add(id);
+    // The same eviction as a regular flush's, started only after the
+    // requests so no send waits on storage.
+    if (built.alreadySentItemIds.length > 0) {
+      sends.push(
+        this.removeItemsFromQueue(built.alreadySentItemIds).catch((error) =>
+          this.reportError('Error evicting sent items', error),
+        ),
+      );
+    }
 
+    return Promise.all(sends).then(() => undefined);
+  }
+
+  /**
+   * Send one batch and apply its outcome. The one send routine, for a regular
+   * flush and an unload send alike; `ctx.unloading` changes only who owns the
+   * flush schedule afterwards.
+   *
+   * The request is started synchronously, before this method returns, and the
+   * items must already be claimed (`claim`). Never rejects.
+   */
+  private dispatch(items: BuiltItem[], ctx: SendContext): Promise<void> {
+    const ids = items.map((item) => item.id);
+    const eventIds = items.flatMap((item) => item.eventIds);
+
+    // CRITICAL: Mark eventIds as sent BEFORE sending request
+    // This prevents duplicates even if request is canceled during navigation
+    this.markEventIdsSent(eventIds);
+    this.saveSentEventIds(); // Persist immediately
+
+    // Use fetch with keepalive for all requests (including page unload)
+    // This ensures Authorization header is included and requests are reliable during unload
     let sending: Promise<BatchSendResult | null>;
     try {
-      sending = this.sendRequest(dataForRequest, {
-        method: 'POST',
-        timeout_ms: this.libConfig.batchRequestTimeoutMs,
-        keepalive: true,
-        unloading: true,
-      });
+      sending = this.sendRequest(
+        items.map((item) => item.payload),
+        {
+          method: 'POST',
+          timeout_ms: ctx.timeoutMS,
+          keepalive: true,
+          unloading: ctx.unloading,
+        },
+      );
     } catch (error) {
       sending = Promise.reject(error);
     }
-    const evicting = evict();
 
-    const outcome = sending.then(
-      async (response) => {
-        this.metrics.recordFlush(Date.now() - startTime);
-        this.releaseInFlight(itemIds);
-        await this.handleUnloadResponse(response, itemIds, eventIdsInBatch);
-      },
-      (error) => {
-        this.metrics.recordFlush(Date.now() - startTime, true);
-        this.releaseInFlight(itemIds);
-        // The page is probably gone and the request may well have left, so
-        // the pre-send mark stands.
-        this.reportError('Error flushing request queue', error);
-      },
-    );
-    return Promise.all([outcome, evicting]).then(() => undefined);
-  }
-
-  private async handleUnloadResponse(
-    response: BatchSendResult | null,
-    itemIds: string[],
-    eventIdsInBatch: string[],
-  ): Promise<void> {
-    try {
-      // The request was fired with keepalive from a beforeunload/pagehide/
-      // visibilitychange handler, so it often DOES resolve before the page
-      // goes away. Previously this branch returned unconditionally without
-      // dequeuing, so a confirmed-delivered batch stayed in the queue; on the
-      // next page load those items were either re-sent (duplicates — any
-      // payload with no eventId has no dedupe protection at all, and the
-      // in-memory attempt counter starts empty on a fresh page) or skipped
-      // forever without ever being removed.
-      //
-      // If we got a definite success back, remove them. If the response never
-      // arrived or is inconclusive, keep the old behaviour and leave them
-      // queued for the next load — that is the safe direction.
-      if (this.isDefiniteSuccess(response)) {
-        this.closeCircuit();
-        const succeeded = await this.removeItemsFromQueue(itemIds);
-        this.recordDeliveryAttempts(itemIds, succeeded);
-        return;
-      }
-      if (response) {
-        // We got an answer and it was not a success, so the batch was not
-        // ingested. Roll the pre-send mark back, otherwise the next page load
-        // finds these items queued but marked and evicts them — silent loss on
-        // every failed unload flush, which is the common case on a flaky
-        // network. Only a *missing* response (page died first) keeps the mark.
-        this.unmarkEventIdsSent(eventIdsInBatch);
-      }
-      if (this.isRetryableFailure(response)) {
-        // Counted like a regular flush's failure, so the breaker can trip on
-        // these sends too. A regular flush still running owns the schedule and
-        // reschedules when it finishes; only the counters move meanwhile.
-        this.backOffAfterFailure(response, !this.requestInProgress);
-      }
-    } catch (error) {
-      this.reportError('Error handling unload response', error);
-    }
+    return sending
+      .then(
+        (response) => {
+          this.metrics.recordFlush(Date.now() - ctx.startTime);
+          return this.handleResponse(response, ctx, ids, eventIds);
+        },
+        (error) => {
+          this.metrics.recordFlush(Date.now() - ctx.startTime, true);
+          this.reportError('Error flushing request queue', error);
+          this.releaseInFlight(ids);
+          // The transport threw rather than returning a response, and this
+          // page is still running to see it. It will retry, so the pre-send
+          // mark has to come off or the retry evicts the events instead of
+          // sending them. A page that died mid-request never gets here, so its
+          // mark stands.
+          this.unmarkEventIdsSent(eventIds);
+          if (!ctx.unloading) {
+            this.requestInProgress = false;
+            this.resetFlush();
+          }
+        },
+      )
+      .catch((error) => this.reportError('Error handling API response', error));
   }
 
   /**
@@ -858,9 +876,10 @@ export class RequestBatcher {
    * `undefined >= 500`, `undefined === 429` and `undefined <= 0` are all false,
    * so such a response fell past every branch and was treated as a SUCCESS —
    * the batch dequeued having never been confirmed. That directly contradicted
-   * `isDefiniteSuccess`, which requires `ok === true` or a 2xx and therefore
-   * calls the same response inconclusive. Two classifiers disagreeing about the
-   * same input is the bug; retrying is the safe side of it, because the
+   * the unload path's old success check, which required `ok === true` or a
+   * 2xx and therefore called the same response inconclusive. Two classifiers
+   * disagreeing about the same input is the bug (both paths now use this
+   * one); retrying is the safe side of it, because the
    * alternative is silent loss. `?? 0` also keeps the existing `<= 0` intent
    * ("no usable status" and "status 0" are the same case).
    */
@@ -933,44 +952,66 @@ export class RequestBatcher {
 
   private async handleResponse(
     response: BatchSendResult | null,
-    itemIds: string[],
-    attemptSecondaryFlush: boolean,
-    currentBatchSize: number,
-    startTime: number,
-    timeoutMS: number,
-    eventIdsInBatch: string[] = [],
+    ctx: SendContext,
+    inFlightIds: string[],
+    eventIdsInBatch: string[],
   ): Promise<void> {
-    this.requestInProgress = false;
+    const itemIds = ctx.outcomeItemIds;
+    if (!ctx.unloading) {
+      this.requestInProgress = false;
+    }
+    // An unload send that overlaps a regular flush leaves the timer to that
+    // flush, which sets it when it finishes; only the counters move here.
+    const ownsSchedule = !ctx.unloading || !this.requestInProgress;
+    const reschedule = (ms?: number): void => {
+      if (!ownsSchedule) return;
+      if (ms === undefined) this.resetFlush();
+      else this.scheduleFlush(ms);
+    };
+    // Every branch releases the in-flight claim, but a delivered batch only
+    // after its removal has settled: until then the items can still be listed
+    // by the queue, and an unload send in that window would deliver them a
+    // second time (a payload without an eventId has no other dedupe).
+    let released = false;
+    const release = (): void => {
+      if (released) return;
+      released = true;
+      this.releaseInFlight(inFlightIds);
+    };
 
     try {
       // Check for timeout
       if (
         response?.error === 'timeout' &&
-        Date.now() - startTime >= timeoutMS
+        Date.now() - ctx.startTime >= ctx.timeoutMS
       ) {
+        release();
         this.reportError('Network timeout; retrying');
         this.unmarkEventIdsSent(eventIdsInBatch);
         // Same path as every other retry (INT-3793): an immediate `flush()`
         // here hammered a server that had just timed out.
-        this.scheduleFlush(
-          jitterAroundBase(this.libConfig.batchFlushIntervalMs),
-        );
+        reschedule(jitterAroundBase(this.libConfig.batchFlushIntervalMs));
         return;
       }
 
-      // Check for retryable errors (see `isRetryableFailure`).
+      // Check for retryable errors (see `isRetryableFailure`). A missing
+      // response is one: the transport never delivered.
       if (this.isRetryableFailure(response)) {
+        release();
         // Definitely not ingested — release the pre-send mark so the retry can
         // actually send these rather than evicting them as duplicates.
         this.unmarkEventIdsSent(eventIdsInBatch);
-        this.backOffAfterFailure(response, true);
+        this.backOffAfterFailure(response, ownsSchedule);
         return;
       }
 
       // Handle 413 Payload Too Large
       if (response?.httpStatusCode === 413) {
         if (itemIds.length > 1) {
-          const halvedBatchSize = Math.max(1, Math.floor(currentBatchSize / 2));
+          const halvedBatchSize = Math.max(
+            1,
+            Math.floor(ctx.currentBatchSize / 2),
+          );
           this.batchSize = Math.min(
             this.batchSize,
             halvedBatchSize,
@@ -979,15 +1020,17 @@ export class RequestBatcher {
           this.reportError(
             `413 response; reducing batch size to ${this.batchSize}`,
           );
+          release();
           // These items stay queued to be re-sent in smaller batches.
           this.unmarkEventIdsSent(eventIdsInBatch);
-          this.resetFlush();
+          reschedule();
           return;
         } else {
           this.reportError('Single-event request too large; dropping', itemIds);
           this.resetBatchSize();
           await this.removeItemsFromQueue(itemIds);
-          this.resetFlush();
+          release();
+          reschedule();
           return;
         }
       }
@@ -1000,12 +1043,17 @@ export class RequestBatcher {
       this.closeCircuit();
 
       const succeeded = await this.removeItemsFromQueue(itemIds);
+      release();
       this.recordDeliveryAttempts(itemIds, succeeded);
+
+      // An unload send stops here: draining the rest of the queue is the
+      // regular flush's job, on its own schedule.
+      if (ctx.unloading) return;
 
       if (succeeded) {
         this.consecutiveRemovalFailures = 0;
 
-        if (this.flushOnlyOnInterval && !attemptSecondaryFlush) {
+        if (this.flushOnlyOnInterval && !ctx.attemptSecondaryFlush) {
           this.resetFlush();
         } else {
           // Continue flushing if more items in queue
@@ -1023,26 +1071,10 @@ export class RequestBatcher {
       }
     } catch (error) {
       this.reportError('Error handling API response', error);
-      this.resetFlush();
+      reschedule();
+    } finally {
+      release();
     }
-  }
-
-  /**
-   * True only when the server definitely accepted the batch.
-   *
-   * Used on the unload path, where dequeuing on a guess would lose events.
-   * Anything ambiguous — no response object, a network/timeout error, a 0 or 5xx
-   * status — is treated as "unknown", and the batch stays queued for next load.
-   */
-  private isDefiniteSuccess(response: BatchSendResult | null): boolean {
-    if (!response || response.error) {
-      return false;
-    }
-    if (response.ok === true) {
-      return true;
-    }
-    const status = response.httpStatusCode;
-    return typeof status === 'number' && status >= 200 && status < 300;
   }
 
   private async removeItemsFromQueue(itemIds: string[]): Promise<boolean> {

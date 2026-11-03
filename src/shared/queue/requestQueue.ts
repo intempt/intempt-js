@@ -288,6 +288,9 @@ export class RequestQueue {
       if (out.length >= limit) break;
       if (seen.has(entry.id)) continue;
       seen.add(entry.id);
+      // Removed (delivered) or cleared while its write is still pending: it
+      // stays in `pendingWrites` until the write lands, but is no longer queued.
+      if (this.discardOnLand.has(entry.id)) continue;
       if (include(entry)) out.push(entry);
     }
     return out;
