@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { RequestBatcher } from '../../src/shared/queue/requestBatcher.ts';
 import { QueueStorage } from '../../src/shared/storage/queueStorage.ts';
 
@@ -2488,6 +2488,197 @@ describe('RequestBatcher', () => {
       await withHook.flush();
 
       expect(sawHalfOpen).toBe(true);
+    });
+  });
+
+  // --- INT-5942 follow-up: an unload send seen again by the next page ------
+  //
+  // Prod verification of #256: e1 in flight, then a same-site navigation. The
+  // unload request carrying the Leave Page reached ingest, but the dying page
+  // saw it rejected (the teardown, not the request), rolled its eventId mark
+  // back, and the next page sent the Leave Page again from the persisted
+  // queue. Each test plays both pages: two batchers on the same storage.
+  describe('an unload send and the next page (INT-5942 follow-up)', () => {
+    const UNLOAD_SENT_KEY = `${KEY}_unload_sent`;
+    const ids = (call: any) =>
+      call.data.map((d: any) => d.payload[0].eventId as string);
+
+    /** The page that unloads: its unload sends get `unloadResult`. */
+    function dyingPage(unloadResult: () => Promise<any>) {
+      return makeBatcher({
+        sendRequestFunc: (data: unknown[], options: any) => {
+          sendCalls.push({ data, options });
+          return options.unloading
+            ? unloadResult()
+            : Promise.resolve(defaultResponse);
+        },
+      });
+    }
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it('a transport failure seen while the page is going away is not re-sent by the next page', async () => {
+      const page1 = dyingPage(() =>
+        Promise.resolve({ error: 'network error', httpStatusCode: 0 }),
+      );
+      await page1.enqueue(event('evt-leave'));
+
+      await page1.flush({ unloading: true, terminal: true });
+
+      const page2 = makeBatcher();
+      await page2.flush();
+
+      expect(sendCalls.flatMap(ids)).toEqual(['evt-leave']);
+    });
+
+    it('a rejection seen while the page is going away is not re-sent by the next page either', async () => {
+      const page1 = dyingPage(() => Promise.reject(new TypeError('gone')));
+      await page1.enqueue(event('evt-leave'));
+
+      await page1.flush({ unloading: true, terminal: true });
+
+      const page2 = makeBatcher();
+      await page2.flush();
+
+      expect(sendCalls.flatMap(ids)).toEqual(['evt-leave']);
+    });
+
+    it('an item without an eventId is skipped by the next page for the grace window, then retried', async () => {
+      // Never answered: the page died with the request on the wire.
+      const page1 = dyingPage(() => new Promise(() => {}));
+      await page1.enqueue({ name: 'No Id', payload: [{}] });
+
+      void page1.flush({ unloading: true, terminal: true });
+      expect(sendCalls).toHaveLength(1);
+      expect(localStorage.getItem(UNLOAD_SENT_KEY)).not.toBeNull();
+
+      const page2 = makeBatcher();
+      await page2.flush();
+      expect(sendCalls).toHaveLength(1);
+
+      // Still queued once the window has passed: a real failure, sent again.
+      const now = Date.now();
+      vi.spyOn(Date, 'now').mockReturnValue(now + 31_000);
+      await page2.flush();
+      expect(sendCalls).toHaveLength(2);
+      expect(localStorage.getItem(UNLOAD_SENT_KEY)).toBeNull();
+    });
+
+    it('the grace window covers an item whose unload send is still pending when the next page loads', async () => {
+      const page1 = dyingPage(() => new Promise(() => {}));
+      await page1.enqueue(event('evt-pending'));
+      void page1.flush({ unloading: true, terminal: true });
+      // The next page loaded the sent ids before they were written (the old
+      // page's pagehide can run after the new page started).
+      (page1 as any).sentEventIds.clear();
+      (page1 as any).saveSentEventIds();
+
+      const page2 = makeBatcher();
+      await page2.flush();
+
+      expect(sendCalls).toHaveLength(1);
+    });
+
+    it('a definite failure on a terminal unload is rolled back: the next page sends it at once', async () => {
+      const page1 = dyingPage(() =>
+        Promise.resolve({ httpStatusCode: 503, ok: false }),
+      );
+      await page1.enqueue(event('evt-503'));
+
+      await page1.flush({ unloading: true, terminal: true });
+
+      const page2 = makeBatcher();
+      await page2.flush();
+
+      expect(sendCalls.flatMap(ids)).toEqual(['evt-503', 'evt-503']);
+    });
+
+    it('a transport failure on a page that stays after all is retried by its next regular flush', async () => {
+      let n = 0;
+      const b = makeBatcher({
+        sendRequestFunc: (data: unknown[], options: unknown) => {
+          sendCalls.push({ data, options });
+          return n++ === 0
+            ? Promise.resolve({ error: 'network error', httpStatusCode: 0 })
+            : Promise.resolve(defaultResponse);
+        },
+      });
+      await b.enqueue(event('evt-stayed'));
+
+      await b.flush({ unloading: true, terminal: true }); // beforeunload
+      await b.flush(); // "stay on page": the regular flush runs
+
+      expect(sendCalls.flatMap(ids)).toEqual(['evt-stayed', 'evt-stayed']);
+      expect(await (b as any).queue.fillBatch(10)).toHaveLength(0);
+    });
+
+    it('a bfcache restore releases them too', async () => {
+      const b = dyingPage(() => Promise.reject(new TypeError('frozen')));
+      await b.enqueue(event('evt-restored'));
+
+      await b.flush({ unloading: true, terminal: true });
+      b.pageResumed();
+
+      expect((b as any).sentEventIds.has('evt-restored')).toBe(false);
+      expect(localStorage.getItem(UNLOAD_SENT_KEY)).toBeNull();
+    });
+
+    it('a delivered unload send clears its marks', async () => {
+      await batcher.enqueue(event('evt-ok'));
+
+      await batcher.flush({ unloading: true, terminal: true });
+
+      expect(localStorage.getItem(UNLOAD_SENT_KEY)).toBeNull();
+      expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(0);
+    });
+
+    it('a live-page unload send that fails is retried by the next regular flush, not held for the window', async () => {
+      let n = 0;
+      const b = makeBatcher({
+        sendRequestFunc: (data: unknown[], options: unknown) => {
+          sendCalls.push({ data, options });
+          return n++ === 0
+            ? Promise.resolve({ error: 'network error', httpStatusCode: 0 })
+            : Promise.resolve(defaultResponse);
+        },
+      });
+      await b.enqueue({ name: 'No Id', payload: [{}] });
+
+      await b.flush({ unloading: true }); // hidden tab
+      await b.flush();
+
+      expect(sendCalls).toHaveLength(2);
+    });
+
+    it('marks from another tab are kept, and expired or malformed ones dropped', async () => {
+      const now = Date.now();
+      localStorage.setItem(
+        UNLOAD_SENT_KEY,
+        JSON.stringify({ other: now - 1000, old: now - 60_000, bad: 'x' }),
+      );
+      const b = dyingPage(() => new Promise(() => {}));
+      await b.enqueue({ name: 'No Id', payload: [{}] });
+
+      void b.flush({ unloading: true, terminal: true });
+
+      const stored = JSON.parse(localStorage.getItem(UNLOAD_SENT_KEY)!);
+      expect(Object.keys(stored)).toContain('other');
+      expect(Object.keys(stored)).not.toContain('old');
+      expect(Object.keys(stored)).not.toContain('bad');
+    });
+
+    it('unreadable marks are reported and ignored', async () => {
+      const errors: string[] = [];
+      const b = makeBatcher({ errorReporter: (m: string) => errors.push(m) });
+      localStorage.setItem(UNLOAD_SENT_KEY, '{not json');
+      await b.enqueue(event('evt-x'));
+
+      await b.flush();
+
+      expect(sendCalls).toHaveLength(1);
+      expect(errors).toContain('Error loading unload-sent marks');
     });
   });
 

@@ -83,7 +83,10 @@ export class PageTrackerModule {
     // `beforeunload` alone missed it: mobile browsers skip it for most unloads
     // and it never fires when the page goes into the bfcache. `pagehide` fires
     // on every unload, persisted or not; `end()` sends once per view, so a page
-    // that fires both still gets a single Leave Page.
+    // that fires both still gets a single Leave Page. With the batcher up, the
+    // transport's own unload handler calls `end()` before it flushes (see
+    // `AutoTrackerTransport.setUnloadHook`), so these two only matter when
+    // they happen to run first, or on the no-batcher path.
     window.addEventListener('beforeunload', () => this.end());
     window.addEventListener('pagehide', () => this.end());
 
