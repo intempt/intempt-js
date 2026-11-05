@@ -209,6 +209,9 @@ export const ChoicesService = {
       // real promise that rejects like any other.
       const changesPromise = (async (): Promise<void> => {
         const data = await this.fetchChoices(url, body, auth_config.auth);
+        // A failed call says nothing about the experience, so the last cached
+        // variant stays; only an answered request (even an empty one) replaces it.
+        if (data === null) return;
 
         const changes = this.choicesDataGuard(data);
         localStorageCache.set(key, { changes });
@@ -220,7 +223,6 @@ export const ChoicesService = {
       await Promise.race([timeoutPromise, changesPromise]);
     } catch (error) {
       log.error('setChangesData failed', error);
-      localStorageCache.set(key, { changes: [] });
     }
   },
 
@@ -249,10 +251,10 @@ export const ChoicesService = {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
 
-      return response.json();
+      return await response.json();
     } catch (error) {
       log.error('fetchChoices failed', error);
-      return [];
+      return null;
     }
   },
 
