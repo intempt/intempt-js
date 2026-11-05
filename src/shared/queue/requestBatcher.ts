@@ -522,11 +522,23 @@ export class RequestBatcher {
       const stored = localStorage.getItem(this.unloadSentKey);
       const parsed: unknown = stored ? JSON.parse(stored) : null;
       if (!parsed || typeof parsed !== 'object') return marks;
+      let fromTheFuture = false;
       for (const [id, at] of Object.entries(parsed)) {
-        // A mark from the future (clock moved back) counts from now.
-        if (typeof at === 'number' && now - at < UNLOAD_SENT_GRACE_MS) {
-          marks.set(id, Math.min(at, now));
+        if (typeof at !== 'number') continue;
+        // A mark from the future (clock moved back) counts from now, and is
+        // stored as now so the grace window ends 30s from the first read.
+        if (at > now) {
+          fromTheFuture = true;
+          marks.set(id, now);
+        } else if (now - at < UNLOAD_SENT_GRACE_MS) {
+          marks.set(id, at);
         }
+      }
+      if (fromTheFuture) {
+        localStorage.setItem(
+          this.unloadSentKey,
+          JSON.stringify(Object.fromEntries(marks)),
+        );
       }
     } catch (error) {
       this.reportError('Error loading unload-sent marks', error);

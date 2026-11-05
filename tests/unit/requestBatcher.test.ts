@@ -2566,6 +2566,26 @@ describe('RequestBatcher', () => {
       expect(localStorage.getItem(UNLOAD_SENT_KEY)).toBeNull();
     });
 
+    it('a mark from the future counts from the first read, not from its own timestamp', async () => {
+      const page1 = dyingPage(() => new Promise(() => {}));
+      await page1.enqueue({ name: 'No Id', payload: [{}] });
+      void page1.flush({ unloading: true, terminal: true });
+      // Written before the clock moved back an hour.
+      const now = Date.now();
+      const marks = JSON.parse(localStorage.getItem(UNLOAD_SENT_KEY)!);
+      for (const id of Object.keys(marks)) marks[id] = now + 3_600_000;
+      localStorage.setItem(UNLOAD_SENT_KEY, JSON.stringify(marks));
+
+      vi.spyOn(Date, 'now').mockReturnValue(now);
+      const page2 = makeBatcher();
+      await page2.flush();
+      expect(sendCalls).toHaveLength(1);
+
+      vi.spyOn(Date, 'now').mockReturnValue(now + 31_000);
+      await page2.flush();
+      expect(sendCalls).toHaveLength(2);
+    });
+
     it('the grace window covers an item whose unload send is still pending when the next page loads', async () => {
       const page1 = dyingPage(() => new Promise(() => {}));
       await page1.enqueue(event('evt-pending'));
