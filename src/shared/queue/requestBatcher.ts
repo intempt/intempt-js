@@ -201,6 +201,21 @@ export interface FlushOptions {
  */
 const MAX_UNLOAD_REQUESTS = 4;
 
+/**
+ * How long an item handed to an unload request is left out of every later
+ * send, on this page and on the next one (INT-5942).
+ *
+ * A page that navigates away rarely sees its unload request answered: the
+ * document is torn down first, and the persisted queue still holds the items
+ * when the next page of the same site loads and flushes it. The next page
+ * cannot tell "on the wire from the previous page" from "never sent", so the
+ * unload send records when it handed each item over (`unloadSentKey`) and
+ * every send skips an item for this long after that. An item still queued
+ * once the window has passed is sent again, unless its eventId says it was
+ * delivered: the window delays a retry, it never cancels one.
+ */
+const UNLOAD_SENT_GRACE_MS = 30 * 1000;
+
 export class RequestBatcher {
   private queue: RequestQueue;
   private libConfig: BatcherConfig;
@@ -271,6 +286,24 @@ export class RequestBatcher {
   private itemIdsSentSuccessfully: Map<string, number> = new Map();
   private sentEventIds: Set<string> = new Set();
   private sentEventIdsKey: string;
+  /**
+   * localStorage key of the queue items handed to an unload request, as
+   * `{ [queueItemId]: handedOverAtMs }`. Keyed by queue item, not eventId, so
+   * a payload without an eventId is covered too. Read fresh by every send,
+   * because the page that wrote it may still be unloading while this one
+   * loads. See `UNLOAD_SENT_GRACE_MS`.
+   */
+  private unloadSentKey: string;
+  /**
+   * Items whose send failed at the transport (no HTTP answer) while the page
+   * was going away, with their eventIds. That failure is usually the
+   * teardown itself, not the request: the browser keeps a keepalive request
+   * going after the document is gone, and the page sees it rejected. So the
+   * pre-send marks stand. If the page turns out to stay (`pageResumed`, or a
+   * regular flush), it was a real failure, and these are released for retry.
+   */
+  private unknownOutcomes: Array<{ itemIds: string[]; eventIds: string[] }> =
+    [];
 
   constructor(options: RequestBatcherOptions) {
     this.libConfig = options.libConfig;
@@ -285,6 +318,7 @@ export class RequestBatcher {
 
     // Initialize sent event IDs tracking
     this.sentEventIdsKey = `${options.storageKey}_sent_event_ids`;
+    this.unloadSentKey = `${options.storageKey}_unload_sent`;
     this.loadSentEventIds();
 
     // The providers are lazy, so referencing `this.queue` before it is assigned
@@ -477,6 +511,104 @@ export class RequestBatcher {
   }
 
   /**
+   * The unload-sent marks still inside the grace window, read from storage
+   * (not cached: another page or tab may have just written them). Expired and
+   * malformed entries are left out.
+   */
+  private readUnloadSent(now: number = Date.now()): Map<string, number> {
+    const marks = new Map<string, number>();
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return marks;
+      const stored = localStorage.getItem(this.unloadSentKey);
+      const parsed: unknown = stored ? JSON.parse(stored) : null;
+      if (!parsed || typeof parsed !== 'object') return marks;
+      let fromTheFuture = false;
+      for (const [id, at] of Object.entries(parsed)) {
+        if (typeof at !== 'number') continue;
+        // A mark from the future (clock moved back) counts from now, and is
+        // stored as now so the grace window ends 30s from the first read.
+        if (at > now) {
+          fromTheFuture = true;
+          marks.set(id, now);
+        } else if (now - at < UNLOAD_SENT_GRACE_MS) {
+          marks.set(id, at);
+        }
+      }
+      if (fromTheFuture) {
+        localStorage.setItem(
+          this.unloadSentKey,
+          JSON.stringify(Object.fromEntries(marks)),
+        );
+      }
+    } catch (error) {
+      this.reportError('Error loading unload-sent marks', error);
+    }
+    return marks;
+  }
+
+  /**
+   * Add (`handedOver`) or drop (`settled`) unload-sent marks. Read-modify-write
+   * of the stored map, so marks other tabs wrote are kept. Writes only when
+   * something changed; a regular send of unmarked items costs one read.
+   */
+  private updateUnloadSent(handedOver: string[], settled: string[]): void {
+    if (!handedOver.length && !settled.length) return;
+    try {
+      if (typeof window === 'undefined' || !window.localStorage) return;
+      const now = Date.now();
+      const marks = this.readUnloadSent(now);
+      const before = localStorage.getItem(this.unloadSentKey);
+      for (const id of settled) marks.delete(id);
+      for (const id of handedOver) marks.set(id, now);
+      // Same backstop as `sentEventIds`; Map order is insertion order.
+      const entries = [...marks].slice(-MAX_SENT_EVENT_IDS);
+      const next = entries.length
+        ? JSON.stringify(Object.fromEntries(entries))
+        : null;
+      if (next === before) return;
+      if (next === null) localStorage.removeItem(this.unloadSentKey);
+      else localStorage.setItem(this.unloadSentKey, next);
+    } catch (error) {
+      this.reportError('Error saving unload-sent marks', error);
+    }
+  }
+
+  /**
+   * The page is live after all: the transport failures recorded while it was
+   * going away were real, so their items are released for a normal retry.
+   */
+  private releaseUnknownOutcomes(): void {
+    if (this.unknownOutcomes.length === 0) return;
+    const itemIds = this.unknownOutcomes.flatMap((o) => o.itemIds);
+    const eventIds = this.unknownOutcomes.flatMap((o) => o.eventIds);
+    this.unknownOutcomes = [];
+    this.unmarkEventIdsSent(eventIds);
+    this.updateUnloadSent([], itemIds);
+  }
+
+  /**
+   * True when a send's failure says nothing about whether ingest got it: no
+   * HTTP answer, and the page is going away, so the teardown itself is the
+   * likely cause. See `unknownOutcomes`.
+   */
+  private isUnknownOutcome(response: BatchSendResult | null): boolean {
+    if (!this.pageTerminating) return false;
+    const status = response?.httpStatusCode;
+    return (
+      !response || !!response.error || typeof status !== 'number' || status <= 0
+    );
+  }
+
+  /** Keep the pre-send marks of a send whose outcome is unknown. */
+  private holdUnknownOutcome(itemIds: string[], eventIds: string[]): void {
+    this.unknownOutcomes.push({ itemIds, eventIds });
+    // Backstop only: a page going away sends at most a few requests.
+    if (this.unknownOutcomes.length > MAX_UNLOAD_REQUESTS * 8) {
+      this.unknownOutcomes.shift();
+    }
+  }
+
+  /**
    * Record a delivery attempt per queue item ID, and drop the entries that can
    * no longer matter.
    *
@@ -551,7 +683,7 @@ export class RequestBatcher {
     }
     // A regular flush only runs on a live page, so a terminal unload that was
     // started here was called off (a "stay on page" answer to beforeunload).
-    this.pageTerminating = false;
+    this.pageResumed();
     if (this.requestInProgress) {
       return;
     }
@@ -653,6 +785,9 @@ export class RequestBatcher {
    * - `beforeSendHook` throws: reported and left queued, so one bad payload (or
    *   a broken hook) loses neither that event nor the rest of the batch — on
    *   unload, that rest includes the Leave Page.
+   * - Handed to an unload request less than `UNLOAD_SENT_GRACE_MS` ago, here
+   *   or by the page before this one: skipped like an in-flight item, and
+   *   sent once the window has passed if it is still queued then.
    * - Hook returns nothing, or the item was sent more than 5 times: not sent.
    */
   private buildBatch(items: QueueEntry[]): BuiltBatch {
@@ -661,6 +796,7 @@ export class RequestBatcher {
       alreadySentItemIds: [],
       excludedFromOutcome: new Set(),
     };
+    const unloadSent = items.length ? this.readUnloadSent() : null;
 
     for (const item of items) {
       if (this.inFlightItemIds.has(item.id)) {
@@ -671,6 +807,11 @@ export class RequestBatcher {
       const eventIds = this.extractEventIds(item.payload);
       if (eventIds.some((id) => this.sentEventIds.has(id))) {
         built.alreadySentItemIds.push(item.id);
+        built.excludedFromOutcome.add(item.id);
+        continue;
+      }
+
+      if (unloadSent?.has(item.id)) {
         built.excludedFromOutcome.add(item.id);
         continue;
       }
@@ -709,6 +850,17 @@ export class RequestBatcher {
    */
   pageResumed(): void {
     this.pageTerminating = false;
+    this.releaseUnknownOutcomes();
+  }
+
+  /**
+   * A terminal unload is starting (`beforeunload`, a non-bfcache `pagehide`).
+   * Called by the transport before anything is queued or sent for it, so the
+   * Leave Page that unload produces is sent as part of it. `flushUnload` with
+   * `terminal` sets the same state.
+   */
+  pageGoingAway(): void {
+    this.pageTerminating = true;
   }
 
   /**
@@ -813,6 +965,11 @@ export class RequestBatcher {
     // This prevents duplicates even if request is canceled during navigation
     this.markEventIdsSent(eventIds);
     this.saveSentEventIds(); // Persist immediately
+    // An unload request may outlive this page without it ever seeing the
+    // answer; the mark keeps the next page from sending these again meanwhile.
+    // A regular send of an item whose window has passed clears its old mark.
+    if (ctx.unloading) this.updateUnloadSent(ids, []);
+    else this.updateUnloadSent([], ids);
 
     // Use fetch with keepalive for all requests (including page unload)
     // This ensures Authorization header is included and requests are reliable during unload
@@ -841,12 +998,17 @@ export class RequestBatcher {
           this.metrics.recordFlush(Date.now() - ctx.startTime, true);
           this.reportError('Error flushing request queue', error);
           this.releaseInFlight(ids);
-          // The transport threw rather than returning a response, and this
-          // page is still running to see it. It will retry, so the pre-send
-          // mark has to come off or the retry evicts the events instead of
-          // sending them. A page that died mid-request never gets here, so its
-          // mark stands.
-          this.unmarkEventIdsSent(eventIds);
+          if (this.isUnknownOutcome(null)) {
+            // Rejected while the page is going away: see `unknownOutcomes`.
+            this.holdUnknownOutcome(ids, eventIds);
+          } else {
+            // The transport threw rather than returning a response, and this
+            // page is still running to see it. It will retry, so the pre-send
+            // marks have to come off or the retry evicts the events (or skips
+            // them for the grace window) instead of sending them.
+            this.unmarkEventIdsSent(eventIds);
+            if (ctx.unloading) this.updateUnloadSent([], ids);
+          }
           if (!ctx.unloading) {
             this.requestInProgress = false;
             this.resetFlush();
@@ -979,7 +1141,23 @@ export class RequestBatcher {
       this.releaseInFlight(inFlightIds);
     };
 
+    // A definite failure: the items are retried, so neither pre-send mark
+    // may stand (the eventId one would evict them, the unload one delay them).
+    const rollBack = (): void => {
+      this.unmarkEventIdsSent(eventIdsInBatch);
+      if (ctx.unloading) this.updateUnloadSent([], inFlightIds);
+    };
+
     try {
+      // No answer while the page is going away: most likely the teardown,
+      // not the request. Nothing is rolled back; see `unknownOutcomes`.
+      if (this.isUnknownOutcome(response)) {
+        release();
+        this.holdUnknownOutcome(inFlightIds, eventIdsInBatch);
+        reschedule();
+        return;
+      }
+
       // Check for timeout
       if (
         response?.error === 'timeout' &&
@@ -987,7 +1165,7 @@ export class RequestBatcher {
       ) {
         release();
         this.reportError('Network timeout; retrying');
-        this.unmarkEventIdsSent(eventIdsInBatch);
+        rollBack();
         // Same path as every other retry (INT-3793): an immediate `flush()`
         // here hammered a server that had just timed out.
         reschedule(jitterAroundBase(this.libConfig.batchFlushIntervalMs));
@@ -1000,7 +1178,7 @@ export class RequestBatcher {
         release();
         // Definitely not ingested — release the pre-send mark so the retry can
         // actually send these rather than evicting them as duplicates.
-        this.unmarkEventIdsSent(eventIdsInBatch);
+        rollBack();
         this.backOffAfterFailure(response, ownsSchedule);
         return;
       }
@@ -1022,14 +1200,15 @@ export class RequestBatcher {
           );
           release();
           // These items stay queued to be re-sent in smaller batches.
-          this.unmarkEventIdsSent(eventIdsInBatch);
+          rollBack();
           reschedule();
           return;
         } else {
           this.reportError('Single-event request too large; dropping', itemIds);
           this.resetBatchSize();
-          await this.removeItemsFromQueue(itemIds);
+          const removed = await this.removeItemsFromQueue(itemIds);
           release();
+          if (ctx.unloading && removed) this.updateUnloadSent([], inFlightIds);
           reschedule();
           return;
         }
@@ -1045,6 +1224,10 @@ export class RequestBatcher {
       const succeeded = await this.removeItemsFromQueue(itemIds);
       release();
       this.recordDeliveryAttempts(itemIds, succeeded);
+      // Delivered and gone from the queue: the unload marks have done their
+      // job. Kept when the removal failed, so the record left behind is not
+      // sent again straight away.
+      if (ctx.unloading && succeeded) this.updateUnloadSent([], inFlightIds);
 
       // An unload send stops here: draining the rest of the queue is the
       // regular flush's job, on its own schedule.

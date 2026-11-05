@@ -88,8 +88,41 @@ export class AutoTrackerTransport {
     this._requestBatcher?.pageResumed();
   }
 
+  /** See `setUnloadHook`. */
+  private _unloadHook: (() => void) | null = null;
+
+  /**
+   * Registers what has to be queued before an unload is flushed: the page
+   * tracker's Leave Page. It runs first in this transport's own
+   * `beforeunload`/`pagehide` handler, so the Leave Page exists before the
+   * unload flush and goes out in its first request, whichever of the two
+   * modules registered its window listener first (INT-5942). With the
+   * transport's listener first, the flush used to send everything else and
+   * the Leave Page followed in a later request, the one most likely to be
+   * over the keepalive budget.
+   */
+  setUnloadHook(hook: (() => void) | null): void {
+    this._unloadHook = hook;
+  }
+
+  /**
+   * One unload: the batcher learns whether the page is going away before the
+   * hook queues anything, so the Leave Page is sent as part of the same
+   * unload (and bypasses the breaker on a terminal one), then everything else
+   * not yet on the wire is flushed.
+   */
+  private _onUnload(terminal: boolean): void {
+    if (terminal && !this._pageHidden) this._requestBatcher?.pageGoingAway();
+    try {
+      this._unloadHook?.();
+    } catch (error) {
+      log.error('unload hook failed', error);
+    }
+    this._flushForUnload(terminal);
+  }
+
   private readonly _onBeforeUnload = (): void => {
-    this._flushForUnload(true);
+    this._onUnload(true);
   };
 
   // Every pagehide, not only a bfcache one (INT-5942): mobile browsers skip
@@ -97,7 +130,7 @@ export class AutoTrackerTransport {
   // fires. The unload flush hands its request over synchronously, inside this
   // handler.
   private readonly _onPageHide = (ev?: PageTransitionEvent): void => {
-    this._flushForUnload(!ev?.persisted);
+    this._onUnload(!ev?.persisted);
     this._pageHidden = true;
   };
 
@@ -196,6 +229,7 @@ export class AutoTrackerTransport {
       window.removeEventListener('pageshow', this._onPageShow);
       window.removeEventListener('visibilitychange', this._onVisibilityChange);
     }
+    this._unloadHook = null;
 
     if (this._requestBatcher) {
       this._requestBatcher.stop();

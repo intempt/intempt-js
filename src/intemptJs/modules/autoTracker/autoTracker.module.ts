@@ -327,6 +327,11 @@ export class AutoTrackerModule {
 
   init() {
     this._pagesTrackerModule.init();
+    // The Leave Page is queued by the transport's own unload handler, right
+    // before it flushes, so it lands in the first unload request whatever the
+    // listener order (INT-5942). The page tracker keeps its listeners for the
+    // no-batcher path; `end()` sends once per view, so both firing is a no-op.
+    this._transport.setUnloadHook(() => this._pagesTrackerModule.end());
     this._htmlTrackerModule.init();
   }
 

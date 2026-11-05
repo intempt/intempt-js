@@ -272,4 +272,57 @@ describe('Leave Page delivery (INT-5939, INT-5942)', () => {
     expect(entriesNamed('e1')).toHaveLength(1);
     expect(entriesNamed('Leave Page')).toHaveLength(1);
   });
+
+  // Prod verification of #256: e1 in flight and 70 events queued (batch size
+  // 50), then a navigation. The transport's unload listener was registered
+  // before the page tracker's, so it flushed first: 50, then 20, and the Leave
+  // Page in a third request, the one most likely to be over the browser's
+  // 64 KiB keepalive budget.
+  describe.each(['beforeunload', 'pagehide'] as const)(
+    'INT-5942: more than a batch queued, then %s',
+    (trigger) => {
+      it('the Leave Page is created before the unload flush and goes out once, in its first request', async () => {
+        pageTransition('pageshow', true);
+        await sleep(20);
+        await visibilityFlush();
+        await waitFor(() => entriesNamed('View Page').length > 0);
+        calls.length = 0;
+
+        vi.stubGlobal('fetch', (url: string, init: RequestInit) => {
+          calls.push({ url, init });
+          return new Promise(() => {});
+        });
+        sdk.track({ eventTitle: 'e1', data: { step: 3 } });
+        await sleep(20);
+        await visibilityFlush(); // e1 goes out and stays in flight
+        for (let i = 0; i < 70; i++) {
+          sdk.track({ eventTitle: 'bulk', data: { i } });
+        }
+        await sleep(50);
+
+        const before = calls.length;
+        if (trigger === 'beforeunload') {
+          window.dispatchEvent(new Event('beforeunload'));
+        }
+        pageTransition('pagehide', false);
+
+        const unloadRequests = calls
+          .slice(before)
+          .map((c) =>
+            (JSON.parse(c.init.body as string).track as WireEvent[]).map(
+              (e) => e.name,
+            ),
+          );
+        expect(unloadRequests.length).toBeGreaterThan(0);
+        expect(unloadRequests[0]).toContain('Leave Page');
+        expect(unloadRequests.flat().filter((n) => n === 'Leave Page')).toEqual(
+          ['Leave Page'],
+        );
+        expect(unloadRequests.flat().filter((n) => n === 'bulk')).toHaveLength(
+          70,
+        );
+        expect(entriesNamed('e1')).toHaveLength(1);
+      });
+    },
+  );
 });

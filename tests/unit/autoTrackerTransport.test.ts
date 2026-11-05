@@ -314,7 +314,11 @@ describe('AutoTrackerTransport unload sends (INT-5942)', () => {
       const transport = makeTransport();
       const flush = vi.fn(() => Promise.resolve());
       const pageResumed = vi.fn();
-      (transport as any)._requestBatcher = { flush, pageResumed };
+      (transport as any)._requestBatcher = {
+        flush,
+        pageResumed,
+        pageGoingAway: vi.fn(),
+      };
       const fire = (name: string) => (transport as any)[name]();
       return { flush, pageResumed, fire };
     }
@@ -376,10 +380,63 @@ describe('AutoTrackerTransport unload sends (INT-5942)', () => {
       ]);
     });
 
+    // INT-5942 follow-up: the Leave Page must exist before the unload flush,
+    // whichever module registered its window listener first.
+    it('runs the unload hook after marking the page as going away and before the flush', () => {
+      const transport = makeTransport();
+      const order: string[] = [];
+      (transport as any)._requestBatcher = {
+        flush: vi.fn(() => {
+          order.push('flush');
+          return Promise.resolve();
+        }),
+        pageResumed: vi.fn(),
+        pageGoingAway: vi.fn(() => order.push('goingAway')),
+      };
+      transport.setUnloadHook(() => order.push('hook'));
+
+      (transport as any)._onBeforeUnload();
+      (transport as any)._onPageHide({ persisted: true });
+
+      expect(order).toEqual(['goingAway', 'hook', 'flush', 'hook', 'flush']);
+    });
+
+    it('a throwing unload hook does not stop the unload flush', () => {
+      const transport = makeTransport();
+      const flush = vi.fn(() => Promise.resolve());
+      (transport as any)._requestBatcher = {
+        flush,
+        pageResumed: vi.fn(),
+        pageGoingAway: vi.fn(),
+      };
+      transport.setUnloadHook(() => {
+        throw new Error('page tracker broke');
+      });
+
+      (transport as any)._onPageHide();
+
+      expect(flush).toHaveBeenCalledWith({ unloading: true, terminal: true });
+    });
+
+    it('dispose drops the unload hook', () => {
+      const transport = makeTransport();
+      const hook = vi.fn();
+      transport.setUnloadHook(hook);
+      transport.dispose();
+
+      (transport as any)._onPageHide();
+
+      expect(hook).not.toHaveBeenCalled();
+    });
+
     it('a bfcache pagehide is not terminal', () => {
       const transport = makeTransport();
       const flush = vi.fn(() => Promise.resolve());
-      (transport as any)._requestBatcher = { flush, pageResumed: vi.fn() };
+      (transport as any)._requestBatcher = {
+        flush,
+        pageResumed: vi.fn(),
+        pageGoingAway: vi.fn(),
+      };
       (transport as any)._onPageHide({ persisted: true });
 
       expect(flush).toHaveBeenCalledWith({ unloading: true, terminal: false });
