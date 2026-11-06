@@ -197,6 +197,13 @@ describe('IntemptJs — the public API class', () => {
       const instance = new IntemptJs({ ...CONFIG, allowBots: true });
       expect(instance.allowBots).toBe(true);
     });
+    it('is read-only at runtime, not only in TypeScript (INT-7294)', () => {
+      const instance = new IntemptJs({ ...CONFIG });
+      expect(
+        Object.getOwnPropertyDescriptor(instance, 'allowBots')?.writable,
+      ).toBe(false);
+      expect(instance.allowBots).toBe(false);
+    });
   });
 
   describe('opt-in / opt-out', () => {
