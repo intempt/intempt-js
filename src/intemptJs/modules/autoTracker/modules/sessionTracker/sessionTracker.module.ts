@@ -135,8 +135,11 @@ export class SessionTrackerModule extends PlatformParser {
   private _sessionActivityHandler() {
     this._allTrackingEvents.forEach((domEventName) => {
       document.addEventListener(domEventName, (event) => {
-        const { detail } = event as CustomEvent;
-        this.touch(detail.eventName);
+        const eventName = (event as CustomEvent)?.detail?.eventName;
+        // INT-3768: page code or a replayed event may dispatch an `intempt:*`
+        // CustomEvent with no/odd detail; skip the refresh instead of throwing.
+        if (typeof eventName !== 'string') return;
+        this.touch(eventName);
       });
     });
   }
