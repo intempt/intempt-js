@@ -130,9 +130,10 @@ jobs:
         if: github.event_name == 'push' || inputs.dry-run == false
         # `--provenance` is redundant with publishConfig.provenance but stated
         # here so the intent is visible at the call site.
-        run: npm publish --provenance --access public --tag "${{ inputs.tag || 'latest' }}"
+        run: npm publish --provenance --access public --tag "$NPM_TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TAG: ${{ inputs.tag || 'latest' }}
 
       - name: Dry run — nothing was published
         if: github.event_name == 'workflow_dispatch' && inputs.dry-run
