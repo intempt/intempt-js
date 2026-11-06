@@ -45,6 +45,13 @@ export class SessionTrackerModule extends PlatformParser {
     'intempt:logOut',
     'intempt:consent',
   ];
+  /**
+   * INT-3777: true while `_onNewSession` is between writing the cookie and
+   * dispatching `intempt:session`. A second event arriving in that window must not
+   * open another session when the cookie cannot be read back (blocked or rejected
+   * by the browser); the first creation already set the id the callers read.
+   */
+  private _creating = false;
   private _allTrackingEvents = [
     ...this._foregroundEventNames,
     ...this._backgroundEventNames,
@@ -190,8 +197,17 @@ export class SessionTrackerModule extends PlatformParser {
    * Runs when a new session should be created
    * */
   private async _onNewSession(initializerEventName: string = this._eventName) {
-    this.setSessionCookie();
+    if (this._creating) return;
+    this._creating = true;
+    try {
+      this.setSessionCookie();
+      await this._dispatchSessionStart(initializerEventName);
+    } finally {
+      this._creating = false;
+    }
+  }
 
+  private async _dispatchSessionStart(initializerEventName: string) {
     const platform = await this._getPlatform();
 
     const urlParams = new BaseURLParser();
