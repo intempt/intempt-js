@@ -158,6 +158,7 @@ export const ChoicesService = {
         authRequest,
         orgName,
         project,
+        apiBaseUrl: config.apiBaseUrl,
       });
     } catch (error) {
       log.error('getChoices failed', error);
@@ -166,7 +167,7 @@ export const ChoicesService = {
   },
 
   getChoicesData: async function (args: FetchChoicesData): Promise<Choice[]> {
-    const { changesRequest, orgName, project, authRequest } = args;
+    const { changesRequest, orgName, project, authRequest, apiBaseUrl } = args;
     const url = `${orgName}/projects/${project}/optimization/choose-web`;
     const key = `changes_${window.location.pathname}`;
 
@@ -179,6 +180,7 @@ export const ChoicesService = {
       url,
       body: changesRequest,
       auth_config: authRequest,
+      apiBaseUrl,
     });
 
     // `localStorageCache.get` is typed `unknown`, not `any`, so this cast is a
@@ -197,6 +199,7 @@ export const ChoicesService = {
     url,
     body,
     auth_config,
+    apiBaseUrl,
   }: SetChoicesData) {
     const responseMaxTime = 320;
     try {
@@ -206,7 +209,12 @@ export const ChoicesService = {
       // forever instead of surfacing to this `catch`. An async IIFE returns a
       // real promise that rejects like any other.
       const changesPromise = (async (): Promise<void> => {
-        const data = await this.fetchChoices(url, body, auth_config.auth);
+        const data = await this.fetchChoices(
+          url,
+          body,
+          auth_config.auth,
+          apiBaseUrl,
+        );
 
         const changes = this.choicesDataGuard(data);
         localStorageCache.set(key, { changes });
@@ -226,11 +234,12 @@ export const ChoicesService = {
     path: string,
     body: ChoicesRequestModel,
     auth: AuthConfig,
+    apiBaseUrl?: string,
   ) {
     try {
       const { username, password } = auth;
 
-      const requestURL = `${this._api}/${path}`;
+      const requestURL = `${apiBaseUrl ?? this._api}/${path}`;
 
       const encodedCredentials = btoa(`${username}:${password}`);
 

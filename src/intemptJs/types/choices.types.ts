@@ -23,6 +23,11 @@ type ElementLocationType = {
 export type ChoicesParams = IntemptConfig & {
   profileId: string;
   sessionId: string;
+  /**
+   * Resolved ingest base URL (`IntemptJs._api`: `apiHost` when valid, else the
+   * build-time default). Unset means the build-time default.
+   */
+  apiBaseUrl?: string;
 };
 
 export type FetchChoicesData = {
@@ -30,6 +35,7 @@ export type FetchChoicesData = {
   authRequest: AuthRequest;
   orgName: string;
   project: string;
+  apiBaseUrl?: string;
 };
 
 export type ChoiceTypes =
@@ -74,6 +80,7 @@ export type SetChoicesData = {
   url: string;
   auth_config: AuthRequest;
   body: ChoicesRequestModel;
+  apiBaseUrl?: string;
 };
 
 export type HtmlElementLocationStack = {
