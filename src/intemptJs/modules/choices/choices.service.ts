@@ -22,7 +22,7 @@ export const ChoicesService = {
     return EnvConfig.getApi();
   },
 
-  choicesDataGuard: function (data: { choices: unknown[] }): MergedChoices[] {
+  choicesDataGuard: function (data: { choices: unknown[] }): Choice[] {
     if (
       !data ||
       !data.choices ||
@@ -47,7 +47,7 @@ export const ChoicesService = {
       // whatever DID parse. Isolated per item rather than per field.
       try {
         if (item && Array.isArray(item.changes)) {
-          acc.push(...(item.changes as unknown as MergedChoices[]));
+          acc.push(...item.changes);
         } else {
           log.warn(
             'a choice item has no `changes` array — skipping that choice',
@@ -72,7 +72,7 @@ export const ChoicesService = {
       }
 
       return acc;
-    }, [] as MergedChoices[]);
+    }, [] as Choice[]);
   },
 
   getIntemptSessionVariables: function (
@@ -105,7 +105,7 @@ export const ChoicesService = {
     };
   },
 
-  getChoices: async function (config: ChoicesParams): Promise<MergedChoices[]> {
+  getChoices: async function (config: ChoicesParams): Promise<Choice[]> {
     /**
      * Get variables stored in SessionStorage
      * */
@@ -165,9 +165,7 @@ export const ChoicesService = {
     }
   },
 
-  getChoicesData: async function (
-    args: FetchChoicesData,
-  ): Promise<MergedChoices[]> {
+  getChoicesData: async function (args: FetchChoicesData): Promise<Choice[]> {
     const { changesRequest, orgName, project, authRequest } = args;
     const url = `${orgName}/projects/${project}/optimization/choose-web`;
     const key = `changes_${window.location.pathname}`;

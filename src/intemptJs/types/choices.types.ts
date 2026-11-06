@@ -82,7 +82,7 @@ export type HtmlElementLocationStack = {
   index: number;
 };
 
-export type StoredData = { changes: MergedChoices[] } | undefined | null;
+export type StoredData = { changes: Choice[] } | undefined | null;
 
 export type MergedChoices = {
   id: string;
