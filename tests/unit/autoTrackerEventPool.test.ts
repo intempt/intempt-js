@@ -14,7 +14,7 @@ import { IntemptConfig } from '../../src/intemptJs/types/intemptJs.types.ts';
  * already-degraded case was the code with no tests, which is the wrong way round.
  *
  * What these tests are really pinning is the **difference in guarantees**. Several
- * assertions below look like they are asserting a bug (a failed POST loses the batch;
+ * assertions below look like they are asserting a bug (a failed POST used to lose the batch, INT-3883;
  * every `push` schedules its own flush). They are asserting the documented fallback
  * contract, and each one says so. Read the source comments before "fixing" any of
  * them.
@@ -280,29 +280,69 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
   });
 
   /**
-   * **The defining property of this path, and the reason `AUDIT.md` calls it out.**
-   *
-   * The pool is cleared *before* the `await`, so a failed POST loses the batch
-   * permanently — there is no retry, no persistence, and nothing counts what was
-   * lost. The batcher has all three; this is what a customer gets instead when the
-   * storage tier would not open.
-   *
-   * Asserted rather than fixed: making the pool retry would mean re-implementing
-   * the batcher inside its own fallback. What matters is that the loss is written
-   * down and provable, not assumed.
+   * INT-3883: the pool used to be cleared *before* the `await`, so a failed POST lost
+   * the batch permanently. It is now put back on failure (bounded, so an outage
+   * cannot grow memory without limit) and goes out with the next flush. Persistence
+   * and jittered retries are still the batcher's job, not this fallback's.
    */
-  it('drops the batch on failure — no retry, no persistence (documented fallback contract)', async () => {
-    fetchMock.mockRejectedValue(new Error('offline'));
+  it('keeps the batch after a rejected fetch and re-sends it on the next flush', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
     const pool = new AutoTrackerEventPool(CONFIG, API);
     pool.push({ name: 'Page view' });
     await vi.advanceTimersByTimeAsync(1000);
 
-    expect(pool.size).toBe(0);
+    expect(pool.size).toBe(1);
 
-    // Nothing re-sends it, ever: a later flush has nothing to send.
     fetchMock.mockClear();
     await pool.flush();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(bodyOf(fetchMock).track).toEqual([{ name: 'Page view' }]);
+    expect(pool.size).toBe(0);
+  });
+
+  it('keeps the batch after a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 503 });
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'Page view' });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(pool.size).toBe(1);
+  });
+
+  it('puts the failed batch back in front of events pushed while it was in flight', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'A' });
+    const inFlight = pool.flush();
+    pool.push({ name: 'B' });
+    await inFlight;
+
+    fetchMock.mockClear();
+    await pool.flush();
+    expect(
+      bodyOf(fetchMock).track.map((e: { name: string }) => e.name),
+    ).toEqual(['A', 'B']);
+  });
+
+  it('bounds the retained batch during a long outage, dropping the oldest', async () => {
+    fetchMock.mockRejectedValue(new Error('offline'));
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    for (let i = 0; i < 1200; i++) pool.push({ name: `E${i}` });
+    await pool.flush();
+
+    expect(pool.size).toBe(1000);
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValue(okResponse());
+    await pool.flush();
+    const sent = bodyOf(fetchMock).track;
+    expect(sent[0].name).toBe('E200');
+    expect(sent[999].name).toBe('E1199');
+  });
+
+  it('empties the pool after a successful POST', async () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'Page view' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(pool.size).toBe(0);
   });
 });
 

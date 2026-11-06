@@ -5,6 +5,9 @@ import { buildTrackUrl } from './autoTracker.url.ts';
 
 const log = createLogger('AutoTracker');
 
+/** Cap on events held in memory across failed flushes (INT-3883). */
+const MAX_POOLED_EVENTS = 1000;
+
 /**
  * Shape common to every event model that reaches the pool. Only `name` is ever
  * read here — the rest travels opaquely through `JSON.stringify`, hence the index
@@ -27,7 +30,7 @@ export type PooledEvent = {
  * circuit breaker and a bounded queue. The pool is what runs when the batcher
  * failed to initialise at all — a storage tier that will not open, typically — and
  * it has none of those properties: events live only in memory, a failed POST is
- * logged and dropped, and nothing is retried.
+ * logged and the batch is kept (capped) for the next flush, with no backoff.
  *
  * Keeping it is still right, because "no batcher" would otherwise mean "no
  * tracking". Isolating it makes the difference in guarantees visible instead of
@@ -82,25 +85,32 @@ export class AutoTrackerEventPool {
     this._pool.length = 0;
   }
 
-  /** POST everything pooled, then empty the pool. Never throws. */
+  /**
+   * POST everything pooled. Never throws.
+   *
+   * The batch is taken out of the pool up front so a concurrent flush cannot send
+   * the same events twice, and put back (INT-3883) when the POST fails, so the next
+   * flush retries it. Bounded by `MAX_POOLED_EVENTS`: during a long outage the oldest
+   * events are dropped rather than growing memory without limit.
+   */
   async flush(): Promise<void> {
     if (this._pool.length === 0) return;
-    /**
-     * Make deep copy of the eventPool
-     * */
-    const data = JSON.parse(JSON.stringify(this._pool));
-
-    this.clear();
-
-    const { writeKey } = this._config;
-
-    const url = buildTrackUrl(this._api, this._config);
-
-    const [username, password] = writeKey.split('.');
-
-    const encodedCredentials = btoa(`${username}:${password}`);
+    const batch = this._pool.splice(0, this._pool.length);
 
     try {
+      /**
+       * Make deep copy of the eventPool
+       * */
+      const data = JSON.parse(JSON.stringify(batch));
+
+      const { writeKey } = this._config;
+
+      const url = buildTrackUrl(this._api, this._config);
+
+      const [username, password] = writeKey.split('.');
+
+      const encodedCredentials = btoa(`${username}:${password}`);
+
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -116,6 +126,10 @@ export class AutoTrackerEventPool {
       }
     } catch (error) {
       log.error('_sendTrackEventData failed', error);
+      this._pool.unshift(...batch);
+      if (this._pool.length > MAX_POOLED_EVENTS) {
+        this._pool.splice(0, this._pool.length - MAX_POOLED_EVENTS);
+      }
     }
   }
 }
