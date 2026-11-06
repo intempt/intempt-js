@@ -24,7 +24,7 @@ export class ChoicesModule {
   async init() {
     try {
       const changesPromise = this._service.getChoices(this._config);
-      document.addEventListener('DOMContentLoaded', async () => {
+      const onReady = async () => {
         try {
           const changes = await changesPromise;
 
@@ -32,9 +32,15 @@ export class ChoicesModule {
 
           await this._applyChanges(changes);
         } catch (error) {
-          throw new Error(`An error occurred: ${error}`);
+          log.error('failed to apply choices', error);
         }
-      });
+      };
+
+      // `init` runs from the idle-deferred SDK bootstrap, so on most pages
+      // DOMContentLoaded has already fired and a listener alone would never run.
+      if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', onReady, { once: true });
+      } else void onReady();
     } catch (error) {
       log.error('failed to apply choices', error);
     }
