@@ -266,18 +266,19 @@ export class AutoTrackerModule {
       this._onSessionEvent,
     );
     document.addEventListener(IntemptEventListenerName.PAGE, this._onPageEvent);
+    // Registered before `start()`: its first page view synchronously dispatches
+    // the Shopify product view, which a later listener would miss.
+    document.addEventListener(
+      IntemptEventListenerName.SHOPIFY,
+      this._onShopifyEvent,
+    );
+    document.addEventListener(IntemptEventListenerName.HTML, this._onHtmlEvent);
 
     try {
       this._pagesTrackerModule.start();
     } catch (e) {
       log.error('page tracker failed to start', e);
     }
-
-    document.addEventListener(
-      IntemptEventListenerName.SHOPIFY,
-      this._onShopifyEvent,
-    );
-    document.addEventListener(IntemptEventListenerName.HTML, this._onHtmlEvent);
   }
 
   /**

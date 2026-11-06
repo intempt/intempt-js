@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ShopifyTrackerModule } from '../../src/intemptJs/modules/autoTracker/modules/shopifyTracker/shopifyTracker.module.ts';
+import { AutoTrackerModule } from '../../src/intemptJs/modules/autoTracker/autoTracker.module.ts';
+import { IntemptEventListenerName } from '../../src/intemptJs/types/constants.types.ts';
 
 /**
  * `shopifyTracker.module.ts` — 2.6% line coverage on arrival, `AUDIT.md` §1c tier 2.
@@ -264,5 +266,126 @@ describe('the dispatched payload', () => {
     // there would still be seen, but the customer-facing contract is that a page
     // listener anywhere in the tree works.
     expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * SDK-38 (INT-6060) — the first page load's product view never left the SDK.
+ *
+ * `AutoTrackerModule`'s constructor starts the page tracker, which synchronously
+ * dispatches the first page view; `_onPageEvent` hands that to `track()`, which
+ * synchronously dispatches `intempt:shopify`. The `intempt:shopify` listener used
+ * to be added only after `start()`, so the product view of the page the visitor
+ * landed on was dispatched to nobody. Only later SPA page views were captured.
+ */
+describe('AutoTrackerModule — the landing page product view (SDK-38)', () => {
+  type Private = { _onTrackData: (event: unknown) => void };
+  let autoTracker: AutoTrackerModule | undefined;
+
+  /** Every product event the tracker hands to the pipeline while `run` executes. */
+  function captureProductEvents(run: () => void) {
+    const seen: any[] = [];
+    const listener = (event: Event) => {
+      const tracked = (event as CustomEvent).detail.event;
+      if (tracked?.type === 'product') seen.push(tracked);
+    };
+    document.addEventListener(IntemptEventListenerName.EVENT, listener);
+    try {
+      run();
+    } finally {
+      document.removeEventListener(IntemptEventListenerName.EVENT, listener);
+    }
+    return seen;
+  }
+
+  beforeEach(() => {
+    // Spied on the prototype: the first page view fires inside the constructor,
+    // before an instance exists to spy on.
+    vi.spyOn(AutoTrackerModule.prototype, 'isUserOptIn').mockReturnValue(true);
+    vi.spyOn(AutoTrackerModule.prototype, 'getProfileId').mockReturnValue(
+      'prof-1',
+    );
+    vi.spyOn(AutoTrackerModule.prototype, 'getSessionId').mockReturnValue(
+      'ses-1',
+    );
+    vi.spyOn(AutoTrackerModule.prototype, 'getPageId').mockReturnValue(
+      'page-1',
+    );
+    // Keep the event inside this test: no batcher, no queue, no fetch.
+    vi.spyOn(
+      AutoTrackerModule.prototype as unknown as Private,
+      '_onTrackData',
+    ).mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    autoTracker?.dispose();
+    autoTracker = undefined;
+    vi.restoreAllMocks();
+  });
+
+  it('tracks exactly one product view for the product page the visitor lands on', () => {
+    setMeta({ page: { pageType: 'product' }, product: { id: 2001 } });
+
+    const seen = captureProductEvents(() => {
+      autoTracker = new AutoTrackerModule(
+        { shopify: true } as any,
+        'https://api.example.com',
+      );
+    });
+
+    expect(
+      seen.map((e) => e.name),
+      'the landing page view produces one Product viewed',
+    ).toEqual(['Product viewed']);
+    expect(seen[0].payload[0].data.productId).toBe('2001');
+    expect(seen[0].payload[0]).toMatchObject({
+      profileId: 'prof-1',
+      sessionId: 'ses-1',
+      pageId: 'page-1',
+    });
+  });
+
+  it('tracks nothing on a landing page that is not a product page', () => {
+    setMeta({ page: { pageType: 'collection' }, product: { id: 2001 } });
+
+    const seen = captureProductEvents(() => {
+      autoTracker = new AutoTrackerModule(
+        { shopify: true } as any,
+        'https://api.example.com',
+      );
+    });
+
+    expect(seen).toEqual([]);
+  });
+
+  it('tracks nothing when the Shopify integration is off', () => {
+    setMeta({ page: { pageType: 'product' }, product: { id: 2001 } });
+
+    const seen = captureProductEvents(() => {
+      autoTracker = new AutoTrackerModule({} as any, 'https://api.example.com');
+    });
+
+    expect(seen).toEqual([]);
+  });
+
+  it('a re-created tracker tracks its own landing view once and the retired one stays silent', () => {
+    setMeta({ page: { pageType: 'product' }, product: { id: 2001 } });
+
+    const seen = captureProductEvents(() => {
+      autoTracker = new AutoTrackerModule(
+        { shopify: true } as any,
+        'https://api.example.com',
+      );
+      autoTracker = new AutoTrackerModule(
+        { shopify: true } as any,
+        'https://api.example.com',
+      );
+    });
+
+    expect(
+      seen.map((e) => e.name),
+      'each instance tracks its own landing view and the retired one stays silent',
+    ).toEqual(['Product viewed', 'Product viewed']);
   });
 });

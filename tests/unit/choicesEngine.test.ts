@@ -953,9 +953,10 @@ describe('choices engine', () => {
         ]);
 
         await expect(racedAgainstAHang).resolves.toBeUndefined();
-        // The catch recovered by writing an empty change list.
-        expect(setSpy).toHaveBeenCalledTimes(2);
-        expect(setSpy).toHaveBeenLastCalledWith('choices-key', { changes: [] });
+        // The catch recovers by logging. It used to also write an empty change
+        // list, which wiped the cached variant on any failure (SDK-21); the only
+        // write is now the one that threw.
+        expect(setSpy).toHaveBeenCalledTimes(1);
       });
     });
 
