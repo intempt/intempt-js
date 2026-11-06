@@ -17,9 +17,9 @@ jobs:
       matrix:
         node-version: [22.x]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
@@ -53,10 +53,10 @@ jobs:
         node-version: [22.x]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
@@ -76,14 +76,14 @@ jobs:
         run: node scripts/checkReservedWords.js
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@master
+        uses: aws-actions/configure-aws-credentials@ffc08eae7350b1061d7de219e2135c75561fb680 # master
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_DEPLOYER_ROLE }}
           role-session-name: ${{ env.AWS_S3_ROLE_NAME }}
 
       - name: Upload intempt.min.js to production bucket
-        uses: zdurham/s3-upload-github-action@master
+        uses: zdurham/s3-upload-github-action@161dfa6991b9d88a97f02f4aeb5dcd26ea7e03cd # master
         env:
           S3_BUCKET: ${{ env.AWS_S3_BUCKET_NAME }}${{env.VERSION_KEY}}
           AWS_REGION: ${{ env.AWS_REGION }}
@@ -112,10 +112,10 @@ jobs:
         node-version: [22.x]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
 
       - name: Use Node.js ${{ matrix.node-version }}
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: ${{ matrix.node-version }}
           cache: 'npm'
@@ -135,14 +135,14 @@ jobs:
         run: node scripts/checkReservedWords.js
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@master
+        uses: aws-actions/configure-aws-credentials@ffc08eae7350b1061d7de219e2135c75561fb680 # master
         with:
           aws-region: ${{ env.AWS_REGION }}
           role-to-assume: ${{ env.AWS_DEPLOYER_ROLE }}
           role-session-name: ${{ env.AWS_S3_ROLE_NAME }}
 
       - name: Upload intempt.min.js to production bucket
-        uses: zdurham/s3-upload-github-action@master
+        uses: zdurham/s3-upload-github-action@161dfa6991b9d88a97f02f4aeb5dcd26ea7e03cd # master
         env:
           S3_BUCKET: ${{ env.AWS_S3_BUCKET_NAME }}${{env.VERSION_KEY}}
           AWS_REGION: ${{ env.AWS_REGION }}

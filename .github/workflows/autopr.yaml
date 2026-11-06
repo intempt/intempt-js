@@ -10,12 +10,12 @@ jobs:
     runs-on: intempt-ubuntu-github-runner
     steps:
       - name: Checkout code
-        uses: actions/checkout@v2
+        uses: actions/checkout@0717577d45739eb3c851188b29f50ed6c0b2194e # v2
         with:
           fetch-depth: 0
 
       - name: Run the Action
-        uses: devops-infra/action-pull-request@v0.5.5
+        uses: devops-infra/action-pull-request@e66e2ba93519dc63b9884a26e620e2fd0cffab2c # v0.5.5
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           source_branch: staging
