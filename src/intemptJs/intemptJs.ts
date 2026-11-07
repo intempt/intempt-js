@@ -67,6 +67,7 @@ export class IntemptJs extends IntemptJsGuard {
       value: config.allowBots === true,
       writable: false,
       enumerable: true,
+      configurable: false,
     });
 
     // Logger first, before validation, on purpose: `isValidConfig` throws on a
