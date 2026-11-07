@@ -47,7 +47,7 @@ export class IntemptJs extends IntemptJsGuard {
    * or support checks why crawler traffic is being counted. Not a switch: the
    * guard decision was made in `main.ts` before this instance existed.
    */
-  readonly allowBots: boolean;
+  readonly allowBots!: boolean;
 
   /**
    * Ingest base URL. `config.apiHost` wins over the build-time default so a
@@ -63,7 +63,12 @@ export class IntemptJs extends IntemptJsGuard {
   constructor(config: IntemptConfig) {
     super();
     this._config = { ...config };
-    this.allowBots = config.allowBots === true;
+    Object.defineProperty(this, 'allowBots', {
+      value: config.allowBots === true,
+      writable: false,
+      enumerable: true,
+      configurable: false,
+    });
 
     // Logger first, before validation, on purpose: `isValidConfig` throws on a
     // bad config, and a customer debugging that throw wants the SDK's own
