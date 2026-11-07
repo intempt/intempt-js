@@ -110,6 +110,7 @@ export class IntemptJs extends IntemptJsGuard {
       ...config,
       profileId: this._autoTracker.getProfileId(),
       sessionId: this._autoTracker.getSessionId(),
+      apiBaseUrl: this._api,
     });
 
     void this._choices.init();

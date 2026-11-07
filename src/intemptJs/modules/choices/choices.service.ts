@@ -22,7 +22,7 @@ export const ChoicesService = {
     return EnvConfig.getApi();
   },
 
-  choicesDataGuard: function (data: { choices: unknown[] }): MergedChoices[] {
+  choicesDataGuard: function (data: { choices: unknown[] }): Choice[] {
     if (
       !data ||
       !data.choices ||
@@ -47,7 +47,7 @@ export const ChoicesService = {
       // whatever DID parse. Isolated per item rather than per field.
       try {
         if (item && Array.isArray(item.changes)) {
-          acc.push(...(item.changes as unknown as MergedChoices[]));
+          acc.push(...item.changes);
         } else {
           log.warn(
             'a choice item has no `changes` array — skipping that choice',
@@ -72,7 +72,7 @@ export const ChoicesService = {
       }
 
       return acc;
-    }, [] as MergedChoices[]);
+    }, [] as Choice[]);
   },
 
   getIntemptSessionVariables: function (
@@ -105,7 +105,7 @@ export const ChoicesService = {
     };
   },
 
-  getChoices: async function (config: ChoicesParams): Promise<MergedChoices[]> {
+  getChoices: async function (config: ChoicesParams): Promise<Choice[]> {
     /**
      * Get variables stored in SessionStorage
      * */
@@ -158,6 +158,7 @@ export const ChoicesService = {
         authRequest,
         orgName,
         project,
+        apiBaseUrl: config.apiBaseUrl,
       });
     } catch (error) {
       log.error('getChoices failed', error);
@@ -165,10 +166,8 @@ export const ChoicesService = {
     }
   },
 
-  getChoicesData: async function (
-    args: FetchChoicesData,
-  ): Promise<MergedChoices[]> {
-    const { changesRequest, orgName, project, authRequest } = args;
+  getChoicesData: async function (args: FetchChoicesData): Promise<Choice[]> {
+    const { changesRequest, orgName, project, authRequest, apiBaseUrl } = args;
     const url = `${orgName}/projects/${project}/optimization/choose-web`;
     const key = `changes_${window.location.pathname}`;
 
@@ -181,6 +180,7 @@ export const ChoicesService = {
       url,
       body: changesRequest,
       auth_config: authRequest,
+      apiBaseUrl,
     });
 
     // `localStorageCache.get` is typed `unknown`, not `any`, so this cast is a
@@ -199,6 +199,7 @@ export const ChoicesService = {
     url,
     body,
     auth_config,
+    apiBaseUrl,
   }: SetChoicesData) {
     const responseMaxTime = 320;
     try {
@@ -208,7 +209,12 @@ export const ChoicesService = {
       // forever instead of surfacing to this `catch`. An async IIFE returns a
       // real promise that rejects like any other.
       const changesPromise = (async (): Promise<void> => {
-        const data = await this.fetchChoices(url, body, auth_config.auth);
+        const data = await this.fetchChoices(
+          url,
+          body,
+          auth_config.auth,
+          apiBaseUrl,
+        );
 
         const changes = this.choicesDataGuard(data);
         localStorageCache.set(key, { changes });
@@ -228,11 +234,12 @@ export const ChoicesService = {
     path: string,
     body: ChoicesRequestModel,
     auth: AuthConfig,
+    apiBaseUrl?: string,
   ) {
     try {
       const { username, password } = auth;
 
-      const requestURL = `${this._api}/${path}`;
+      const requestURL = `${apiBaseUrl ?? this._api}/${path}`;
 
       const encodedCredentials = btoa(`${username}:${password}`);
 

@@ -13,7 +13,6 @@ const DEFAULTS = {
   VITE_API: '',
   VITE_CDN_LINK: '',
   VITE_ENV: 'production',
-  VITE_CHOICES_API: '',
   VITE_WEB_EDITOR_BASE_LINK: '',
   VITE_OPENER_LINKS: '',
   VITE_WEB_EDITOR_STORAGE_KEY: '',
@@ -51,7 +50,6 @@ describe('EnvConfig', () => {
     EnvConfig.initFromValues({
       VITE_API: 'https://api.example.com',
       VITE_CDN_LINK: 'https://cdn.example.com',
-      VITE_CHOICES_API: 'https://choices.example.com',
       VITE_WEB_EDITOR_BASE_LINK: 'https://editor.example.com',
       VITE_WEB_EDITOR_STORAGE_KEY: 'editor_key',
       VITE_ENV: 'staging',
@@ -60,7 +58,6 @@ describe('EnvConfig', () => {
 
     expect(EnvConfig.getApi()).toBe('https://api.example.com');
     expect(EnvConfig.getCdnLink()).toBe('https://cdn.example.com');
-    expect(EnvConfig.getChoicesApi()).toBe('https://choices.example.com');
     expect(EnvConfig.getWebEditorBaseLink()).toBe('https://editor.example.com');
     expect(EnvConfig.getWebEditorStorageKey()).toBe('editor_key');
     expect(EnvConfig.getEnv()).toBe('staging');
@@ -177,7 +174,6 @@ describe('EnvConfig', () => {
       vi.stubEnv('VITE_API', 'https://api.vite.example.com');
       vi.stubEnv('VITE_CDN_LINK', 'https://cdn.vite.example.com');
       vi.stubEnv('VITE_ENV', 'staging');
-      vi.stubEnv('VITE_CHOICES_API', 'https://choices.vite.example.com');
       vi.stubEnv(
         'VITE_WEB_EDITOR_BASE_LINK',
         'https://editor.vite.example.com',
@@ -193,7 +189,6 @@ describe('EnvConfig', () => {
         VITE_API: 'https://api.vite.example.com',
         VITE_CDN_LINK: 'https://cdn.vite.example.com',
         VITE_ENV: 'staging',
-        VITE_CHOICES_API: 'https://choices.vite.example.com',
         VITE_WEB_EDITOR_BASE_LINK: 'https://editor.vite.example.com',
         VITE_OPENER_LINKS: 'https://opener.vite.example.com',
         VITE_WEB_EDITOR_STORAGE_KEY: 'vite_editor_key',
