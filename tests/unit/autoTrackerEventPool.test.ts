@@ -9,8 +9,9 @@ import { IntemptConfig } from '../../src/intemptJs/types/intemptJs.types.ts';
  * The reason it is tier 1 despite being 23 lines: **this is the code that runs when
  * everything else has already failed.** The pool is the fallback delivery path, used
  * when `AutoTrackerTransport`'s batcher could not initialise — typically a storage
- * tier that will not open. It has none of the batcher's properties: no persistence,
- * no retry, no circuit breaker, no bound. So the code that runs in the
+ * tier that will not open. It lacks the batcher's properties: no persistence, no
+ * circuit breaker, no backoff; its only retry is a bounded in-memory re-queue
+ * (INT-3883). So the code that runs in the
  * already-degraded case was the code with no tests, which is the wrong way round.
  *
  * What these tests are really pinning is the **difference in guarantees**. One
@@ -422,6 +423,22 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     // Synchronous: no timer, no microtask has run. All chunks are already in flight.
     expect(fetchMock.mock.calls.length).toBeGreaterThan(2);
     expect(pool.size).toBe(0);
+  });
+
+  it('on a Leave Page flush only the chunks within the 64 KiB budget use keepalive', () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    fetchMock.mockClear();
+    pool.push({ name: 'Leave Page' });
+    const flags = fetchMock.mock.calls.map((c) => c[1].keepalive);
+    expect(flags.length).toBeGreaterThan(2);
+    expect(flags[0]).toBe(true);
+    expect(flags.filter(Boolean).length).toBeLessThan(flags.length); // overflow goes without it
+    const keepaliveBytes = fetchMock.mock.calls
+      .filter((c) => c[1].keepalive)
+      .reduce((n, c) => n + new TextEncoder().encode(c[1].body).length, 0);
+    expect(keepaliveBytes).toBeLessThanOrEqual(64 * 1024);
   });
 
   it('on a Leave Page flush re-queues only the chunks that failed transiently', async () => {

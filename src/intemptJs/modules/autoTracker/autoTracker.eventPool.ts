@@ -18,6 +18,9 @@ const MAX_POOLED_EVENTS = 1000;
  */
 const MAX_CHUNK_BYTES = 48 * 1024;
 
+/** Browsers reject keepalive bodies once a page has more than this in flight. */
+const KEEPALIVE_BUDGET_BYTES = 64 * 1024;
+
 /** A non-OK response from the track endpoint; `status` drives the retry decision. */
 class HttpStatusError extends Error {
   constructor(readonly status: number) {
@@ -62,10 +65,11 @@ export type PooledEvent = {
 };
 
 /**
- * The **legacy** delivery path: an in-memory pool, a debounce, and one unbatched
- * `fetch` per flush.
+ * The **legacy** delivery path: an in-memory pool, a debounce, and unbatched `fetch`
+ * calls (one per size-bounded chunk) per flush.
  *
- * Extracted from `autoTracker.module.ts` (the event-pool split), unchanged.
+ * Extracted from `autoTracker.module.ts` (the event-pool split); since then it keeps
+ * and chunks a failed batch (INT-3883) and tells permanent from transient failures.
  *
  * **This is the fallback, not the main path.** Everything normally goes through
  * `AutoTrackerTransport`'s batcher, which has persistence, jittered retries, a
@@ -142,8 +146,8 @@ export class AutoTrackerEventPool {
    * The batch goes out as chunks under the keepalive budget. A normal flush sends
    * them one after another and, on the first transient failure, puts the failed
    * chunk and every unsent one back, in order. An `unloading` flush (page leave)
-   * cannot await between chunks, so it issues every fetch up front and puts back
-   * whichever chunks failed transiently.
+   * cannot await between chunks, so it issues every fetch up front (keepalive only up to
+   * the 64 KiB budget) and puts back whichever chunks failed transiently.
    */
   async flush(unloading = false): Promise<void> {
     if (this._pool.length === 0) return;
@@ -151,9 +155,19 @@ export class AutoTrackerEventPool {
     const chunks = chunkBySize(batch, MAX_CHUNK_BYTES);
 
     if (unloading) {
-      // Every fetch is issued synchronously, before the first await.
+      // Every fetch is issued synchronously, before the first await. Only as many chunks as fit
+      // the keepalive budget get `keepalive`; the rest are sent without it, because the browser
+      // would reject them outright. A non-keepalive fetch may be cut off if the page really is
+      // unloading, but completes on a bfcache entry or a navigation that is called off, and a
+      // chunk that fails is put back below like any other.
+      let keepaliveBytes = 0;
       const results = await Promise.allSettled(
-        chunks.map((chunk) => this._post(chunk)),
+        chunks.map((chunk) => {
+          const bytes = utf8Length(JSON.stringify({ track: chunk }));
+          const keepalive = keepaliveBytes + bytes <= KEEPALIVE_BUDGET_BYTES;
+          if (keepalive) keepaliveBytes += bytes;
+          return this._post(chunk, keepalive);
+        }),
       );
       const retained: PooledEvent[] = [];
       results.forEach((result, i) => {
@@ -200,7 +214,7 @@ export class AutoTrackerEventPool {
   }
 
   /** One POST. Throws on a thrown fetch or a non-OK response. `fetch` is issued before the first await. */
-  private async _post(events: PooledEvent[]): Promise<void> {
+  private async _post(events: PooledEvent[], keepalive = true): Promise<void> {
     /**
      * Make deep copy of the eventPool
      * */
@@ -221,7 +235,7 @@ export class AutoTrackerEventPool {
         Authorization: `Basic ${encodedCredentials}`,
       },
       body: JSON.stringify({ track: data }),
-      keepalive: true,
+      keepalive,
     });
 
     if (!response.ok) {
