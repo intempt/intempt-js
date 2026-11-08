@@ -13,11 +13,12 @@ import { IntemptConfig } from '../../src/intemptJs/types/intemptJs.types.ts';
  * no retry, no circuit breaker, no bound. So the code that runs in the
  * already-degraded case was the code with no tests, which is the wrong way round.
  *
- * What these tests are really pinning is the **difference in guarantees**. Several
- * assertions below look like they are asserting a bug (a failed POST used to lose the batch, INT-3883;
- * every `push` schedules its own flush). They are asserting the documented fallback
- * contract, and each one says so. Read the source comments before "fixing" any of
- * them.
+ * What these tests are really pinning is the **difference in guarantees**. One
+ * assertion below looks like it asserts a bug (every `push` schedules its own
+ * flush). It asserts the documented fallback contract, and says so. A failed POST
+ * keeps the batch for the next flush (INT-3883, bounded, sent in chunks under the
+ * keepalive budget); that is asserted as the intended behaviour, not as a bug.
+ * Read the source comments before "fixing" any of them.
  */
 
 const API = 'https://api.example.com/v1';
@@ -336,6 +337,43 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     const sent = bodyOf(fetchMock).track;
     expect(sent[0].name).toBe('E200');
     expect(sent[999].name).toBe('E1199');
+  });
+
+  it('sends a large backlog as several chunks, each under the 64 KiB keepalive budget', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    await pool.flush(); // fails: the whole backlog (~200 KB) is retained
+    expect(pool.size).toBe(100);
+
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValue(okResponse());
+    await pool.flush();
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+    const names: string[] = [];
+    for (const call of fetchMock.mock.calls) {
+      expect(new TextEncoder().encode(call[1].body).length).toBeLessThan(64 * 1024);
+      for (const e of JSON.parse(call[1].body).track) names.push(e.name);
+    }
+    expect(names).toEqual(Array.from({ length: 100 }, (_, i) => `E${i}`));
+    expect(pool.size).toBe(0);
+  });
+
+  it('re-queues the failed chunk and the unsent ones, but not chunks already delivered', async () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    fetchMock.mockClear();
+    fetchMock
+      .mockResolvedValueOnce(okResponse())
+      .mockResolvedValueOnce({ ok: false, status: 503 });
+    await pool.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2); // stopped at the first failure
+    const delivered = JSON.parse(fetchMock.mock.calls[0][1].body).track.length;
+    expect(pool.size).toBe(100 - delivered);
   });
 
   it('empties the pool after a successful POST', async () => {

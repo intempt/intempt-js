@@ -9,6 +9,41 @@ const log = createLogger('AutoTracker');
 const MAX_POOLED_EVENTS = 1000;
 
 /**
+ * Max serialized size of one POST body. Browsers reject a `keepalive` request that
+ * would take the page's in-flight keepalive bodies over 64 KiB (see
+ * `KEEPALIVE_BUDGET_BYTES` in `autoTracker.transport.ts`). A retained backlog can be
+ * far larger than that, so it is sent as sequential chunks under the budget, with
+ * headroom for the `{"track":[...]}` envelope. A single event larger than this still
+ * goes alone: it cannot be split.
+ */
+const MAX_CHUNK_BYTES = 48 * 1024;
+
+function utf8Length(text: string): number {
+  return typeof TextEncoder === 'function'
+    ? new TextEncoder().encode(text).length
+    : text.length * 3; // Worst case, so the budget is never overrun.
+}
+
+/** Split events into consecutive chunks whose serialized size stays under `maxBytes`. */
+function chunkBySize(events: PooledEvent[], maxBytes: number): PooledEvent[][] {
+  const chunks: PooledEvent[][] = [];
+  let current: PooledEvent[] = [];
+  let currentBytes = 0;
+  for (const event of events) {
+    const bytes = utf8Length(JSON.stringify(event)) + 1; // +1 for the separating comma
+    if (current.length > 0 && currentBytes + bytes > maxBytes) {
+      chunks.push(current);
+      current = [];
+      currentBytes = 0;
+    }
+    current.push(event);
+    currentBytes += bytes;
+  }
+  if (current.length > 0) chunks.push(current);
+  return chunks;
+}
+
+/**
  * Shape common to every event model that reaches the pool. Only `name` is ever
  * read here — the rest travels opaquely through `JSON.stringify`, hence the index
  * signature.
@@ -89,47 +124,61 @@ export class AutoTrackerEventPool {
    * POST everything pooled. Never throws.
    *
    * The batch is taken out of the pool up front so a concurrent flush cannot send
-   * the same events twice, and put back (INT-3883) when the POST fails, so the next
+   * the same events twice, and put back (INT-3883) when a POST fails, so the next
    * flush retries it. Bounded by `MAX_POOLED_EVENTS`: during a long outage the oldest
    * events are dropped rather than growing memory without limit.
+   *
+   * The batch goes out as sequential chunks under the keepalive budget, so a backlog
+   * built up during an outage still drains instead of being rejected whole on every
+   * flush. On the first failure the failed chunk and every chunk not yet sent are put
+   * back, in order; chunks already delivered are not re-sent.
    */
   async flush(): Promise<void> {
     if (this._pool.length === 0) return;
     const batch = this._pool.splice(0, this._pool.length);
+    const chunks = chunkBySize(batch, MAX_CHUNK_BYTES);
 
-    try {
-      /**
-       * Make deep copy of the eventPool
-       * */
-      const data = JSON.parse(JSON.stringify(batch));
-
-      const { writeKey } = this._config;
-
-      const url = buildTrackUrl(this._api, this._config);
-
-      const [username, password] = writeKey.split('.');
-
-      const encodedCredentials = btoa(`${username}:${password}`);
-
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${encodedCredentials}`,
-        },
-        body: JSON.stringify({ track: data }),
-        keepalive: true,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+    for (let i = 0; i < chunks.length; i++) {
+      try {
+        await this._post(chunks[i]);
+      } catch (error) {
+        log.error('_sendTrackEventData failed', error);
+        this._pool.unshift(...chunks.slice(i).flat());
+        if (this._pool.length > MAX_POOLED_EVENTS) {
+          this._pool.splice(0, this._pool.length - MAX_POOLED_EVENTS);
+        }
+        return;
       }
-    } catch (error) {
-      log.error('_sendTrackEventData failed', error);
-      this._pool.unshift(...batch);
-      if (this._pool.length > MAX_POOLED_EVENTS) {
-        this._pool.splice(0, this._pool.length - MAX_POOLED_EVENTS);
-      }
+    }
+  }
+
+  /** One POST. Throws on a thrown fetch or a non-OK response. `fetch` is issued before the first await. */
+  private async _post(events: PooledEvent[]): Promise<void> {
+    /**
+     * Make deep copy of the eventPool
+     * */
+    const data = JSON.parse(JSON.stringify(events));
+
+    const { writeKey } = this._config;
+
+    const url = buildTrackUrl(this._api, this._config);
+
+    const [username, password] = writeKey.split('.');
+
+    const encodedCredentials = btoa(`${username}:${password}`);
+
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Basic ${encodedCredentials}`,
+      },
+      body: JSON.stringify({ track: data }),
+      keepalive: true,
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
     }
   }
 }

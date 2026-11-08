@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 import { SessionTrackerModule } from '../../src/intemptJs/modules/autoTracker/modules/sessionTracker/sessionTracker.module.ts';
 
 /**
@@ -16,6 +16,12 @@ describe('session activity listener (INT-3768)', () => {
     ['non-string eventName', { detail: { eventName: 42 } }],
   ];
 
+  // The module registers anonymous document listeners and has no teardown, so
+  // build it once: one per `it.each` case would stack listeners across cases.
+  beforeAll(() => {
+    new SessionTrackerModule();
+  });
+
   it.each(cases)('does not throw for an event with %s', (_label, init) => {
     const errors: unknown[] = [];
     const onError = (e: ErrorEvent) => {
@@ -24,7 +30,6 @@ describe('session activity listener (INT-3768)', () => {
     };
     window.addEventListener('error', onError);
     try {
-      new SessionTrackerModule();
       document.dispatchEvent(new CustomEvent('intempt:track', init));
     } finally {
       window.removeEventListener('error', onError);
