@@ -354,7 +354,9 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
     const names: string[] = [];
     for (const call of fetchMock.mock.calls) {
-      expect(new TextEncoder().encode(call[1].body).length).toBeLessThan(64 * 1024);
+      expect(new TextEncoder().encode(call[1].body).length).toBeLessThan(
+        64 * 1024,
+      );
       for (const e of JSON.parse(call[1].body).track) names.push(e.name);
     }
     expect(names).toEqual(Array.from({ length: 100 }, (_, i) => `E${i}`));
