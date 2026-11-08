@@ -378,6 +378,65 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     expect(pool.size).toBe(100 - delivered);
   });
 
+  it.each([400, 401, 403, 413])(
+    'drops the batch on a permanent %i instead of retrying it forever',
+    async (status) => {
+      const pool = new AutoTrackerEventPool(CONFIG, API);
+      pool.push({ name: 'A' });
+      fetchMock.mockClear();
+      fetchMock.mockResolvedValueOnce({ ok: false, status });
+      await pool.flush();
+      expect(pool.size).toBe(0);
+    },
+  );
+
+  it.each([408, 429, 500, 503])(
+    'keeps the batch on a transient %i',
+    async (status) => {
+      const pool = new AutoTrackerEventPool(CONFIG, API);
+      pool.push({ name: 'A' });
+      fetchMock.mockClear();
+      fetchMock.mockResolvedValueOnce({ ok: false, status });
+      await pool.flush();
+      expect(pool.size).toBe(1);
+    },
+  );
+
+  it('continues past a permanently rejected chunk and still sends the rest', async () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400 });
+    await pool.flush();
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(2); // later chunks were still attempted
+    expect(pool.size).toBe(0);
+  });
+
+  it('issues every chunk fetch inside the call on a Leave Page flush (INT-5942)', () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    fetchMock.mockClear();
+    pool.push({ name: 'Leave Page' });
+    // Synchronous: no timer, no microtask has run. All chunks are already in flight.
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(2);
+    expect(pool.size).toBe(0);
+  });
+
+  it('on a Leave Page flush re-queues only the chunks that failed transiently', async () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    fetchMock.mockClear();
+    fetchMock.mockImplementation(() => Promise.resolve(okResponse()));
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 503 });
+    pool.push({ name: 'Leave Page' });
+    await vi.advanceTimersByTimeAsync(0);
+    const first = JSON.parse(fetchMock.mock.calls[0][1].body).track.length;
+    expect(pool.size).toBe(first);
+  });
+
   it('empties the pool after a successful POST', async () => {
     const pool = new AutoTrackerEventPool(CONFIG, API);
     pool.push({ name: 'Page view' });

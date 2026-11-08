@@ -18,6 +18,13 @@ const MAX_POOLED_EVENTS = 1000;
  */
 const MAX_CHUNK_BYTES = 48 * 1024;
 
+/** A non-OK response from the track endpoint; `status` drives the retry decision. */
+class HttpStatusError extends Error {
+  constructor(readonly status: number) {
+    super(`HTTP error! Status: ${status}`);
+  }
+}
+
 function utf8Length(text: string): number {
   return typeof TextEncoder === 'function'
     ? new TextEncoder().encode(text).length
@@ -108,7 +115,7 @@ export class AutoTrackerEventPool {
     // inside an unload handler, and a page on its way out may never get to the
     // next task (INT-5942). `flush()` issues its fetch before its first await.
     if (name === 'leave page') {
-      void this.flush();
+      void this.flush(true);
       return;
     }
     const debouncedSendEvents = debounce(() => this.flush(), 1000);
@@ -124,31 +131,71 @@ export class AutoTrackerEventPool {
    * POST everything pooled. Never throws.
    *
    * The batch is taken out of the pool up front so a concurrent flush cannot send
-   * the same events twice, and put back (INT-3883) when a POST fails, so the next
-   * flush retries it. Bounded by `MAX_POOLED_EVENTS`: during a long outage the oldest
-   * events are dropped rather than growing memory without limit.
+   * the same events twice, and put back (INT-3883) when a POST fails transiently, so
+   * the next flush retries it. Bounded by `MAX_POOLED_EVENTS`: during a long outage
+   * the oldest events are dropped rather than growing memory without limit.
    *
-   * The batch goes out as sequential chunks under the keepalive budget, so a backlog
-   * built up during an outage still drains instead of being rejected whole on every
-   * flush. On the first failure the failed chunk and every chunk not yet sent are put
-   * back, in order; chunks already delivered are not re-sent.
+   * Only transient failures are kept (network error, 408, 429, 5xx). A permanent
+   * 4xx (400 malformed, 401/403 auth, 413 too large) would fail identically on every
+   * retry and push good events out at the cap, so that chunk is dropped and logged.
+   *
+   * The batch goes out as chunks under the keepalive budget. A normal flush sends
+   * them one after another and, on the first transient failure, puts the failed
+   * chunk and every unsent one back, in order. An `unloading` flush (page leave)
+   * cannot await between chunks, so it issues every fetch up front and puts back
+   * whichever chunks failed transiently.
    */
-  async flush(): Promise<void> {
+  async flush(unloading = false): Promise<void> {
     if (this._pool.length === 0) return;
     const batch = this._pool.splice(0, this._pool.length);
     const chunks = chunkBySize(batch, MAX_CHUNK_BYTES);
+
+    if (unloading) {
+      // Every fetch is issued synchronously, before the first await.
+      const results = await Promise.allSettled(
+        chunks.map((chunk) => this._post(chunk)),
+      );
+      const retained: PooledEvent[] = [];
+      results.forEach((result, i) => {
+        if (result.status === 'rejected' && this._keep(result.reason))
+          retained.push(...chunks[i]);
+      });
+      this._requeue(retained);
+      return;
+    }
 
     for (let i = 0; i < chunks.length; i++) {
       try {
         await this._post(chunks[i]);
       } catch (error) {
-        log.error('_sendTrackEventData failed', error);
-        this._pool.unshift(...chunks.slice(i).flat());
-        if (this._pool.length > MAX_POOLED_EVENTS) {
-          this._pool.splice(0, this._pool.length - MAX_POOLED_EVENTS);
+        if (this._keep(error)) {
+          this._requeue(chunks.slice(i).flat());
+          return;
         }
-        return;
+        // Permanent rejection: drop this chunk, carry on with the rest.
       }
+    }
+  }
+
+  /** True when a failed POST is worth retrying; logs either way. */
+  private _keep(error: unknown): boolean {
+    const status = error instanceof HttpStatusError ? error.status : undefined;
+    const transient =
+      status === undefined || status === 408 || status === 429 || status >= 500;
+    log.error(
+      transient
+        ? '_sendTrackEventData failed, will retry'
+        : '_sendTrackEventData rejected permanently, dropping events',
+      error,
+    );
+    return transient;
+  }
+
+  /** Put events back at the front of the pool, trimmed to the cap (oldest dropped). */
+  private _requeue(events: PooledEvent[]): void {
+    this._pool.unshift(...events);
+    if (this._pool.length > MAX_POOLED_EVENTS) {
+      this._pool.splice(0, this._pool.length - MAX_POOLED_EVENTS);
     }
   }
 
@@ -178,7 +225,7 @@ export class AutoTrackerEventPool {
     });
 
     if (!response.ok) {
-      throw new Error(`HTTP error! Status: ${response.status}`);
+      throw new HttpStatusError(response.status);
     }
   }
 }
