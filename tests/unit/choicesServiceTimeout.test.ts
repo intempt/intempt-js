@@ -85,3 +85,119 @@ describe('ChoicesService.setChangesData — the 320ms race (INT-3827)', () => {
     });
   });
 });
+
+/**
+ * SDK-21 (INT-6060) — a failed `choose-web` wiped the cached variant.
+ *
+ * `fetchChoices` turned every failure (non-2xx, network error) into `[]`, and the
+ * fetch branch then cached that as "no changes", so one failed call removed the
+ * experience until the next successful one. When the failure beat the 320 ms
+ * budget the visitor lost the variant on this very load; a slower failure wiped
+ * it for the next one. A failure now leaves the cache alone. An answered request
+ * still replaces it, including an empty answer, which is how a turned-off
+ * experience clears.
+ */
+describe('ChoicesService.getChoicesData — the cached variant survives a failed call (SDK-21)', () => {
+  const pathKey = `changes_${window.location.pathname}`;
+  const cached = [{ type: 'remove', iweId: 'cached-1' }];
+  const args = {
+    changesRequest: {} as any,
+    authRequest: { auth: { username: 'u', password: 'p' } } as any,
+    orgName: 'acme',
+    project: 'proj-1',
+  };
+
+  const respond = (status: number, body: unknown) =>
+    vi.fn(async () => new Response(JSON.stringify(body), { status }));
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    localStorage.clear();
+  });
+
+  it.each([400, 404, 500, 503])(
+    'a %i keeps the cached change and still serves it',
+    async (status) => {
+      localStorageCache.set(pathKey, { changes: cached });
+      vi.stubGlobal('fetch', respond(status, { message: 'nope' }));
+
+      const served = await ChoicesService.getChoicesData(args);
+
+      expect(served, 'the visitor still gets the cached variant').toEqual(
+        cached,
+      );
+      expect(localStorageCache.get(pathKey)).toEqual({ changes: cached });
+    },
+  );
+
+  it('a network error keeps the cached change', async () => {
+    localStorageCache.set(pathKey, { changes: cached });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new TypeError('Failed to fetch');
+      }),
+    );
+
+    expect(await ChoicesService.getChoicesData(args)).toEqual(cached);
+    expect(localStorageCache.get(pathKey)).toEqual({ changes: cached });
+  });
+
+  it('a 200 whose body is not JSON keeps the cached change', async () => {
+    localStorageCache.set(pathKey, { changes: cached });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('<html>gateway</html>', { status: 200 })),
+    );
+
+    expect(await ChoicesService.getChoicesData(args)).toEqual(cached);
+    expect(localStorageCache.get(pathKey)).toEqual({ changes: cached });
+  });
+
+  it('a failure after the 320 ms budget does not wipe the cache for the next load', async () => {
+    vi.useFakeTimers();
+    localStorageCache.set(pathKey, { changes: cached });
+    let fail!: () => void;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        () =>
+          new Promise<Response>((resolve) => {
+            fail = () => resolve(new Response('{}', { status: 502 }));
+          }),
+      ),
+    );
+
+    const pending = ChoicesService.getChoicesData(args);
+    await vi.advanceTimersByTimeAsync(320);
+    expect(await pending, 'this load reads the cache').toEqual(cached);
+
+    fail();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(
+      localStorageCache.get(pathKey),
+      'the late failure leaves the variant for the next load',
+    ).toEqual({ changes: cached });
+  });
+
+  it('a failed call followed by a successful one replaces the cache with the new answer', async () => {
+    localStorageCache.set(pathKey, { changes: cached });
+    vi.stubGlobal('fetch', respond(500, {}));
+    expect(await ChoicesService.getChoicesData(args)).toEqual(cached);
+
+    const fresh = { type: 'remove', iweId: 'fresh-1' };
+    vi.stubGlobal('fetch', respond(200, { choices: [{ changes: [fresh] }] }));
+
+    expect(await ChoicesService.getChoicesData(args)).toEqual([fresh]);
+    expect(localStorageCache.get(pathKey)).toEqual({ changes: [fresh] });
+  });
+
+  it('a 200 with no choices clears the cache — a turned-off experience stops applying', async () => {
+    localStorageCache.set(pathKey, { changes: cached });
+    vi.stubGlobal('fetch', respond(200, { choices: [] }));
+
+    expect(await ChoicesService.getChoicesData(args)).toEqual([]);
+    expect(localStorageCache.get(pathKey)).toEqual({ changes: [] });
+  });
+});
