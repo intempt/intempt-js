@@ -23,7 +23,6 @@ export interface EnvConfig {
   readonly VITE_API: string;
   readonly VITE_CDN_LINK: string;
   readonly VITE_ENV: string;
-  readonly VITE_CHOICES_API: string;
   readonly VITE_WEB_EDITOR_BASE_LINK: string;
   /** JSON array or comma-separated list of opener URLs */
   readonly VITE_OPENER_LINKS: string;
@@ -37,7 +36,6 @@ class EnvConfigManager {
     VITE_API: '',
     VITE_CDN_LINK: '',
     VITE_ENV: 'production',
-    VITE_CHOICES_API: '',
     VITE_WEB_EDITOR_BASE_LINK: '',
     VITE_OPENER_LINKS: '',
     VITE_WEB_EDITOR_STORAGE_KEY: '',
@@ -76,8 +74,6 @@ class EnvConfigManager {
       VITE_API: viteEnv.VITE_API || this.DEFAULT_CONFIG.VITE_API,
       VITE_CDN_LINK: viteEnv.VITE_CDN_LINK || this.DEFAULT_CONFIG.VITE_CDN_LINK,
       VITE_ENV: viteEnv.VITE_ENV || this.DEFAULT_CONFIG.VITE_ENV,
-      VITE_CHOICES_API:
-        viteEnv.VITE_CHOICES_API || this.DEFAULT_CONFIG.VITE_CHOICES_API,
       VITE_WEB_EDITOR_BASE_LINK:
         viteEnv.VITE_WEB_EDITOR_BASE_LINK ||
         this.DEFAULT_CONFIG.VITE_WEB_EDITOR_BASE_LINK,
@@ -139,10 +135,6 @@ class EnvConfigManager {
 
   static getEnv(): string {
     return this.get().VITE_ENV;
-  }
-
-  static getChoicesApi(): string {
-    return this.get().VITE_CHOICES_API;
   }
 
   static getWebEditorBaseLink(): string {

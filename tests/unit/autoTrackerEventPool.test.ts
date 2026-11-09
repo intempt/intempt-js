@@ -9,15 +9,17 @@ import { IntemptConfig } from '../../src/intemptJs/types/intemptJs.types.ts';
  * The reason it is tier 1 despite being 23 lines: **this is the code that runs when
  * everything else has already failed.** The pool is the fallback delivery path, used
  * when `AutoTrackerTransport`'s batcher could not initialise — typically a storage
- * tier that will not open. It has none of the batcher's properties: no persistence,
- * no retry, no circuit breaker, no bound. So the code that runs in the
+ * tier that will not open. It lacks the batcher's properties: no persistence, no
+ * circuit breaker, no backoff; its only retry is a bounded in-memory re-queue
+ * (INT-3883). So the code that runs in the
  * already-degraded case was the code with no tests, which is the wrong way round.
  *
- * What these tests are really pinning is the **difference in guarantees**. Several
- * assertions below look like they are asserting a bug (a failed POST loses the batch;
- * every `push` schedules its own flush). They are asserting the documented fallback
- * contract, and each one says so. Read the source comments before "fixing" any of
- * them.
+ * What these tests are really pinning is the **difference in guarantees**. One
+ * assertion below looks like it asserts a bug (every `push` schedules its own
+ * flush). It asserts the documented fallback contract, and says so. A failed POST
+ * keeps the batch for the next flush (INT-3883, bounded, sent in chunks under the
+ * keepalive budget); that is asserted as the intended behaviour, not as a bug.
+ * Read the source comments before "fixing" any of them.
  */
 
 const API = 'https://api.example.com/v1';
@@ -280,29 +282,183 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
   });
 
   /**
-   * **The defining property of this path, and the reason `AUDIT.md` calls it out.**
-   *
-   * The pool is cleared *before* the `await`, so a failed POST loses the batch
-   * permanently — there is no retry, no persistence, and nothing counts what was
-   * lost. The batcher has all three; this is what a customer gets instead when the
-   * storage tier would not open.
-   *
-   * Asserted rather than fixed: making the pool retry would mean re-implementing
-   * the batcher inside its own fallback. What matters is that the loss is written
-   * down and provable, not assumed.
+   * INT-3883: the pool used to be cleared *before* the `await`, so a failed POST lost
+   * the batch permanently. It is now put back on failure (bounded, so an outage
+   * cannot grow memory without limit) and goes out with the next flush. Persistence
+   * and jittered retries are still the batcher's job, not this fallback's.
    */
-  it('drops the batch on failure — no retry, no persistence (documented fallback contract)', async () => {
-    fetchMock.mockRejectedValue(new Error('offline'));
+  it('keeps the batch after a rejected fetch and re-sends it on the next flush', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
     const pool = new AutoTrackerEventPool(CONFIG, API);
     pool.push({ name: 'Page view' });
     await vi.advanceTimersByTimeAsync(1000);
 
-    expect(pool.size).toBe(0);
+    expect(pool.size).toBe(1);
 
-    // Nothing re-sends it, ever: a later flush has nothing to send.
     fetchMock.mockClear();
     await pool.flush();
-    expect(fetchMock).not.toHaveBeenCalled();
+    expect(bodyOf(fetchMock).track).toEqual([{ name: 'Page view' }]);
+    expect(pool.size).toBe(0);
+  });
+
+  it('keeps the batch after a non-2xx response', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 503 });
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'Page view' });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(pool.size).toBe(1);
+  });
+
+  it('puts the failed batch back in front of events pushed while it was in flight', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'A' });
+    const inFlight = pool.flush();
+    pool.push({ name: 'B' });
+    await inFlight;
+
+    fetchMock.mockClear();
+    await pool.flush();
+    expect(
+      bodyOf(fetchMock).track.map((e: { name: string }) => e.name),
+    ).toEqual(['A', 'B']);
+  });
+
+  it('bounds the retained batch during a long outage, dropping the oldest', async () => {
+    fetchMock.mockRejectedValue(new Error('offline'));
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    for (let i = 0; i < 1200; i++) pool.push({ name: `E${i}` });
+    await pool.flush();
+
+    expect(pool.size).toBe(1000);
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValue(okResponse());
+    await pool.flush();
+    const sent = bodyOf(fetchMock).track;
+    expect(sent[0].name).toBe('E200');
+    expect(sent[999].name).toBe('E1199');
+  });
+
+  it('sends a large backlog as several chunks, each under the 64 KiB keepalive budget', async () => {
+    fetchMock.mockRejectedValueOnce(new Error('offline'));
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    await pool.flush(); // fails: the whole backlog (~200 KB) is retained
+    expect(pool.size).toBe(100);
+
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValue(okResponse());
+    await pool.flush();
+
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
+    const names: string[] = [];
+    for (const call of fetchMock.mock.calls) {
+      expect(new TextEncoder().encode(call[1].body).length).toBeLessThan(
+        64 * 1024,
+      );
+      for (const e of JSON.parse(call[1].body).track) names.push(e.name);
+    }
+    expect(names).toEqual(Array.from({ length: 100 }, (_, i) => `E${i}`));
+    expect(pool.size).toBe(0);
+  });
+
+  it('re-queues the failed chunk and the unsent ones, but not chunks already delivered', async () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    fetchMock.mockClear();
+    fetchMock
+      .mockResolvedValueOnce(okResponse())
+      .mockResolvedValueOnce({ ok: false, status: 503 });
+    await pool.flush();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2); // stopped at the first failure
+    const delivered = JSON.parse(fetchMock.mock.calls[0][1].body).track.length;
+    expect(pool.size).toBe(100 - delivered);
+  });
+
+  it.each([400, 401, 403, 413])(
+    'drops the batch on a permanent %i instead of retrying it forever',
+    async (status) => {
+      const pool = new AutoTrackerEventPool(CONFIG, API);
+      pool.push({ name: 'A' });
+      fetchMock.mockClear();
+      fetchMock.mockResolvedValueOnce({ ok: false, status });
+      await pool.flush();
+      expect(pool.size).toBe(0);
+    },
+  );
+
+  it.each([408, 429, 500, 503])(
+    'keeps the batch on a transient %i',
+    async (status) => {
+      const pool = new AutoTrackerEventPool(CONFIG, API);
+      pool.push({ name: 'A' });
+      fetchMock.mockClear();
+      fetchMock.mockResolvedValueOnce({ ok: false, status });
+      await pool.flush();
+      expect(pool.size).toBe(1);
+    },
+  );
+
+  it('continues past a permanently rejected chunk and still sends the rest', async () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    fetchMock.mockClear();
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400 });
+    await pool.flush();
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(2); // later chunks were still attempted
+    expect(pool.size).toBe(0);
+  });
+
+  it('issues every chunk fetch inside the call on a Leave Page flush (INT-5942)', () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    fetchMock.mockClear();
+    pool.push({ name: 'Leave Page' });
+    // Synchronous: no timer, no microtask has run. All chunks are already in flight.
+    expect(fetchMock.mock.calls.length).toBeGreaterThan(2);
+    expect(pool.size).toBe(0);
+  });
+
+  it('on a Leave Page flush only the chunks within the 64 KiB budget use keepalive', () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    fetchMock.mockClear();
+    pool.push({ name: 'Leave Page' });
+    const flags = fetchMock.mock.calls.map((c) => c[1].keepalive);
+    expect(flags.length).toBeGreaterThan(2);
+    expect(flags[0]).toBe(true);
+    expect(flags.filter(Boolean).length).toBeLessThan(flags.length); // overflow goes without it
+    const keepaliveBytes = fetchMock.mock.calls
+      .filter((c) => c[1].keepalive)
+      .reduce((n, c) => n + new TextEncoder().encode(c[1].body).length, 0);
+    expect(keepaliveBytes).toBeLessThanOrEqual(64 * 1024);
+  });
+
+  it('on a Leave Page flush re-queues only the chunks that failed transiently', async () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    const pad = 'x'.repeat(2000);
+    for (let i = 0; i < 100; i++) pool.push({ name: `E${i}`, pad });
+    fetchMock.mockClear();
+    fetchMock.mockImplementation(() => Promise.resolve(okResponse()));
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 503 });
+    pool.push({ name: 'Leave Page' });
+    await vi.advanceTimersByTimeAsync(0);
+    const first = JSON.parse(fetchMock.mock.calls[0][1].body).track.length;
+    expect(pool.size).toBe(first);
+  });
+
+  it('empties the pool after a successful POST', async () => {
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'Page view' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(pool.size).toBe(0);
   });
 });
 
