@@ -862,6 +862,126 @@ describe('choices engine', () => {
   });
 
   // ────────────────────────────────────────────────────────────────────────────
+  describe('ChoicesModule.init — waits for the DOM only while it is still loading (INT-5932)', () => {
+    // `init` runs from the idle-deferred bootstrap (`runWhenIdle` in sdkLoader), so on a
+    // normal page DOMContentLoaded has already fired by then. A bare listener never ran
+    // and no experience was ever applied; `webEditorLoader.init` checks readyState first.
+    const config = {
+      organization: 'acme',
+      sourceId: 'src-1',
+      project: 'proj-1',
+      writeKey: 'u.p',
+      profileId: 'p1',
+      sessionId: 's1',
+    };
+    const removeTarget = {
+      type: 'remove',
+      iweId: 'targetId',
+      xPathSelector: '//span',
+      xPathIndex: 0,
+    };
+
+    const stubReadyState = (state: DocumentReadyState) =>
+      Object.defineProperty(document, 'readyState', {
+        configurable: true,
+        get: () => state,
+      });
+
+    /** Lets the awaited choices promise and the async apply settle. */
+    const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+    let getChoices: ReturnType<typeof vi.spyOn>;
+
+    beforeEach(() => {
+      setBody('<span id="t">t</span>');
+      getChoices = vi
+        .spyOn(ChoicesService, 'getChoices')
+        .mockResolvedValue([removeTarget] as any);
+    });
+
+    afterEach(() => {
+      delete (document as any).readyState;
+      getChoices.mockRestore();
+    });
+
+    it('applies the changes straight away when the document has already loaded', async () => {
+      stubReadyState('complete');
+      expect(document.getElementById('t')).not.toBeNull();
+
+      await new ChoicesModule(config as any).init();
+      await flush();
+
+      expect(
+        document.getElementById('t'),
+        'the change applies without any DOMContentLoaded event being dispatched',
+      ).toBeNull();
+    });
+
+    it('applies on an interactive document too, since DOMContentLoaded has fired by then', async () => {
+      stubReadyState('interactive');
+
+      await new ChoicesModule(config as any).init();
+      await flush();
+
+      expect(document.getElementById('t')).toBeNull();
+    });
+
+    it('waits for DOMContentLoaded while the document is loading, then applies once', async () => {
+      stubReadyState('loading');
+      const applySpy = vi.spyOn(
+        ChoicesModule.prototype as any,
+        '_applyChanges',
+      );
+
+      await new ChoicesModule(config as any).init();
+      await flush();
+
+      expect(
+        document.getElementById('t'),
+        'nothing is applied before the DOM is ready',
+      ).not.toBeNull();
+      expect(applySpy).not.toHaveBeenCalled();
+
+      document.dispatchEvent(new Event('DOMContentLoaded'));
+      await flush();
+
+      expect(document.getElementById('t')).toBeNull();
+      expect(applySpy).toHaveBeenCalledTimes(1);
+
+      document.dispatchEvent(new Event('DOMContentLoaded'));
+      await flush();
+
+      expect(
+        applySpy,
+        'a second DOMContentLoaded does not apply the changes again',
+      ).toHaveBeenCalledTimes(1);
+      applySpy.mockRestore();
+    });
+
+    it('a failure while applying is logged, not thrown into the page', async () => {
+      stubReadyState('complete');
+      const diagnostics: string[] = [];
+      configureLogger({
+        level: 'debug',
+        sink: (r) => diagnostics.push(r.message),
+      });
+      const applySpy = vi
+        .spyOn(ChoicesModule.prototype as any, '_applyChanges')
+        .mockRejectedValue(new Error('boom'));
+
+      await expect(new ChoicesModule(config as any).init()).resolves.toBe(
+        undefined,
+      );
+      await flush();
+
+      expect(
+        diagnostics.some((m) => m.includes('failed to apply choices')),
+      ).toBe(true);
+      applySpy.mockRestore();
+    });
+  });
+
+  // ────────────────────────────────────────────────────────────────────────────
   describe('ChoicesService — the pure parts', () => {
     describe('choicesDataGuard', () => {
       it('flattens the changes of every choice into one list', () => {
