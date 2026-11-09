@@ -175,7 +175,7 @@ export const ChoicesService = {
      * Http Call to get The Change
      * Wait 320ms and Set Experiment Data in localStorage,
      * */
-    await this.setChangesData({
+    const fresh = await this.setChangesData({
       key,
       url,
       body: changesRequest,
@@ -191,7 +191,35 @@ export const ChoicesService = {
     const stored = localStorageCache.get(key);
     const changes = (stored as StoredData)?.changes;
 
-    return Array.isArray(changes) ? changes : [];
+    if (!Array.isArray(changes)) return [];
+
+    // INT-2483: custom JS runs only when it arrived in THIS page load's
+    // `choose-web` response. When the response was late or failed, the changes
+    // come from localStorage, which any script on the host page can write — so a
+    // single XSS could plant `js` that then runs on every later visit. Cached
+    // changes are still applied (HTML/styles), but their `js` is dropped.
+    return fresh ? changes : this.stripCachedJs(changes);
+  },
+
+  stripCachedJs: function (changes: Choice[]): Choice[] {
+    let stripped = 0;
+    const result = changes.map((change) => {
+      if (
+        change &&
+        typeof change === 'object' &&
+        (change as { js?: unknown }).js !== undefined
+      ) {
+        stripped++;
+        return { ...change, js: undefined } as Choice;
+      }
+      return change;
+    });
+    if (stripped > 0) {
+      log.debug(
+        `applying cached changes without custom JS (${stripped} dropped); it runs only from a fresh choose-web response`,
+      );
+    }
+    return result;
   },
 
   setChangesData: async function ({
@@ -200,7 +228,10 @@ export const ChoicesService = {
     body,
     auth_config,
     apiBaseUrl,
-  }: SetChoicesData) {
+  }: SetChoicesData): Promise<boolean> {
+    // Resolves `true` only when a usable `choose-web` response arrived within
+    // `responseMaxTime` and was written to the cache — i.e. the cache now holds
+    // server-fresh changes. Timeout, failure or a malformed body → `false`.
     const responseMaxTime = 320;
     try {
       // D-22: an `async` function passed as a Promise executor never calls
@@ -208,7 +239,7 @@ export const ChoicesService = {
       // discarded, so the throw was swallowed and `changesPromise` hung
       // forever instead of surfacing to this `catch`. An async IIFE returns a
       // real promise that rejects like any other.
-      const changesPromise = (async (): Promise<void> => {
+      const changesPromise = (async (): Promise<boolean> => {
         const data = await this.fetchChoices(
           url,
           body,
@@ -222,20 +253,22 @@ export const ChoicesService = {
         // `choices` array is a real answer (experience turned off) and is written.
         if (!data || !Array.isArray((data as { choices?: unknown }).choices)) {
           log.warn('choose-web returned no usable response; cache kept');
-          return;
+          return false;
         }
 
         const changes = this.choicesDataGuard(data);
         localStorageCache.set(key, { changes });
+        return true;
       })();
-      const timeoutPromise = new Promise((resolve) =>
-        setTimeout(resolve, responseMaxTime),
+      const timeoutPromise = new Promise<boolean>((resolve) =>
+        setTimeout(() => resolve(false), responseMaxTime),
       );
 
-      await Promise.race([timeoutPromise, changesPromise]);
+      return await Promise.race([timeoutPromise, changesPromise]);
     } catch (error) {
       // The existing cache is left untouched: a failure is not "no changes".
       log.error('setChangesData failed', error);
+      return false;
     }
   },
 

@@ -1072,7 +1072,9 @@ describe('choices engine', () => {
           ),
         ]);
 
-        await expect(racedAgainstAHang).resolves.toBeUndefined();
+        // INT-2483: resolves `false` ("cache not freshly written"), so cached
+        // changes are then applied without their custom JS.
+        await expect(racedAgainstAHang).resolves.toBe(false);
         // The catch was reached (no hang). INT-6060 item 2: it no longer
         // "recovers" by stamping `{changes: []}` over the cache — the only
         // write is the one that threw; the existing cache is left alone.
