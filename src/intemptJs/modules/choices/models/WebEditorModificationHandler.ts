@@ -1,4 +1,5 @@
 import { Modification } from '../../../types/choices.types.ts';
+import { getSdkScriptNonce } from '../../../../shared/cspNonce.ts';
 
 /**
  * The attribute name a pointer is stamped with, and the attribute name it is looked up by.
@@ -66,7 +67,8 @@ export class WebEditorModificationHandler {
     }
 
     if (js && js.trim()) {
-      this.appendInlineScriptAfter(js);
+      // INT-2483: carry the page's CSP nonce so strict-CSP sites run it.
+      this.appendInlineScriptAfter(js, getSdkScriptNonce());
     }
   };
 
