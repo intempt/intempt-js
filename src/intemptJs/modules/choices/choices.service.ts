@@ -216,6 +216,15 @@ export const ChoicesService = {
           apiBaseUrl,
         );
 
+        // INT-6060 item 2: only a 2xx carrying a `choices` array may replace
+        // the cache. A failure (`null`) or a malformed body leaves the last good
+        // changes in place instead of stamping "no changes" over them. An empty
+        // `choices` array is a real answer (experience turned off) and is written.
+        if (!data || !Array.isArray((data as { choices?: unknown }).choices)) {
+          log.warn('choose-web returned no usable response; cache kept');
+          return;
+        }
+
         const changes = this.choicesDataGuard(data);
         localStorageCache.set(key, { changes });
       })();
@@ -225,8 +234,8 @@ export const ChoicesService = {
 
       await Promise.race([timeoutPromise, changesPromise]);
     } catch (error) {
+      // The existing cache is left untouched: a failure is not "no changes".
       log.error('setChangesData failed', error);
-      localStorageCache.set(key, { changes: [] });
     }
   },
 
@@ -235,7 +244,10 @@ export const ChoicesService = {
     body: ChoicesRequestModel,
     auth: AuthConfig,
     apiBaseUrl?: string,
-  ) {
+  ): Promise<{ choices: unknown[] } | null> {
+    // Returns `null` on any failure (non-2xx, network, non-JSON body) so the
+    // caller can tell "the request failed" apart from "the server says there
+    // are no changes" (INT-6060 item 2).
     try {
       const { username, password } = auth;
 
@@ -256,10 +268,10 @@ export const ChoicesService = {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
 
-      return response.json();
+      return await response.json();
     } catch (error) {
       log.error('fetchChoices failed', error);
-      return [];
+      return null;
     }
   },
 

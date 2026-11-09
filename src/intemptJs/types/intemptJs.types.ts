@@ -143,11 +143,20 @@ export type IntemptVariables = {
   url: string;
 };
 
+/**
+ * The INIT payload handed to the web editor's `mount(target, payload)`. Mirrors
+ * the web-editor's own `EditorPayload` (web-editor `src/types.ts`), field for
+ * field — the loader builds exactly this object and drops anything else.
+ */
 export type EditorPayload = {
+  organization: string;
+  project: string;
   /** Opaque here: the web editor round-trips it untouched. */
   experience: unknown;
   variantId: string;
   token: string;
+  /** web-editor `ViewMode`: `'control'` or `'preview'` today. */
+  view: string;
 };
 
 export type ConsentAction = 'accept' | 'reject';

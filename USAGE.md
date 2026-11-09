@@ -484,24 +484,19 @@ window.intempt.logOut();
 
 ## 7. Fetch recommendations
 
-`recommendation` is asynchronous and returns a `Promise`. Unlike the tracking methods, it is
-**not** gated on the opt-out flag — it calls the API even when the visitor has opted out, so
-gate it yourself if that matters to your consent posture.
+`recommendation` is asynchronous and returns a `Promise`. Like the tracking methods, it is
+gated on the opt-out flag: while the visitor is opted out it resolves to `null` and sends
+nothing.
 
-Handle both failure modes: a network-level failure resolves to `null`, but a response whose
-body is not JSON (a proxy error page, an empty `401`) **rejects**.
+It never rejects. Any failure (non-`2xx` response, network error, non-JSON body) resolves
+to `null` and is logged at `warn` level by the SDK logger.
 
 ```javascript
-let items = null;
-try {
-  items = await window.intempt.recommendation({
-    id: 123, // feed ID
-    quantity: 10,
-    fields: ['productId', 'name', 'price', 'image'],
-  });
-} catch {
-  items = null;
-}
+const items = await window.intempt.recommendation({
+  id: 123, // feed ID
+  quantity: 10,
+  fields: ['productId', 'name', 'price', 'image'],
+});
 
 if (items) renderRecommendations(items);
 ```
