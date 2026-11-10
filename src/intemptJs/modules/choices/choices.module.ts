@@ -60,16 +60,15 @@ export class ChoicesModule {
    * were applied without js. Run the late response's js only for a change identical to an
    * applied one apart from `js`, so the DOM it expects is the DOM on the page.
    */
-  private _runConfirmedJs(applied: Choice[], fresh: Choice[]): void {
-    const strip = (c: Choice) => JSON.stringify({ ...c, js: undefined });
+  private _runConfirmedJs(applied: unknown[], fresh: unknown[]): void {
+    const strip = (c: unknown) =>
+      JSON.stringify({ ...(c as object), js: undefined });
     const appliedKeys = new Set(applied.map(strip));
     const handler = new WebEditorModificationHandler();
     for (const change of fresh) {
-      const js = (change as { js?: unknown })?.js;
-      if (typeof js !== 'string' || !js.trim()) continue;
       if (!appliedKeys.has(strip(change))) continue;
       try {
-        handler.runCustomJs(js);
+        handler.runAppliedInsertJs(change as Modification);
       } catch (error) {
         log.warn('error running custom js from a late response', error);
       }

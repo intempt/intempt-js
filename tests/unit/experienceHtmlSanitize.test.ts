@@ -22,6 +22,7 @@ beforeEach(() => {
 
 afterEach(() => {
   delete (window as any).__pwned;
+  vi.useRealTimers();
   vi.restoreAllMocks();
 });
 
@@ -150,6 +151,29 @@ describe('INT-2481: experience html is made inert', () => {
     const s = append.mock.calls[0]?.[0] as HTMLScriptElement;
     expect(s?.tagName).toBe('SCRIPT');
     expect(s.textContent).toBe('window.__pwned = 2;');
-    vi.useRealTimers();
+  });
+  // Ro-bot security:F1 (batch mcp-1794321115-47): SMIL can set an href to a script URL through
+  // `values`/`to`, which the attribute check never sees; <base>/<meta> redirect or rebase the page.
+  it.each([
+    [
+      'animate',
+      '<svg><a><animate attributeName="href" values="x;javascript:alert(1)"/></a></svg>',
+    ],
+    [
+      'set',
+      '<svg><a><set attributeName="href" to="javascript:alert(1)"/></a></svg>',
+    ],
+    ['base', '<base href="https://evil.example/">'],
+    [
+      'meta',
+      '<meta http-equiv="refresh" content="0;url=https://evil.example/">',
+    ],
+  ])('drops <%s> from experience html', async (tag, html) => {
+    await handler.insert({
+      type: 'insert',
+      html: `<div>${html}</div>`,
+      parent: { _iwePtrId: PARENT },
+    } as any);
+    expect(parent.querySelector(tag)).toBeNull();
   });
 });

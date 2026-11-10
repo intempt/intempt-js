@@ -93,7 +93,12 @@ describe('getChoicesData reports a late choose-web response', () => {
 
 describe('ChoicesModule runs confirmed js from the late response', () => {
   const flush = () => new Promise((r) => setTimeout(r, 0));
-  const cached = { ...serverInsert, js: undefined, parent: undefined };
+  const PARENT = 'iwe-ptr-late-parent';
+  const lateInsert = { ...serverInsert, parent: { _iwePtrId: PARENT } };
+  const cached = { ...lateInsert, js: undefined };
+  beforeEach(() => {
+    document.body.innerHTML = `<div ${PARENT}="true"></div>`;
+  });
 
   function stubGetChoices(late: unknown[]) {
     return vi.spyOn(ChoicesService, 'getChoices').mockImplementation((async (
@@ -106,7 +111,7 @@ describe('ChoicesModule runs confirmed js from the late response', () => {
   }
 
   it('runs the js of a late change identical to the applied one, once', async () => {
-    stubGetChoices([serverInsert]);
+    stubGetChoices([lateInsert]);
     const run = vi
       .spyOn(WebEditorModificationHandler.prototype, 'runCustomJs')
       .mockImplementation(() => {});
@@ -117,13 +122,41 @@ describe('ChoicesModule runs confirmed js from the late response', () => {
   });
 
   it('does not run js of a late change that differs from what was applied', async () => {
-    stubGetChoices([{ ...serverInsert, html: '<div>other</div>' }]);
+    stubGetChoices([{ ...lateInsert, html: '<div>other</div>' }]);
     const run = vi
       .spyOn(WebEditorModificationHandler.prototype, 'runCustomJs')
       .mockImplementation(() => {});
     await new ChoicesModule({} as any).init();
     await new Promise((r) => setTimeout(r, 20));
     await flush();
+    expect(run).not.toHaveBeenCalled();
+  });
+  // Ro-bot impact:F1 (batch mcp-1794321115-47): the late path skipped the gate `insert` applies.
+  it('does not run late js when the insert parent is not on the page', async () => {
+    document.body.innerHTML = '';
+    stubGetChoices([lateInsert]);
+    const run = vi
+      .spyOn(WebEditorModificationHandler.prototype, 'runCustomJs')
+      .mockImplementation(() => {});
+    await new ChoicesModule({} as any).init();
+    await new Promise((r) => setTimeout(r, 20));
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('does not run late js carried by a change that is not an insert', async () => {
+    const update = { ...lateInsert, type: 'update' };
+    vi.spyOn(ChoicesService, 'getChoices').mockImplementation((async (
+      _cfg: unknown,
+      onLateFresh?: (c: unknown[]) => void,
+    ) => {
+      setTimeout(() => onLateFresh?.([update]), 5);
+      return [{ ...update, js: undefined }];
+    }) as any);
+    const run = vi
+      .spyOn(WebEditorModificationHandler.prototype, 'runCustomJs')
+      .mockImplementation(() => {});
+    await new ChoicesModule({} as any).init();
+    await new Promise((r) => setTimeout(r, 20));
     expect(run).not.toHaveBeenCalled();
   });
 });

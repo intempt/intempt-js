@@ -70,6 +70,18 @@ export class WebEditorModificationHandler {
     if (js && js.trim()) this.runCustomJs(js);
   };
 
+  /**
+   * js of a late server response for a change already applied from the cache
+   * (choices.module `_runConfirmedJs`). Same gate as `insert`: only an insert whose parent
+   * is on the page runs its js (Ro-bot impact:F1, batch mcp-1794321115-47).
+   */
+  runAppliedInsertJs(change: Modification): void {
+    const { type, parent, js } = change;
+    if (type !== 'insert' || typeof js !== 'string' || !js.trim()) return;
+    if (!this.elementGetterByIweId(pointerAttr(parent))) return;
+    this.runCustomJs(js);
+  }
+
   /** Only for js from a server response, never from the localStorage cache (INT-2483). */
   runCustomJs(js: string): void {
     // INT-2483: carry the page's CSP nonce so strict-CSP sites run it.

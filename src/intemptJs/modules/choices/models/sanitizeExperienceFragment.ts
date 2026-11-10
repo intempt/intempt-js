@@ -27,6 +27,12 @@ const FORBIDDEN_TAGS = new Set([
   'frame',
   'object',
   'embed',
+  // SMIL can set an attribute to a script URL through values/to/from, which the attribute
+  // check below never sees; base rebases every relative URL; meta refresh navigates away.
+  'animate',
+  'set',
+  'base',
+  'meta',
 ]);
 
 // eslint-disable-next-line no-control-regex
