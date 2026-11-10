@@ -6,7 +6,7 @@ import {
 import { generateId, eventTimestamp } from '../../../../shared/shared.utils.ts';
 
 export class HtmlEventModel {
-  private readonly name: IntemptHtmlEventNames;
+  private readonly name: IntemptHtmlEventNames = undefined!;
   private readonly payload: HtmlEventPayload[] = [];
 
   constructor({

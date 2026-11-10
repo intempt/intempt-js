@@ -4,7 +4,7 @@ import { TrackModelPayload } from '../types/autoTracker.types.ts';
 import { ModelTrack } from '../interfaces/baseModel.interface.ts';
 
 export class TrackModel implements ModelTrack {
-  readonly name: string;
+  readonly name: string = undefined!;
   readonly type = 'track';
   readonly payload: TrackModelPayload[] = [];
 

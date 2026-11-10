@@ -7,17 +7,17 @@ import { createLogger } from '../../shared/logger/logger.ts';
 const log = createLogger('UserAttribute');
 
 export class UserAttributeComponent {
-  deviceType: DeviceType;
-  referrer: string;
-  fullReferrer: string;
-  landingPage: string;
-  browser: string;
-  platform: string;
-  private readonly utmCampaign: string;
-  private readonly utmContent: string;
-  private readonly utmMedium: string;
-  private readonly utmSource: string;
-  private readonly utmTerm: string;
+  deviceType: DeviceType = undefined!;
+  referrer: string = undefined!;
+  fullReferrer: string = undefined!;
+  landingPage: string = undefined!;
+  browser: string = undefined!;
+  platform: string = undefined!;
+  private readonly utmCampaign: string = undefined!;
+  private readonly utmContent: string = undefined!;
+  private readonly utmMedium: string = undefined!;
+  private readonly utmSource: string = undefined!;
+  private readonly utmTerm: string = undefined!;
 
   /**
    * Geo is not here on purpose. `country`, `region`, `city` and `ipAddress` used to be set from a

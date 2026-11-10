@@ -2,16 +2,16 @@ import { UtmKeys } from './types/autoTracker.types.ts';
 import { UtmKey } from './types/constants.types.ts';
 
 export class BaseURLParser {
-  readonly query: string;
-  readonly origin: string;
-  readonly pathname: string;
-  readonly utmTerm: string;
-  readonly urlHash: string;
-  readonly utmSource: string;
-  readonly utmMedium: string;
-  readonly utmContent: string;
-  readonly utmCampaign: string;
-  readonly domain: string;
+  readonly query: string = undefined!;
+  readonly origin: string = undefined!;
+  readonly pathname: string = undefined!;
+  readonly utmTerm: string = undefined!;
+  readonly urlHash: string = undefined!;
+  readonly utmSource: string = undefined!;
+  readonly utmMedium: string = undefined!;
+  readonly utmContent: string = undefined!;
+  readonly utmCampaign: string = undefined!;
+  readonly domain: string = undefined!;
 
   constructor(urlProperty?: string) {
     const url = urlProperty || window.location.href;

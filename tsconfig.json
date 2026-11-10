@@ -1,7 +1,12 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "useDefineForClassFields": true,
+    /* Off: the ES2020 lowering of [[Define]] fields cost ~950 B gzip (one __publicField call per
+       field) and pushed the bundle past .size-limit.json. Trap: a field without an initializer is
+       then created on first assignment, not at construction, which reorders JSON keys. Fields of
+       classes that go on the wire carry `= undefined!` to keep the order pinned by
+       tests/unit/payloadContract.test.ts. */
+    "useDefineForClassFields": false,
     "module": "ESNext",
     "lib": ["ES2020", "DOM", "DOM.Iterable", "dom", "es2021.weakref"],
     "types": ["web", "cypress"],

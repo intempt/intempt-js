@@ -4,7 +4,7 @@ import { RecordModelPayload } from '../types/autoTracker.types.ts';
 import { ModelRecord } from '../interfaces/baseModel.interface.ts';
 
 export class RecordModel implements ModelRecord {
-  readonly name: string;
+  readonly name: string = undefined!;
   readonly type = 'record';
   readonly payload: RecordModelPayload[] = [];
 

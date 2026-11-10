@@ -4,7 +4,7 @@ import { GroupModelPayload } from '../types/autoTracker.types.ts';
 import { ModelGroup } from '../interfaces/baseModel.interface.ts';
 
 export class GroupModel implements ModelGroup {
-  readonly name: string;
+  readonly name: string = undefined!;
   readonly type = 'group';
   readonly payload: GroupModelPayload[] = [];
 

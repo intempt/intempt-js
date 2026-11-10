@@ -6,7 +6,7 @@ import {
 } from '../../../types/autoTracker.types.ts';
 
 export class SessionEventModel {
-  readonly name: IntemptSessionEventNames;
+  readonly name: IntemptSessionEventNames = undefined!;
   readonly payload: SessionEventPayload[] = [];
 
   constructor({

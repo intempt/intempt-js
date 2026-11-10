@@ -92,7 +92,9 @@ Consequences to respect:
 ## Repo conventions
 
 - TypeScript, `strict: true`, `target: ES2020`. Keep TS — it costs ~0 bundle
-  bytes (no downlevel helpers are emitted).
+  bytes only because `useDefineForClassFields` is off: with it on, every class
+  field is lowered to a `__publicField` call (~950 B gzip). See the note on that
+  flag in `tsconfig.json` before turning it back on.
 - Path style: `src/<area>/<module>/<name>.module.ts`, models in `models/`, types
   in `types/`, guards in `guards/`.
 - Imports include the `.ts` extension (existing convention — match it).
