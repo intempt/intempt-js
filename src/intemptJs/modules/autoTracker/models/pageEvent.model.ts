@@ -7,7 +7,7 @@ import {
 } from '../../../types/autoTracker.types.ts';
 
 export class PageEventModel {
-  private readonly name: IntemptPageEventName;
+  private readonly name: IntemptPageEventName = undefined!;
   private readonly payload: PageEventPayload[] = [];
 
   constructor({

@@ -36,6 +36,8 @@ export type FetchChoicesData = {
   orgName: string;
   project: string;
   apiBaseUrl?: string;
+  /** Called with the server changes when choose-web answers after the 320 ms budget. */
+  onLateFresh?: (changes: Choice[]) => void;
 };
 
 export type ChoiceTypes =
@@ -81,6 +83,7 @@ export type SetChoicesData = {
   auth_config: AuthRequest;
   body: ChoicesRequestModel;
   apiBaseUrl?: string;
+  onLateFresh?: (changes: Choice[]) => void;
 };
 
 export type HtmlElementLocationStack = {

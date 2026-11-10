@@ -7,15 +7,15 @@ import { ConsentTrack } from '../interfaces/baseModel.interface.ts';
 
 export class ConsentModel implements ConsentTrack {
   readonly type = 'consent';
-  readonly action: ConsentAction;
-  readonly email?: string;
-  readonly message?: string;
-  readonly category?: string;
-  readonly sourceId: string;
-  readonly profileId: string;
+  readonly action: ConsentAction = undefined!;
+  readonly email?: string = undefined!;
+  readonly message?: string = undefined!;
+  readonly category?: string = undefined!;
+  readonly sourceId: string = undefined!;
+  readonly profileId: string = undefined!;
   readonly source = 'web';
-  readonly validUntil: number;
-  readonly timestamp?: number;
+  readonly validUntil: number = undefined!;
+  readonly timestamp?: number = undefined!;
 
   constructor(params: ConsentParams & IntemptIdsParams) {
     this.action = params.action;

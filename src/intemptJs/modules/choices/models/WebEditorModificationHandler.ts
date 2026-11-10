@@ -1,4 +1,6 @@
 import { Modification } from '../../../types/choices.types.ts';
+import { getSdkScriptNonce } from '../../../../shared/cspNonce.ts';
+import { sanitizeExperienceFragment } from './sanitizeExperienceFragment.ts';
 
 /**
  * The attribute name a pointer is stamped with, and the attribute name it is looked up by.
@@ -65,10 +67,26 @@ export class WebEditorModificationHandler {
       targetEl?.remove();
     }
 
-    if (js && js.trim()) {
-      this.appendInlineScriptAfter(js);
-    }
+    if (js && js.trim()) this.runCustomJs(js);
   };
+
+  /**
+   * js of a late server response for a change already applied from the cache
+   * (choices.module `_runConfirmedJs`). Same gate as `insert`: only an insert whose parent
+   * is on the page runs its js (Ro-bot impact:F1, batch mcp-1794321115-47).
+   */
+  runAppliedInsertJs(change: Modification): void {
+    const { type, parent, js } = change;
+    if (type !== 'insert' || typeof js !== 'string' || !js.trim()) return;
+    if (!this.elementGetterByIweId(pointerAttr(parent))) return;
+    this.runCustomJs(js);
+  }
+
+  /** Only for js from a server response, never from the localStorage cache (INT-2483). */
+  runCustomJs(js: string): void {
+    // INT-2483: carry the page's CSP nonce so strict-CSP sites run it.
+    this.appendInlineScriptAfter(js, getSdkScriptNonce());
+  }
 
   remove = (change: Modification) => {
     const targetEl = this.elementGetterByIweId(pointerAttr(change));
@@ -125,6 +143,8 @@ export class WebEditorModificationHandler {
 
     const range = document.createRange();
     const fragment = range.createContextualFragment(html);
+    // INT-2481: script runs only through `change.js`, never hidden inside `html`.
+    sanitizeExperienceFragment(fragment);
 
     if (trimWhitespace) {
       // remove whitespace-only text nodes at root

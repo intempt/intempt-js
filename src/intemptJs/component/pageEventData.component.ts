@@ -1,15 +1,15 @@
 import { BaseURLParser } from '../_baseUrlParser.ts';
 
 export class PageEventDataComponent {
-  private readonly previousPage: string;
-  private readonly windowWidth: number;
-  private readonly timeOnPage?: number;
-  private readonly domain: string;
-  private readonly query: string;
-  private readonly title: string;
-  private readonly path: string;
-  private readonly hash: string;
-  private readonly url: string;
+  private readonly previousPage: string = undefined!;
+  private readonly windowWidth: number = undefined!;
+  private readonly timeOnPage?: number = undefined!;
+  private readonly domain: string = undefined!;
+  private readonly query: string = undefined!;
+  private readonly title: string = undefined!;
+  private readonly path: string = undefined!;
+  private readonly hash: string = undefined!;
+  private readonly url: string = undefined!;
 
   /**
    * The fields the page tracker reports, named instead of `any`. `duration` is

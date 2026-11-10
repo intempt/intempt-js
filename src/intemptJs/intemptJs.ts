@@ -661,14 +661,19 @@ export class IntemptJs extends IntemptJsGuard {
       });
       // A non-2xx (INT-3772) is not a recommendation payload, whatever the
       // body parses to.
-      if (!response?.ok) return null;
+      // INT-3896: still `null` (public API), but no longer silent.
+      if (!response?.ok) {
+        log.warn('recommendation failed', { status: response?.status });
+        return null;
+      }
       // `await` keeps a non-JSON body (HTML error page, empty 204) inside this
       // try. Without it the returned promise rejects after the catch is gone.
       return await response.json();
-    } catch {
-      // Swallowed deliberately: a failed consent POST must not throw into the
-      // customer's own click handler. The binding is omitted rather than named
-      // and ignored, so the lint ratchet stays at zero warnings for this file.
+    } catch (error) {
+      // Resolved to `null` deliberately: a failed recommendation fetch must not
+      // throw into the customer's own render code. Logged so a broken feed is
+      // distinguishable from an empty one (INT-3896).
+      log.warn('recommendation failed', error);
       return null;
     }
   }

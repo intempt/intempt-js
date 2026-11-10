@@ -1,13 +1,13 @@
 import { DomEventName } from '../types/autoTracker.types.ts';
 
 export class HtmlElementDataComponent {
-  href: string | undefined;
-  targetTag: string;
-  targetId: string;
-  targetClass: string;
-  targetText: string | undefined;
-  formDataText: { key: string; value: string }[] | undefined;
-  hierarchy: string;
+  href: string | undefined = undefined!;
+  targetTag: string = undefined!;
+  targetId: string = undefined!;
+  targetClass: string = undefined!;
+  targetText: string | undefined = undefined!;
+  formDataText: { key: string; value: string }[] | undefined = undefined!;
+  hierarchy: string = undefined!;
 
   // `HTMLElement`, not `any`. Every read below is a DOM read, and the ones that are
   // not on `Element` — `value`, `type`, `action`, `classList` on a form — are

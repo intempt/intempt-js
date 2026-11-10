@@ -27,6 +27,7 @@ they will not change silently.
 - [`VERSION`](#version)
 - [Reserved event titles](#reserved-event-titles)
 - [DOM events the SDK emits](#dom-events-the-sdk-emits)
+- [HTTP endpoints](#http-endpoints)
 - [Limitations](#limitations)
 
 ---
@@ -147,11 +148,10 @@ IntemptJs initialization failed: All config fields must be provided.
 
 ## Two rules that apply to every method
 
-**1. Opt-out silences everything except `recommendation`.** Every tracking method begins
-with an `isUserOptIn()` check and returns immediately if the visitor has opted out. No
-event is queued, no error is raised, nothing is logged. `recommendation()` has no such
-check and still calls the API while opted out — if that matters for your consent posture,
-gate the call yourself.
+**1. Opt-out silences everything.** Every tracking method begins with an `isUserOptIn()`
+check and returns immediately if the visitor has opted out. No event is queued, no error is
+raised, nothing is logged. `recommendation()` is gated the same way: while opted out it
+resolves to `null` without calling the API.
 
 **2. Validation throws; it does not warn.** Invalid arguments raise an `Error` from inside
 your own call, on your own stack. If a bad payload must not break the page, wrap the call:
@@ -419,8 +419,8 @@ Takes no arguments, validates nothing, and is a no-op while opted out. It also e
 
 ### `recommendation(params)` → `Promise`
 
-Fetches items from a feed. Asynchronous, and the only method that is **not** gated on the
-opt-out flag.
+Fetches items from a feed. Asynchronous. Gated on the opt-out flag like every other
+method: while the visitor is opted out it resolves to `null` and sends nothing.
 
 ```javascript
 const items = await window.intempt.recommendation({
@@ -439,24 +439,25 @@ const items = await window.intempt.recommendation({
 Nothing here is validated. The request also sends the current `profileId`, your
 `sourceId`, and the `productId` last seen in `localStorage`.
 
-**Error behaviour, precisely.** A network-level failure resolves to `null`. A response
-whose body is not JSON — an HTML error page from a proxy, or a `401` with an empty body —
-**rejects** the returned promise rather than resolving to `null`, because the body parse
-happens outside the SDK's `try`/`catch`. Handle both:
+**Error behaviour, precisely.** The promise never rejects. It resolves to the parsed JSON
+body on a `2xx`, and to `null` in every other case: opted out, a non-`2xx` response
+(`401`, `403`, `5xx`), a network failure, or a body that is not JSON. Each failure (not the
+opt-out) is logged at `warn` level through the SDK logger as `[Intempt] recommendation
+failed`, with `{ status }` for a non-`2xx` response or the error for a network/parse
+failure. With the default logger settings, `warn` reaches a configured diagnostics sink but
+not the production console; enable `debug` to see it there.
 
 ```javascript
-let items = null;
-try {
-  items = await window.intempt.recommendation({
-    id: 123,
-    quantity: 10,
-    fields: ['productId'],
-  });
-} catch {
-  items = null;
-}
+const items = await window.intempt.recommendation({
+  id: 123,
+  quantity: 10,
+  fields: ['productId'],
+});
 if (items) render(items);
 ```
+
+Endpoint: `POST {apiBase}/{organization}/projects/{project}/feeds/{id}/data`, Basic auth
+built from the write key (see [HTTP endpoints](#http-endpoints)).
 
 ---
 
@@ -538,6 +539,44 @@ window.addEventListener('intempt:event', (e) => {
 `intempt:event` carries the payload; the per-type events carry only a name. These fire at
 dispatch time, which is before the event is delivered — a listener firing is not proof of
 delivery.
+
+---
+
+## HTTP endpoints
+
+The SDK calls these Intempt API endpoints directly from the browser. All of them use HTTP
+Basic auth built from the write key, split on `.`: the first part is the username, the
+second the password (`Authorization: Basic base64(username:password)`). `{apiBase}` is the
+SDK's configured API base URL.
+
+### `POST {apiBase}/{organization}/projects/{project}/optimization/choose-web`
+
+Fetches the web experience changes (choices) for the current page. Called once per page
+load by the experiences module. Request body (`ChoicesRequestModel`,
+`src/intemptJs/modules/choices/models/choicesRequest.model.ts`):
+
+```json
+{
+  "identification": {
+    "sourceId": "string",
+    "profileId": "string"
+  },
+  "url": "string — location.href of the current page",
+  "device": "string — detectDevice() upper-cased, e.g. DESKTOP / MOBILE",
+  "sessionId": "string",
+  "productId": "string | null | undefined — Shopify/Magento product id, when found"
+}
+```
+
+Response read by the SDK: `{ "choices": [ { "changes": [ ... ] } ] }`. The `changes` of every
+choice are concatenated and cached in `localStorage` under `changes_<pathname>`. The cache is
+replaced only by a `2xx` response that carries a `choices` array (an empty array clears
+it); a failed or timed-out request leaves the previous cache in place.
+
+### `POST {apiBase}/{organization}/projects/{project}/feeds/{id}/data`
+
+Used by [`recommendation()`](#recommendations). Body: `{ id: profileId, type: 'profile',
+sourceId, limit: quantity, fields, productId }`.
 
 ---
 

@@ -105,7 +105,10 @@ export const ChoicesService = {
     };
   },
 
-  getChoices: async function (config: ChoicesParams): Promise<Choice[]> {
+  getChoices: async function (
+    config: ChoicesParams,
+    onLateFresh?: (changes: Choice[]) => void,
+  ): Promise<Choice[]> {
     /**
      * Get variables stored in SessionStorage
      * */
@@ -159,6 +162,7 @@ export const ChoicesService = {
         orgName,
         project,
         apiBaseUrl: config.apiBaseUrl,
+        onLateFresh,
       });
     } catch (error) {
       log.error('getChoices failed', error);
@@ -167,7 +171,14 @@ export const ChoicesService = {
   },
 
   getChoicesData: async function (args: FetchChoicesData): Promise<Choice[]> {
-    const { changesRequest, orgName, project, authRequest, apiBaseUrl } = args;
+    const {
+      changesRequest,
+      orgName,
+      project,
+      authRequest,
+      apiBaseUrl,
+      onLateFresh,
+    } = args;
     const url = `${orgName}/projects/${project}/optimization/choose-web`;
     const key = `changes_${window.location.pathname}`;
 
@@ -175,12 +186,13 @@ export const ChoicesService = {
      * Http Call to get The Change
      * Wait 320ms and Set Experiment Data in localStorage,
      * */
-    await this.setChangesData({
+    const fresh = await this.setChangesData({
       key,
       url,
       body: changesRequest,
       auth_config: authRequest,
       apiBaseUrl,
+      onLateFresh,
     });
 
     // `localStorageCache.get` is typed `unknown`, not `any`, so this cast is a
@@ -191,7 +203,35 @@ export const ChoicesService = {
     const stored = localStorageCache.get(key);
     const changes = (stored as StoredData)?.changes;
 
-    return Array.isArray(changes) ? changes : [];
+    if (!Array.isArray(changes)) return [];
+
+    // INT-2483: custom JS runs only when it arrived in THIS page load's
+    // `choose-web` response. When the response was late or failed, the changes
+    // come from localStorage, which any script on the host page can write — so a
+    // single XSS could plant `js` that then runs on every later visit. Cached
+    // changes are still applied (HTML/styles), but their `js` is dropped.
+    return fresh ? changes : this.stripCachedJs(changes);
+  },
+
+  stripCachedJs: function (changes: Choice[]): Choice[] {
+    let stripped = 0;
+    const result = changes.map((change) => {
+      if (
+        change &&
+        typeof change === 'object' &&
+        (change as { js?: unknown }).js !== undefined
+      ) {
+        stripped++;
+        return { ...change, js: undefined } as Choice;
+      }
+      return change;
+    });
+    if (stripped > 0) {
+      log.debug(
+        `applying cached changes without custom JS (${stripped} dropped); it runs only from a fresh choose-web response`,
+      );
+    }
+    return result;
   },
 
   setChangesData: async function ({
@@ -200,15 +240,20 @@ export const ChoicesService = {
     body,
     auth_config,
     apiBaseUrl,
-  }: SetChoicesData) {
+    onLateFresh,
+  }: SetChoicesData): Promise<boolean> {
+    // Resolves `true` only when a usable `choose-web` response arrived within
+    // `responseMaxTime` and was written to the cache — i.e. the cache now holds
+    // server-fresh changes. Timeout, failure or a malformed body → `false`.
     const responseMaxTime = 320;
+    let timedOut = false;
     try {
       // D-22: an `async` function passed as a Promise executor never calls
       // `reject` on throw — the executor's own returned (rejected) promise is
       // discarded, so the throw was swallowed and `changesPromise` hung
       // forever instead of surfacing to this `catch`. An async IIFE returns a
       // real promise that rejects like any other.
-      const changesPromise = (async (): Promise<void> => {
+      const changesPromise = (async (): Promise<boolean> => {
         const data = await this.fetchChoices(
           url,
           body,
@@ -216,17 +261,34 @@ export const ChoicesService = {
           apiBaseUrl,
         );
 
+        // INT-6060 item 2: only a 2xx carrying a `choices` array may replace
+        // the cache. A failure (`null`) or a malformed body leaves the last good
+        // changes in place instead of stamping "no changes" over them. An empty
+        // `choices` array is a real answer (experience turned off) and is written.
+        if (!data || !Array.isArray((data as { choices?: unknown }).choices)) {
+          log.warn('choose-web returned no usable response; cache kept');
+          return false;
+        }
+
         const changes = this.choicesDataGuard(data);
         localStorageCache.set(key, { changes });
+        // Ro-bot impact:F1: the page already applied the cache with js stripped; this
+        // response is server-fresh, so its js may run now (ChoicesModule matches it).
+        if (timedOut) onLateFresh?.(changes);
+        return true;
       })();
-      const timeoutPromise = new Promise((resolve) =>
-        setTimeout(resolve, responseMaxTime),
+      const timeoutPromise = new Promise<boolean>((resolve) =>
+        setTimeout(() => {
+          timedOut = true;
+          resolve(false);
+        }, responseMaxTime),
       );
 
-      await Promise.race([timeoutPromise, changesPromise]);
+      return await Promise.race([timeoutPromise, changesPromise]);
     } catch (error) {
+      // The existing cache is left untouched: a failure is not "no changes".
       log.error('setChangesData failed', error);
-      localStorageCache.set(key, { changes: [] });
+      return false;
     }
   },
 
@@ -235,7 +297,10 @@ export const ChoicesService = {
     body: ChoicesRequestModel,
     auth: AuthConfig,
     apiBaseUrl?: string,
-  ) {
+  ): Promise<{ choices: unknown[] } | null> {
+    // Returns `null` on any failure (non-2xx, network, non-JSON body) so the
+    // caller can tell "the request failed" apart from "the server says there
+    // are no changes" (INT-6060 item 2).
     try {
       const { username, password } = auth;
 
@@ -256,10 +321,10 @@ export const ChoicesService = {
         throw new Error(`HTTP error! Status: ${response.status}`);
       }
 
-      return response.json();
+      return await response.json();
     } catch (error) {
       log.error('fetchChoices failed', error);
-      return [];
+      return null;
     }
   },
 

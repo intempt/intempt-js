@@ -1,4 +1,5 @@
 import {
+  Choice,
   ChoicesParams,
   Modification,
   XPtr,
@@ -23,7 +24,14 @@ export class ChoicesModule {
 
   async init() {
     try {
-      const changesPromise = this._service.getChoices(this._config);
+      let onLateFresh!: (changes: Choice[]) => void;
+      const lateFresh = new Promise<Choice[]>(
+        (resolve) => (onLateFresh = resolve),
+      );
+      const changesPromise = this._service.getChoices(
+        this._config,
+        onLateFresh,
+      );
       const onReady = async () => {
         try {
           const changes = await changesPromise;
@@ -31,6 +39,7 @@ export class ChoicesModule {
           if (changes.length === 0) return;
 
           await this._applyChanges(changes);
+          void lateFresh.then((fresh) => this._runConfirmedJs(changes, fresh));
         } catch (error) {
           log.error('failed to apply choices', error);
         }
@@ -43,6 +52,26 @@ export class ChoicesModule {
       } else void onReady();
     } catch (error) {
       log.error('failed to apply choices', error);
+    }
+  }
+
+  /**
+   * Ro-bot impact:F1 (option 1, 2026-11-10): when choose-web was late, the cached changes
+   * were applied without js. Run the late response's js only for a change identical to an
+   * applied one apart from `js`, so the DOM it expects is the DOM on the page.
+   */
+  private _runConfirmedJs(applied: unknown[], fresh: unknown[]): void {
+    const strip = (c: unknown) =>
+      JSON.stringify({ ...(c as object), js: undefined });
+    const appliedKeys = new Set(applied.map(strip));
+    const handler = new WebEditorModificationHandler();
+    for (const change of fresh) {
+      if (!appliedKeys.has(strip(change))) continue;
+      try {
+        handler.runAppliedInsertJs(change as Modification);
+      } catch (error) {
+        log.warn('error running custom js from a late response', error);
+      }
     }
   }
 

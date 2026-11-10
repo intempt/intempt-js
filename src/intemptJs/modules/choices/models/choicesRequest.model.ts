@@ -4,11 +4,11 @@ export class ChoicesRequestModel {
   identification: {
     sourceId: string;
     profileId: string;
-  };
-  url: string;
-  device: string;
-  sessionId: string;
-  productId: string | null | undefined;
+  } = undefined!;
+  url: string = undefined!;
+  device: string = undefined!;
+  sessionId: string = undefined!;
+  productId: string | null | undefined = undefined!;
 
   constructor({
     sourceId,

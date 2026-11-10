@@ -1044,8 +1044,8 @@ describe('choices engine', () => {
         // by the Promise constructor, which only reacts to explicit
         // resolve/reject calls. `resolve()` is never reached, so
         // `changesPromise` never settles at all — not even as a rejection —
-        // and the outer `catch` that is supposed to recover with an empty
-        // change list never runs. Fixed with an async IIFE, which returns a
+        // and the outer `catch` that is supposed to run (it used to write an empty
+        // change list; INT-6060 removed that) never runs. Fixed with an async IIFE, which returns a
         // real promise that rejects like any other.
         vi.spyOn(ChoicesService, 'fetchChoices').mockResolvedValue({
           choices: [],
@@ -1072,10 +1072,13 @@ describe('choices engine', () => {
           ),
         ]);
 
-        await expect(racedAgainstAHang).resolves.toBeUndefined();
-        // The catch recovered by writing an empty change list.
-        expect(setSpy).toHaveBeenCalledTimes(2);
-        expect(setSpy).toHaveBeenLastCalledWith('choices-key', { changes: [] });
+        // INT-2483: resolves `false` ("cache not freshly written"), so cached
+        // changes are then applied without their custom JS.
+        await expect(racedAgainstAHang).resolves.toBe(false);
+        // The catch was reached (no hang). INT-6060 item 2: it no longer
+        // "recovers" by stamping `{changes: []}` over the cache — the only
+        // write is the one that threw; the existing cache is left alone.
+        expect(setSpy).toHaveBeenCalledTimes(1);
       });
     });
 

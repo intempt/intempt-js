@@ -4,7 +4,7 @@ import { IntemptIdsParams, ProductParams } from '../types/intemptJs.types.ts';
 import { generateId, eventTimestamp } from '../../shared/shared.utils.ts';
 
 export class ProductModel implements ModelProduct {
-  readonly name: string;
+  readonly name: string = undefined!;
   readonly type = 'product';
   readonly payload: ProductModelPayload[] = [];
 

@@ -7,9 +7,9 @@ type Props = {
 };
 
 export class SessionEventDataComponent {
-  private readonly sessionStartEventName: string;
-  private readonly landingPageQuery: string;
-  private readonly landingPageHash: string;
+  private readonly sessionStartEventName: string = undefined!;
+  private readonly landingPageQuery: string = undefined!;
+  private readonly landingPageHash: string = undefined!;
   private readonly source = 'web';
 
   constructor({ sessionStartEventName, query, urlHash }: Props) {

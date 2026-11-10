@@ -4,7 +4,7 @@ import { IdentifyModelPayload } from '../types/autoTracker.types.ts';
 import { ModelIdentify } from '../interfaces/baseModel.interface.ts';
 
 export class IdentifyModel implements ModelIdentify {
-  readonly name: string;
+  readonly name: string = undefined!;
   readonly type = 'identify';
   readonly payload: IdentifyModelPayload[] = [];
 

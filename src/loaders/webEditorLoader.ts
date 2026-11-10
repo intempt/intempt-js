@@ -20,6 +20,8 @@ class WebEditor {
   private readonly HOST_ID: string = 'intempt-root-host';
   private readonly APP_ID: string = 'intempt-editor-root';
   private readonly ALLOWED_ORIGINS: readonly string[];
+  /** `?openerOrigin=` (trailing slashes stripped, as in `main.ts`); `''` if absent. */
+  private readonly OPENER_ORIGIN: string;
   private __INTEMPT_EDITOR_MOUNTED: boolean = false;
   private _readyAcked: boolean = false;
   private _readyInterval: ReturnType<typeof setInterval> | null = null;
@@ -28,6 +30,33 @@ class WebEditor {
     const qs = new URLSearchParams(location.search);
     this.CHANNEL = qs.get(`${this.CHANNEL_KEY}`) || '';
     this.ALLOWED_ORIGINS = EnvConfig.getOpenerOrigins();
+    this.OPENER_ORIGIN = (qs.get('openerOrigin') || '').replace(/\/+$/, '');
+  }
+
+  /**
+   * INT-3957: build the mount payload from exactly the six fields of the
+   * web-editor's `EditorPayload`, type-checked. Anything else in the message is
+   * dropped. Returns `null` on a bad shape.
+   */
+  private toEditorPayload(raw: unknown): EditorPayload | null {
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const p = raw as Record<string, unknown>;
+    const { organization, project, experience, variantId, token, view } = p;
+
+    if (
+      typeof organization !== 'string' ||
+      typeof project !== 'string' ||
+      typeof variantId !== 'string' ||
+      typeof token !== 'string' ||
+      typeof view !== 'string' ||
+      !experience ||
+      !variantId ||
+      !token
+    ) {
+      return null;
+    }
+
+    return { organization, project, experience, variantId, token, view };
   }
 
   init() {
@@ -64,16 +93,15 @@ class WebEditor {
 
   private handleMessageFromOpener(event: MessageEvent) {
     if (!this.ALLOWED_ORIGINS.includes(event.origin)) return;
+    // INT-3953: when the page was opened with `?openerOrigin=`, only that exact
+    // origin may drive the editor — not any other allow-listed one.
+    if (this.OPENER_ORIGIN && event.origin !== this.OPENER_ORIGIN) return;
 
     const msg = event.data || {};
 
     let chOk = true;
 
-    let editorPayload: EditorPayload = {
-      experience: undefined,
-      variantId: '',
-      token: '',
-    };
+    let editorPayload: EditorPayload | null = null;
 
     if (msg?.type === 'INIT') {
       this._readyAcked = true;
@@ -82,8 +110,7 @@ class WebEditor {
         this._readyInterval = null;
       }
 
-      const p = msg.payload || {};
-      editorPayload = { ...p };
+      editorPayload = this.toEditorPayload(msg.payload);
 
       if (this.CHANNEL && msg.channel !== this.CHANNEL) chOk = false;
     }
@@ -98,9 +125,8 @@ class WebEditor {
       } catch {}
     };
 
-    const { experience, variantId, token } = editorPayload;
-
-    if (!experience || !variantId || !token) {
+    if (!editorPayload) {
+      log.warn('INIT payload rejected: invalid shape');
       reply({
         type: 'ACK',
         ok: false,
@@ -203,9 +229,9 @@ class WebEditor {
     // @vite-ignore keeps Vite from trying to pre-bundle/transform the URL
     // A remote module fetched at runtime, so its shape is genuinely unknown until
     // it is checked — which is what the `mount` test below does.
-    const mod: { mount?: (root: HTMLElement) => unknown } = await import(
-      /* @vite-ignore */ this.JS_URL
-    );
+    const mod: {
+      mount?: (root: HTMLElement, payload: EditorPayload) => unknown;
+    } = await import(/* @vite-ignore */ this.JS_URL);
 
     const globalMount = (
       window as Window & {
@@ -214,7 +240,9 @@ class WebEditor {
     ).__INTEMPT_MOUNT;
 
     if (mod?.mount) {
-      await mod.mount(appRoot);
+      // Same clean payload as the fallback (INT-3706): web-editor's
+      // `mount(target, payload)` needs it.
+      await mod.mount(appRoot, payload);
     } else if (globalMount) {
       globalMount(appRoot, payload); // fallback: global mount function
     } else {

@@ -1,4 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import {
+  configureLogger,
+  resetLogger,
+  type DiagnosticRecord,
+} from '../../src/shared/logger/logger.ts';
 
 /**
  * The public API class — `src/intemptJs/intemptJs.ts`.
@@ -671,6 +676,48 @@ describe('IntemptJs — the public API class', () => {
       await expect(
         sdk.recommendation({ id: 'feed-7', quantity: 5, fields: [] } as any),
       ).resolves.toBeNull();
+    });
+
+    describe('logs failures at warn instead of failing silently (INT-3896)', () => {
+      const records: DiagnosticRecord[] = [];
+      beforeEach(() => {
+        records.length = 0;
+        configureLogger({ sink: (r) => records.push(r), sinkLevel: 'warn' });
+      });
+      afterEach(() => resetLogger());
+
+      it('logs the HTTP status of a non-2xx response and still resolves null', async () => {
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () => ({
+            ok: false,
+            status: 403,
+            json: async () => ({}),
+          })),
+        );
+        await expect(
+          sdk.recommendation({ id: 'feed-7', quantity: 5, fields: [] } as any),
+        ).resolves.toBeNull();
+        const warns = records.filter((r) => r.level === 'warn');
+        expect(warns).toHaveLength(1);
+        expect(warns[0]!.detail).toEqual({ status: 403 });
+      });
+
+      it('logs the network error and still resolves null', async () => {
+        const err = new Error('offline');
+        vi.stubGlobal(
+          'fetch',
+          vi.fn(async () => {
+            throw err;
+          }),
+        );
+        await expect(
+          sdk.recommendation({ id: 'feed-7', quantity: 5, fields: [] } as any),
+        ).resolves.toBeNull();
+        const warns = records.filter((r) => r.level === 'warn');
+        expect(warns).toHaveLength(1);
+        expect(warns[0]!.detail).toBe(err);
+      });
     });
 
     it('is gated on opt-out, fixed (D-4): no identifier leaves the page', async () => {
