@@ -1,5 +1,6 @@
 import { Modification } from '../../../types/choices.types.ts';
 import { getSdkScriptNonce } from '../../../../shared/cspNonce.ts';
+import { sanitizeExperienceFragment } from './sanitizeExperienceFragment.ts';
 
 /**
  * The attribute name a pointer is stamped with, and the attribute name it is looked up by.
@@ -127,6 +128,8 @@ export class WebEditorModificationHandler {
 
     const range = document.createRange();
     const fragment = range.createContextualFragment(html);
+    // INT-2481: script runs only through `change.js`, never hidden inside `html`.
+    sanitizeExperienceFragment(fragment);
 
     if (trimWhitespace) {
       // remove whitespace-only text nodes at root
