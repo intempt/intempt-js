@@ -105,7 +105,10 @@ export const ChoicesService = {
     };
   },
 
-  getChoices: async function (config: ChoicesParams): Promise<Choice[]> {
+  getChoices: async function (
+    config: ChoicesParams,
+    onLateFresh?: (changes: Choice[]) => void,
+  ): Promise<Choice[]> {
     /**
      * Get variables stored in SessionStorage
      * */
@@ -159,6 +162,7 @@ export const ChoicesService = {
         orgName,
         project,
         apiBaseUrl: config.apiBaseUrl,
+        onLateFresh,
       });
     } catch (error) {
       log.error('getChoices failed', error);
@@ -167,7 +171,14 @@ export const ChoicesService = {
   },
 
   getChoicesData: async function (args: FetchChoicesData): Promise<Choice[]> {
-    const { changesRequest, orgName, project, authRequest, apiBaseUrl } = args;
+    const {
+      changesRequest,
+      orgName,
+      project,
+      authRequest,
+      apiBaseUrl,
+      onLateFresh,
+    } = args;
     const url = `${orgName}/projects/${project}/optimization/choose-web`;
     const key = `changes_${window.location.pathname}`;
 
@@ -181,6 +192,7 @@ export const ChoicesService = {
       body: changesRequest,
       auth_config: authRequest,
       apiBaseUrl,
+      onLateFresh,
     });
 
     // `localStorageCache.get` is typed `unknown`, not `any`, so this cast is a
@@ -228,11 +240,13 @@ export const ChoicesService = {
     body,
     auth_config,
     apiBaseUrl,
+    onLateFresh,
   }: SetChoicesData): Promise<boolean> {
     // Resolves `true` only when a usable `choose-web` response arrived within
     // `responseMaxTime` and was written to the cache — i.e. the cache now holds
     // server-fresh changes. Timeout, failure or a malformed body → `false`.
     const responseMaxTime = 320;
+    let timedOut = false;
     try {
       // D-22: an `async` function passed as a Promise executor never calls
       // `reject` on throw — the executor's own returned (rejected) promise is
@@ -258,10 +272,16 @@ export const ChoicesService = {
 
         const changes = this.choicesDataGuard(data);
         localStorageCache.set(key, { changes });
+        // Ro-bot impact:F1: the page already applied the cache with js stripped; this
+        // response is server-fresh, so its js may run now (ChoicesModule matches it).
+        if (timedOut) onLateFresh?.(changes);
         return true;
       })();
       const timeoutPromise = new Promise<boolean>((resolve) =>
-        setTimeout(() => resolve(false), responseMaxTime),
+        setTimeout(() => {
+          timedOut = true;
+          resolve(false);
+        }, responseMaxTime),
       );
 
       return await Promise.race([timeoutPromise, changesPromise]);

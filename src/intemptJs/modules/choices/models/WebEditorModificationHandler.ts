@@ -67,11 +67,14 @@ export class WebEditorModificationHandler {
       targetEl?.remove();
     }
 
-    if (js && js.trim()) {
-      // INT-2483: carry the page's CSP nonce so strict-CSP sites run it.
-      this.appendInlineScriptAfter(js, getSdkScriptNonce());
-    }
+    if (js && js.trim()) this.runCustomJs(js);
   };
+
+  /** Only for js from a server response, never from the localStorage cache (INT-2483). */
+  runCustomJs(js: string): void {
+    // INT-2483: carry the page's CSP nonce so strict-CSP sites run it.
+    this.appendInlineScriptAfter(js, getSdkScriptNonce());
+  }
 
   remove = (change: Modification) => {
     const targetEl = this.elementGetterByIweId(pointerAttr(change));
