@@ -3,6 +3,8 @@ import {
   ConsentParams,
   FlagContext,
   FlagDetail,
+  FlagError,
+  FlagReadOptions,
   FlagReason,
   GroupParams,
   IdentifyParams,
@@ -39,6 +41,13 @@ const log = createLogger('Intempt');
 // choose-api is cut off rather than awaited. Not configurable: no public API for a knob nobody has
 // asked to turn.
 const CHOOSE_API_TIMEOUT_MS = 2000;
+
+type FlagChoice = {
+  name?: string;
+  group?: unknown;
+  body?: unknown;
+  reason?: unknown;
+};
 
 export class IntemptJs extends IntemptJsGuard {
   /** Build-time SDK version. Part of the public contract — see src/shared/version.ts */
@@ -453,47 +462,45 @@ export class IntemptJs extends IntemptJsGuard {
    * is the platform's business: its serving query filters on channel and status and never on mode.
    *
    * Gated on `isUserOptIn()` like every other public method that talks to the platform — see
-   * `_chooseOrEmpty`. An opted-out visitor gets `defaultValue` and no request is made.
+   * `_choose`. An opted-out visitor gets `defaultValue` and no request is made.
    *
    * Throws `TypeError` for an empty key, a key outside `^[a-zA-Z0-9_-]+$` (which `choose-api`
    * would reject) or a missing `defaultValue`. A service that has not answered within 2000 ms
    * also yields `defaultValue`.
    *
-   * KNOWN LIMITATION, accepted deliberately: an unassigned key and an unreachable service are
-   * indistinguishable here. `choose-api` answers `200 {"choices":[]}` for a person with no
-   * assignment, and a transport failure also yields no choices, so both resolve to
-   * `defaultValue`. That ambiguity is the objection recorded in
-   * `intempt-swift/docs/SDK-API-CONTRACT.md` (decided 2026-08-15) against shipping this surface
-   * at all. It is accepted rather than answered because the consequence is bounded: the caller
-   * always receives the value they nominated, which is the behaviour a kill switch needs in both
-   * cases. Telling the two apart needs a `reason` on the wire; when the serving contract carries
-   * one, `_variationDetail` becomes public and the ambiguity goes away.
+   * A failed request (401/403, other 4xx, 5xx, timeout, network, unparseable body) is told apart
+   * from an unassigned key through `onFlagError` and `variationDetail` (INT-7454); either way the
+   * caller receives the value they nominated, which is what a kill switch needs.
+   *
+   * Records an exposure for the key, unless `options.disableExposure` (INT-7456).
    */
   async variation<T>(
     key: string,
     context: FlagContext,
     defaultValue: T,
+    options?: FlagReadOptions,
   ): Promise<T> {
-    const detail = await this._variationDetail<T>(key, context, defaultValue);
+    const detail = await this.variationDetail<T>(
+      key,
+      context,
+      defaultValue,
+      options,
+    );
     return detail.value;
   }
 
   /**
-   * Internal. NOT part of the public surface, and deliberately so.
+   * The value and why it was returned (INT-7454, CONTRACT-R2 §S3). `reason: 'error'` with `error`
+   * set when the request failed and the default was returned. A 200 that serves nothing reads
+   * `off`: the platform sends no reason, so "off" and "not targeted" stay merged (INT-7457).
    *
-   * It would return a `reason`, and the platform does not send one yet: a held-back person's
-   * experience is absent from the evaluation response entirely rather than present with a cause.
-   * So every reason here would read `off` -- including for someone who WAS targeted and did
-   * receive the variant. That is not a missing answer, it is a wrong one, and a method whose
-   * entire purpose is explaining why must not guess.
-   *
-   * `variation` uses it for the value, which is correct either way. It becomes public when the
-   * serving contract carries a reason.
+   * Records the exposure unless `options.disableExposure` (INT-7456).
    */
-  private async _variationDetail<T>(
+  async variationDetail<T>(
     key: string,
     context: FlagContext,
     defaultValue: T,
+    options?: FlagReadOptions,
   ): Promise<FlagDetail<T>> {
     if (typeof key !== 'string' || !key.trim()) {
       throw new TypeError('variation: key is required');
@@ -509,7 +516,12 @@ export class IntemptJs extends IntemptJsGuard {
       throw new TypeError('variation: defaultValue is required');
     }
 
-    const choices = await this._chooseOrEmpty(context, [key]);
+    const { choices, error } = await this._choose(
+      context,
+      [key],
+      options?.disableExposure === true,
+    );
+    if (error) return { value: defaultValue, reason: 'error', error };
     const choice = choices.find((c) => c?.name === key);
     if (!choice) return { value: defaultValue, reason: 'off' };
 
@@ -520,20 +532,17 @@ export class IntemptJs extends IntemptJsGuard {
   }
 
   /**
-   * Every key assigned to this person, in one call.
+   * Every key assigned to this person, in one call. Evaluates only: the request carries
+   * `exposure: false`, so nothing is recorded for experiments the page never renders (INT-7456,
+   * CONTRACT-R2 §S4). Read the value you render with `variation`, which records the exposure.
+   * A backend that predates the `exposure` field ignores it and records as before.
    *
-   * OPEN, owner: platform. `EXP-SERVE-003` says every evaluation reports an exposure. If that is
-   * honoured server-side, one `allFlags` call on page load records an exposure for every
-   * experiment the person is in — including ones the page never renders — which inflates the live
-   * denominator of each. The other SDKs need the same answer: either a non-recording route or an
-   * `exposure: false` flag on the request. Until there is one, prefer `variation` per key at the
-   * point the value is actually used.
-   *
-   * Gated on `isUserOptIn()` via `_chooseOrEmpty`; an opted-out visitor gets `{}`.
+   * Gated on `isUserOptIn()` via `_choose`; an opted-out visitor gets `{}`.
    */
   async allFlags(context: FlagContext): Promise<Record<string, unknown>> {
     const out: Record<string, unknown> = {};
-    for (const choice of await this._chooseOrEmpty(context, undefined)) {
+    for (const choice of (await this._choose(context, undefined, true))
+      .choices) {
       if (typeof choice?.name === 'string' && choice.name)
         out[choice.name] = choice.body;
     }
@@ -588,7 +597,7 @@ export class IntemptJs extends IntemptJsGuard {
   }
 
   /**
-   * A transport failure yields no choices rather than throwing.
+   * A failed request yields no choices and an `error` rather than throwing (INT-7454).
    *
    * This is the entire reason `defaultValue` is required: a network failure, a 5xx or a timeout
    * must resolve to the value the caller chose. A flag SDK that throws when the service is
@@ -605,17 +614,16 @@ export class IntemptJs extends IntemptJsGuard {
    * absorbed here by design. Either `choose-api` keeps accepting the public key from a browser
    * origin, or this surface needs a browser-specific route. Not settled in this PR.
    */
-  private async _chooseOrEmpty(
+  private async _choose(
     context: FlagContext,
     names: string[] | undefined,
-  ): Promise<
-    Array<{ name?: string; group?: unknown; body?: unknown; reason?: unknown }>
-  > {
+    evaluateOnly: boolean,
+  ): Promise<{ choices: FlagChoice[]; error?: FlagError }> {
     // An evaluation reports an exposure (`EXP-SERVE-003`), and this request carries the
     // visitor's `profileId` and `userId`. Both are tracking, so an opted-out visitor must
     // produce no request at all — not merely a discarded response. Every caller of this method
     // already has a caller-nominated default to fall back to.
-    if (!this.isUserOptIn()) return [];
+    if (!this.isUserOptIn()) return { choices: [] };
 
     const { organization, sourceId, project, writeKey } = this._config;
 
@@ -637,7 +645,11 @@ export class IntemptJs extends IntemptJsGuard {
       device: detectDevice(),
     };
     if (names) body.names = names;
+    // Absent means record, so a backend that predates the field behaves as before (§S4).
+    if (evaluateOnly) body.exposure = false;
 
+    const key = names?.length === 1 ? names[0] : null;
+    let controller: AbortController | undefined;
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       // Inside the try with the request: this method's contract is that transport-class
@@ -649,8 +661,9 @@ export class IntemptJs extends IntemptJsGuard {
       // An AbortController and timer rather than `AbortSignal.timeout`, which older Safari lacks
       // (same pattern as autoTracker.transport.ts). The signal also covers `response.json()`,
       // so a body that stalls after the headers is cut off too.
-      const controller = new AbortController();
-      timeoutId = setTimeout(() => controller.abort(), CHOOSE_API_TIMEOUT_MS);
+      const abort = new AbortController();
+      controller = abort;
+      timeoutId = setTimeout(() => abort.abort(), CHOOSE_API_TIMEOUT_MS);
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -658,16 +671,61 @@ export class IntemptJs extends IntemptJsGuard {
           Authorization: `Basic ${btoa(`${username}:${password}`)}`,
         },
         body: JSON.stringify(body),
-        signal: controller.signal,
+        signal: abort.signal,
       });
-      if (!response?.ok) return [];
-      const parsed = await response.json();
-      return Array.isArray(parsed?.choices) ? parsed.choices : [];
+      if (!response?.ok) {
+        const status = response?.status;
+        const kind: FlagError['kind'] =
+          status === 401 || status === 403
+            ? 'auth'
+            : status >= 400 && status < 500
+              ? 'bad_request'
+              : 'server';
+        return this._flagError({ key, kind, status });
+      }
+      let parsed: { choices?: unknown } | null;
+      try {
+        parsed = await response.json();
+      } catch (error) {
+        if (controller.signal.aborted) throw error;
+        return this._flagError({ key, kind: 'parse' });
+      }
+      return {
+        choices: Array.isArray(parsed?.choices)
+          ? (parsed.choices as FlagChoice[])
+          : [],
+      };
     } catch {
-      return [];
+      return this._flagError({
+        key,
+        kind: controller?.signal.aborted ? 'timeout' : 'network',
+      });
     } finally {
       clearTimeout(timeoutId);
     }
+  }
+
+  /** Set once the first 401/403 was logged at error level (§S3: once per instance). */
+  private _authErrorLogged = false;
+
+  private _flagError(error: FlagError): {
+    choices: FlagChoice[];
+    error: FlagError;
+  } {
+    if (error.kind === 'auth') {
+      const message = `[intempt] choose-api rejected the write key of source ${this._config.sourceId} (${error.status}); flags return their defaults`;
+      if (this._authErrorLogged) log.debug(message);
+      else log.error(message);
+      this._authErrorLogged = true;
+    } else {
+      log.warn('flag evaluation failed, using defaults', error);
+    }
+    try {
+      this._config.onFlagError?.(error);
+    } catch (hookError) {
+      log.error('onFlagError hook threw', hookError);
+    }
+    return { choices: [], error };
   }
 
   async recommendation(params: RecommendationParams) {

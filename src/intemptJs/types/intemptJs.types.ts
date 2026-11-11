@@ -46,6 +46,11 @@ export type IntemptConfig = {
    * cap). A listener that throws is caught and logged.
    */
   onDeliveryFailure?: (failure: DeliveryFailure) => void;
+  /**
+   * Called when a flag call fell back to its default because the request failed (INT-7454). The
+   * default is still returned; a hook that throws is caught and logged.
+   */
+  onFlagError?: (error: FlagError) => void;
   organization: string;
   sourceId: string;
   project: string;
@@ -196,7 +201,27 @@ export type ProductParams = {
  * Without a reason a caller cannot tell a deliberate off state from a request the service never
  * answered. These strings are the wire contract, shared with every Intempt SDK.
  */
-export type FlagReason = 'targeted' | 'holdout' | 'not_targeted' | 'off';
+export type FlagReason =
+  'targeted' | 'holdout' | 'not_targeted' | 'off' | 'error';
+
+/**
+ * Why a flag call fell back to the default (INT-7454). `key` is null for `allFlags`.
+ * Shared shape across every Intempt SDK (CONTRACT-R2 §S3).
+ */
+export type FlagError = {
+  key: string | null;
+  kind: 'auth' | 'bad_request' | 'server' | 'timeout' | 'network' | 'parse';
+  status?: number;
+};
+
+/** Per-call options for a single-flag read (INT-7456). */
+export type FlagReadOptions = {
+  /**
+   * Evaluate without recording an exposure, for a pre-render or prefetch read whose value may
+   * never be shown. Default `false`: a single-flag read records the exposure.
+   */
+  disableExposure?: boolean;
+};
 
 /**
  * Who is being evaluated.
@@ -215,6 +240,8 @@ export type FlagDetail<T = unknown> = {
   value: T;
   reason: FlagReason;
   variant?: string;
+  /** Present when `reason` is `'error'`. */
+  error?: FlagError;
 };
 
 export type RecommendationParams = {
