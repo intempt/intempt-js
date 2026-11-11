@@ -15,6 +15,10 @@
   Read a value you render with `variation()`, which records it. Needs the audience-service
   change that reads the field; an older backend ignores it and records as before.
 
+- "Session start" is dispatched in the same call that opens the session, so it is queued
+  before the event that opened it (INT-7446). Until the browser's UA client hints resolve,
+  it carries the user-agent-string platform.
+
 ### Added
 
 - `onFlagError(error)` config hook and public `variationDetail(key, context, default, options?)`
