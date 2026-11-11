@@ -32,7 +32,9 @@ import {
 const autoTrackerInstances: MockAutoTracker[] = [];
 
 class MockAutoTracker {
-  doNotTrack = false;
+  /** Seeds `doNotTrack` as the real tracker does from its persisted state, before the SDK reads it. */
+  static startOptedOut = false;
+  doNotTrack = MockAutoTracker.startOptedOut;
   init = vi.fn();
   refresh = vi.fn();
   getProfileId = vi.fn(() => 'profile-1');
@@ -168,6 +170,20 @@ describe('IntemptJs — the public API class', () => {
         sourceId: 'src-1',
       });
       expect(choicesInstances[0]!.init).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not ask choose-web for experiences while the visitor is opted out (INT-7457)', () => {
+      // A choose-web call carries the profile and session ids and records an exposure, so it is
+      // tracking. A persisted opt-out or a DNT/GPC signal is already resolved by the time the
+      // auto-tracker is built, so the constructor can honour it.
+      MockAutoTracker.startOptedOut = true;
+      try {
+        new IntemptJs({ ...CONFIG });
+      } finally {
+        MockAutoTracker.startOptedOut = false;
+      }
+      expect(choicesInstances).toHaveLength(2);
+      expect(choicesInstances[1]!.init).not.toHaveBeenCalled();
     });
 
     it('throws out of the constructor on an empty config field, so no half-built instance escapes', () => {
@@ -613,6 +629,42 @@ describe('IntemptJs — the public API class', () => {
       } as never);
 
       expect(result).toBeNull();
+    });
+
+    it('asks for the identified user when a userId is given (INT-7443)', async () => {
+      const fetchSpy = vi.fn(async () => okResponse({ items: [] }));
+      vi.stubGlobal('fetch', fetchSpy);
+
+      await sdk.recommendation({
+        id: 7,
+        quantity: 3,
+        fields: [],
+        userId: 'u1',
+      });
+
+      const [, init] = fetchSpy.mock.calls[0] as unknown as [
+        string,
+        RequestInit,
+      ];
+      const body = JSON.parse(init.body as string);
+      expect(body).toMatchObject({ id: 'u1', type: 'user', sourceId: 'src-1' });
+      expect(body).not.toHaveProperty('userId');
+    });
+
+    it('keeps asking for the anonymous profile when no userId is given (INT-7443)', async () => {
+      const fetchSpy = vi.fn(async () => okResponse({ items: [] }));
+      vi.stubGlobal('fetch', fetchSpy);
+
+      await sdk.recommendation({ id: 7, quantity: 3, fields: [] });
+
+      const [, init] = fetchSpy.mock.calls[0] as unknown as [
+        string,
+        RequestInit,
+      ];
+      expect(JSON.parse(init.body as string)).toMatchObject({
+        id: 'profile-1',
+        type: 'profile',
+      });
     });
 
     it('posts to the feed endpoint with basic auth built from the write key', async () => {

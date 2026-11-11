@@ -344,13 +344,14 @@ window.intempt.consent({
 });
 ```
 
-| Field        | Type                   | Required  | Notes                                                            |
-| ------------ | ---------------------- | --------- | ---------------------------------------------------------------- |
-| `action`     | `'accept' \| 'reject'` | yes       | **Case-sensitive.** `'Accept'` is rejected.                      |
-| `validUntil` | `number`               | see below | Declared required in the type, but **not validated** at runtime. |
-| `email`      | `string`               | no        |                                                                  |
-| `message`    | `string`               | no        |                                                                  |
-| `category`   | `string`               | no        |                                                                  |
+| Field        | Type                   | Required  | Notes                                                             |
+| ------------ | ---------------------- | --------- | ----------------------------------------------------------------- |
+| `action`     | `'accept' \| 'reject'` | yes       | **Case-sensitive.** `'Accept'` is rejected.                       |
+| `validUntil` | `number`               | see below | Declared required in the type, but **not validated** at runtime.  |
+| `email`      | `string`               | no        |                                                                   |
+| `message`    | `string`               | no        |                                                                   |
+| `category`   | `string`               | no        |                                                                   |
+| `userId`     | `string`               | no        | The signed-in user the decision belongs to. Sent only when given. |
 
 Checks, in order:
 
@@ -358,6 +359,10 @@ Checks, in order:
 2. `action` `undefined`/`null` → `Consent parameters are invalid: action is required.`
 3. `action` is anything other than `'accept'` or `'reject'` →
    `Consent parameters are invalid: action should be either "reject" or "accept".`
+
+The record also carries `timestamp`, the epoch-milliseconds time of the call. The SDK does
+not remember the id passed to `identify()`, so pass `userId` explicitly when the visitor is
+signed in.
 
 `validUntil` is typed as required and TypeScript will insist on it, but a plain JavaScript
 call that omits it succeeds and sends the event without it. Do not rely on the SDK to
@@ -430,14 +435,17 @@ const items = await window.intempt.recommendation({
 });
 ```
 
-| Field      | Type       | Required | Notes                     |
-| ---------- | ---------- | -------- | ------------------------- |
-| `id`       | `number`   | yes      | Feed ID                   |
-| `quantity` | `number`   | yes      | Sent as `limit`           |
-| `fields`   | `string[]` | yes      | Fields to return per item |
+| Field      | Type       | Required | Notes                                                              |
+| ---------- | ---------- | -------- | ------------------------------------------------------------------ |
+| `id`       | `number`   | yes      | Feed ID                                                            |
+| `quantity` | `number`   | yes      | Sent as `limit`                                                    |
+| `fields`   | `string[]` | yes      | Fields to return per item                                          |
+| `userId`   | `string`   | no       | Recommend for this signed-in user instead of the anonymous profile |
 
-Nothing here is validated. The request also sends the current `profileId`, your
-`sourceId`, and the `productId` last seen in `localStorage`.
+Nothing here is validated. The request names who to recommend for: `{ id: userId, type:
+'user' }` when you pass `userId`, otherwise the current `{ id: profileId, type: 'profile' }`.
+The SDK does not remember the id passed to `identify()`, so pass `userId` explicitly. It
+also sends your `sourceId` and the `productId` last seen in `localStorage`.
 
 **Error behaviour, precisely.** The promise never rejects. It resolves to the parsed JSON
 body on a `2xx`, and to `null` in every other case: opted out, a non-`2xx` response
@@ -464,7 +472,7 @@ built from the write key (see [HTTP endpoints](#http-endpoints)).
 ## `VERSION`
 
 ```javascript
-window.intempt.VERSION; // e.g. '6.0.0'
+window.intempt.VERSION; // e.g. '6.1.0'
 ```
 
 The build-time SDK version, stamped from `package.json`. Useful in a bug report. It is
@@ -576,7 +584,8 @@ it); a failed or timed-out request leaves the previous cache in place.
 ### `POST {apiBase}/{organization}/projects/{project}/feeds/{id}/data`
 
 Used by [`recommendation()`](#recommendations). Body: `{ id: profileId, type: 'profile',
-sourceId, limit: quantity, fields, productId }`.
+sourceId, limit: quantity, fields, productId }`, or `{ id: userId, type: 'user', ... }` when
+`userId` is passed.
 
 ---
 

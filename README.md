@@ -145,7 +145,7 @@ group({ accountId, eventTitle?, accountAttributes? })       // associate with an
 track({ eventTitle, data })                                 // data required, non-empty
 record({ eventTitle, userId?, accountId?, data?, ... })      // data optional
 
-consent({ action, validUntil, email?, message?, category? }) // 'accept' | 'reject'
+consent({ action, validUntil, email?, message?, category?, userId? }) // 'accept' | 'reject'
 optIn() / optOut() / isUserOptIn()                          // on by default, persisted
 
 productAdd({ productId, quantity? })                        // one object
@@ -153,8 +153,8 @@ productView(productId)                                      // a bare string
 productOrdered([{ productId, quantity? }, ...])             // an array
 
 logOut()                                                    // reset profile + session
-recommendation({ id, quantity, fields })                    // async, returns a Promise
-VERSION                                                     // e.g. '6.0.0'
+recommendation({ id, quantity, fields, userId? })                 // async, returns a Promise
+VERSION                                                     // e.g. '6.1.0'
 ```
 
 ## Auto-tracking

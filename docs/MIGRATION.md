@@ -183,7 +183,7 @@ itself gated on the opt-out flag and would be silently dropped if you opted out 
 ## 5. `VERSION` is available
 
 ```javascript
-window.intempt.VERSION; // e.g. '6.0.0'
+window.intempt.VERSION; // e.g. '6.1.0'
 ```
 
 Previously the version existed only as a string literal inside the bundle. It now comes from

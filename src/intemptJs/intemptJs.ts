@@ -35,6 +35,11 @@ import { MetricsSnapshot } from '../shared/logger/metrics.ts';
 
 const log = createLogger('Intempt');
 
+// Beso ruling D3 (INT-7445). Every flag call has a caller default to fall back to, so a stalled
+// choose-api is cut off rather than awaited. Not configurable: no public API for a knob nobody has
+// asked to turn.
+const CHOOSE_API_TIMEOUT_MS = 2000;
+
 export class IntemptJs extends IntemptJsGuard {
   /** Build-time SDK version. Part of the public contract — see src/shared/version.ts */
   static readonly VERSION: string = SDK_VERSION;
@@ -113,7 +118,10 @@ export class IntemptJs extends IntemptJsGuard {
       apiBaseUrl: this._api,
     });
 
-    void this._choices.init();
+    // A choose-web call sends the profile and session ids and records an exposure, so an
+    // opted-out visitor makes none (INT-7457). A later `optIn()` takes effect on the next page
+    // load rather than re-running init here: by then the page has already painted.
+    if (this.isUserOptIn()) void this._choices.init();
   }
 
   /**
@@ -433,6 +441,10 @@ export class IntemptJs extends IntemptJsGuard {
    * Gated on `isUserOptIn()` like every other public method that talks to the platform — see
    * `_chooseOrEmpty`. An opted-out visitor gets `defaultValue` and no request is made.
    *
+   * Throws `TypeError` for an empty key, a key outside `^[a-zA-Z0-9_-]+$` (which `choose-api`
+   * would reject) or a missing `defaultValue`. A service that has not answered within 2000 ms
+   * also yields `defaultValue`.
+   *
    * KNOWN LIMITATION, accepted deliberately: an unassigned key and an unreachable service are
    * indistinguishable here. `choose-api` answers `200 {"choices":[]}` for a person with no
    * assignment, and a transport failure also yields no choices, so both resolve to
@@ -471,6 +483,11 @@ export class IntemptJs extends IntemptJsGuard {
   ): Promise<FlagDetail<T>> {
     if (typeof key !== 'string' || !key.trim()) {
       throw new TypeError('variation: key is required');
+    }
+    // choose-api rejects any other key with a 400 that would surface only as a silent default
+    // (INT-7455). Thrown, like the empty key: both are programming mistakes (Beso ruling D5).
+    if (!/^[a-zA-Z0-9_-]+$/.test(key)) {
+      throw new TypeError('variation: key must match ^[a-zA-Z0-9_-]+$');
     }
     if (defaultValue === undefined) {
       // Required, not optional. A caller who omits it has no answer during an outage, and the
@@ -607,6 +624,7 @@ export class IntemptJs extends IntemptJsGuard {
     };
     if (names) body.names = names;
 
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       // Inside the try with the request: this method's contract is that transport-class
       // failures resolve rather than throw, and `split`/`btoa` are part of building the
@@ -614,6 +632,11 @@ export class IntemptJs extends IntemptJsGuard {
       // try would escape past a caller who was promised a default.
       const [username, password] = String(writeKey ?? '').split('.');
       const url = `${this._api}/${organization}/projects/${project}/optimization/choose-api`;
+      // An AbortController and timer rather than `AbortSignal.timeout`, which older Safari lacks
+      // (same pattern as autoTracker.transport.ts). The signal also covers `response.json()`,
+      // so a body that stalls after the headers is cut off too.
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), CHOOSE_API_TIMEOUT_MS);
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -621,12 +644,15 @@ export class IntemptJs extends IntemptJsGuard {
           Authorization: `Basic ${btoa(`${username}:${password}`)}`,
         },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
       if (!response?.ok) return [];
       const parsed = await response.json();
       return Array.isArray(parsed?.choices) ? parsed.choices : [];
     } catch {
       return [];
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
@@ -634,14 +660,15 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return null;
 
     const { organization, sourceId, project, writeKey } = this._config;
-    const { id, quantity, fields } = params;
+    const { id, quantity, fields, userId } = params;
     const url = `${this._api}/${organization}/projects/${project}/feeds/${id}/data`;
     const [username, password] = writeKey.split('.');
-    const profileId = this._autoTracker.getProfileId();
     const productId = localStorageCache.get('productId');
+    const subject = userId
+      ? { id: userId, type: 'user' }
+      : { id: this._autoTracker.getProfileId(), type: 'profile' };
     const body = {
-      id: profileId,
-      type: 'profile',
+      ...subject,
       sourceId,
       limit: quantity,
       fields,

@@ -45,6 +45,7 @@ describe('variation', () => {
   });
 
   afterEach(() => {
+    vi.useRealTimers();
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
@@ -88,6 +89,50 @@ describe('variation', () => {
     await expect(sdk().variation('k', CTX, 'safe')).resolves.toBe('safe');
   });
 
+  describe('a choose-api that never answers (INT-7445, INT-7457)', () => {
+    const PENDING = Symbol('pending');
+
+    // Settles only through the abort signal, so without one it hangs exactly like a stalled
+    // server. Every other endpoint answers, so the auto-tracker is not what is being timed.
+    const hangingChooseApi = () =>
+      vi.fn((url: string, init?: { signal?: AbortSignal }) => {
+        if (!String(url).includes('/optimization/choose-api')) {
+          return Promise.resolve({ ok: true, json: async () => ({}) });
+        }
+        return new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          );
+        });
+      });
+
+    const settled = (p: Promise<unknown>) =>
+      Promise.race([p, Promise.resolve(PENDING)]);
+
+    it('resolves to the caller’s default once the 2000 ms budget is spent', async () => {
+      vi.useFakeTimers();
+      vi.stubGlobal('fetch', hangingChooseApi());
+
+      const result = sdk().variation('k', CTX, 'dflt');
+
+      await vi.advanceTimersByTimeAsync(1999);
+      expect(await settled(result)).toBe(PENDING);
+
+      await vi.advanceTimersByTimeAsync(2);
+      expect(await settled(result)).toBe('dflt');
+    });
+
+    it('passes an abort signal to the request', async () => {
+      const fetchMock = respond({ choices: [] });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await sdk().variation('k', CTX, 'd');
+
+      const init = chooseCall(fetchMock)[1] as { signal?: unknown };
+      expect(init.signal).toBeInstanceOf(AbortSignal);
+    });
+  });
+
   it('returns the default on a non-2xx response', async () => {
     vi.stubGlobal('fetch', respond({}, false));
 
@@ -114,6 +159,26 @@ describe('variation', () => {
         }
       ).variation('k', CTX),
     ).rejects.toThrow(/defaultValue is required/);
+  });
+
+  it('refuses a key the service would reject, without a request (INT-7455)', async () => {
+    // choose-api accepts only ^[a-zA-Z0-9_-]+$ and answers anything else with a 400, which used to
+    // come back as a silent default. A malformed key is a programming mistake, like an empty one.
+    const fetchMock = respond({ choices: [{ name: 'a_b-1', body: 'served' }] });
+    vi.stubGlobal('fetch', fetchMock);
+    const s = sdk();
+
+    for (const bad of ['a.b', 'a b', 'ключ', 'a/b']) {
+      await expect(s.variation(bad, CTX, 'd')).rejects.toThrow(TypeError);
+    }
+    await expect(s.variation('a.b', CTX, 'd')).rejects.toThrow(
+      /key must match/,
+    );
+    expect(
+      fetchMock.mock.calls.some(([u]) => String(u).includes('choose-api')),
+    ).toBe(false);
+
+    await expect(s.variation('a_b-1', CTX, 'd')).resolves.toBe('served');
   });
 
   it('reads choose-api, alongside the visual editor rather than instead of it', async () => {

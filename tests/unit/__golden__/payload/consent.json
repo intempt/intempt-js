@@ -7,5 +7,6 @@
   "sourceId": "<sourceId>",
   "profileId": "<profileId>",
   "source": "web",
-  "validUntil": "<validUntil>"
+  "validUntil": "<validUntil>",
+  "timestamp": "<timestamp>"
 }
