@@ -631,6 +631,42 @@ describe('IntemptJs — the public API class', () => {
       expect(result).toBeNull();
     });
 
+    it('asks for the identified user when a userId is given (INT-7443)', async () => {
+      const fetchSpy = vi.fn(async () => okResponse({ items: [] }));
+      vi.stubGlobal('fetch', fetchSpy);
+
+      await sdk.recommendation({
+        id: 7,
+        quantity: 3,
+        fields: [],
+        userId: 'u1',
+      });
+
+      const [, init] = fetchSpy.mock.calls[0] as unknown as [
+        string,
+        RequestInit,
+      ];
+      const body = JSON.parse(init.body as string);
+      expect(body).toMatchObject({ id: 'u1', type: 'user', sourceId: 'src-1' });
+      expect(body).not.toHaveProperty('userId');
+    });
+
+    it('keeps asking for the anonymous profile when no userId is given (INT-7443)', async () => {
+      const fetchSpy = vi.fn(async () => okResponse({ items: [] }));
+      vi.stubGlobal('fetch', fetchSpy);
+
+      await sdk.recommendation({ id: 7, quantity: 3, fields: [] });
+
+      const [, init] = fetchSpy.mock.calls[0] as unknown as [
+        string,
+        RequestInit,
+      ];
+      expect(JSON.parse(init.body as string)).toMatchObject({
+        id: 'profile-1',
+        type: 'profile',
+      });
+    });
+
     it('posts to the feed endpoint with basic auth built from the write key', async () => {
       const fetchSpy = vi.fn(async () => okResponse({ items: [1] }));
       vi.stubGlobal('fetch', fetchSpy);

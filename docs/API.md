@@ -435,14 +435,17 @@ const items = await window.intempt.recommendation({
 });
 ```
 
-| Field      | Type       | Required | Notes                     |
-| ---------- | ---------- | -------- | ------------------------- |
-| `id`       | `number`   | yes      | Feed ID                   |
-| `quantity` | `number`   | yes      | Sent as `limit`           |
-| `fields`   | `string[]` | yes      | Fields to return per item |
+| Field      | Type       | Required | Notes                                                              |
+| ---------- | ---------- | -------- | ------------------------------------------------------------------ |
+| `id`       | `number`   | yes      | Feed ID                                                            |
+| `quantity` | `number`   | yes      | Sent as `limit`                                                    |
+| `fields`   | `string[]` | yes      | Fields to return per item                                          |
+| `userId`   | `string`   | no       | Recommend for this signed-in user instead of the anonymous profile |
 
-Nothing here is validated. The request also sends the current `profileId`, your
-`sourceId`, and the `productId` last seen in `localStorage`.
+Nothing here is validated. The request names who to recommend for: `{ id: userId, type:
+'user' }` when you pass `userId`, otherwise the current `{ id: profileId, type: 'profile' }`.
+The SDK does not remember the id passed to `identify()`, so pass `userId` explicitly. It
+also sends your `sourceId` and the `productId` last seen in `localStorage`.
 
 **Error behaviour, precisely.** The promise never rejects. It resolves to the parsed JSON
 body on a `2xx`, and to `null` in every other case: opted out, a non-`2xx` response
@@ -581,7 +584,8 @@ it); a failed or timed-out request leaves the previous cache in place.
 ### `POST {apiBase}/{organization}/projects/{project}/feeds/{id}/data`
 
 Used by [`recommendation()`](#recommendations). Body: `{ id: profileId, type: 'profile',
-sourceId, limit: quantity, fields, productId }`.
+sourceId, limit: quantity, fields, productId }`, or `{ id: userId, type: 'user', ... }` when
+`userId` is passed.
 
 ---
 

@@ -153,7 +153,7 @@ productView(productId)                                      // a bare string
 productOrdered([{ productId, quantity? }, ...])             // an array
 
 logOut()                                                    // reset profile + session
-recommendation({ id, quantity, fields })                    // async, returns a Promise
+recommendation({ id, quantity, fields, userId? })                 // async, returns a Promise
 VERSION                                                     // e.g. '6.0.0'
 ```
 

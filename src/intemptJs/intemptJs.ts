@@ -651,14 +651,15 @@ export class IntemptJs extends IntemptJsGuard {
     if (!this.isUserOptIn()) return null;
 
     const { organization, sourceId, project, writeKey } = this._config;
-    const { id, quantity, fields } = params;
+    const { id, quantity, fields, userId } = params;
     const url = `${this._api}/${organization}/projects/${project}/feeds/${id}/data`;
     const [username, password] = writeKey.split('.');
-    const profileId = this._autoTracker.getProfileId();
     const productId = localStorageCache.get('productId');
+    const subject = userId
+      ? { id: userId, type: 'user' }
+      : { id: this._autoTracker.getProfileId(), type: 'profile' };
     const body = {
-      id: profileId,
-      type: 'profile',
+      ...subject,
       sourceId,
       limit: quantity,
       fields,

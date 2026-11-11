@@ -210,6 +210,11 @@ export type RecommendationParams = {
   id: number;
   quantity: number;
   fields: string[];
+  /**
+   * Recommend for this identified user rather than the anonymous profile (INT-7443). The SDK does
+   * not remember the id passed to `identify()`, so pass it here when the visitor is signed in.
+   */
+  userId?: string;
 };
 
 export type IdentifyParams = {
