@@ -118,7 +118,10 @@ export class IntemptJs extends IntemptJsGuard {
       apiBaseUrl: this._api,
     });
 
-    void this._choices.init();
+    // A choose-web call sends the profile and session ids and records an exposure, so an
+    // opted-out visitor makes none (INT-7457). A later `optIn()` takes effect on the next page
+    // load rather than re-running init here: by then the page has already painted.
+    if (this.isUserOptIn()) void this._choices.init();
   }
 
   /**
