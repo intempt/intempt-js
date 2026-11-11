@@ -154,7 +154,7 @@ productOrdered([{ productId, quantity? }, ...])             // an array
 
 logOut()                                                    // reset profile + session
 recommendation({ id, quantity, fields, userId? })                 // async, returns a Promise
-VERSION                                                     // e.g. '6.0.0'
+VERSION                                                     // e.g. '6.1.0'
 ```
 
 ## Auto-tracking

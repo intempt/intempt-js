@@ -472,7 +472,7 @@ built from the write key (see [HTTP endpoints](#http-endpoints)).
 ## `VERSION`
 
 ```javascript
-window.intempt.VERSION; // e.g. '6.0.0'
+window.intempt.VERSION; // e.g. '6.1.0'
 ```
 
 The build-time SDK version, stamped from `package.json`. Useful in a bug report. It is
