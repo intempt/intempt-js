@@ -35,16 +35,30 @@ export interface BatchSendOptions {
 /**
  * What a send reports back. **Every field is optional and the whole result may be
  * `null`**, which is the point: `null` means the transport never delivered at all,
- * and that is a different outcome from any HTTP status. The retry classification
- * (`isRetryableFailure`) depends on being able to tell those apart — under `any`
- * they were indistinguishable, and a missing `httpStatusCode` read as `undefined`
- * silently took the "not retryable" branch.
+ * and that is a different outcome from any HTTP status. The outcome classification
+ * (`neverReached`) depends on being able to tell those apart.
  */
 export interface BatchSendResult {
   httpStatusCode?: number;
   ok?: boolean;
   retryAfter?: string;
   error?: string;
+}
+
+/**
+ * The final outcome of one batch that was not delivered (INT-7444, CONTRACT-R2 §S2).
+ * - `transport`: never reached the server; the batch is kept. Fires once per batch.
+ * - `terminal`: the server answered a drop status, or the one 503/429 resend failed.
+ * - `dropped`: dropped on this side (timeout after the request was written, queue cap).
+ */
+export interface DeliveryFailure {
+  kind: 'transport' | 'terminal' | 'dropped';
+  status?: number;
+  eventCount: number;
+  eventIds: string[];
+  /** Seconds, as the server sent it. */
+  retryAfter?: number;
+  terminal: boolean;
 }
 
 export interface RequestBatcherOptions {
@@ -64,58 +78,16 @@ export interface RequestBatcherOptions {
   sharedLockStorage?: Storage;
   usePersistence?: boolean;
   flushOnlyOnInterval?: boolean;
+  /** Called once per batch on its final outcome; a throw is caught and logged. */
+  onDeliveryFailure?: (failure: DeliveryFailure) => void;
 }
 
-const MAX_RETRY_INTERVAL_MS = 10 * 60 * 1000; // 10 minutes
-
-/**
- * Full jitter: wait a uniformly random time in [0, ceiling) rather than exactly
- * `ceiling`. AWS Architecture Blog formulation ("Exponential Backoff And Jitter").
- *
- * Deterministic backoff synchronises the fleet. Every client that failed at the
- * same instant retries at the same instant, and stays in phase forever after
- * because they all run the same doubling schedule. That converts a brief ingest
- * wobble into a self-reinforcing thundering herd: the same retry load, delivered
- * as narrow spikes instead of spread out, each spike large enough to re-break
- * ingest just as it recovers. At 1-10M concurrent sessions the SDK becomes the
- * amplifier. Jitter does not change how often a client retries — only that
- * clients stop retrying *together*.
- *
- * Full jitter (vs equal jitter, `ceiling/2 + random(0, ceiling/2)`) gives the
- * widest spread and the lowest expected contention. Its usual objection — that a
- * client may retry almost immediately — does not apply here: `flush()` cannot
- * start while `requestInProgress` is true, which already supplies a floor.
- *
- * `Math.random` is deliberate. This is load spreading, not security. `generateId`
- * uses `crypto.getRandomValues` for an unrelated reason (id collisions, D19) —
- * do not "make them consistent".
- */
-function fullJitter(ceilingMS: number): number {
-  return Math.floor(Math.random() * ceilingMS);
-}
+// CONTRACT-R2 §S1: 503 and 429 get one resend, after Retry-After clamped to this range.
+const MIN_RESEND_WAIT_MS = 1000;
+const MAX_RESEND_WAIT_MS = 60 * 1000;
 
 /** +/-10% spread applied to the steady-state flush interval. */
 const FLUSH_JITTER_RATIO = 0.1;
-
-/**
- * Circuit breaker. Consecutive failed sends before we stop attempting entirely,
- * and how long we then stay stopped before probing.
- *
- * Jitter spreads retries across the fleet but does not reduce how many a client
- * makes: against an ingest tier that is genuinely down, every client keeps
- * knocking indefinitely, and the moment ingest recovers is exactly when the
- * accumulated backlog hits it hardest. The breaker adds the missing behaviour —
- * conclude the service is down, stop, and test recovery with a single probe
- * rather than the whole queue.
- *
- * 5 failures spans roughly a minute or two under the jittered backoff: long
- * enough that a transient blip does not trip it, short enough to stop wasting
- * attempts early in a real outage. The 60s open window is itself jittered, so
- * probes do not arrive as a synchronised wave — a breaker that reopened every
- * client at the same instant would recreate the herd it exists to prevent.
- */
-const CIRCUIT_BREAKER_THRESHOLD = 5;
-const CIRCUIT_BREAKER_OPEN_MS = 60 * 1000;
 
 /**
  * Spread the *steady-state* flush interval across a narrow band around its
@@ -178,8 +150,6 @@ interface SendContext {
   /** Queue items this request's success dequeues. */
   outcomeItemIds: string[];
   attemptSecondaryFlush: boolean;
-  /** Batch size the request was built with, for a 413 halving. */
-  currentBatchSize: number;
   startTime: number;
   timeoutMS: number;
 }
@@ -189,7 +159,7 @@ export interface FlushOptions {
   unloading?: boolean;
   /**
    * The page is going away (`beforeunload`, a non-bfcache `pagehide`), so the
-   * unload send bypasses the breaker. Ignored without `unloading`.
+   * unload send bypasses the Retry-After hold. Ignored without `unloading`.
    */
   terminal?: boolean;
 }
@@ -237,20 +207,6 @@ export class RequestBatcher {
   private batchSize: number;
   private flushInterval: number;
   private stopped: boolean;
-  /**
-   * Deterministic exponential ceiling for the retry backoff, tracked separately
-   * from `flushInterval` on purpose.
-   *
-   * `scheduleFlush()` assigns `flushInterval = flushMS`, so the doubling used to
-   * ride on the scheduled delay itself. Feeding it a *jittered* delay would make
-   * the next ceiling double from that random draw instead of from the true
-   * schedule — a short draw would collapse the backoff and the fleet would creep
-   * back toward hammering, which is the failure this change exists to prevent.
-   * So the ceiling doubles deterministically here and only the sleep is jittered.
-   *
-   * 0 means "not currently backing off"; reset by `resetFlush()`.
-   */
-  private retryCeilingMS: number = 0;
   private requestInProgress: boolean = false;
   /**
    * Queue item ids whose request is on the wire, from either a regular flush or
@@ -260,29 +216,27 @@ export class RequestBatcher {
   private inFlightItemIds: Set<string> = new Set();
   /**
    * A terminal unload (`beforeunload`, non-bfcache `pagehide`) has started and
-   * the page has not been seen live since. Unload sends bypass the breaker
+   * the page has not been seen live since. Unload sends bypass the Retry-After hold
    * while it is set. See `flushUnload`.
    */
   private pageTerminating: boolean = false;
   private timeoutID: number | null = null;
   private consecutiveRemovalFailures: number = 0;
   /**
-   * Circuit breaker state. Per-tab and in memory by deliberate choice: a shared
-   * breaker would need persisted state, a staleness policy and cross-tab race
-   * handling, right after per-event queue records got `SharedLock` off the hot
-   * path. A multi-tab user sends a few more probes; that is nothing against the
-   * fleet-wide reduction.
-   *
-   * `consecutiveSendFailures` counts *delivery* failures only — it is unrelated
-   * to `consecutiveRemovalFailures` above, which counts local queue-removal
-   * failures and disables batching outright.
-   *
-   * `breakerOpenUntilMS` of 0 means closed. When it is in the future the breaker
-   * is open and `flush()` sends nothing; the first flush after it passes is the
-   * half-open probe, which either closes the breaker or reopens it.
+   * Not before this time does a regular flush send: the Retry-After wait of a
+   * 503/429 resend. Unload sends on a live page respect it too.
    */
-  private consecutiveSendFailures: number = 0;
-  private breakerOpenUntilMS: number = 0;
+  private holdUntilMS: number = 0;
+  /**
+   * Queue items already resent once after a 503/429. Per item, not per batch:
+   * `fillBatch` rebuilds from the queue head, so a newcomer joining a resent
+   * batch still has its own resend. In memory only, so a reload can give an
+   * item pending its resend one more attempt.
+   */
+  private resentItemIds: Set<string> = new Set();
+  /** Items whose `transport` failure was already reported (§S2: once per batch). */
+  private transportReportedItemIds: Set<string> = new Set();
+  private onDeliveryFailure?: (failure: DeliveryFailure) => void;
   private itemIdsSentSuccessfully: Map<string, number> = new Map();
   private sentEventIds: Set<string> = new Set();
   private sentEventIdsKey: string;
@@ -311,6 +265,7 @@ export class RequestBatcher {
     this.beforeSendHook = options.beforeSendHook;
     this.errorReporter = options.errorReporter || (() => {});
     this.flushOnlyOnInterval = options.flushOnlyOnInterval || false;
+    this.onDeliveryFailure = options.onDeliveryFailure;
 
     this.batchSize = this.libConfig.batchSize;
     this.flushInterval = this.libConfig.batchFlushIntervalMs;
@@ -334,6 +289,15 @@ export class RequestBatcher {
       sharedLockStorage: options.sharedLockStorage,
       maxQueuedEvents: options.libConfig.maxQueuedEvents,
       errorReporter: this.reportError.bind(this),
+      onOverflow: (dropped) => {
+        const eventIds = dropped.flatMap((p) => this.extractEventIds(p));
+        this.notifyFailure({
+          kind: 'dropped',
+          eventCount: Math.max(dropped.length, eventIds.length),
+          eventIds,
+          terminal: true,
+        });
+      },
     });
   }
 
@@ -371,7 +335,7 @@ export class RequestBatcher {
   }
 
   /**
-   * Readable snapshot of the delivery pipeline: depth, latency, drops, breaker.
+   * Readable snapshot of the delivery pipeline: depth, latency, drops.
    *
    * This is the consumer the drop counter was waiting for. Reached from the
    * public API as `intempt.getDiagnostics()`, so a support case can be answered
@@ -395,32 +359,8 @@ export class RequestBatcher {
     }
   }
 
-  /**
-   * Return the breaker to closed after a confirmed delivery.
-   *
-   * Only a real delivery clears this. A 400 or 413 deliberately does not touch
-   * the counter in either direction: those mean ingest is up and rejecting a
-   * specific payload, which is neither evidence of an outage nor evidence of
-   * recovery.
-   */
-  private closeCircuit(): void {
-    this.consecutiveSendFailures = 0;
-    this.breakerOpenUntilMS = 0;
-    // Observation only. `setBreakerState` ignores a no-change call, so the
-    // common case (every successful delivery) neither logs nor counts.
-    this.metrics.setBreakerState('closed');
-  }
-
   private resetFlush(): void {
-    // Leaving the backoff ceiling set here would make a later, unrelated failure
-    // resume from the previous incident's ceiling instead of from the base
-    // interval.
-    this.retryCeilingMS = 0;
     this.scheduleFlush(jitterAroundBase(this.libConfig.batchFlushIntervalMs));
-  }
-
-  private resetBatchSize(): void {
-    this.batchSize = this.libConfig.batchSize;
   }
 
   /**
@@ -688,35 +628,20 @@ export class RequestBatcher {
       return;
     }
 
-    // Breaker open: send nothing, but keep accepting events into the queue so
-    // nothing is lost. Guarded here rather than only at the scheduler because
-    // flush() has several other callers (enqueue-triggered flushes, the
-    // post-success continuation) that would otherwise walk straight past an open
-    // breaker.
-    //
-    // An unload send checks it too, unless the page is going away: see
-    // `flushUnload`.
-    if (this.breakerOpenUntilMS > Date.now()) {
+    // Waiting out a 503/429 Retry-After: nothing goes out before it, whoever
+    // calls flush(). Events keep queueing.
+    if (this.holdUntilMS > Date.now()) {
       return;
-    }
-
-    // Getting here with an open-until timestamp still set means the window has
-    // just expired and this flush IS the half-open probe. Recorded rather than
-    // inferred, so the transition count reflects what happened. Unload sends
-    // are not probes: they are not scheduled for the window's end.
-    if (this.breakerOpenUntilMS > 0) {
-      this.metrics.setBreakerState('half-open');
     }
 
     this.requestInProgress = true;
     const timeoutMS = this.libConfig.batchRequestTimeoutMs;
     const startTime = Date.now();
-    const currentBatchSize = this.batchSize;
     let claimed: string[] = [];
 
     try {
-      const batch = await this.queue.fillBatch(currentBatchSize);
-      const attemptSecondaryFlush = batch.length === currentBatchSize;
+      const batch = await this.queue.fillBatch(this.batchSize);
+      const attemptSecondaryFlush = batch.length === this.batchSize;
       const built = this.buildBatch(batch);
       // Claimed before the first await below, so an unload send that runs
       // meanwhile does not put the same items into a second request.
@@ -735,8 +660,7 @@ export class RequestBatcher {
 
       // The already-sent items were just evicted above, the in-flight ones
       // belong to another request, and the ones whose hook threw stay queued,
-      // so none of them counts in this batch's outcome (a 413 halving
-      // decision, for instance, should reflect what was actually sent).
+      // so none of them counts in this batch's outcome.
       const outcomeItemIds = batch
         .map((item) => item.id)
         .filter((id) => !built.excludedFromOutcome.has(id));
@@ -745,7 +669,6 @@ export class RequestBatcher {
         unloading: false,
         outcomeItemIds,
         attemptSecondaryFlush,
-        currentBatchSize,
         startTime,
         timeoutMS,
       });
@@ -846,7 +769,7 @@ export class RequestBatcher {
 
   /**
    * The page is live again (a bfcache restore, the tab shown again): unload
-   * sends respect the breaker again. Called by the transport.
+   * sends respect the Retry-After hold again. Called by the transport.
    */
   pageResumed(): void {
     this.pageTerminating = false;
@@ -884,12 +807,12 @@ export class RequestBatcher {
    * keepalive budget. Anything older than those chunks stays queued and
    * persisted for the next flush or the next load.
    *
-   * The breaker: an unload send on a live page (a hidden tab, an SPA Leave
-   * Page) respects it, so a page that stays open does not keep hitting an
-   * endpoint that is down. A **terminal** unload (`beforeunload`, a `pagehide`
+   * The Retry-After hold: an unload send on a live page (a hidden tab, an SPA
+   * Leave Page) respects it, so a page that stays open does not resend before
+   * the server asked. A **terminal** unload (`beforeunload`, a `pagehide`
    * that is not a bfcache entry) bypasses it: that is the last chance these
    * events get, and one keepalive request from a dying page is not the load
-   * the breaker exists to shed. Terminal stays in force for every unload send
+   * the hold exists to shed. Terminal stays in force for every unload send
    * until the page is live again (`pageResumed`, or a regular flush), so a
    * Leave Page queued by the same unload bypasses it too.
    *
@@ -898,7 +821,7 @@ export class RequestBatcher {
    */
   flushUnload(terminal: boolean = false): Promise<void> {
     if (terminal) this.pageTerminating = true;
-    if (!this.pageTerminating && this.breakerOpenUntilMS > Date.now()) {
+    if (!this.pageTerminating && this.holdUntilMS > Date.now()) {
       return Promise.resolve();
     }
 
@@ -929,7 +852,6 @@ export class RequestBatcher {
           unloading: true,
           outcomeItemIds,
           attemptSecondaryFlush: false,
-          currentBatchSize: chunkSize,
           startTime,
           timeoutMS: this.libConfig.batchRequestTimeoutMs,
         }),
@@ -992,7 +914,7 @@ export class RequestBatcher {
       .then(
         (response) => {
           this.metrics.recordFlush(Date.now() - ctx.startTime);
-          return this.handleResponse(response, ctx, ids, eventIds);
+          return this.handleResponse(response, ctx, items);
         },
         (error) => {
           this.metrics.recordFlush(Date.now() - ctx.startTime, true);
@@ -1008,6 +930,7 @@ export class RequestBatcher {
             // them for the grace window) instead of sending them.
             this.unmarkEventIdsSent(eventIds);
             if (ctx.unloading) this.updateUnloadSent([], ids);
+            this.reportTransportOnce(items);
           }
           if (!ctx.unloading) {
             this.requestInProgress = false;
@@ -1019,106 +942,95 @@ export class RequestBatcher {
   }
 
   /**
-   * True when the batch was definitely not ingested and should be retried.
+   * The send never reached the server (CONTRACT-R2 §S1.5): no result, a
+   * transport error other than a timeout, or no usable status. Such a batch
+   * was NOT ingested and is kept for the next flush.
    *
-   * `response.error` is set by the transport when the request never completed
-   * (network failure, abort, timeout). Such a batch was NOT ingested, so it
-   * must be retried.
-   *
-   * This used to require `!navigator.onLine` alongside a <=0 status, which
-   * meant a network error while the browser still believed it was online
-   * fell through every branch and was treated as a SUCCESS — the events were
-   * dequeued having never been delivered. navigator.onLine only reports
-   * link-layer state: it is true on a captive portal, a dead VPN, or when the
-   * API itself is unreachable. Found by the property tests in
-   * tests/unit/queueInvariants.test.ts.
-   *
-   * A delivered response with NO `httpStatusCode` counts as retryable, and that
-   * is a deliberate decision forced by typing the response. Under `any`,
-   * `undefined >= 500`, `undefined === 429` and `undefined <= 0` are all false,
-   * so such a response fell past every branch and was treated as a SUCCESS —
-   * the batch dequeued having never been confirmed. That directly contradicted
-   * the unload path's old success check, which required `ok === true` or a
-   * 2xx and therefore called the same response inconclusive. Two classifiers
-   * disagreeing about the same input is the bug (both paths now use this
-   * one); retrying is the safe side of it, because the
-   * alternative is silent loss. `?? 0` also keeps the existing `<= 0` intent
-   * ("no usable status" and "status 0" are the same case).
+   * A delivered response with NO `httpStatusCode` counts as never reached, a
+   * decision forced by typing the response: under `any` it fell past every
+   * branch and was dequeued as a success having never been confirmed. Keeping
+   * it is the safe side, because the alternative is silent loss. `navigator.onLine`
+   * is deliberately not consulted: it is true on a captive portal or a dead VPN
+   * (tests/unit/queueInvariants.test.ts).
    */
-  private isRetryableFailure(response: BatchSendResult | null): boolean {
-    const transportFailed = !response || !!response.error;
-    const rawStatus: unknown = response?.httpStatusCode;
-    const status = typeof rawStatus === 'number' ? rawStatus : 0;
-    return transportFailed || status >= 500 || status === 429 || status <= 0;
+  private neverReached(response: BatchSendResult | null): boolean {
+    if (!response) return true;
+    if (response.error) return response.error !== 'timeout';
+    const rawStatus: unknown = response.httpStatusCode;
+    return typeof rawStatus !== 'number' || rawStatus <= 0;
   }
 
-  /**
-   * Record a delivery failure: count it, grow the backoff, and trip the
-   * breaker once failures are consistent enough to call it an outage. With
-   * `schedule`, also set the timer for the retry (or the half-open probe).
-   */
-  private backOffAfterFailure(
+  /** Retry-After in seconds, or undefined when absent or not a number of seconds. */
+  private retryAfterSeconds(
     response: BatchSendResult | null,
-    schedule: boolean,
-  ): void {
-    this.metrics.markFlushFailed();
-    // Retry with exponential backoff, spread across the fleet with full
-    // jitter. The ceiling doubles deterministically; the sleep is a random
-    // point below it. See `fullJitter` for why.
-    // Base off the *configured* interval, not `flushInterval` — the latter
-    // now carries the steady-state jitter, and the backoff schedule should
-    // not inherit an unrelated random draw.
-    let ceilingMS = Math.min(
-      MAX_RETRY_INTERVAL_MS,
-      (this.retryCeilingMS || this.libConfig.batchFlushIntervalMs) * 2,
+  ): number | undefined {
+    const seconds = parseInt(response?.retryAfter ?? '', 10);
+    return Number.isFinite(seconds) ? seconds : undefined;
+  }
+
+  private notifyFailure(failure: DeliveryFailure): void {
+    this.reportError(
+      `Delivery failed (${failure.kind}${failure.status ? ` ${failure.status}` : ''}); ` +
+        `${failure.eventCount} event(s) ${failure.terminal ? 'dropped' : 'kept'}`,
     );
-    let retryMS = fullJitter(ceilingMS);
-
-    if (response?.retryAfter) {
-      // NOT jittered, deliberately. The server named a time and we honour it
-      // exactly. This leaves every client told "come back in 30s" returning
-      // in the same 30th second — the same herd, just server-scheduled — so
-      // it is arguably wrong. It stays as-is pending confirmation from the
-      // ingest team on whether /track emits Retry-After at all, and on which
-      // statuses; the branch may well be dead code today. See BACKEND.md.
-      const retryAfterMS = parseInt(response.retryAfter, 10) * 1000;
-      if (retryAfterMS) {
-        ceilingMS = Math.min(MAX_RETRY_INTERVAL_MS, retryAfterMS);
-        retryMS = ceilingMS;
-      }
+    if (!this.onDeliveryFailure) return;
+    try {
+      this.onDeliveryFailure(failure);
+    } catch (error) {
+      this.log.error('onDeliveryFailure listener threw', error);
     }
+  }
 
-    this.retryCeilingMS = ceilingMS;
-
-    // Trip the breaker once failures are consistent enough to call it an
-    // outage rather than a blip. A send that fails while half-open lands
-    // here too and re-opens, which is the intended behaviour: one probe
-    // failing means the service is still down.
-    if (++this.consecutiveSendFailures >= CIRCUIT_BREAKER_THRESHOLD) {
-      const openMS = jitterAroundBase(CIRCUIT_BREAKER_OPEN_MS);
-      this.breakerOpenUntilMS = Date.now() + openMS;
-      this.metrics.setBreakerState('open');
-      this.reportError(
-        `${this.consecutiveSendFailures} consecutive failures; ` +
-          `circuit breaker open for ${openMS} ms`,
-      );
-      // Schedule the half-open probe for when the window expires. Events
-      // keep queueing meanwhile; only sending stops.
-      if (schedule) this.scheduleFlush(openMS);
-      return;
+  private failureFor(
+    items: BuiltItem[],
+    kind: DeliveryFailure['kind'],
+    response: BatchSendResult | null,
+  ): DeliveryFailure {
+    const eventIds = items.flatMap((item) => item.eventIds);
+    const failure: DeliveryFailure = {
+      kind,
+      eventCount: items.reduce(
+        (n, item) => n + Math.max(1, item.eventIds.length),
+        0,
+      ),
+      eventIds,
+      terminal: kind !== 'transport',
+    };
+    if (kind === 'terminal' && response?.httpStatusCode) {
+      failure.status = response.httpStatusCode;
     }
+    const retryAfter = this.retryAfterSeconds(response);
+    if (kind === 'terminal' && retryAfter !== undefined) {
+      failure.retryAfter = retryAfter;
+    }
+    return failure;
+  }
 
-    this.reportError(`Error; retry in ${retryMS} ms`);
-    if (schedule) this.scheduleFlush(retryMS);
+  /** §S2: an offline tab must not refire `transport` for the same batch on every flush. */
+  private reportTransportOnce(items: BuiltItem[]): void {
+    const fresh = items.filter(
+      (item) => !this.transportReportedItemIds.has(item.id),
+    );
+    if (fresh.length === 0) return;
+    for (const item of items) this.transportReportedItemIds.add(item.id);
+    this.notifyFailure(this.failureFor(items, 'transport', null));
+  }
+
+  private forgetItems(itemIds: Iterable<string>): void {
+    for (const id of itemIds) {
+      this.resentItemIds.delete(id);
+      this.transportReportedItemIds.delete(id);
+    }
   }
 
   private async handleResponse(
     response: BatchSendResult | null,
     ctx: SendContext,
-    inFlightIds: string[],
-    eventIdsInBatch: string[],
+    items: BuiltItem[],
   ): Promise<void> {
     const itemIds = ctx.outcomeItemIds;
+    const inFlightIds = items.map((item) => item.id);
+    const eventIdsInBatch = items.flatMap((item) => item.eventIds);
     if (!ctx.unloading) {
       this.requestInProgress = false;
     }
@@ -1141,11 +1053,26 @@ export class RequestBatcher {
       this.releaseInFlight(inFlightIds);
     };
 
-    // A definite failure: the items are retried, so neither pre-send mark
-    // may stand (the eventId one would evict them, the unload one delay them).
+    // The items stay queued for another send, so neither pre-send mark may
+    // stand (the eventId one would evict them, the unload one delay them).
     const rollBack = (): void => {
       this.unmarkEventIdsSent(eventIdsInBatch);
       if (ctx.unloading) this.updateUnloadSent([], inFlightIds);
+    };
+
+    // Dropped for good: removed, pre-send marks kept, reported once.
+    const drop = async (
+      dropIds: string[],
+      dropped: BuiltItem[],
+      kind: DeliveryFailure['kind'],
+    ): Promise<void> => {
+      const removed = await this.removeItemsFromQueue(dropIds);
+      release();
+      if (ctx.unloading && removed) this.updateUnloadSent([], inFlightIds);
+      this.forgetItems(dropIds);
+      if (dropped.length > 0) {
+        this.notifyFailure(this.failureFor(dropped, kind, response));
+      }
     };
 
     try {
@@ -1158,72 +1085,68 @@ export class RequestBatcher {
         return;
       }
 
-      // Check for timeout
-      if (
-        response?.error === 'timeout' &&
-        Date.now() - ctx.startTime >= ctx.timeoutMS
-      ) {
+      if (this.neverReached(response)) {
+        this.metrics.markFlushFailed();
         release();
-        this.reportError('Network timeout; retrying');
         rollBack();
-        // Same path as every other retry (INT-3793): an immediate `flush()`
-        // here hammered a server that had just timed out.
-        reschedule(jitterAroundBase(this.libConfig.batchFlushIntervalMs));
+        this.reportTransportOnce(items);
+        reschedule();
         return;
       }
 
-      // Check for retryable errors (see `isRetryableFailure`). A missing
-      // response is one: the transport never delivered.
-      if (this.isRetryableFailure(response)) {
-        release();
-        // Definitely not ingested — release the pre-send mark so the retry can
-        // actually send these rather than evicting them as duplicates.
-        rollBack();
-        this.backOffAfterFailure(response, ownsSchedule);
+      // Written but unanswered: the server may have it, so a resend risks a
+      // duplicate (§S1.4).
+      if (response?.error === 'timeout') {
+        this.metrics.markFlushFailed();
+        await drop(itemIds, items, 'dropped');
+        reschedule();
         return;
       }
 
-      // Handle 413 Payload Too Large
-      if (response?.httpStatusCode === 413) {
-        if (itemIds.length > 1) {
-          const halvedBatchSize = Math.max(
-            1,
-            Math.floor(ctx.currentBatchSize / 2),
+      const status = response?.httpStatusCode as number;
+
+      if (status === 503 || status === 429) {
+        this.metrics.markFlushFailed();
+        const exhausted = itemIds.filter((id) => this.resentItemIds.has(id));
+        const resend = itemIds.filter((id) => !this.resentItemIds.has(id));
+        const exhaustedSet = new Set(exhausted);
+        if (exhausted.length > 0) {
+          await drop(
+            exhausted,
+            items.filter((item) => exhaustedSet.has(item.id)),
+            'terminal',
           );
-          this.batchSize = Math.min(
-            this.batchSize,
-            halvedBatchSize,
-            itemIds.length - 1,
-          );
-          this.reportError(
-            `413 response; reducing batch size to ${this.batchSize}`,
-          );
-          release();
-          // These items stay queued to be re-sent in smaller batches.
-          rollBack();
-          reschedule();
-          return;
-        } else {
-          this.reportError('Single-event request too large; dropping', itemIds);
-          this.resetBatchSize();
-          const removed = await this.removeItemsFromQueue(itemIds);
-          release();
-          if (ctx.unloading && removed) this.updateUnloadSent([], inFlightIds);
-          reschedule();
-          return;
         }
+        release();
+        if (resend.length > 0) {
+          for (const id of resend) this.resentItemIds.add(id);
+          rollBack();
+          const seconds = this.retryAfterSeconds(response);
+          const waitMS = Math.min(
+            MAX_RESEND_WAIT_MS,
+            Math.max(MIN_RESEND_WAIT_MS, (seconds ?? 0) * 1000),
+          );
+          this.holdUntilMS = Date.now() + waitMS;
+          reschedule(waitMS);
+        } else {
+          reschedule();
+        }
+        return;
       }
 
-      // Success - remove items from queue
-      //
-      // Ingest answered, so the service is up: close the breaker. If this was
-      // the half-open probe, that is what promotes it back to closed and lets
-      // the queue drain normally.
-      this.closeCircuit();
+      // Every other status the server answered is dropped (§S1.3): 413 too,
+      // with no halving and resend.
+      if (status < 200 || status >= 300) {
+        this.metrics.markFlushFailed();
+        await drop(itemIds, items, 'terminal');
+        reschedule();
+        return;
+      }
 
       const succeeded = await this.removeItemsFromQueue(itemIds);
       release();
       this.recordDeliveryAttempts(itemIds, succeeded);
+      if (succeeded) this.forgetItems(itemIds);
       // Delivered and gone from the queue: the unload marks have done their
       // job. Kept when the removal failed, so the record left behind is not
       // sent again straight away.

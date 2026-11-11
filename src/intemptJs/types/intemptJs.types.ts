@@ -1,3 +1,4 @@
+import type { DeliveryFailure } from '../../shared/queue/requestBatcher.ts';
 import type { AutocaptureSetting } from '../../shared/autocaptureFamilies.ts';
 import { PiiScrubberOptions } from '../../shared/privacy/piiScrubber.ts';
 
@@ -34,7 +35,17 @@ export type IntemptIdsParams = {
   sourceId?: string;
 };
 
+export type { DeliveryFailure };
+
 export type IntemptConfig = {
+  /**
+   * Called once per batch of events that was not delivered, on its final outcome
+   * (INT-7444). `transport`: never reached the server, kept for the next flush (fires once
+   * per batch). `terminal`: the server rejected it, or its one 503/429 resend failed.
+   * `dropped`: dropped in the browser (a timeout after the request was written, the queue
+   * cap). A listener that throws is caught and logged.
+   */
+  onDeliveryFailure?: (failure: DeliveryFailure) => void;
   organization: string;
   sourceId: string;
   project: string;

@@ -95,6 +95,24 @@ describe('AutoTrackerTransport fetch -> XHR fallback', () => {
     vi.restoreAllMocks();
   });
 
+  // INT-7436 (CONTRACT-R2 §S1.4): a request our timer aborted after it left the page may have
+  // landed, so it is reported as a timeout and NOT resent over XHR.
+  it('does not resend over XHR when its own timeout aborted a dispatched fetch', async () => {
+    globalThis.fetch = vi.fn(
+      (_url: unknown, init: { signal: AbortSignal }) =>
+        new Promise((_resolve, reject) => {
+          init.signal.addEventListener('abort', () =>
+            reject(new DOMException('aborted', 'AbortError')),
+          );
+        }),
+    ) as unknown as typeof fetch;
+
+    const result = await send(makeTransport(), { timeout_ms: 20 });
+
+    expect(FakeXHR.instances.length).toBe(0);
+    expect(result).toEqual({ error: 'timeout', httpStatusCode: 0 });
+  });
+
   it('uses fetch on success and never constructs an XHR', async () => {
     const fetchMock = vi
       .fn()

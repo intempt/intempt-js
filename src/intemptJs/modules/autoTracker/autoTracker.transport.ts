@@ -178,6 +178,7 @@ export class AutoTrackerTransport {
           batchAutostart: true,
         },
         sendRequestFunc: this._sendBatchRequest.bind(this),
+        onDeliveryFailure: this._config.onDeliveryFailure,
         // No errorReporter here on purpose: RequestBatcher.reportError now
         // writes every one of these through the structured logger under its own
         // `[RequestBatcher]` scope, so wiring a second callback that only did
@@ -331,7 +332,11 @@ export class AutoTrackerTransport {
 
     // Armed before the await and cleared however it ends, so a rejected
     // request does not leave a 90 s timer behind.
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeout);
     try {
       const response = await pending;
       return {
@@ -350,6 +355,11 @@ export class AutoTrackerTransport {
       // Unload sends also run on live pages now (hidden tab, SPA Leave Page),
       // where that XHR would complete. The failure goes back to the batcher,
       // which keeps the items queued for the next flush.
+      // Our own timer aborted a request that had left the page: the server may
+      // have it, so it is not resent over XHR either (INT-7436, §S1.4).
+      if (dispatched && timedOut) {
+        return { error: 'timeout', httpStatusCode: 0 };
+      }
       if (options.unloading && dispatched) {
         return {
           error:

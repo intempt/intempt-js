@@ -271,9 +271,15 @@ export class IntemptJs extends IntemptJsGuard {
     dispatchIntemptEvent('intempt:event', { event: eventData });
   }
 
-  track(params: TrackParams) {
-    if (!this.isUserOptIn()) return;
-    if (!this.isTrackValid(params)) return;
+  /**
+   * Returns whether the event was handed to the delivery queue: `false` when the visitor is
+   * opted out or the params are invalid. It does not wait for, or report, delivery; that
+   * outcome arrives later through `onDeliveryFailure` (INT-7444). Never throws for a delivery
+   * problem.
+   */
+  track(params: TrackParams): boolean {
+    if (!this.isUserOptIn()) return false;
+    if (!this.isTrackValid(params)) return false;
 
     const { profileId, sessionId, pageId } = this._ids(params.eventTitle);
 
@@ -288,11 +294,18 @@ export class IntemptJs extends IntemptJsGuard {
       eventName: eventData._name,
     });
     dispatchIntemptEvent('intempt:event', { event: eventData });
+    return true;
   }
 
-  record(params: RecordParams) {
-    if (!this.isUserOptIn()) return;
-    if (!this.isRecordValid(params)) return;
+  /**
+   * Returns whether the event was handed to the delivery queue: `false` when the visitor is
+   * opted out or the params are invalid. It does not wait for, or report, delivery; that
+   * outcome arrives later through `onDeliveryFailure` (INT-7444). Never throws for a delivery
+   * problem.
+   */
+  record(params: RecordParams): boolean {
+    if (!this.isUserOptIn()) return false;
+    if (!this.isRecordValid(params)) return false;
 
     const { profileId, sessionId, pageId } = this._ids(params.eventTitle);
 
@@ -307,6 +320,7 @@ export class IntemptJs extends IntemptJsGuard {
       eventName: eventData._name,
     });
     dispatchIntemptEvent('intempt:event', { event: eventData });
+    return true;
   }
 
   /**

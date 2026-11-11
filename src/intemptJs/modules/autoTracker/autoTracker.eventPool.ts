@@ -1,6 +1,7 @@
 import { IntemptConfig } from '../../types/intemptJs.types.ts';
 import { debounce } from '../../../shared/shared.utils.ts';
 import { createLogger } from '../../../shared/logger/logger.ts';
+import { DeliveryFailure } from '../../../shared/queue/requestBatcher.ts';
 import { buildTrackUrl } from './autoTracker.url.ts';
 
 const log = createLogger('AutoTracker');
@@ -23,7 +24,10 @@ const KEEPALIVE_BUDGET_BYTES = 64 * 1024;
 
 /** A non-OK response from the track endpoint; `status` drives the retry decision. */
 class HttpStatusError extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly retryAfter?: string,
+  ) {
     super(`HTTP error! Status: ${status}`);
   }
 }
@@ -87,6 +91,10 @@ export class AutoTrackerEventPool {
   private readonly _config: IntemptConfig;
   private readonly _api: string;
   private readonly _pool: PooledEvent[] = [];
+  /** Events already given their one 503/429 resend (INT-7436). */
+  private readonly _resent = new WeakSet<PooledEvent>();
+  /** Events whose `transport` failure was already reported (INT-7444: once per batch). */
+  private readonly _transportReported = new WeakSet<PooledEvent>();
 
   constructor(config: IntemptConfig, api: string) {
     this._config = config;
@@ -171,7 +179,10 @@ export class AutoTrackerEventPool {
       );
       const retained: PooledEvent[] = [];
       results.forEach((result, i) => {
-        if (result.status === 'rejected' && this._keep(result.reason))
+        if (
+          result.status === 'rejected' &&
+          this._keep(result.reason, chunks[i])
+        )
           retained.push(...chunks[i]);
       });
       this._requeue(retained);
@@ -182,7 +193,7 @@ export class AutoTrackerEventPool {
       try {
         await this._post(chunks[i]);
       } catch (error) {
-        if (this._keep(error)) {
+        if (this._keep(error, chunks[i])) {
           this._requeue(chunks.slice(i).flat());
           return;
         }
@@ -191,18 +202,65 @@ export class AutoTrackerEventPool {
     }
   }
 
-  /** True when a failed POST is worth retrying; logs either way. */
-  private _keep(error: unknown): boolean {
+  /**
+   * The CONTRACT-R2 §S1 table for the fallback path. True keeps the chunk:
+   * never reached the server, or a 503/429 not yet resent (resent at the next
+   * flush, after Retry-After clamped to 1–60 s). Everything else is dropped
+   * and reported through `onDeliveryFailure`.
+   */
+  private _keep(error: unknown, chunk: PooledEvent[]): boolean {
     const status = error instanceof HttpStatusError ? error.status : undefined;
-    const transient =
-      status === undefined || status === 408 || status === 429 || status >= 500;
-    log.error(
-      transient
-        ? '_sendTrackEventData failed, will retry'
-        : '_sendTrackEventData rejected permanently, dropping events',
-      error,
+    if (status === undefined) {
+      log.error('_sendTrackEventData never reached the server, kept', error);
+      if (chunk.some((e) => !this._transportReported.has(e))) {
+        chunk.forEach((e) => this._transportReported.add(e));
+        this._report({ kind: 'transport', terminal: false }, chunk);
+      }
+      return true;
+    }
+    const seconds = parseInt((error as HttpStatusError).retryAfter ?? '', 10);
+    const retryAfter = Number.isFinite(seconds) ? seconds : undefined;
+    if (
+      (status === 503 || status === 429) &&
+      !chunk.some((e) => this._resent.has(e))
+    ) {
+      chunk.forEach((e) => this._resent.add(e));
+      const waitMS = Math.min(60_000, Math.max(1000, (retryAfter ?? 0) * 1000));
+      setTimeout(() => void this.flush(), waitMS);
+      log.error(`_sendTrackEventData got ${status}, one resend`, error);
+      return true;
+    }
+    log.error('_sendTrackEventData failed, dropping events', error);
+    this._report(
+      {
+        kind: 'terminal',
+        status,
+        terminal: true,
+        ...(retryAfter !== undefined ? { retryAfter } : {}),
+      },
+      chunk,
     );
-    return transient;
+    return false;
+  }
+
+  private _report(
+    failure: Omit<DeliveryFailure, 'eventCount' | 'eventIds'>,
+    chunk: PooledEvent[],
+  ): void {
+    const listener = this._config.onDeliveryFailure;
+    if (!listener) return;
+    const eventIds = chunk.flatMap((e) =>
+      Array.isArray(e.payload)
+        ? (e.payload as Array<{ eventId?: unknown }>)
+            .map((p) => p?.eventId)
+            .filter((id): id is string => typeof id === 'string')
+        : [],
+    );
+    try {
+      listener({ ...failure, eventCount: chunk.length, eventIds });
+    } catch (error) {
+      log.error('onDeliveryFailure listener threw', error);
+    }
   }
 
   /** Put events back at the front of the pool, trimmed to the cap (oldest dropped). */
@@ -239,7 +297,10 @@ export class AutoTrackerEventPool {
     });
 
     if (!response.ok) {
-      throw new HttpStatusError(response.status);
+      throw new HttpStatusError(
+        response.status,
+        response.headers?.get?.('Retry-After') ?? undefined,
+      );
     }
   }
 }

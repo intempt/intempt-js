@@ -13,8 +13,9 @@ const KEY = '__unit_invariants__';
  * example-based tests only ever probe the sequences someone thought to write
  * down. The invariants below are the two that matter to a customer:
  *
- *   NO LOSS  — an event accepted by enqueue() is eventually delivered, or is
- *              still in the queue waiting. It never silently disappears.
+ *   NO LOSS  — an event accepted by enqueue() is eventually delivered, is
+ *              still in the queue waiting, or was dropped AND reported through
+ *              onDeliveryFailure (INT-7436/7444). It never silently disappears.
  *   NO DUPES — no event id is delivered to the transport twice.
  *
  * Failures are deterministic given the seed printed in the assertion message, so
@@ -43,12 +44,14 @@ interface RunResult {
   enqueued: string[];
   delivered: string[];
   stillQueued: string[];
+  reported: string[];
 }
 
 async function runScenario(seed: number, steps: number): Promise<RunResult> {
   const random = rng(seed);
   const enqueued: string[] = [];
   const delivered: string[] = [];
+  const reported: string[] = [];
 
   const batcher = new RequestBatcher({
     storageKey: KEY,
@@ -79,6 +82,9 @@ async function runScenario(seed: number, steps: number): Promise<RunResult> {
         }
       }
       return { httpStatusCode: 200, ok: true };
+    },
+    onDeliveryFailure: (f) => {
+      if (f.terminal) reported.push(...f.eventIds);
     },
     usePersistence: true,
     queueStorage: new QueueStorage(),
@@ -112,7 +118,7 @@ async function runScenario(seed: number, steps: number): Promise<RunResult> {
   }
 
   batcher.stop();
-  return { enqueued, delivered, stillQueued };
+  return { enqueued, delivered, stillQueued, reported };
 }
 
 describe('queue invariants under random interleavings', () => {
@@ -142,9 +148,12 @@ describe('queue invariants under random interleavings', () => {
   );
 
   it.each(seeds)('never loses an accepted event (seed %i)', async (seed) => {
-    const { enqueued, delivered, stillQueued } = await runScenario(seed, 60);
+    const { enqueued, delivered, stillQueued, reported } = await runScenario(
+      seed,
+      60,
+    );
 
-    const accounted = new Set([...delivered, ...stillQueued]);
+    const accounted = new Set([...delivered, ...stillQueued, ...reported]);
     const lost = enqueued.filter((id) => !accounted.has(id));
 
     expect(lost, `seed ${seed} lost: ${lost.join(', ')}`).toEqual([]);

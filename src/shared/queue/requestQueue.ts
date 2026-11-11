@@ -36,6 +36,8 @@ export interface RequestQueueOptions {
   sharedLockTimeoutMS?: number;
   enqueueThrottleMs?: number;
   errorReporter?: (msg: string, err?: unknown) => void;
+  /** The payloads the cap dropped (INT-7444); empty for records this tab never read. */
+  onOverflow?: (dropped: unknown[]) => void;
   pid?: string;
   maxQueuedEvents?: number;
 }
@@ -138,6 +140,8 @@ export class RequestQueue {
    */
   private approxQueuedCount: number = -1;
 
+  private onOverflow?: (dropped: unknown[]) => void;
+
   constructor(storageKey: string, options: RequestQueueOptions = {}) {
     this.storageKey = storageKey;
     this.itemPrefix = `${storageKey}:i:`;
@@ -145,6 +149,7 @@ export class RequestQueue {
     this.queueStorage =
       options.queueStorage || new QueueStorage(options.sharedLockStorage);
     this.reportError = options.errorReporter || (() => {});
+    this.onOverflow = options.onOverflow;
     this.maxQueuedEvents = options.maxQueuedEvents || MAX_QUEUED_EVENTS;
 
     if (this.usePersistence) {
@@ -324,8 +329,9 @@ export class RequestQueue {
     const overflow = this.memQueue.length - this.maxQueuedEvents;
     if (overflow <= 0) return;
 
-    this.memQueue.splice(0, overflow);
+    const dropped = this.memQueue.splice(0, overflow);
     this.droppedEventCount += overflow;
+    this.onOverflow?.(dropped.map((entry) => entry.payload));
     this.reportError(
       `Queue full (${this.maxQueuedEvents}); dropped ${overflow} oldest event(s), ` +
         `${this.droppedEventCount} total this page`,
@@ -372,12 +378,12 @@ export class RequestQueue {
       await this.queueStorage.removeItems(doomed);
 
       const doomedSet = new Set(doomed);
-      this.memQueue = this.memQueue.filter(
-        (entry) =>
-          !doomedSet.has(
-            (entry as QueueEntry & { key?: string }).key as string,
-          ),
-      );
+      const isDoomed = (entry: QueueEntry): boolean =>
+        doomedSet.has((entry as QueueEntry & { key?: string }).key as string);
+      const doomedPayloads = this.memQueue
+        .filter(isDoomed)
+        .map((entry) => entry.payload);
+      this.memQueue = this.memQueue.filter((entry) => !isDoomed(entry));
       this.approxQueuedCount = this.maxQueuedEvents;
       this.droppedEventCount += doomed.length;
 
@@ -386,6 +392,14 @@ export class RequestQueue {
       this.reportError(
         `Queue full (${this.maxQueuedEvents}); dropped ${doomed.length} oldest event(s), ` +
           `${this.droppedEventCount} total this page`,
+      );
+      // Records another tab wrote are known here only by key: counted, no ids.
+      this.onOverflow?.(
+        doomedPayloads.concat(
+          new Array(Math.max(0, doomed.length - doomedPayloads.length)).fill(
+            null,
+          ),
+        ),
       );
     } catch (error) {
       // Never let cap enforcement break enqueueing — the event is already

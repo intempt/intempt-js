@@ -321,44 +321,6 @@ describe('RequestBatcher metrics wiring', () => {
     });
   });
 
-  it('surfaces the breaker opening, which was previously untraceable', async () => {
-    vi.useFakeTimers();
-    defaultResponse = { httpStatusCode: 500, ok: false };
-
-    for (let i = 0; i < 5; i++) {
-      await batcher.enqueue(event(`evt-open-${i}`));
-      await batcher.flush();
-    }
-
-    const snapshot = batcher.getMetrics();
-    expect(snapshot.breakerState).toBe('open');
-    expect(snapshot.breakerTransitions).toBe(1);
-    // The events are still queued, not lost — the breaker stops sending, and the
-    // metrics are how anyone finds out that is why nothing is arriving.
-    expect(snapshot.queueDepth).toBeGreaterThan(0);
-  });
-
-  it('records the half-open probe and the close that follows a recovery', async () => {
-    vi.useFakeTimers();
-    defaultResponse = { httpStatusCode: 500, ok: false };
-    for (let i = 0; i < 5; i++) {
-      await batcher.enqueue(event(`evt-recover-${i}`));
-      await batcher.flush();
-    }
-    expect(batcher.getMetrics().breakerState).toBe('open');
-
-    // Let the open window expire, then answer the probe successfully.
-    vi.setSystemTime(Date.now() + 120_000);
-    defaultResponse = { httpStatusCode: 200, ok: true };
-    await batcher.flush();
-
-    const snapshot = batcher.getMetrics();
-    expect(snapshot.breakerState).toBe('closed');
-    // closed -> open -> half-open -> closed. Three edges, so a support engineer
-    // can tell one outage from a service that is flapping.
-    expect(snapshot.breakerTransitions).toBe(3);
-  });
-
   it('reports batcher failures through the logger as well as the errorReporter', async () => {
     const reported: string[] = [];
     const received: DiagnosticRecord[] = [];

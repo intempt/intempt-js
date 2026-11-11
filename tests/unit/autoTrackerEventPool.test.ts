@@ -310,6 +310,71 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     expect(pool.size).toBe(1);
   });
 
+  // INT-7436/INT-7444 (CONTRACT-R2 §S1, §S2): the fallback path follows the same table.
+  it('resends a 503 once after Retry-After, then drops it with one terminal report', async () => {
+    const failures: unknown[] = [];
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      headers: { get: () => '2' },
+    });
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    pool.push({ name: 'Page view' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(pool.size).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(pool.size).toBe(0);
+    expect(failures).toEqual([
+      {
+        kind: 'terminal',
+        status: 503,
+        retryAfter: 2,
+        terminal: true,
+        eventCount: 1,
+        eventIds: [],
+      },
+    ]);
+  });
+
+  it.each([500, 502, 408, 429])(
+    'a %i is never resent on the next flush without a 429/503 allowance',
+    async (status) => {
+      const failures: Array<{ kind: string }> = [];
+      fetchMock.mockResolvedValueOnce({ ok: false, status });
+      const pool = new AutoTrackerEventPool(
+        { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+        API,
+      );
+      pool.push({ name: 'Page view' });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(pool.size).toBe(status === 429 ? 1 : 0);
+      expect(failures).toHaveLength(status === 429 ? 0 : 1);
+    },
+  );
+
+  it('reports a never-reached batch once as transport, however many flushes fail', async () => {
+    const failures: Array<{ kind: string }> = [];
+    fetchMock.mockRejectedValue(new TypeError('offline'));
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    pool.push({ name: 'Page view' });
+    await vi.advanceTimersByTimeAsync(1000);
+    await pool.flush();
+    await pool.flush();
+    expect(pool.size).toBe(1);
+    expect(failures).toEqual([
+      expect.objectContaining({ kind: 'transport', terminal: false }),
+    ]);
+  });
+
   it('puts the failed batch back in front of events pushed while it was in flight', async () => {
     fetchMock.mockRejectedValueOnce(new Error('offline'));
     const pool = new AutoTrackerEventPool(CONFIG, API);
@@ -391,8 +456,8 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     },
   );
 
-  it.each([408, 429, 500, 503])(
-    'keeps the batch on a transient %i',
+  it.each([429, 503])(
+    'keeps the batch for its one resend on a %i',
     async (status) => {
       const pool = new AutoTrackerEventPool(CONFIG, API);
       pool.push({ name: 'A' });
