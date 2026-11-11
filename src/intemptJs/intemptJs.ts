@@ -35,6 +35,11 @@ import { MetricsSnapshot } from '../shared/logger/metrics.ts';
 
 const log = createLogger('Intempt');
 
+// Beso ruling D3 (INT-7445). Every flag call has a caller default to fall back to, so a stalled
+// choose-api is cut off rather than awaited. Not configurable: no public API for a knob nobody has
+// asked to turn.
+const CHOOSE_API_TIMEOUT_MS = 2000;
+
 export class IntemptJs extends IntemptJsGuard {
   /** Build-time SDK version. Part of the public contract — see src/shared/version.ts */
   static readonly VERSION: string = SDK_VERSION;
@@ -607,6 +612,7 @@ export class IntemptJs extends IntemptJsGuard {
     };
     if (names) body.names = names;
 
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       // Inside the try with the request: this method's contract is that transport-class
       // failures resolve rather than throw, and `split`/`btoa` are part of building the
@@ -614,6 +620,11 @@ export class IntemptJs extends IntemptJsGuard {
       // try would escape past a caller who was promised a default.
       const [username, password] = String(writeKey ?? '').split('.');
       const url = `${this._api}/${organization}/projects/${project}/optimization/choose-api`;
+      // An AbortController and timer rather than `AbortSignal.timeout`, which older Safari lacks
+      // (same pattern as autoTracker.transport.ts). The signal also covers `response.json()`,
+      // so a body that stalls after the headers is cut off too.
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), CHOOSE_API_TIMEOUT_MS);
       const response = await fetch(url, {
         method: 'POST',
         headers: {
@@ -621,12 +632,15 @@ export class IntemptJs extends IntemptJsGuard {
           Authorization: `Basic ${btoa(`${username}:${password}`)}`,
         },
         body: JSON.stringify(body),
+        signal: controller.signal,
       });
       if (!response?.ok) return [];
       const parsed = await response.json();
       return Array.isArray(parsed?.choices) ? parsed.choices : [];
     } catch {
       return [];
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 
