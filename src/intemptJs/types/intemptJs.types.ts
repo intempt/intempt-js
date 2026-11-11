@@ -167,6 +167,11 @@ export type ConsentParams = {
   email?: string;
   message?: string;
   category?: string;
+  /**
+   * The identified user the decision belongs to (INT-7442). The SDK does not remember the id
+   * passed to `identify()`, so pass it here when the visitor is signed in.
+   */
+  userId?: string;
 };
 
 export type ProductParams = {

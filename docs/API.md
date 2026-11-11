@@ -344,13 +344,14 @@ window.intempt.consent({
 });
 ```
 
-| Field        | Type                   | Required  | Notes                                                            |
-| ------------ | ---------------------- | --------- | ---------------------------------------------------------------- |
-| `action`     | `'accept' \| 'reject'` | yes       | **Case-sensitive.** `'Accept'` is rejected.                      |
-| `validUntil` | `number`               | see below | Declared required in the type, but **not validated** at runtime. |
-| `email`      | `string`               | no        |                                                                  |
-| `message`    | `string`               | no        |                                                                  |
-| `category`   | `string`               | no        |                                                                  |
+| Field        | Type                   | Required  | Notes                                                             |
+| ------------ | ---------------------- | --------- | ----------------------------------------------------------------- |
+| `action`     | `'accept' \| 'reject'` | yes       | **Case-sensitive.** `'Accept'` is rejected.                       |
+| `validUntil` | `number`               | see below | Declared required in the type, but **not validated** at runtime.  |
+| `email`      | `string`               | no        |                                                                   |
+| `message`    | `string`               | no        |                                                                   |
+| `category`   | `string`               | no        |                                                                   |
+| `userId`     | `string`               | no        | The signed-in user the decision belongs to. Sent only when given. |
 
 Checks, in order:
 
@@ -358,6 +359,10 @@ Checks, in order:
 2. `action` `undefined`/`null` → `Consent parameters are invalid: action is required.`
 3. `action` is anything other than `'accept'` or `'reject'` →
    `Consent parameters are invalid: action should be either "reject" or "accept".`
+
+The record also carries `timestamp`, the epoch-milliseconds time of the call. The SDK does
+not remember the id passed to `identify()`, so pass `userId` explicitly when the visitor is
+signed in.
 
 `validUntil` is typed as required and TypeScript will insist on it, but a plain JavaScript
 call that omits it succeeds and sends the event without it. Do not rely on the SDK to

@@ -145,7 +145,7 @@ group({ accountId, eventTitle?, accountAttributes? })       // associate with an
 track({ eventTitle, data })                                 // data required, non-empty
 record({ eventTitle, userId?, accountId?, data?, ... })      // data optional
 
-consent({ action, validUntil, email?, message?, category? }) // 'accept' | 'reject'
+consent({ action, validUntil, email?, message?, category?, userId? }) // 'accept' | 'reject'
 optIn() / optOut() / isUserOptIn()                          // on by default, persisted
 
 productAdd({ productId, quantity? })                        // one object

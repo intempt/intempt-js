@@ -639,6 +639,27 @@ describe('outbound payload contract', () => {
       expectMatchesGolden('consent', body);
     });
 
+    it('carries the caller’s userId and the time of the decision (INT-7442, R8)', async () => {
+      // Asserted on the wire, not on the model: the consent POST is built from the model by the
+      // auto-tracker, and a field the model holds but that path drops would never reach ingest.
+      // Opted out on purpose, so the refusal case (D-5) is the one that proves both fields.
+      sdk.optOut();
+      try {
+        sdk.consent({
+          action: 'reject',
+          validUntil: 1893456000000,
+          userId: 'u1',
+        });
+        const consentCalls = await flushAndCapture('/consents/data');
+        expect(consentCalls).toHaveLength(1);
+        const body = JSON.parse(consentCalls[0]!.init.body as string);
+        expect(body.userId).toBe('u1');
+        expect(typeof body.timestamp).toBe('number');
+      } finally {
+        sdk.optIn();
+      }
+    });
+
     it('still posts a consent record while the visitor is opted out (D-5, INT-5992 SDK-16)', async () => {
       // `IntemptJs.consent()` is deliberately not gated on opt-out (D-5): a
       // refusal is an audit record and must survive `optOut()`. The model was
