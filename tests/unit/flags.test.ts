@@ -161,6 +161,26 @@ describe('variation', () => {
     ).rejects.toThrow(/defaultValue is required/);
   });
 
+  it('refuses a key the service would reject, without a request (INT-7455)', async () => {
+    // choose-api accepts only ^[a-zA-Z0-9_-]+$ and answers anything else with a 400, which used to
+    // come back as a silent default. A malformed key is a programming mistake, like an empty one.
+    const fetchMock = respond({ choices: [{ name: 'a_b-1', body: 'served' }] });
+    vi.stubGlobal('fetch', fetchMock);
+    const s = sdk();
+
+    for (const bad of ['a.b', 'a b', 'ключ', 'a/b']) {
+      await expect(s.variation(bad, CTX, 'd')).rejects.toThrow(TypeError);
+    }
+    await expect(s.variation('a.b', CTX, 'd')).rejects.toThrow(
+      /key must match/,
+    );
+    expect(
+      fetchMock.mock.calls.some(([u]) => String(u).includes('choose-api')),
+    ).toBe(false);
+
+    await expect(s.variation('a_b-1', CTX, 'd')).resolves.toBe('served');
+  });
+
   it('reads choose-api, alongside the visual editor rather than instead of it', async () => {
     // choose-web applies changes against the DOM without the caller branching, and is left
     // untouched so the visual editor keeps working exactly as it does today.

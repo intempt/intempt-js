@@ -441,6 +441,10 @@ export class IntemptJs extends IntemptJsGuard {
    * Gated on `isUserOptIn()` like every other public method that talks to the platform — see
    * `_chooseOrEmpty`. An opted-out visitor gets `defaultValue` and no request is made.
    *
+   * Throws `TypeError` for an empty key, a key outside `^[a-zA-Z0-9_-]+$` (which `choose-api`
+   * would reject) or a missing `defaultValue`. A service that has not answered within 2000 ms
+   * also yields `defaultValue`.
+   *
    * KNOWN LIMITATION, accepted deliberately: an unassigned key and an unreachable service are
    * indistinguishable here. `choose-api` answers `200 {"choices":[]}` for a person with no
    * assignment, and a transport failure also yields no choices, so both resolve to
@@ -479,6 +483,11 @@ export class IntemptJs extends IntemptJsGuard {
   ): Promise<FlagDetail<T>> {
     if (typeof key !== 'string' || !key.trim()) {
       throw new TypeError('variation: key is required');
+    }
+    // choose-api rejects any other key with a 400 that would surface only as a silent default
+    // (INT-7455). Thrown, like the empty key: both are programming mistakes (Beso ruling D5).
+    if (!/^[a-zA-Z0-9_-]+$/.test(key)) {
+      throw new TypeError('variation: key must match ^[a-zA-Z0-9_-]+$');
     }
     if (defaultValue === undefined) {
       // Required, not optional. A caller who omits it has no answer during an outage, and the
