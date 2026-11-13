@@ -19,6 +19,12 @@ const MAX_POOLED_EVENTS = 1000;
  */
 const MAX_CHUNK_BYTES = 48 * 1024;
 
+/**
+ * The batcher's flush interval (autoTracker.transport.ts): a kept never-reached
+ * batch is retried no sooner than this (ruling R4).
+ */
+const KEPT_RETRY_MS = 5000;
+
 /** Browsers reject keepalive bodies once a page has more than this in flight. */
 const KEEPALIVE_BUDGET_BYTES = 64 * 1024;
 
@@ -95,6 +101,13 @@ export class AutoTrackerEventPool {
   private readonly _resent = new WeakSet<PooledEvent>();
   /** Events whose `transport` failure was already reported (INT-7444: once per batch). */
   private readonly _transportReported = new WeakSet<PooledEvent>();
+  /**
+   * Not before this time does a regular flush send: a kept batch is waiting for
+   * its retry, or a 503/429 for its Retry-After. A Leave Page flush ignores it,
+   * being the last chance those events get.
+   */
+  private _waitUntil = 0;
+  private _retryTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config: IntemptConfig, api: string) {
     this._config = config;
@@ -159,6 +172,11 @@ export class AutoTrackerEventPool {
    */
   async flush(unloading = false): Promise<void> {
     if (this._pool.length === 0) return;
+    const waitLeftMS = this._waitUntil - Date.now();
+    if (!unloading && waitLeftMS > 0) {
+      this._armRetry(waitLeftMS);
+      return;
+    }
     const batch = this._pool.splice(0, this._pool.length);
     const chunks = chunkBySize(batch, MAX_CHUNK_BYTES);
 
@@ -216,6 +234,7 @@ export class AutoTrackerEventPool {
         chunk.forEach((e) => this._transportReported.add(e));
         this._report({ kind: 'transport', terminal: false }, chunk);
       }
+      this._waitFor(KEPT_RETRY_MS);
       return true;
     }
     const seconds = parseInt((error as HttpStatusError).retryAfter ?? '', 10);
@@ -226,7 +245,7 @@ export class AutoTrackerEventPool {
     ) {
       chunk.forEach((e) => this._resent.add(e));
       const waitMS = Math.min(60_000, Math.max(1000, (retryAfter ?? 0) * 1000));
-      setTimeout(() => void this.flush(), waitMS);
+      this._waitFor(waitMS);
       log.error(`_sendTrackEventData got ${status}, one resend`, error);
       return true;
     }
@@ -263,11 +282,37 @@ export class AutoTrackerEventPool {
     }
   }
 
-  /** Put events back at the front of the pool, trimmed to the cap (oldest dropped). */
+  /** Hold regular flushes for `ms`, never shortening a longer wait already set. */
+  private _waitFor(ms: number): void {
+    const until = Date.now() + ms;
+    if (until <= this._waitUntil) return;
+    this._waitUntil = until;
+    this._armRetry(ms);
+  }
+
+  private _armRetry(ms: number): void {
+    if (this._retryTimer !== null) clearTimeout(this._retryTimer);
+    this._retryTimer = setTimeout(() => {
+      this._retryTimer = null;
+      void this.flush();
+    }, ms);
+  }
+
+  /**
+   * Put events back at the front of the pool, trimmed to the cap (oldest
+   * dropped and reported as `dropped`).
+   */
   private _requeue(events: PooledEvent[]): void {
     this._pool.unshift(...events);
     if (this._pool.length > MAX_POOLED_EVENTS) {
-      this._pool.splice(0, this._pool.length - MAX_POOLED_EVENTS);
+      const dropped = this._pool.splice(
+        0,
+        this._pool.length - MAX_POOLED_EVENTS,
+      );
+      log.error(
+        `fallback pool cap reached, ${dropped.length} event(s) dropped`,
+      );
+      this._report({ kind: 'dropped', terminal: true }, dropped);
     }
   }
 
