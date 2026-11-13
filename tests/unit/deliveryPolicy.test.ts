@@ -262,3 +262,114 @@ describe('delivery policy (INT-7436, INT-7444)', () => {
     });
   });
 });
+
+// Ro-bot mcp-1794565555-8 impact:F1 and R4 (ROBOT-R1-RULINGS.md): a flush that
+// returns early during the Retry-After hold must leave a timer armed, or the
+// flush loop stops for good.
+describe('flush schedule during the Retry-After hold (R4)', () => {
+  let sendCalls: Array<{ data: any[]; unloading?: boolean }>;
+  let failures: DeliveryFailure[];
+
+  function makeBatcher(
+    send: (data: any[], unloading?: boolean) => Promise<any>,
+  ) {
+    return new RequestBatcher({
+      storageKey: KEY,
+      libConfig: {
+        batchSize: 10,
+        batchFlushIntervalMs: 1000,
+        batchRequestTimeoutMs: 5000,
+        batchAutostart: false,
+      },
+      sendRequestFunc: (data, options) => {
+        sendCalls.push({ data, unloading: options.unloading });
+        return send(data, options.unloading);
+      },
+      onDeliveryFailure: (f: DeliveryFailure) => failures.push(f),
+      usePersistence: true,
+      queueStorage: new QueueStorage(),
+    });
+  }
+
+  const ids = (i: number) =>
+    sendCalls[i].data.map((d: any) => d.payload[0].eventId);
+
+  beforeEach(() => {
+    localStorage.clear();
+    sendCalls = [];
+    failures = [];
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.restoreAllMocks();
+  });
+
+  it('stop() then start() during the hold still resends when the hold ends', async () => {
+    const responses: any[] = [
+      { httpStatusCode: 503, ok: false, retryAfter: '2' },
+    ];
+    const batcher = makeBatcher(async () =>
+      responses.length ? responses.shift() : { httpStatusCode: 200, ok: true },
+    );
+    await batcher.start();
+    await batcher.enqueue(event('e1'));
+    await vi.advanceTimersByTimeAsync(1_200);
+    expect(sendCalls).toHaveLength(1);
+
+    batcher.stop();
+    await batcher.start();
+    await vi.advanceTimersByTimeAsync(2_100);
+
+    expect(sendCalls).toHaveLength(2);
+    expect(ids(1)).toEqual(['e1']);
+    batcher.stop();
+  });
+
+  it('a regular flush that finishes during a hold set by an unload send re-arms the timer', async () => {
+    let releaseFirst!: (r: any) => void;
+    let call = 0;
+    const batcher = makeBatcher((_data, unloading) => {
+      call++;
+      if (call === 1) return new Promise((r) => (releaseFirst = r));
+      if (unloading)
+        return Promise.resolve({
+          httpStatusCode: 503,
+          ok: false,
+          retryAfter: '2',
+        });
+      return Promise.resolve({ httpStatusCode: 200, ok: true });
+    });
+    await batcher.start();
+    await batcher.enqueue(event('e1'));
+    await vi.advanceTimersByTimeAsync(1_200);
+    expect(sendCalls).toHaveLength(1);
+
+    await batcher.enqueue(event('e2'));
+    await batcher.flush({ unloading: true });
+    expect(sendCalls).toHaveLength(2);
+    expect(sendCalls[1].unloading).toBe(true);
+
+    releaseFirst({ httpStatusCode: 200, ok: true });
+    await vi.advanceTimersByTimeAsync(2_100);
+
+    expect(sendCalls).toHaveLength(3);
+    expect(ids(2)).toEqual(['e2']);
+    batcher.stop();
+  });
+
+  it('a newcomer joining a kept batch does not re-report the kept events', async () => {
+    const batcher = makeBatcher(async () => null);
+    await batcher.enqueue(event('e1'));
+    await batcher.flush();
+    await batcher.enqueue(event('e2'));
+    await batcher.flush();
+    await batcher.flush();
+
+    expect(failures).toEqual([
+      { kind: 'transport', eventCount: 1, eventIds: ['e1'], terminal: false },
+      { kind: 'transport', eventCount: 1, eventIds: ['e2'], terminal: false },
+    ]);
+  });
+});

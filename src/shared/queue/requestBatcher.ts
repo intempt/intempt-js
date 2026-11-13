@@ -347,6 +347,15 @@ export class RequestBatcher {
 
   private scheduleFlush(flushMS: number): void {
     this.flushInterval = flushMS;
+    this.armFlushTimer(flushMS);
+  }
+
+  /**
+   * Arms the timer without touching `flushInterval`, which `enqueue` turns into
+   * the orphan deadline (`flushAfter`): a few ms left on a hold must not let
+   * another tab claim fresh items.
+   */
+  private armFlushTimer(delayMS: number): void {
     if (!this.stopped) {
       if (this.timeoutID) {
         clearTimeout(this.timeoutID);
@@ -355,7 +364,7 @@ export class RequestBatcher {
         if (!this.stopped) {
           this.flush();
         }
-      }, this.flushInterval);
+      }, delayMS);
     }
   }
 
@@ -629,8 +638,12 @@ export class RequestBatcher {
     }
 
     // Waiting out a 503/429 Retry-After: nothing goes out before it, whoever
-    // calls flush(). Events keep queueing.
-    if (this.holdUntilMS > Date.now()) {
+    // calls flush(). Events keep queueing. The timer is re-armed for the end of
+    // the hold, because the caller may be the only thing that would have armed
+    // it (start() after stop(), or the drain after an unload send set the hold).
+    const holdLeftMS = this.holdUntilMS - Date.now();
+    if (holdLeftMS > 0) {
+      this.armFlushTimer(holdLeftMS);
       return;
     }
 
@@ -1006,14 +1019,17 @@ export class RequestBatcher {
     return failure;
   }
 
-  /** §S2: an offline tab must not refire `transport` for the same batch on every flush. */
+  /**
+   * §S2: an offline tab must not refire `transport` for the same batch on every
+   * flush, nor for kept events that a newcomer joined (R4: once per kept batch).
+   */
   private reportTransportOnce(items: BuiltItem[]): void {
     const fresh = items.filter(
       (item) => !this.transportReportedItemIds.has(item.id),
     );
     if (fresh.length === 0) return;
-    for (const item of items) this.transportReportedItemIds.add(item.id);
-    this.notifyFailure(this.failureFor(items, 'transport', null));
+    for (const item of fresh) this.transportReportedItemIds.add(item.id);
+    this.notifyFailure(this.failureFor(fresh, 'transport', null));
   }
 
   private forgetItems(itemIds: Iterable<string>): void {
