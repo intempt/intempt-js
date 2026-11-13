@@ -164,9 +164,10 @@ test('never contacts a third-party IP lookup from the browser', async ({
     'the SDK reached a host no fixture serves, from the end user browser',
   ).toEqual([]);
 
-  // Near-redundant, not load-bearing: `loadSdk()` above already waits for
-  // `typeof window.intempt !== 'undefined'`, so a bundle that failed to load would
-  // have failed there, before the unroutedRequests() assertion. This just narrows
-  // 'not undefined' to 'object'.
-  expect(await page.evaluate(() => typeof window.intempt)).toBe('object');
+  // Polled, not read once: `SDK.init()` runs in requestIdleCallback (up to 2 s), so
+  // right after the second page's `load` event `window.intempt` is still undefined
+  // about 1 run in 4. A single read was a race against that deferral, not a check.
+  await expect
+    .poll(() => page.evaluate(() => typeof window.intempt), { timeout: 15_000 })
+    .toBe('object');
 });
