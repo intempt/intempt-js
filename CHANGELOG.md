@@ -7,9 +7,9 @@
 - **BREAKING:** consent records follow the same send-once rules as events. A 503 or 429 gets
   one resend after `Retry-After` (clamped to 1–60 s); every other status the server answers
   drops the record. A record that never reached the server is kept in memory (up to 100) and
-  retried every 5 s. Each lost record is logged at error level and reported once through
-  `onDeliveryFailure` with `eventCount: 1` and `eventIds: []`; `consent()` still never throws
-  for a delivery problem. It used to send once and only log a failure.
+  retried every 5 s. Each lost record is logged at error level and reported once to the
+  `onDeliveryFailure` listener with `eventCount: 1` and `eventIds: []`; `consent()` still
+  never throws for a delivery problem. It used to send once and only log a failure.
 - The in-memory fallback path (used when the persistent queue cannot start) no longer sends on
   every `track()` while a failed batch waits: the batch is retried after 5 s, or after
   `Retry-After` for a 503/429, and events dropped by its 1,000-event cap are reported as
@@ -31,16 +31,20 @@
 
 ### Added
 
-- `onFlagError(error)` config hook and public `variationDetail(key, context, default, options?)`
-  (INT-7454): a failed flag request reports `{ key, kind: 'auth' | 'bad_request' | 'server' |
-'timeout' | 'network' | 'parse', status? }`, and `variationDetail` returns `reason: 'error'`
+- `window.intempt.onFlagError(listener)` and public
+  `variationDetail(key, context, default, options?)` (INT-7454): a failed flag request
+  reports `{ key, kind: 'auth' | 'bad_request' | 'server' | 'timeout' | 'network' | 'parse',
+status? }`, and `variationDetail` returns `reason: 'error'`
   with that error. The default is still returned. A 401/403 is logged at error level once per
   instance, naming the source id.
 - `variation(key, context, default, { disableExposure: true })` evaluates without recording an
   exposure, for a pre-render or prefetch read (INT-7456).
 
-- `onDeliveryFailure(failure)` config listener (INT-7444): called once per batch on its final
-  outcome with `{ kind: 'transport' | 'terminal' | 'dropped', status?, eventCount, eventIds,
-retryAfter?, terminal }`. Queue-cap overflow drops the oldest events not on the wire and reports them as `dropped`.
+- `window.intempt.onDeliveryFailure(listener)` (INT-7444): the listener is called once per
+  batch on its final outcome with `{ kind: 'transport' | 'terminal' | 'dropped', status?,
+eventCount, eventIds, retryAfter?, terminal }`. Queue-cap overflow drops the oldest events not on the wire and reports them as `dropped`.
+- Both listeners are registered on the live instance, not through the script src, and not on
+  the queue stub. A later call replaces the listener; `null` removes it. See
+  [Failure listeners](docs/API.md#failure-listeners).
 - **BREAKING:** `track()` and `record()` return `true` when the event was handed to the queue,
   `false` when it was not (opted out). They never throw for a delivery problem.

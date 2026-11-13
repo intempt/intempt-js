@@ -146,6 +146,34 @@ string, and the constructor throws:
 IntemptJs initialization failed: All config fields must be provided.
 ```
 
+### Failure listeners
+
+The two failure listeners are not script parameters. Register them on the live instance:
+
+```javascript
+window.intempt.onDeliveryFailure(function (failure) {
+  // { kind: 'transport' | 'terminal' | 'dropped', status?, retryAfter?, eventCount,
+  //   eventIds, terminal }
+});
+window.intempt.onFlagError(function (error) {
+  // { key, kind: 'auth' | 'bad_request' | 'server' | 'timeout' | 'network' | 'parse', status? }
+});
+```
+
+- **Call them after the SDK has loaded.** The queue stub does not record either method, so
+  a call made on the stub throws `TypeError`. Check `window.intempt._isStub !== true` first
+  (see [What the stub does and does not do](#what-the-stub-does-and-does-not-do)).
+- **One listener each.** A later call replaces the earlier listener, and `null` removes it.
+- **A failure before registration is not reported.** It is still logged at error level.
+- **A listener that throws is caught and logged.** Tracking keeps working.
+
+`onDeliveryFailure` is called once per lost batch, on its final outcome (INT-7444).
+`transport` means the batch never reached the server and is kept for the next flush; it is
+reported once per batch. `terminal` means the server rejected the batch, or its one 503/429
+resend failed. `dropped` means the browser dropped it: a timeout after the request was
+written, or the queue cap. `onFlagError` is called when a flag call fell back to its default
+because the request failed (INT-7454). The default is still returned.
+
 ## Two rules that apply to every method
 
 **1. Opt-out silences everything.** Every tracking method begins with an `isUserOptIn()`
@@ -372,8 +400,8 @@ Delivery: the record goes straight to the consent endpoint, not through the even
 under the same send-once rules as events. A 503 or 429 gets one resend after `Retry-After`
 (1–60 s); any other error status drops it. A record that never reached the server is kept in
 memory and retried every 5 s, so a page that closes first loses it. Every lost record is
-logged at error level and reported through `onDeliveryFailure` (`eventCount: 1`,
-`eventIds: []`). `consent()` throws only for invalid parameters, never for a delivery problem.
+logged at error level and reported to the
+[`onDeliveryFailure` listener](#failure-listeners) (`eventCount: 1`, `eventIds: []`). `consent()` throws only for invalid parameters, never for a delivery problem.
 
 Also note: `consent()` is itself gated on the opt-out check. Calling it while opted out is
 a silent no-op, so a "re-consent" flow that runs after `optOut()` must call `optIn()`

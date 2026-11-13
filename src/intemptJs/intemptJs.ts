@@ -1,6 +1,7 @@
 import { AutoTrackerModule } from './modules/autoTracker/autoTracker.module.ts';
 import {
   ConsentParams,
+  DeliveryFailure,
   FlagContext,
   FlagDetail,
   FlagError,
@@ -73,10 +74,20 @@ export class IntemptJs extends IntemptJsGuard {
   private readonly _autoTracker!: AutoTrackerModule;
   private readonly _choices!: ChoicesModule;
   private readonly _config: IntemptConfig;
+  private _deliveryFailureListener?: IntemptConfig['onDeliveryFailure'] | null;
+  private _flagErrorListener?: IntemptConfig['onFlagError'] | null;
 
   constructor(config: IntemptConfig) {
     super();
-    this._config = { ...config };
+    this._deliveryFailureListener = config.onDeliveryFailure;
+    this._flagErrorListener = config.onFlagError;
+    // The modules copy the config when they are built, so a listener registered later through
+    // onDeliveryFailure()/onFlagError() would never reach them. They get these forwarders instead.
+    this._config = {
+      ...config,
+      onDeliveryFailure: (failure) => this._deliveryFailureListener?.(failure),
+      onFlagError: (error) => this._flagErrorListener?.(error),
+    };
     Object.defineProperty(this, 'allowBots', {
       value: config.allowBots === true,
       writable: false,
@@ -131,6 +142,26 @@ export class IntemptJs extends IntemptJsGuard {
     // opted-out visitor makes none (INT-7457). A later `optIn()` takes effect on the next page
     // load rather than re-running init here: by then the page has already painted.
     if (this.isUserOptIn()) void this._choices.init();
+  }
+
+  /**
+   * Register the listener for events and consent records that were not delivered (INT-7444).
+   * The SDK is configured from its script src only, so this is how an integrator sets it.
+   * Call it on the live instance, not the queue stub: the stub does not record it. A later call
+   * replaces the listener; `null` removes it. See `IntemptConfig.onDeliveryFailure`.
+   */
+  onDeliveryFailure(
+    listener: ((failure: DeliveryFailure) => void) | null,
+  ): void {
+    this._deliveryFailureListener = listener;
+  }
+
+  /**
+   * Register the listener for flag calls that fell back to their default because the request
+   * failed (INT-7454). Same rules as {@link IntemptJs.onDeliveryFailure}.
+   */
+  onFlagError(listener: ((error: FlagError) => void) | null): void {
+    this._flagErrorListener = listener;
   }
 
   /**
