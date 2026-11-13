@@ -626,4 +626,51 @@ describe('kept batch scheduling (R4)', () => {
       { kind: 'dropped', terminal: true, eventCount: 200, eventIds: [] },
     ]);
   });
+
+  it('exactly the cap is kept with no dropped report', async () => {
+    const failures: DeliveryFailure[] = [];
+    fetchMock.mockRejectedValue(new TypeError('offline'));
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    for (let i = 0; i < 1000; i++) pool.push({ name: `E${i}` });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(pool.size).toBe(1000);
+    expect(failures.filter((f) => f.kind === 'dropped')).toEqual([]);
+  });
+
+  it('a 400 report carries no retryAfter key', async () => {
+    const failures: DeliveryFailure[] = [];
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400 });
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    pool.push({ name: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(failures[0]).not.toHaveProperty('retryAfter');
+  });
+
+  it('a shorter kept-batch wait does not cut a longer Retry-After short', async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        headers: { get: () => '30' },
+      })
+      .mockRejectedValueOnce(new TypeError('offline'));
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    pool.push({ name: 'Leave Page' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(29_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
 });

@@ -74,6 +74,11 @@ describe('consent delivery (R2, R3)', () => {
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     expect(fetchMock.mock.calls[0][0]).toBe(CONSENT_URL);
+    expect(fetchMock.mock.calls[0][1]).toMatchObject({
+      method: 'POST',
+      keepalive: true,
+      headers: { 'Content-Type': 'application/json' },
+    });
     expect(failures).toEqual([]);
   });
 
@@ -225,5 +230,63 @@ describe('consent delivery (R2, R3)', () => {
       record('reject'),
     );
     expect(errorLogged()).toBe(true);
+  });
+
+  it('a drop status without Retry-After carries no retryAfter key', async () => {
+    fetchMock.mockResolvedValue(answer(400));
+    await consent().sendConsentRecord(record('reject'));
+    expect(failures[0]).not.toHaveProperty('retryAfter');
+  });
+
+  it('a response without headers is still reported, never rejected', async () => {
+    fetchMock.mockResolvedValue({ ok: false, status: 400 });
+    await expect(
+      consent().sendConsentRecord(record('reject')),
+    ).resolves.toBeUndefined();
+    expect(failures).toHaveLength(1);
+  });
+
+  it('records kept within one interval are all retried when the first timer fires', async () => {
+    const c = consent();
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'));
+    await c.sendConsentRecord(record('reject'));
+    await vi.advanceTimersByTimeAsync(3_000);
+    await c.sendConsentRecord(record('accept'));
+    await vi.advanceTimersByTimeAsync(2_000);
+
+    expect(sentActions()).toEqual(['reject', 'accept', 'reject', 'accept']);
+  });
+
+  it('a kept record answered 503 on its retry still gets its one resend', async () => {
+    fetchMock
+      .mockRejectedValueOnce(new TypeError('Failed to fetch'))
+      .mockResolvedValueOnce(answer(503, '1'))
+      .mockResolvedValueOnce(answer(200));
+    await consent().sendConsentRecord(record('reject'));
+    await vi.advanceTimersByTimeAsync(5_000);
+    await vi.advanceTimersByTimeAsync(1_000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(failures.map((f) => f.kind)).toEqual(['transport']);
+  });
+
+  it('logs a listener that throws, and does not log one that is absent', async () => {
+    fetchMock.mockResolvedValue(answer(400));
+    await consent({
+      onDeliveryFailure: () => {
+        throw new Error('listener bug');
+      },
+    }).sendConsentRecord(record('reject'));
+    expect(errors.some((r) => r.message.includes('listener threw'))).toBe(true);
+
+    errors = [];
+    await consent({ onDeliveryFailure: undefined }).sendConsentRecord(
+      record('reject'),
+    );
+    expect(errors.some((r) => r.message.includes('listener threw'))).toBe(
+      false,
+    );
   });
 });
