@@ -6,8 +6,20 @@ import {
 import { shouldSuppressForBrowserSignal } from '../../../shared/privacy/doNotTrackSignals.ts';
 import { hasOptedOut } from '../../../shared/privacy/gdpr.ts';
 import { createLogger } from '../../../shared/logger/logger.ts';
+import { DeliveryFailure } from '../../../shared/queue/requestBatcher.ts';
 
 const log = createLogger('AutoTracker');
+
+// The batcher's flush interval (autoTracker.transport.ts): a kept record is
+// retried no sooner than the next scheduled flush (ruling R4).
+const KEPT_RETRY_MS = 5000;
+// CONTRACT-R2 §S1: one 503/429 resend after Retry-After clamped to this range.
+const MIN_RESEND_WAIT_MS = 1000;
+const MAX_RESEND_WAIT_MS = 60 * 1000;
+/** In memory only, so the cap bounds what an offline tab holds. */
+const MAX_KEPT_RECORDS = 100;
+
+type ConsentRecord = Record<string, unknown>;
 
 /**
  * Owns the two questions "may this visitor be tracked?" and "how is a consent
@@ -24,9 +36,11 @@ const log = createLogger('AutoTracker');
  *
  * **Consent delivery deliberately does NOT go through the batcher.** It is a direct
  * `fetch` to a different endpoint with the record spread at the top level, not
- * wrapped in `{track:[...]}`, and it is not batched, retried or queued. That is
- * pre-existing behaviour, kept exactly: an audit record should not sit in a queue
- * behind analytics events.
+ * wrapped in `{track:[...]}`: an audit record should not sit in a queue behind
+ * analytics events. It follows the same send-once rules as events (rulings R2/R3,
+ * 2026-11-13): one 503/429 resend after Retry-After, every other answered status
+ * dropped, a record that never reached the server kept in memory for a retry,
+ * and every lost record reported through `onDeliveryFailure`.
  */
 export class AutoTrackerConsent {
   private readonly _config: IntemptConfig;
@@ -103,11 +117,89 @@ export class AutoTrackerConsent {
     this._doNotTrack = false;
   }
 
+  /** Records whose send never reached the server, oldest first. */
+  private readonly _kept: ConsentRecord[] = [];
+  private _keptTimer: ReturnType<typeof setTimeout> | null = null;
+
   /**
    * POST a consent record. Never throws: a failure here must not propagate into a
-   * consent banner's click handler.
+   * consent banner's click handler. A failure is logged at error level and
+   * reported through `onDeliveryFailure` instead.
    */
-  async sendConsentRecord(data: Record<string, unknown>): Promise<void> {
+  async sendConsentRecord(data: ConsentRecord): Promise<void> {
+    await this._deliver(data, false, false);
+  }
+
+  private async _deliver(
+    data: ConsentRecord,
+    resent: boolean,
+    alreadyReported: boolean,
+  ): Promise<void> {
+    let response: Response;
+    try {
+      response = await this._post(data);
+    } catch (error) {
+      // fetch cannot tell a refused connection from one lost after the write;
+      // a rejection is treated as never reached, like the batcher's transport.
+      log.error('consent record never reached the server, kept', error);
+      this._keep(data, alreadyReported);
+      return;
+    }
+    if (response.ok) return;
+
+    const status = response.status;
+    const seconds = parseInt(response.headers?.get?.('Retry-After') ?? '', 10);
+    const retryAfter = Number.isFinite(seconds) ? seconds : undefined;
+    if ((status === 503 || status === 429) && !resent) {
+      log.error(`consent record got ${status}, one resend`);
+      const waitMS = Math.min(
+        MAX_RESEND_WAIT_MS,
+        Math.max(MIN_RESEND_WAIT_MS, (retryAfter ?? 0) * 1000),
+      );
+      setTimeout(() => void this._deliver(data, true, alreadyReported), waitMS);
+      return;
+    }
+    log.error(`consent record dropped, status ${status}`);
+    this._report({
+      kind: 'terminal',
+      status,
+      terminal: true,
+      ...(retryAfter !== undefined ? { retryAfter } : {}),
+    });
+  }
+
+  private _keep(data: ConsentRecord, alreadyReported: boolean): void {
+    if (!alreadyReported) this._report({ kind: 'transport', terminal: false });
+    this._kept.push(data);
+    while (this._kept.length > MAX_KEPT_RECORDS) {
+      this._kept.shift();
+      log.error('consent record dropped, kept-record cap reached');
+      this._report({ kind: 'dropped', terminal: true });
+    }
+    if (this._keptTimer === null) {
+      this._keptTimer = setTimeout(() => {
+        this._keptTimer = null;
+        const due = this._kept.splice(0, this._kept.length);
+        for (const record of due) void this._deliver(record, false, true);
+      }, KEPT_RETRY_MS);
+    }
+  }
+
+  private _report(
+    failure: Omit<DeliveryFailure, 'eventCount' | 'eventIds'>,
+  ): void {
+    const listener = this._config.onDeliveryFailure;
+    if (!listener) return;
+    try {
+      // A consent record carries no eventId.
+      listener({ ...failure, eventCount: 1, eventIds: [] });
+    } catch (error) {
+      log.error('onDeliveryFailure listener threw', error);
+    }
+  }
+
+  /** One POST; rejects only when no HTTP answer came back. */
+  private _post(data: ConsentRecord): Promise<Response> {
     const { organization, project, writeKey } = this._config;
 
     const url = `${this._api}/${organization}/projects/${project}/consents/data`;
@@ -116,22 +208,14 @@ export class AutoTrackerConsent {
 
     const encodedCredentials = btoa(`${username}:${password}`);
 
-    try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Basic ${encodedCredentials}`,
-        },
-        body: JSON.stringify({ ...data }),
-        keepalive: true,
-      });
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
-      }
-    } catch (error) {
-      log.error('error sending track event data', error);
-    }
+    return fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Basic ${encodedCredentials}`,
+      },
+      body: JSON.stringify({ ...data }),
+      keepalive: true,
+    });
   }
 }
