@@ -46,8 +46,9 @@ export class SessionTrackerModule extends PlatformParser {
     'intempt:consent',
   ];
   /**
-   * INT-3777: true while `_onNewSession` is between writing the cookie and
-   * dispatching `intempt:session`. A second event arriving in that window must not
+   * INT-3777: true from `_onNewSession` until the end of the current task's
+   * microtasks (the dispatch itself is synchronous since INT-7446). A second event
+   * arriving in that window must not
    * open another session when the cookie cannot be read back (blocked or rejected
    * by the browser); the first creation already set the id the callers read.
    */
@@ -57,10 +58,20 @@ export class SessionTrackerModule extends PlatformParser {
     ...this._backgroundEventNames,
   ];
 
+  /**
+   * The UA-CH platform, resolved in the background so Session start can be dispatched
+   * synchronously (INT-7446). Until it resolves, Session start carries the UA-string platform:
+   * on Chromium the high-entropy value can be finer (Windows 11 reads as Windows 10).
+   */
+  private _platform: string | undefined;
+
   constructor() {
     super();
     this.initReferrerCookie();
     this._sessionActivityHandler();
+    this._getPlatform()
+      .then((platform) => (this._platform = platform))
+      .catch(() => undefined);
   }
 
   refresh() {
@@ -169,7 +180,7 @@ export class SessionTrackerModule extends PlatformParser {
 
     // No cookie exists - create new session (unless it's Leave Page)
     if (!sessionCookie && !isLeavePage) {
-      void this._onNewSession(eventName);
+      this._onNewSession(eventName);
       return;
     }
 
@@ -182,7 +193,7 @@ export class SessionTrackerModule extends PlatformParser {
         log.error('error parsing session cookie in handler', error);
         // Cookie is corrupted - create new session (unless it's Leave Page)
         if (!isLeavePage) {
-          void this._onNewSession(eventName);
+          this._onNewSession(eventName);
         }
         // For 'Leave Page' event, just skip (don't create new session)
         return;
@@ -196,19 +207,23 @@ export class SessionTrackerModule extends PlatformParser {
   /**
    * Runs when a new session should be created
    * */
-  private async _onNewSession(initializerEventName: string = this._eventName) {
+  private _onNewSession(initializerEventName: string = this._eventName) {
     if (this._creating) return;
     this._creating = true;
     try {
       this.setSessionCookie();
-      await this._dispatchSessionStart(initializerEventName);
+      this._dispatchSessionStart(initializerEventName);
     } finally {
-      this._creating = false;
+      queueMicrotask(() => (this._creating = false));
     }
   }
 
-  private async _dispatchSessionStart(initializerEventName: string) {
-    const platform = await this._getPlatform();
+  // Synchronous on purpose (INT-7446, CONTRACT-R2 §S5): the caller dispatches the event that
+  // opened the session right after `touch`, and an await here queued Session start behind it.
+  private _dispatchSessionStart(initializerEventName: string) {
+    const platform =
+      this._platform ??
+      (navigator.userAgent ? this._handleUserAgent() : this.defaultPlatform);
 
     const urlParams = new BaseURLParser();
 

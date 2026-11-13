@@ -178,6 +178,7 @@ export class AutoTrackerTransport {
           batchAutostart: true,
         },
         sendRequestFunc: this._sendBatchRequest.bind(this),
+        onDeliveryFailure: this._config.onDeliveryFailure,
         // No errorReporter here on purpose: RequestBatcher.reportError now
         // writes every one of these through the structured logger under its own
         // `[RequestBatcher]` scope, so wiring a second callback that only did
@@ -263,18 +264,16 @@ export class AutoTrackerTransport {
         options.keepalive !== false &&
         this._keepaliveBytesInFlight + bytes <= KEEPALIVE_BUDGET_BYTES;
       if (keepalive) this._keepaliveBytesInFlight += bytes;
-      let fetchResult: BatchSendResult | null;
-      try {
-        fetchResult = await this._sendViaFetch(
-          url,
-          authHeader,
-          body,
-          { ...options, keepalive },
-          timeout,
-        );
-      } finally {
-        if (keepalive) this._keepaliveBytesInFlight -= bytes;
-      }
+      // Freed when the request settles, not when we stop waiting: an unload
+      // send we gave up on is still in flight against the browser's quota.
+      const fetchResult = await this._sendViaFetch(
+        url,
+        authHeader,
+        body,
+        { ...options, keepalive },
+        timeout,
+        () => keepalive && (this._keepaliveBytesInFlight -= bytes),
+      );
       if (fetchResult) {
         return fetchResult;
       }
@@ -303,6 +302,7 @@ export class AutoTrackerTransport {
     body: string,
     options: BatchSendOptions,
     timeout: number,
+    settled: () => unknown,
   ): Promise<BatchSendResult | null> {
     const controller = new AbortController();
     // Whether the request can have left the page yet. A rejection that comes
@@ -325,15 +325,31 @@ export class AutoTrackerTransport {
       });
     } catch {
       clearTimeout(dispatchTimer);
+      settled();
       // Thrown before any request was started: the XHR leg is safe to try.
       return null;
     }
 
+    pending.then(settled, settled);
     // Armed before the await and cleared however it ends, so a rejected
     // request does not leave a 90 s timer behind.
-    const timeoutId = setTimeout(() => controller.abort(), timeout);
+    let timedOut = false;
+    let stopWaiting!: (reason?: unknown) => void;
+    const gaveUp = new Promise<never>(
+      (_resolve, reject) => (stopWaiting = reject),
+    );
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      // An unload send is not aborted: the browser completes a keepalive
+      // request after we stop waiting, and aborting it cancelled a send that
+      // would have landed (Ro-bot n2:impact:F1). We only stop waiting, so the
+      // page is not held up; the catch below reports it as a timeout.
+      // Promise.race already handles a later rejection of `pending`.
+      if (options.unloading) stopWaiting();
+      else controller.abort();
+    }, timeout);
     try {
-      const response = await pending;
+      const response = await Promise.race([pending, gaveUp]);
       return {
         httpStatusCode: response.status,
         ok: response.ok,
@@ -350,6 +366,11 @@ export class AutoTrackerTransport {
       // Unload sends also run on live pages now (hidden tab, SPA Leave Page),
       // where that XHR would complete. The failure goes back to the batcher,
       // which keeps the items queued for the next flush.
+      // Our own timer aborted a request that had left the page: the server may
+      // have it, so it is not resent over XHR either (INT-7436, §S1.4).
+      if (dispatched && timedOut) {
+        return { error: 'timeout', httpStatusCode: 0 };
+      }
       if (options.unloading && dispatched) {
         return {
           error:

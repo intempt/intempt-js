@@ -1,6 +1,36 @@
 {
   "track": [
     {
+      "name": "Session start",
+      "payload": [
+        {
+          "eventId": "<eventId>",
+          "timestamp": "<timestamp>",
+          "sessionId": "<sessionId>",
+          "profileId": "<profileId>",
+          "userAttributes": {
+            "deviceType": "Mobile",
+            "referrer": "direct",
+            "fullReferrer": "direct",
+            "landingPage": "http://localhost:3000",
+            "browser": "Unknown/0.0.0.0",
+            "platform": "Linux",
+            "utmCampaign": "",
+            "utmContent": "",
+            "utmMedium": "",
+            "utmSource": "",
+            "utmTerm": ""
+          },
+          "data": {
+            "sessionStartEventName": "A",
+            "landingPageQuery": "",
+            "landingPageHash": "",
+            "source": "web"
+          }
+        }
+      ]
+    },
+    {
       "name": "A",
       "type": "track",
       "payload": [
@@ -42,36 +72,6 @@
           "pageId": "<pageId>",
           "data": {
             "productId": "p-42"
-          }
-        }
-      ]
-    },
-    {
-      "name": "Session start",
-      "payload": [
-        {
-          "eventId": "<eventId>",
-          "timestamp": "<timestamp>",
-          "sessionId": "<sessionId>",
-          "profileId": "<profileId>",
-          "userAttributes": {
-            "deviceType": "Mobile",
-            "referrer": "direct",
-            "fullReferrer": "direct",
-            "landingPage": "http://localhost:3000",
-            "browser": "Unknown/0.0.0.0",
-            "platform": "Linux",
-            "utmCampaign": "",
-            "utmContent": "",
-            "utmMedium": "",
-            "utmSource": "",
-            "utmTerm": ""
-          },
-          "data": {
-            "sessionStartEventName": "A",
-            "landingPageQuery": "",
-            "landingPageHash": "",
-            "source": "web"
           }
         }
       ]

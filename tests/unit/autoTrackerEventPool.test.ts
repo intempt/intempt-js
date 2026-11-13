@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutoTrackerEventPool } from '../../src/intemptJs/modules/autoTracker/autoTracker.eventPool.ts';
 import { IntemptConfig } from '../../src/intemptJs/types/intemptJs.types.ts';
+import { DeliveryFailure } from '../../src/shared/queue/requestBatcher.ts';
 
 /**
  * `autoTracker.eventPool.ts` — `AUDIT.md` §1c tier 1, item 4. **0.00% mutation score
@@ -296,7 +297,8 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     expect(pool.size).toBe(1);
 
     fetchMock.mockClear();
-    await pool.flush();
+    // The next flush is the kept-batch retry timer (R4), not an explicit call.
+    await vi.advanceTimersByTimeAsync(5000);
     expect(bodyOf(fetchMock).track).toEqual([{ name: 'Page view' }]);
     expect(pool.size).toBe(0);
   });
@@ -310,6 +312,73 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     expect(pool.size).toBe(1);
   });
 
+  // INT-7436/INT-7444 (CONTRACT-R2 §S1, §S2): the fallback path follows the same table.
+  it('resends a 503 once after Retry-After, then drops it with one terminal report', async () => {
+    const failures: unknown[] = [];
+    fetchMock.mockResolvedValue({
+      ok: false,
+      status: 503,
+      headers: { get: () => '2' },
+    });
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    pool.push({ name: 'Page view' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(pool.size).toBe(1);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(pool.size).toBe(0);
+    expect(failures).toEqual([
+      {
+        kind: 'terminal',
+        status: 503,
+        retryAfter: 2,
+        terminal: true,
+        eventCount: 1,
+        eventIds: [],
+      },
+    ]);
+  });
+
+  it.each([500, 502, 408, 429])(
+    'a %i is never resent on the next flush without a 429/503 allowance',
+    async (status) => {
+      const failures: Array<{ kind: string }> = [];
+      fetchMock.mockResolvedValueOnce({ ok: false, status });
+      const pool = new AutoTrackerEventPool(
+        { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+        API,
+      );
+      pool.push({ name: 'Page view' });
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(pool.size).toBe(status === 429 ? 1 : 0);
+      expect(failures).toHaveLength(status === 429 ? 0 : 1);
+    },
+  );
+
+  it('reports a never-reached batch once as transport, however many flushes fail', async () => {
+    const failures: Array<{ kind: string }> = [];
+    fetchMock.mockRejectedValue(new TypeError('offline'));
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    pool.push({ name: 'Page view' });
+    await vi.advanceTimersByTimeAsync(1000);
+    // The kept-batch retries run on the 5 s timer (R4).
+    await vi.advanceTimersByTimeAsync(5000);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(pool.size).toBe(1);
+    expect(failures).toEqual([
+      expect.objectContaining({ kind: 'transport', terminal: false }),
+    ]);
+  });
+
   it('puts the failed batch back in front of events pushed while it was in flight', async () => {
     fetchMock.mockRejectedValueOnce(new Error('offline'));
     const pool = new AutoTrackerEventPool(CONFIG, API);
@@ -319,7 +388,8 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     await inFlight;
 
     fetchMock.mockClear();
-    await pool.flush();
+    // The next flush is the kept-batch retry timer (R4), not an explicit call.
+    await vi.advanceTimersByTimeAsync(5000);
     expect(
       bodyOf(fetchMock).track.map((e: { name: string }) => e.name),
     ).toEqual(['A', 'B']);
@@ -334,7 +404,8 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     expect(pool.size).toBe(1000);
     fetchMock.mockClear();
     fetchMock.mockResolvedValue(okResponse());
-    await pool.flush();
+    // The next flush is the kept-batch retry timer (R4), not an explicit call.
+    await vi.advanceTimersByTimeAsync(5000);
     const sent = bodyOf(fetchMock).track;
     expect(sent[0].name).toBe('E200');
     expect(sent[999].name).toBe('E1199');
@@ -350,7 +421,8 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
 
     fetchMock.mockClear();
     fetchMock.mockResolvedValue(okResponse());
-    await pool.flush();
+    // The next flush is the kept-batch retry timer (R4), not an explicit call.
+    await vi.advanceTimersByTimeAsync(5000);
 
     expect(fetchMock.mock.calls.length).toBeGreaterThan(1);
     const names: string[] = [];
@@ -391,8 +463,8 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     },
   );
 
-  it.each([408, 429, 500, 503])(
-    'keeps the batch on a transient %i',
+  it.each([429, 503])(
+    'keeps the batch for its one resend on a %i',
     async (status) => {
       const pool = new AutoTrackerEventPool(CONFIG, API);
       pool.push({ name: 'A' });
@@ -486,5 +558,172 @@ describe('clear', () => {
     // `_pool.length = 0` truncates in place rather than rebinding, so the array
     // the class holds is still the one `push` writes to.
     expect(bodyOf(fetchMock).track).toEqual([{ name: 'B' }]);
+  });
+});
+
+// Ruling R4 (ROBOT-R1-RULINGS.md, 2026-11-13): a kept batch is retried no sooner
+// than the next scheduled flush, push() never starts a network attempt while one
+// waits, it never sits with nothing scheduled, and a cap overflow is reported.
+describe('kept batch scheduling (R4)', () => {
+  const names = (call: number) =>
+    bodyOf(fetchMock, call).track.map((e: { name: string }) => e.name);
+
+  it('a push while a never-reached batch waits does not start a request', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    pool.push({ name: 'B' });
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(names(1)).toEqual(['A', 'B']);
+  });
+
+  it('a never-reached batch with no later push is still retried on the flush interval', async () => {
+    fetchMock.mockRejectedValueOnce(new TypeError('offline'));
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(pool.size).toBe(0);
+  });
+
+  it('a push during a 503 Retry-After wait does not resend early', async () => {
+    fetchMock.mockResolvedValueOnce({
+      ok: false,
+      status: 503,
+      headers: { get: () => '5' },
+    });
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    pool.push({ name: 'B' });
+    await vi.advanceTimersByTimeAsync(4999);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    await vi.advanceTimersByTimeAsync(1);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(names(1)).toEqual(['A', 'B']);
+  });
+
+  it('reports events dropped by the cap as dropped', async () => {
+    const failures: DeliveryFailure[] = [];
+    fetchMock.mockRejectedValue(new TypeError('offline'));
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    for (let i = 0; i < 1200; i++) pool.push({ name: `E${i}` });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(pool.size).toBe(1000);
+    expect(failures.filter((f) => f.kind === 'dropped')).toEqual([
+      { kind: 'dropped', terminal: true, eventCount: 200, eventIds: [] },
+    ]);
+  });
+
+  it('exactly the cap is kept with no dropped report', async () => {
+    const failures: DeliveryFailure[] = [];
+    fetchMock.mockRejectedValue(new TypeError('offline'));
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    for (let i = 0; i < 1000; i++) pool.push({ name: `E${i}` });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(pool.size).toBe(1000);
+    expect(failures.filter((f) => f.kind === 'dropped')).toEqual([]);
+  });
+
+  it('a 400 report carries no retryAfter key', async () => {
+    const failures: DeliveryFailure[] = [];
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400 });
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    pool.push({ name: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(failures[0]).not.toHaveProperty('retryAfter');
+  });
+
+  it('a shorter kept-batch wait does not cut a longer Retry-After short', async () => {
+    fetchMock
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+        headers: { get: () => '30' },
+      })
+      .mockRejectedValueOnce(new TypeError('offline'));
+    const pool = new AutoTrackerEventPool(CONFIG, API);
+    pool.push({ name: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    pool.push({ name: 'Leave Page' });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    await vi.advanceTimersByTimeAsync(29_000);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('a newcomer joining a kept batch does not re-report the kept events', async () => {
+    const failures: DeliveryFailure[] = [];
+    fetchMock.mockRejectedValue(new TypeError('offline'));
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    pool.push({ name: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    pool.push({ name: 'B' });
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(failures.map((f) => f.eventCount)).toEqual([1, 1]);
+  });
+
+  it('reports the eventIds inside each pooled event, skipping non-string ids', async () => {
+    const failures: DeliveryFailure[] = [];
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400 });
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    pool.push({
+      name: 'A',
+      payload: [{ eventId: 'e1' }, { eventId: 7 }, null, { eventId: 'e2' }],
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(failures[0].eventIds).toEqual(['e1', 'e2']);
+  });
+
+  it('a listener that throws does not stop the pool', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400 });
+    const pool = new AutoTrackerEventPool(
+      {
+        ...CONFIG,
+        onDeliveryFailure: () => {
+          throw new Error('listener bug');
+        },
+      },
+      API,
+    );
+    pool.push({ name: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    pool.push({ name: 'B' });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 });

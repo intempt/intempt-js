@@ -400,6 +400,17 @@ describe('IntemptJs — the public API class', () => {
   });
 
   describe('record', () => {
+    // INT-7444 (CONTRACT-R2 §S2): track/record say synchronously whether the event was queued.
+    it('returns true when the event is handed to the queue, false when it is not', () => {
+      const data = { total: 1 };
+      expect(
+        sdk.record({ eventTitle: 'Order', userId: 'u1', data } as any),
+      ).toBe(true);
+      expect(sdk.track({ eventTitle: 'Clicked', data } as any)).toBe(true);
+      sdk.optOut();
+      expect(sdk.track({ eventTitle: 'Clicked', data } as any)).toBe(false);
+    });
+
     it('carries every optional field the caller supplied', () => {
       sdk.record({
         eventTitle: 'Order',

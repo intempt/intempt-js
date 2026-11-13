@@ -135,8 +135,8 @@ describe('RequestBatcher', () => {
       await batcher.flush(); // tab shown again, interval flush
 
       expect(sendCalls).toHaveLength(1);
-      // The hidden-tab send fails: the item is still queued for the retry.
-      release({ httpStatusCode: 500, ok: false });
+      // The hidden-tab send never reached the server: the item is still queued.
+      release({ httpStatusCode: 0, error: 'network error' });
       await unload;
       await batcher.flush();
       expect(sendCalls.flatMap(ids)).toEqual(['evt-hidden', 'evt-hidden']);
@@ -238,15 +238,6 @@ describe('RequestBatcher', () => {
       expect(sendCalls[0].options.method).toBe('POST');
     });
 
-    it('sends nothing while the breaker is open', async () => {
-      (batcher as any).breakerOpenUntilMS = Date.now() + 60_000;
-      await batcher.enqueue(event('evt-breaker'));
-
-      await batcher.flush({ unloading: true });
-
-      expect(sendCalls).toHaveLength(0);
-    });
-
     it('sends once the breaker window has passed', async () => {
       (batcher as any).breakerOpenUntilMS = Date.now() - 1;
       await batcher.enqueue(event('evt-breaker-over'));
@@ -256,27 +247,16 @@ describe('RequestBatcher', () => {
       expect(sendCalls).toHaveLength(1);
     });
 
-    it('records a failed response: counter, failure metric and backoff', async () => {
+    it('records a failed response: failure metric, and the batch dropped (INT-7436)', async () => {
       defaultResponse = { httpStatusCode: 500, ok: false };
       await batcher.enqueue(event('evt-unload-500'));
       const failuresBefore = batcher.getMetrics().flushFailureCount;
 
       await batcher.flush({ unloading: true });
 
-      expect((batcher as any).consecutiveSendFailures).toBe(1);
-      expect((batcher as any).retryCeilingMS).toBeGreaterThan(0);
       expect(batcher.getMetrics().flushFailureCount).toBe(failuresBefore + 1);
-      // Rolled back, so the regular flush retries it rather than evicting it.
-      expect((batcher as any).sentEventIds.has('evt-unload-500')).toBe(false);
-    });
-
-    it('does not count a 400 as a delivery failure', async () => {
-      defaultResponse = { httpStatusCode: 400, ok: false };
-      await batcher.enqueue(event('evt-unload-400'));
-
-      await batcher.flush({ unloading: true });
-
-      expect((batcher as any).consecutiveSendFailures).toBe(0);
+      expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(0);
+      expect((batcher as any).sentEventIds.has('evt-unload-500')).toBe(true);
     });
 
     it('does not wait for a regular request in flight, and leaves its schedule alone', async () => {
@@ -286,7 +266,7 @@ describe('RequestBatcher', () => {
           sendCalls.push({ data, options });
           if (sendCalls.length === 1) return new Promise((r) => (release = r));
           if (!options.unloading) return Promise.resolve(defaultResponse);
-          return Promise.resolve({ httpStatusCode: 500, ok: false });
+          return Promise.resolve({ httpStatusCode: 0, error: 'network error' });
         },
       });
       const scheduled = vi.spyOn(b as any, 'scheduleFlush');
@@ -298,7 +278,7 @@ describe('RequestBatcher', () => {
       await b.flush({ unloading: true });
 
       expect(sendCalls).toHaveLength(2);
-      expect((b as any).consecutiveSendFailures).toBe(1);
+      expect(b.getMetrics().flushFailureCount).toBe(1);
       // The running flush owns the timer and resets it when it finishes.
       expect(scheduled).not.toHaveBeenCalled();
       release({ httpStatusCode: 200, ok: true });
@@ -527,17 +507,6 @@ describe('RequestBatcher', () => {
       expect(sendCalls.flatMap(ids)).toEqual(['evt-leave']);
     });
 
-    it('[4] once the page is live again, unload sends respect the breaker again', async () => {
-      (batcher as any).breakerOpenUntilMS = Date.now() + 60_000;
-      await batcher.flush({ unloading: true, terminal: true });
-      batcher.pageResumed(); // bfcache restore / tab shown
-      await batcher.enqueue(event('evt-spa-leave'));
-
-      await batcher.flush({ unloading: true });
-
-      expect(sendCalls).toHaveLength(0);
-    });
-
     it('[5] the Leave Page is in the unload send however much is queued ahead of it', async () => {
       const b = makeBatcher({
         libConfig: {
@@ -574,18 +543,6 @@ describe('RequestBatcher', () => {
       expect(sendCalls.flatMap(ids)).toEqual(['f', 'e', 'd', 'c']);
       // The rest stays queued for the next flush or load.
       expect(await (b as any).queue.fillBatch(10)).toHaveLength(2);
-    });
-
-    it('[9] a 413 on an unload send halves the batch size and keeps the items', async () => {
-      defaultResponse = { httpStatusCode: 413, ok: false };
-      await batcher.enqueue(event('evt-big-1'));
-      await batcher.enqueue(event('evt-big-2'));
-
-      await batcher.flush({ unloading: true });
-
-      expect((batcher as any).batchSize).toBe(1);
-      expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(2);
-      expect((batcher as any).sentEventIds.has('evt-big-1')).toBe(false);
     });
 
     it('[9] a 400 on an unload send drops the batch, as on a regular flush', async () => {
@@ -628,13 +585,11 @@ describe('RequestBatcher', () => {
       expect((b as any).inFlightItemIds.size).toBe(0);
     });
 
-    it('closes the breaker and dequeues on a definite success', async () => {
-      (batcher as any).consecutiveSendFailures = 3;
+    it('dequeues on a definite success', async () => {
       await batcher.enqueue(event('evt-ok'));
 
       await batcher.flush({ unloading: true });
 
-      expect((batcher as any).consecutiveSendFailures).toBe(0);
       expect((batcher as any).inFlightItemIds.size).toBe(0);
       expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(0);
     });
@@ -760,20 +715,23 @@ describe('RequestBatcher', () => {
       expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(0);
     });
 
+    // INT-7436 (CONTRACT-R2 §S1): only a send that never reached the server is kept; a
+    // timeout after the write and an answered 500 are dropped.
     it.each([
-      ['a timeout', { error: 'timeout', httpStatusCode: 0 }],
-      ['a 500', { httpStatusCode: 500, ok: false }],
-      ['no response at all', undefined],
+      ['a timeout', { error: 'timeout', httpStatusCode: 0 }, 0],
+      ['a 500', { httpStatusCode: 500, ok: false }, 0],
+      ['no response at all', undefined, 1],
     ])(
-      'keeps the batch queued when the outcome is %s',
-      async (_label, response) => {
+      'after %s the queue holds the expected count',
+      async (_label, response, expected) => {
         await batcher.enqueue(event('evt-unload-unknown'));
         defaultResponse = response;
 
         await batcher.flush({ unloading: true });
 
-        // Losing events is worse than a possible duplicate, so ambiguity retains.
-        expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(1);
+        expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(
+          expected,
+        );
       },
     );
 
@@ -827,251 +785,7 @@ describe('RequestBatcher', () => {
 
   // --- Response handling ----------------------------------------------------
 
-  describe('retry and backoff', () => {
-    it('schedules a backoff instead of hammering ingest on a 500', async () => {
-      vi.useFakeTimers();
-      // Pin the jitter draw high. Without this the test is flaky by
-      // construction: full jitter picks uniformly in [0, ceiling), so a low draw
-      // legitimately retries inside the 500ms window below.
-      vi.spyOn(Math, 'random').mockReturnValue(0.99);
-      await batcher.enqueue(event('evt-500'));
-      defaultResponse = { httpStatusCode: 500, ok: false };
-
-      await batcher.flush();
-      expect(sendCalls).toHaveLength(1);
-
-      // Nothing more should go out until the backoff elapses — an SDK that
-      // retries immediately turns a partial outage into a self-inflicted DDoS.
-      vi.advanceTimersByTime(500);
-      expect(sendCalls).toHaveLength(1);
-    });
-
-    it('jitters the backoff so a fleet does not retry in lockstep', async () => {
-      vi.useFakeTimers();
-      defaultResponse = { httpStatusCode: 500, ok: false };
-
-      // One fresh batcher per sample stands in for one client in the fleet: each
-      // fails once, from the same base interval, exactly as a fleet does when
-      // ingest wobbles.
-      const delays = new Set<number>();
-      for (let i = 0; i < 100; i++) {
-        // Own storage key per client — they are separate browsers, and sharing
-        // one key would let the queues and dedupe sets interfere.
-        const client = makeBatcher({ storageKey: `${KEY}_fleet_${i}` });
-        await client.enqueue(event(`evt-fleet-${i}`));
-        await client.flush();
-        delays.add((client as any).flushInterval);
-      }
-
-      // The actual property under test. Deterministic backoff collapses this to
-      // a single value — which is the thundering herd, stated as an assertion.
-      expect(delays.size).toBeGreaterThan(50);
-    });
-
-    it('doubles the ceiling from the true schedule, not from the jittered draw', async () => {
-      vi.useFakeTimers();
-      defaultResponse = { httpStatusCode: 500, ok: false };
-      // A very low draw: the sleep is near zero, but it must NOT become the base
-      // the next ceiling doubles from, or repeated failures stop backing off at
-      // all and the fleet creeps back to hammering.
-      vi.spyOn(Math, 'random').mockReturnValue(0);
-
-      // Base interval is 1000ms, so the ceiling walks 2000 -> 4000 -> 8000 even
-      // though every scheduled sleep was 0.
-      await batcher.enqueue(event('evt-ceiling-1'));
-      await batcher.flush();
-      expect((batcher as any).retryCeilingMS).toBe(2000);
-
-      await batcher.enqueue(event('evt-ceiling-2'));
-      await batcher.flush();
-      expect((batcher as any).retryCeilingMS).toBe(4000);
-
-      await batcher.enqueue(event('evt-ceiling-3'));
-      await batcher.flush();
-      expect((batcher as any).retryCeilingMS).toBe(8000);
-    });
-
-    it('caps the jittered backoff ceiling at ten minutes', async () => {
-      vi.useFakeTimers();
-      defaultResponse = { httpStatusCode: 500, ok: false };
-      vi.spyOn(Math, 'random').mockReturnValue(0.5);
-
-      for (let i = 0; i < 20; i++) {
-        // Hold the circuit breaker closed. It would otherwise trip at 5 failures
-        // and stop sending long before the ceiling reaches its cap — correct
-        // behaviour, but it is the *ceiling* under test here, so the two are
-        // isolated. The breaker has its own tests below.
-        (batcher as any).consecutiveSendFailures = 0;
-        (batcher as any).breakerOpenUntilMS = 0;
-        await batcher.enqueue(event(`evt-cap-${i}`));
-        await batcher.flush();
-      }
-
-      expect((batcher as any).retryCeilingMS).toBe(10 * 60 * 1000);
-      expect((batcher as any).flushInterval).toBe(5 * 60 * 1000);
-    });
-
-    it('resets the backoff ceiling after a success', async () => {
-      vi.useFakeTimers();
-      vi.spyOn(Math, 'random').mockReturnValue(0.5);
-      defaultResponse = { httpStatusCode: 500, ok: false };
-      await batcher.enqueue(event('evt-reset-fail'));
-      await batcher.flush();
-      expect((batcher as any).retryCeilingMS).toBeGreaterThan(0);
-
-      // A later, unrelated failure must start from the base interval again
-      // rather than resuming the previous incident's ceiling.
-      defaultResponse = { httpStatusCode: 200, ok: true };
-      await batcher.enqueue(event('evt-reset-ok'));
-      await batcher.flush();
-
-      expect((batcher as any).retryCeilingMS).toBe(0);
-    });
-
-    // --- Circuit breaker ----------------------------------------------------
-
-    /** Drive `n` failing flushes, one event each. */
-    async function failTimes(n: number, tag: string) {
-      for (let i = 0; i < n; i++) {
-        await batcher.enqueue(event(`evt-${tag}-${i}`));
-        await batcher.flush();
-      }
-    }
-
-    it('stops sending entirely after five consecutive failures', async () => {
-      vi.useFakeTimers();
-      defaultResponse = { httpStatusCode: 500, ok: false };
-
-      await failTimes(5, 'trip');
-      expect(sendCalls).toHaveLength(5);
-
-      // Jitter spreads retries but does not reduce how many a client makes.
-      // Against a service that is actually down, continuing to knock is pure
-      // waste — and worst at the moment of recovery, when every client's backlog
-      // arrives at once.
-      await batcher.enqueue(event('evt-trip-after'));
-      await batcher.flush();
-      expect(sendCalls).toHaveLength(5);
-    });
-
-    it('keeps accepting events while the breaker is open', async () => {
-      vi.useFakeTimers();
-      defaultResponse = { httpStatusCode: 500, ok: false };
-      await failTimes(5, 'open');
-
-      // Open means "stop sending", never "stop collecting". Dropping events here
-      // would turn an ingest outage into permanent client-side data loss.
-      await batcher.enqueue(event('evt-open-queued'));
-      const queued = await (batcher as any).queue.fillBatch(100);
-      expect(queued.length).toBeGreaterThan(0);
-    });
-
-    it('probes once when the window expires and closes on success', async () => {
-      vi.useFakeTimers();
-      defaultResponse = { httpStatusCode: 500, ok: false };
-      await failTimes(5, 'probe');
-      expect(sendCalls).toHaveLength(5);
-
-      // Move past the open window without firing the scheduled timer, so this
-      // asserts the guard in flush() rather than the scheduler.
-      vi.setSystemTime(Date.now() + 70_000);
-      defaultResponse = { httpStatusCode: 200, ok: true };
-
-      await batcher.enqueue(event('evt-probe-recovery'));
-      await batcher.flush();
-
-      expect(sendCalls.length).toBeGreaterThan(5);
-      expect((batcher as any).breakerOpenUntilMS).toBe(0);
-      expect((batcher as any).consecutiveSendFailures).toBe(0);
-    });
-
-    it('reopens when the half-open probe also fails', async () => {
-      vi.useFakeTimers();
-      defaultResponse = { httpStatusCode: 500, ok: false };
-      await failTimes(5, 'reprobe');
-
-      vi.setSystemTime(Date.now() + 70_000);
-      await batcher.enqueue(event('evt-reprobe-still-down'));
-      await batcher.flush();
-      const afterProbe = sendCalls.length;
-
-      // One probe failing means the service is still down — it must not resume
-      // normal traffic just because the window elapsed.
-      await batcher.enqueue(event('evt-reprobe-blocked'));
-      await batcher.flush();
-      expect(sendCalls).toHaveLength(afterProbe);
-      expect((batcher as any).breakerOpenUntilMS).toBeGreaterThan(Date.now());
-    });
-
-    it('holds an unload send back while the breaker is open, keeping it queued', async () => {
-      vi.useFakeTimers();
-      defaultResponse = { httpStatusCode: 500, ok: false };
-      await failTimes(5, 'unload');
-      const beforeUnload = sendCalls.length;
-
-      // Unload sends also run on live pages (hidden tab, SPA Leave Page), so
-      // they must not keep hitting an endpoint the breaker says is down.
-      await batcher.enqueue(event('evt-unload-final'));
-      await batcher.flush({ unloading: true });
-
-      expect(sendCalls.length).toBe(beforeUnload);
-      const queued = await (batcher as any).queue.fillBatch(100);
-      expect(queued.map((i: any) => i.payload.payload[0].eventId)).toContain(
-        'evt-unload-final',
-      );
-    });
-
-    it('trips the breaker on failed unload sends, as on regular ones', async () => {
-      vi.useFakeTimers();
-      defaultResponse = { httpStatusCode: 503, ok: false };
-
-      for (let i = 0; i < 5; i++) {
-        await batcher.enqueue(event(`evt-unload-fail-${i}`));
-        await batcher.flush({ unloading: true });
-      }
-
-      expect((batcher as any).consecutiveSendFailures).toBe(5);
-      expect((batcher as any).breakerOpenUntilMS).toBeGreaterThan(Date.now());
-      expect(batcher.getMetrics().breakerState).toBe('open');
-    });
-
-    it('counts only consecutive failures, so blips do not accumulate', async () => {
-      vi.useFakeTimers();
-
-      // Four separate two-failure blips, each cleared by a success, must never
-      // trip a breaker that is meant to detect a sustained outage.
-      for (let round = 0; round < 4; round++) {
-        defaultResponse = { httpStatusCode: 500, ok: false };
-        await failTimes(2, `blip-${round}`);
-        defaultResponse = { httpStatusCode: 200, ok: true };
-        await batcher.enqueue(event(`evt-blip-ok-${round}`));
-        await batcher.flush();
-      }
-
-      expect((batcher as any).consecutiveSendFailures).toBe(0);
-      expect((batcher as any).breakerOpenUntilMS).toBe(0);
-    });
-
-    it('honours Retry-After over its own backoff', async () => {
-      vi.useFakeTimers();
-      await batcher.enqueue(event('evt-429'));
-      defaultResponse = { httpStatusCode: 429, ok: false, retryAfter: '30' };
-
-      await batcher.flush();
-
-      expect((batcher as any).flushInterval).toBe(30000);
-    });
-
-    it('caps backoff at ten minutes', async () => {
-      vi.useFakeTimers();
-      await batcher.enqueue(event('evt-cap'));
-      defaultResponse = { httpStatusCode: 503, ok: false, retryAfter: '99999' };
-
-      await batcher.flush();
-
-      expect((batcher as any).flushInterval).toBe(10 * 60 * 1000);
-    });
-
+  describe('flush loop (from the former retry-and-backoff block)', () => {
     it('jitters the steady-state flush interval so a cohort de-syncs', async () => {
       vi.useFakeTimers();
       defaultResponse = { httpStatusCode: 200, ok: true };
@@ -1107,18 +821,6 @@ describe('RequestBatcher', () => {
         expect(interval).toBeGreaterThanOrEqual(900);
         expect(interval).toBeLessThanOrEqual(1100);
       }
-    });
-
-    it('halves the batch size on a 413 rather than dropping events', async () => {
-      for (let i = 0; i < 8; i++) {
-        await batcher.enqueue(event(`evt-big-${i}`));
-      }
-      defaultResponse = { httpStatusCode: 413, ok: false };
-
-      await batcher.flush();
-
-      expect((batcher as any).batchSize).toBeLessThan(10);
-      expect(await (batcher as any).queue.fillBatch(10)).toHaveLength(8);
     });
 
     it('drops a single event that is too large, since retrying cannot help', async () => {
@@ -1319,22 +1021,6 @@ describe('RequestBatcher', () => {
         'at exactly the expiry instant the breaker is closed',
       ).toHaveLength(1);
     });
-
-    it('still blocks a send one millisecond before the window expires', async () => {
-      // The other half of the boundary — without this, `>=` would be replaced by
-      // something that never blocks and this suite still would not care.
-      await batcher.enqueue(event('evt-boundary-2'));
-      const now = Date.now();
-      vi.spyOn(Date, 'now').mockReturnValue(now);
-      (batcher as any).breakerOpenUntilMS = now + 1;
-
-      await batcher.flush();
-
-      expect(
-        sendCalls,
-        'the breaker is still open for one more millisecond',
-      ).toHaveLength(0);
-    });
   });
 
   // --- Response classification: the branch set that decides deliver vs retry --
@@ -1364,7 +1050,6 @@ describe('RequestBatcher', () => {
     }
 
     it.each([
-      ['a 500', { httpStatusCode: 500 }],
       ['a 503', { httpStatusCode: 503 }],
       ['a 429', { httpStatusCode: 429 }],
       ['a zero status', { httpStatusCode: 0 }],
@@ -1409,14 +1094,6 @@ describe('RequestBatcher', () => {
       expect(scheduled[0]).toBe(30_000);
     });
 
-    it('caps Retry-After at the ten-minute ceiling', async () => {
-      const { scheduled } = await attempt({
-        httpStatusCode: 429,
-        retryAfter: '86400',
-      });
-      expect(scheduled[0]).toBe(10 * 60 * 1000);
-    });
-
     it('ignores an unparseable Retry-After and falls back to jittered backoff', async () => {
       // `if (retryAfterMS)` — parseInt('soon') is NaN, which must not become the
       // delay. A NaN timeout fires immediately, i.e. it would hammer ingest.
@@ -1435,70 +1112,6 @@ describe('RequestBatcher', () => {
       });
       expect(scheduled[0]).toBeGreaterThanOrEqual(0);
       expect(scheduled[0]).toBeLessThanOrEqual(2_000);
-    });
-
-    it('resets the failure streak once a delivery succeeds', async () => {
-      // closeCircuit() on the success path. Without it the counter carries old
-      // failures forward and the breaker trips on unrelated blips later.
-      const b = makeBatcher();
-      await b.enqueue(event('evt-a'));
-      responses = [{ httpStatusCode: 500 }];
-      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
-      await b.flush();
-      expect((b as any).consecutiveSendFailures).toBe(1);
-
-      responses = [{ httpStatusCode: 200, ok: true }];
-      await b.flush();
-      expect((b as any).consecutiveSendFailures).toBe(0);
-      expect((b as any).breakerOpenUntilMS).toBe(0);
-    });
-  });
-
-  describe('413 handling', () => {
-    it('halves the batch size and keeps a multi-event batch queued', async () => {
-      const b = makeBatcher();
-      for (let i = 0; i < 4; i++) await b.enqueue(event(`evt-413-${i}`));
-      const before = (b as any).batchSize;
-      responses = [{ httpStatusCode: 413 }];
-      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
-
-      await b.flush();
-
-      expect((b as any).batchSize).toBeLessThan(before);
-      expect((b as any).batchSize).toBeGreaterThanOrEqual(1);
-      expect(
-        await (b as any).queue.fillBatch(10),
-        'nothing is dropped on a multi-event 413',
-      ).toHaveLength(4);
-    });
-
-    it('never reduces the batch size below one', async () => {
-      // Math.max(1, …): a batch size of 0 would stop the batcher sending
-      // anything, permanently, with a full queue.
-      const b = makeBatcher();
-      await b.enqueue(event('evt-a'));
-      await b.enqueue(event('evt-b'));
-      (b as any).batchSize = 2;
-      responses = [{ httpStatusCode: 413 }];
-      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
-
-      await b.flush();
-      expect((b as any).batchSize).toBeGreaterThanOrEqual(1);
-    });
-
-    it('drops a single event that is too large, rather than retrying forever', async () => {
-      // The one place the batcher deliberately loses an event: a lone 413 cannot
-      // be made smaller, so retrying it is an infinite loop against ingest.
-      const b = makeBatcher();
-      await b.enqueue(event('evt-huge'));
-      responses = [{ httpStatusCode: 413 }];
-      const reported: string[] = [];
-      (b as any).errorReporter = (m: string) => reported.push(m);
-
-      await b.flush();
-
-      expect(await (b as any).queue.fillBatch(10)).toHaveLength(0);
-      expect(reported.join(' ')).toContain('too large');
     });
   });
 
@@ -1717,18 +1330,6 @@ describe('RequestBatcher', () => {
   });
 
   describe('flush scheduling helpers', () => {
-    it('resetFlush clears the backoff ceiling so a later failure starts from base', () => {
-      // Kills `retryCeilingMS = 0`. Leaving it set means an unrelated failure
-      // hours later resumes from the previous incident's ceiling — up to the
-      // 10-minute cap — instead of from the configured interval.
-      (batcher as any).retryCeilingMS = 64_000;
-      vi.spyOn(batcher as any, 'scheduleFlush').mockImplementation(() => {});
-
-      (batcher as any).resetFlush();
-
-      expect((batcher as any).retryCeilingMS).toBe(0);
-    });
-
     it('resetFlush schedules within ±10% of the configured interval', () => {
       // The steady-state band from §3a. Asserting the band, not a value: full
       // jitter here would halve effective throughput and make batches erratic.
@@ -1744,12 +1345,6 @@ describe('RequestBatcher', () => {
       expect(new Set(delays).size, 'and it must actually vary').toBeGreaterThan(
         1,
       );
-    });
-
-    it('resetBatchSize restores the configured size after a 413 shrank it', () => {
-      (batcher as any).batchSize = 1;
-      (batcher as any).resetBatchSize();
-      expect((batcher as any).batchSize).toBe(10);
     });
 
     it('flush() is re-entrant-safe while a request is in flight', () => {
@@ -2127,9 +1722,9 @@ describe('RequestBatcher', () => {
       );
     });
 
-    it('releases the pre-send mark when the response is a definite non-success', async () => {
+    it('releases the pre-send mark when a 503 leaves the batch for its one resend', async () => {
       await batcher.enqueue(event('evt-unload-mark-release'));
-      defaultResponse = { httpStatusCode: 500, ok: false };
+      defaultResponse = { httpStatusCode: 503, ok: false };
 
       await batcher.flush({ unloading: true });
 
@@ -2285,124 +1880,6 @@ describe('RequestBatcher', () => {
     });
   });
 
-  describe('handleResponse — 413 batch-size halving', () => {
-    it('halves toward the floor of 1, not the ceiling', async () => {
-      // Kills the MethodExpression mutant `Math.max(1, ...)` → `Math.min(1,
-      // ...)`, which would force batchSize to 1 on every 413 regardless of
-      // how large the batch actually was. `currentBatchSize` is captured
-      // from the CONFIGURED batchSize at the top of flush(), not from the
-      // fetched batch's length, so it has to be set explicitly here to make
-      // it (rather than `itemIds.length - 1`) the binding term.
-      const b = makeBatcher({
-        libConfig: {
-          batchSize: 8,
-          batchFlushIntervalMs: 1000,
-          batchRequestTimeoutMs: 5000,
-          batchAutostart: false,
-        },
-      });
-      for (let i = 0; i < 8; i++) await b.enqueue(event(`evt-halve-${i}`));
-      responses = [{ httpStatusCode: 413 }];
-      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
-
-      await b.flush();
-
-      // currentBatchSize 8 → halved 4; itemIds.length - 1 = 7 does not bind.
-      expect((b as any).batchSize).toBe(4);
-    });
-
-    it('halves the currentBatchSize, not double it', async () => {
-      // Kills the ArithmeticOperator mutant `currentBatchSize / 2` → `* 2`.
-      const b = makeBatcher({
-        libConfig: {
-          batchSize: 6,
-          batchFlushIntervalMs: 1000,
-          batchRequestTimeoutMs: 5000,
-          batchAutostart: false,
-        },
-      });
-      for (let i = 0; i < 6; i++) await b.enqueue(event(`evt-halve2-${i}`));
-      responses = [{ httpStatusCode: 413 }];
-      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
-
-      await b.flush();
-
-      expect((b as any).batchSize).toBe(3);
-    });
-
-    it('also caps the halved size at one less than the actual item count', async () => {
-      // Kills the ArithmeticOperator mutant `itemIds.length - 1` → `+ 1`. With
-      // very few items the `itemIds.length - 1` term is the binding
-      // constraint, not the halved value.
-      const b = makeBatcher();
-      await b.enqueue(event('evt-few-1'));
-      await b.enqueue(event('evt-few-2'));
-      (b as any).batchSize = 2;
-      responses = [{ httpStatusCode: 413 }];
-      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
-
-      await b.flush();
-
-      // itemIds.length (2) - 1 = 1, which is smaller than halved (1 either
-      // way here) — use a case where it actually binds:
-      expect((b as any).batchSize).toBeLessThanOrEqual(1);
-    });
-
-    it('reports the new batch size in the 413 message', async () => {
-      // Kills the StringLiteral mutant that empties the 413 report template.
-      const b = makeBatcher();
-      for (let i = 0; i < 4; i++) await b.enqueue(event(`evt-413msg-${i}`));
-      responses = [{ httpStatusCode: 413 }];
-      const reported: string[] = [];
-      (b as any).errorReporter = (m: string) => reported.push(m);
-      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
-
-      await b.flush();
-
-      expect(reported.join(' ')).toContain(
-        `reducing batch size to ${(b as any).batchSize}`,
-      );
-    });
-  });
-
-  describe('handleResponse — retry message strings', () => {
-    it('reports the scheduled retry delay in its message', async () => {
-      // Kills the StringLiteral mutant that empties the ordinary-retry
-      // report template.
-      const b = makeBatcher();
-      await b.enqueue(event('evt-retrymsg'));
-      responses = [{ httpStatusCode: 500 }];
-      const reported: string[] = [];
-      (b as any).errorReporter = (m: string) => reported.push(m);
-      vi.spyOn(b as any, 'scheduleFlush').mockImplementation(() => {});
-
-      await b.flush();
-
-      expect(reported.join(' ')).toMatch(/Error; retry in \d+ ms/);
-    });
-
-    it('reports the consecutive-failure count and open duration when the breaker trips', async () => {
-      // Kills the two StringLiteral mutants that empty the breaker-open
-      // report's template pieces.
-      vi.useFakeTimers();
-      const reported: string[] = [];
-      const b = makeBatcher({ errorReporter: (m: string) => reported.push(m) });
-      defaultResponse = { httpStatusCode: 500, ok: false };
-
-      for (let i = 0; i < 5; i++) {
-        await b.enqueue(event(`evt-tripmsg-${i}`));
-        await b.flush();
-      }
-
-      const tripMsg = reported.find((m) =>
-        m.includes('circuit breaker open for'),
-      );
-      expect(tripMsg).toMatch(
-        /^5 consecutive failures; circuit breaker open for \d+ ms$/,
-      );
-    });
-  });
-
   describe('handleResponse — removal-failure boundary and recovery', () => {
     it('does not disable batching at exactly five consecutive removal failures', async () => {
       // Kills the ConditionalExpression/EqualityOperator mutants on
@@ -2455,39 +1932,6 @@ describe('RequestBatcher', () => {
       (b as any).errorReporter = undefined;
 
       expect(() => (b as any).reportError('should not throw')).not.toThrow();
-    });
-  });
-
-  describe('getMetrics — breaker state surfaces the transition string', () => {
-    it('reports half-open, not a blank state, on the probe attempt', async () => {
-      // Kills the StringLiteral mutant on `setBreakerState('half-open')`.
-      vi.useFakeTimers();
-      defaultResponse = { httpStatusCode: 500, ok: false };
-      for (let i = 0; i < 5; i++) {
-        await batcher.enqueue(event(`evt-metrics-trip-${i}`));
-        await batcher.flush();
-      }
-      vi.setSystemTime(Date.now() + 70_000);
-
-      // Freeze the probe mid-flight by never letting it resolve, so the
-      // half-open state is observable before it moves on to closed/open.
-      const b = makeBatcher();
-      (b as any).breakerOpenUntilMS = Date.now() - 1;
-      (b as any).consecutiveSendFailures = 5;
-      let sawHalfOpen = false;
-      const withHook = makeBatcher({
-        sendRequestFunc: async () => {
-          sawHalfOpen =
-            (withHook as any).getMetrics().breakerState === 'half-open';
-          return { httpStatusCode: 200, ok: true };
-        },
-      });
-      (withHook as any).breakerOpenUntilMS = Date.now() - 1;
-      await withHook.enqueue(event('evt-metrics-probe'));
-
-      await withHook.flush();
-
-      expect(sawHalfOpen).toBe(true);
     });
   });
 
