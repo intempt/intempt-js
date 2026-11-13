@@ -41,6 +41,6 @@
 
 - `onDeliveryFailure(failure)` config listener (INT-7444): called once per batch on its final
   outcome with `{ kind: 'transport' | 'terminal' | 'dropped', status?, eventCount, eventIds,
-retryAfter?, terminal }`. Queue-cap overflow reports as `dropped`.
+retryAfter?, terminal }`. Queue-cap overflow drops the oldest events not on the wire and reports them as `dropped`.
 - **BREAKING:** `track()` and `record()` return `true` when the event was handed to the queue,
   `false` when it was not (opted out). They never throw for a delivery problem.
