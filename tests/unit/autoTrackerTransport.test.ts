@@ -318,6 +318,34 @@ describe('AutoTrackerTransport unload sends (INT-5942)', () => {
     expect(fetchMock.mock.calls[2]![1]!.keepalive).toBe(true);
   });
 
+  // An unload send we stopped waiting for still holds its keepalive quota in the browser, so
+  // the next one must not be sent with keepalive on top of it (advisor review of n2:impact:F1).
+  it('keeps the budget of an unload send it gave up on until the request settles', async () => {
+    vi.useFakeTimers();
+    let settle: (r: Response) => void = () => {};
+    const fetchMock = vi.fn(
+      (_url: RequestInfo | URL, _init?: RequestInit) =>
+        new Promise<Response>((resolve) => (settle = resolve)),
+    );
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
+    const transport = makeTransport();
+    const fn = (transport as unknown as { _sendBatchRequest: PrivateSend })
+      ._sendBatchRequest;
+    const forty = [{ eventId: 'a', blob: 'x'.repeat(40 * 1024) }];
+
+    const first = fn.call(transport, forty, { unloading: true });
+    await vi.advanceTimersByTimeAsync(5000);
+    await first;
+    void fn.call(transport, forty, { unloading: true });
+    expect(fetchMock.mock.calls[1]![1]!.keepalive).toBe(false);
+
+    settle(new Response('{}', { status: 200 }));
+    await vi.advanceTimersByTimeAsync(0);
+    void fn.call(transport, [{ eventId: 'b' }], { unloading: true });
+    expect(fetchMock.mock.calls[2]![1]!.keepalive).toBe(true);
+    vi.useRealTimers();
+  });
+
   it('clears the abort timer when the request rejects', async () => {
     vi.useFakeTimers();
     globalThis.fetch = failsInFlight(new TypeError('Failed to fetch'));
