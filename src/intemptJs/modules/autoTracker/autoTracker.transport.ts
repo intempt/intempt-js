@@ -335,7 +335,9 @@ export class AutoTrackerTransport {
     // request does not leave a 90 s timer behind.
     let timedOut = false;
     let stopWaiting!: (reason?: unknown) => void;
-    const gaveUp = new Promise<never>((_, reject) => (stopWaiting = reject));
+    const gaveUp = new Promise<never>(
+      (_resolve, reject) => (stopWaiting = reject),
+    );
     const timeoutId = setTimeout(() => {
       timedOut = true;
       // An unload send is not aborted: the browser completes a keepalive
