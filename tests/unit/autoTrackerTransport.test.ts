@@ -113,6 +113,27 @@ describe('AutoTrackerTransport fetch -> XHR fallback', () => {
     expect(result).toEqual({ error: 'timeout', httpStatusCode: 0 });
   });
 
+  // Ro-bot mcp-1794582415-61 n2:impact:F1: aborting a keepalive unload request on our own 5 s
+  // timer cancelled a send the browser would have completed, and the batcher then dropped it.
+  // The unload timer only stops the wait; the request runs on.
+  it('stops waiting on an unload send at 5 s without aborting the request', async () => {
+    vi.useFakeTimers();
+    let signal: AbortSignal | undefined;
+    globalThis.fetch = vi.fn((_url: unknown, init: { signal: AbortSignal }) => {
+      signal = init.signal;
+      return new Promise(() => {});
+    }) as unknown as typeof fetch;
+
+    const pendingSend = send(makeTransport(), { unloading: true });
+    await vi.advanceTimersByTimeAsync(5000);
+    const result = await pendingSend;
+
+    expect(result).toEqual({ error: 'timeout', httpStatusCode: 0 });
+    expect(signal?.aborted).toBe(false);
+    expect(FakeXHR.instances.length).toBe(0);
+    vi.useRealTimers();
+  });
+
   it('uses fetch on success and never constructs an XHR', async () => {
     const fetchMock = vi
       .fn()

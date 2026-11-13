@@ -333,12 +333,20 @@ export class AutoTrackerTransport {
     // Armed before the await and cleared however it ends, so a rejected
     // request does not leave a 90 s timer behind.
     let timedOut = false;
+    let stopWaiting!: (reason?: unknown) => void;
+    const gaveUp = new Promise<never>((_, reject) => (stopWaiting = reject));
     const timeoutId = setTimeout(() => {
       timedOut = true;
-      controller.abort();
+      // An unload send is not aborted: the browser completes a keepalive
+      // request after we stop waiting, and aborting it cancelled a send that
+      // would have landed (Ro-bot n2:impact:F1). We only stop waiting, so the
+      // page is not held up; the catch below reports it as a timeout.
+      // Promise.race already handles a later rejection of `pending`.
+      if (options.unloading) stopWaiting();
+      else controller.abort();
     }, timeout);
     try {
-      const response = await pending;
+      const response = await Promise.race([pending, gaveUp]);
       return {
         httpStatusCode: response.status,
         ok: response.ok,
