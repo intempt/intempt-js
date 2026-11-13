@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AutoTrackerEventPool } from '../../src/intemptJs/modules/autoTracker/autoTracker.eventPool.ts';
 import { IntemptConfig } from '../../src/intemptJs/types/intemptJs.types.ts';
+import { DeliveryFailure } from '../../src/shared/queue/requestBatcher.ts';
 
 /**
  * `autoTracker.eventPool.ts` — `AUDIT.md` §1c tier 1, item 4. **0.00% mutation score
@@ -611,7 +612,7 @@ describe('kept batch scheduling (R4)', () => {
   });
 
   it('reports events dropped by the cap as dropped', async () => {
-    const failures: Array<Record<string, unknown>> = [];
+    const failures: DeliveryFailure[] = [];
     fetchMock.mockRejectedValue(new TypeError('offline'));
     const pool = new AutoTrackerEventPool(
       { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
