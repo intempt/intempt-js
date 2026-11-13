@@ -369,8 +369,10 @@ describe('failure behaviour — the guarantees this path does NOT have', () => {
     );
     pool.push({ name: 'Page view' });
     await vi.advanceTimersByTimeAsync(1000);
-    await pool.flush();
-    await pool.flush();
+    // The kept-batch retries run on the 5 s timer (R4).
+    await vi.advanceTimersByTimeAsync(5000);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
     expect(pool.size).toBe(1);
     expect(failures).toEqual([
       expect.objectContaining({ kind: 'transport', terminal: false }),
@@ -672,5 +674,21 @@ describe('kept batch scheduling (R4)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     await vi.advanceTimersByTimeAsync(1_000);
     expect(fetchMock).toHaveBeenCalledTimes(3);
+  });
+
+  it('a newcomer joining a kept batch does not re-report the kept events', async () => {
+    const failures: DeliveryFailure[] = [];
+    fetchMock.mockRejectedValue(new TypeError('offline'));
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    pool.push({ name: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    pool.push({ name: 'B' });
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(failures.map((f) => f.eventCount)).toEqual([1, 1]);
   });
 });

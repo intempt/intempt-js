@@ -230,9 +230,11 @@ export class AutoTrackerEventPool {
     const status = error instanceof HttpStatusError ? error.status : undefined;
     if (status === undefined) {
       log.error('_sendTrackEventData never reached the server, kept', error);
-      if (chunk.some((e) => !this._transportReported.has(e))) {
-        chunk.forEach((e) => this._transportReported.add(e));
-        this._report({ kind: 'transport', terminal: false }, chunk);
+      // Only the newly kept events: R4 reports each kept batch once.
+      const fresh = chunk.filter((e) => !this._transportReported.has(e));
+      if (fresh.length > 0) {
+        fresh.forEach((e) => this._transportReported.add(e));
+        this._report({ kind: 'transport', terminal: false }, fresh);
       }
       this._waitFor(KEPT_RETRY_MS);
       return true;
