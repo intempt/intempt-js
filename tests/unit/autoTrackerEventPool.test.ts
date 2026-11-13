@@ -691,4 +691,39 @@ describe('kept batch scheduling (R4)', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(failures.map((f) => f.eventCount)).toEqual([1, 1]);
   });
+
+  it('reports the eventIds inside each pooled event, skipping non-string ids', async () => {
+    const failures: DeliveryFailure[] = [];
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400 });
+    const pool = new AutoTrackerEventPool(
+      { ...CONFIG, onDeliveryFailure: (f) => failures.push(f) },
+      API,
+    );
+    pool.push({
+      name: 'A',
+      payload: [{ eventId: 'e1' }, { eventId: 7 }, null, { eventId: 'e2' }],
+    });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(failures[0].eventIds).toEqual(['e1', 'e2']);
+  });
+
+  it('a listener that throws does not stop the pool', async () => {
+    fetchMock.mockResolvedValueOnce({ ok: false, status: 400 });
+    const pool = new AutoTrackerEventPool(
+      {
+        ...CONFIG,
+        onDeliveryFailure: () => {
+          throw new Error('listener bug');
+        },
+      },
+      API,
+    );
+    pool.push({ name: 'A' });
+    await vi.advanceTimersByTimeAsync(1000);
+    pool.push({ name: 'B' });
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });
