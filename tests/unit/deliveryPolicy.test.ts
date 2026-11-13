@@ -115,6 +115,8 @@ describe('delivery policy (INT-7436, INT-7444)', () => {
 
   it('a flush exactly at the end of the Retry-After hold sends', async () => {
     responses.push({ httpStatusCode: 503, ok: false, retryAfter: '2' });
+    // Date.now frozen first: the hold is computed from the response time.
+    at(0);
     await batcher.enqueue(event('e1'));
     await batcher.flush();
     at(2_000);
