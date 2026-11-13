@@ -4,6 +4,16 @@
 
 ### Changed (behaviour)
 
+- **BREAKING:** consent records follow the same send-once rules as events. A 503 or 429 gets
+  one resend after `Retry-After` (clamped to 1–60 s); every other status the server answers
+  drops the record. A record that never reached the server is kept in memory (up to 100) and
+  retried every 5 s. Each lost record is logged at error level and reported once through
+  `onDeliveryFailure` with `eventCount: 1` and `eventIds: []`; `consent()` still never throws
+  for a delivery problem. It used to send once and only log a failure.
+- The in-memory fallback path (used when the persistent queue cannot start) no longer sends on
+  every `track()` while a failed batch waits: the batch is retried after 5 s, or after
+  `Retry-After` for a 503/429, and events dropped by its 1,000-event cap are reported as
+  `dropped`.
 - Delivery failures (INT-7436): every batch is sent once. A 503 or 429 gets one resend after
   `Retry-After` (clamped to 1–60 s, 1 s when absent); a second failure drops the batch. Every
   other status the server answers (400, 401–404, 408, 413, 500, 502, 504, …) and a timeout after
@@ -32,5 +42,5 @@
 - `onDeliveryFailure(failure)` config listener (INT-7444): called once per batch on its final
   outcome with `{ kind: 'transport' | 'terminal' | 'dropped', status?, eventCount, eventIds,
 retryAfter?, terminal }`. Queue-cap overflow reports as `dropped`.
-- `track()` and `record()` return `true` when the event was handed to the queue, `false` when
-  it was not (opted out). They never throw for a delivery problem.
+- **BREAKING:** `track()` and `record()` return `true` when the event was handed to the queue,
+  `false` when it was not (opted out). They never throw for a delivery problem.

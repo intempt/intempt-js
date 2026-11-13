@@ -368,6 +368,13 @@ signed in.
 call that omits it succeeds and sends the event without it. Do not rely on the SDK to
 catch that.
 
+Delivery: the record goes straight to the consent endpoint, not through the event queue,
+under the same send-once rules as events. A 503 or 429 gets one resend after `Retry-After`
+(1–60 s); any other error status drops it. A record that never reached the server is kept in
+memory and retried every 5 s, so a page that closes first loses it. Every lost record is
+logged at error level and reported through `onDeliveryFailure` (`eventCount: 1`,
+`eventIds: []`). `consent()` throws only for invalid parameters, never for a delivery problem.
+
 Also note: `consent()` is itself gated on the opt-out check. Calling it while opted out is
 a silent no-op, so a "re-consent" flow that runs after `optOut()` must call `optIn()`
 first or the decision is never recorded.
