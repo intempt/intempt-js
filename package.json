@@ -1,6 +1,6 @@
 {
   "name": "intemptjs",
-  "version": "6.1.0",
+  "version": "7.0.0",
   "description": "Intempt JS SDK — event tracking, identity, and DOM-level experience delivery for the browser.",
   "keywords": [
     "intempt",
