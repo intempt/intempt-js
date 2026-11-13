@@ -38,6 +38,12 @@ export interface RequestQueueOptions {
   errorReporter?: (msg: string, err?: unknown) => void;
   /** The payloads the cap dropped (INT-7444); empty for records this tab never read. */
   onOverflow?: (dropped: unknown[]) => void;
+  /**
+   * Queue items on the wire. The cap skips them: dropping one would report as
+   * lost an event the server is about to receive (cross-SDK parity: the oldest
+   * event not in flight is dropped).
+   */
+  isInFlight?: (id: string) => boolean;
   pid?: string;
   maxQueuedEvents?: number;
 }
@@ -141,6 +147,7 @@ export class RequestQueue {
   private approxQueuedCount: number = -1;
 
   private onOverflow?: (dropped: unknown[]) => void;
+  private isInFlight: (id: string) => boolean;
 
   constructor(storageKey: string, options: RequestQueueOptions = {}) {
     this.storageKey = storageKey;
@@ -150,6 +157,7 @@ export class RequestQueue {
       options.queueStorage || new QueueStorage(options.sharedLockStorage);
     this.reportError = options.errorReporter || (() => {});
     this.onOverflow = options.onOverflow;
+    this.isInFlight = options.isInFlight || (() => false);
     this.maxQueuedEvents = options.maxQueuedEvents || MAX_QUEUED_EVENTS;
 
     if (this.usePersistence) {
@@ -329,11 +337,18 @@ export class RequestQueue {
     const overflow = this.memQueue.length - this.maxQueuedEvents;
     if (overflow <= 0) return;
 
-    const dropped = this.memQueue.splice(0, overflow);
-    this.droppedEventCount += overflow;
+    const doomed = new Set(
+      this.memQueue
+        .filter((entry) => !this.isInFlight(entry.id))
+        .slice(0, overflow),
+    );
+    if (doomed.size === 0) return;
+    const dropped = this.memQueue.filter((entry) => doomed.has(entry));
+    this.memQueue = this.memQueue.filter((entry) => !doomed.has(entry));
+    this.droppedEventCount += dropped.length;
     this.onOverflow?.(dropped.map((entry) => entry.payload));
     this.reportError(
-      `Queue full (${this.maxQueuedEvents}); dropped ${overflow} oldest event(s), ` +
+      `Queue full (${this.maxQueuedEvents}); dropped ${dropped.length} oldest event(s), ` +
         `${this.droppedEventCount} total this page`,
     );
   }
@@ -373,8 +388,17 @@ export class RequestQueue {
       this.approxQueuedCount = keys.length;
       if (keys.length <= this.maxQueuedEvents) return;
 
-      // keys() is FIFO-ordered, so the overflow is the leading slice.
-      const doomed = keys.slice(0, keys.length - this.maxQueuedEvents);
+      // keys() is FIFO-ordered, so the overflow is the leading slice of the
+      // keys not on the wire. A key another tab wrote is not in flight here.
+      const inFlightKeys = new Set(
+        this.memQueue
+          .filter((entry) => this.isInFlight(entry.id))
+          .map((entry) => (entry as QueueEntry & { key?: string }).key),
+      );
+      const doomed = keys
+        .filter((key) => !inFlightKeys.has(key))
+        .slice(0, keys.length - this.maxQueuedEvents);
+      if (doomed.length === 0) return;
       await this.queueStorage.removeItems(doomed);
 
       const doomedSet = new Set(doomed);

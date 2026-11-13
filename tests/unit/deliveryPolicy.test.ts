@@ -65,7 +65,7 @@ describe('delivery policy (INT-7436, INT-7444)', () => {
     vi.restoreAllMocks();
   });
 
-  it.each([500, 502, 504, 400, 401, 404, 408])(
+  it.each([500, 502, 504, 400, 401, 404, 408, 300, 199])(
     'a %i is sent once, dropped and reported as terminal',
     async (status) => {
       responses.push({ httpStatusCode: status, ok: false });
@@ -87,6 +87,57 @@ describe('delivery policy (INT-7436, INT-7444)', () => {
       ]);
     },
   );
+
+  it('a dropped report carries neither status nor retryAfter', async () => {
+    responses.push({ httpStatusCode: 504, error: 'timeout', retryAfter: '5' });
+    await batcher.enqueue(event('e1'));
+    await batcher.flush();
+
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toStrictEqual({
+      kind: 'dropped',
+      eventCount: 1,
+      eventIds: ['e1'],
+      terminal: true,
+    });
+  });
+
+  it('counts every eventId of an item in eventCount', async () => {
+    responses.push({ httpStatusCode: 500, ok: false });
+    await batcher.enqueue({
+      name: 'Two',
+      payload: [{ eventId: 'a' }, { eventId: 'b' }],
+    });
+    await batcher.flush();
+
+    expect(failures[0]).toMatchObject({ eventCount: 2, eventIds: ['a', 'b'] });
+  });
+
+  it('a flush exactly at the end of the Retry-After hold sends', async () => {
+    responses.push({ httpStatusCode: 503, ok: false, retryAfter: '2' });
+    await batcher.enqueue(event('e1'));
+    await batcher.flush();
+    at(2_000);
+    await batcher.flush();
+    expect(sendCalls).toHaveLength(2);
+  });
+
+  it('a batch dropped after its one resend sets no new hold for the next event', async () => {
+    responses.push(
+      { httpStatusCode: 503, ok: false },
+      { httpStatusCode: 503, ok: false },
+    );
+    await batcher.enqueue(event('e1'));
+    await batcher.flush();
+    at(1_100);
+    await batcher.flush();
+    await batcher.enqueue(event('e2'));
+    at(1_200);
+    await batcher.flush();
+
+    expect(sendCalls).toHaveLength(3);
+    expect(sentIds(2)).toEqual(['e2']);
+  });
 
   it('a 413 drops the whole batch in one attempt, no halving', async () => {
     responses.push({ httpStatusCode: 413, ok: false });
@@ -248,6 +299,34 @@ describe('delivery policy (INT-7436, INT-7444)', () => {
     expect(sendCalls).toHaveLength(2);
   });
 
+  it.each([true, false])(
+    'the queue cap drops the oldest event not on the wire (persistence %s)',
+    async (usePersistence) => {
+      let release!: (r: any) => void;
+      batcher = makeBatcher({
+        libConfig: { maxQueuedEvents: 2 },
+        usePersistence,
+        sendRequestFunc: (data: any[]) => {
+          sendCalls.push({ data });
+          if (sendCalls.length > 1)
+            return Promise.resolve({ httpStatusCode: 200, ok: true });
+          return new Promise((r) => (release = r));
+        },
+      });
+      await batcher.enqueue(event('e1'));
+      const inFlight = batcher.flush();
+      await vi.waitFor(() => expect(sendCalls).toHaveLength(1));
+      await batcher.enqueue(event('e2'));
+      await batcher.enqueue(event('e3'));
+      release({ httpStatusCode: 200, ok: true });
+      await inFlight;
+
+      expect(failures).toEqual([
+        { kind: 'dropped', eventCount: 1, eventIds: ['e2'], terminal: true },
+      ]);
+    },
+  );
+
   it('reports a queue-cap overflow as dropped', async () => {
     batcher = makeBatcher({ libConfig: { maxQueuedEvents: 2 } });
     await batcher.enqueue(event('e1'));
@@ -354,6 +433,27 @@ describe('flush schedule during the Retry-After hold (R4)', () => {
     releaseFirst({ httpStatusCode: 200, ok: true });
     await vi.advanceTimersByTimeAsync(2_100);
 
+    expect(sendCalls).toHaveLength(3);
+    expect(ids(2)).toEqual(['e2']);
+    batcher.stop();
+  });
+
+  it('the flush loop keeps running after a batch is dropped on its resend', async () => {
+    const responses: any[] = [
+      { httpStatusCode: 503, ok: false, retryAfter: '1' },
+      { httpStatusCode: 503, ok: false, retryAfter: '1' },
+    ];
+    const batcher = makeBatcher(async () =>
+      responses.length ? responses.shift() : { httpStatusCode: 200, ok: true },
+    );
+    await batcher.start();
+    await batcher.enqueue(event('e1'));
+    await vi.advanceTimersByTimeAsync(1_200);
+    await vi.advanceTimersByTimeAsync(1_100);
+    expect(sendCalls).toHaveLength(2);
+
+    await batcher.enqueue(event('e2'));
+    await vi.advanceTimersByTimeAsync(1_200);
     expect(sendCalls).toHaveLength(3);
     expect(ids(2)).toEqual(['e2']);
     batcher.stop();

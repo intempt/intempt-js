@@ -288,6 +288,7 @@ export class RequestBatcher {
       queueStorage: options.queueStorage,
       sharedLockStorage: options.sharedLockStorage,
       maxQueuedEvents: options.libConfig.maxQueuedEvents,
+      isInFlight: (id) => this.inFlightItemIds.has(id),
       errorReporter: this.reportError.bind(this),
       onOverflow: (dropped) => {
         const eventIds = dropped.flatMap((p) => this.extractEventIds(p));
