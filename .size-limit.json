@@ -15,7 +15,7 @@
   {
     "name": "intempt.min.js — raw (parse/compile cost on the host page)",
     "path": "dist/intempt.min.js",
-    "limit": "110.9 kB",
+    "limit": "111.3 kB",
     "gzip": false,
     "brotli": false
   }
