@@ -204,7 +204,34 @@ export class HtmlElementDataComponent {
       return HtmlElementDataComponent.REDACTED;
     }
 
+    if (domEventName === 'change') {
+      const chosen = this.getChosenValue(element);
+      if (chosen !== undefined) return chosen;
+    }
+
     return (element.textContent || control.value || '').trim();
+  }
+
+  /**
+   * INT-7350: on change, `textContent` of a select is every option's label and a
+   * checkbox `value` is the author's constant (default "on"), neither of which is
+   * what the user chose. Strings, because `targetText` is a string on the wire;
+   * a multiple select joins its values with "," (a value containing "," is
+   * ambiguous — accepted over changing the payload type).
+   */
+  private getChosenValue(element: HTMLElement): string | undefined {
+    const tag = element.tagName.toLowerCase();
+    if (tag === 'select') {
+      return Array.from(
+        (element as HTMLSelectElement).selectedOptions,
+        (option) => option.value,
+      ).join(',');
+    }
+    const type = (element as HTMLInputElement).type;
+    if (tag === 'input' && (type === 'checkbox' || type === 'radio')) {
+      return String((element as HTMLInputElement).checked);
+    }
+    return undefined;
   }
 
   private handleHref(element: HTMLElement, domEventName: DomEventName) {

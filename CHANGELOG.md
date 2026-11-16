@@ -25,6 +25,12 @@
   Read a value you render with `variation()`, which records it. Needs the audience-service
   change that reads the field; an older backend ignores it and records as before.
 
+- A Change On event for a `<select>` or a checkbox/radio carries what the user chose
+  (INT-7350). A select sends its selected option value in `targetText` (a `<select multiple>`
+  sends the selected values joined with `,`), not the text of every option; a checkbox or
+  radio sends `"true"` or `"false"` for its checked state, not its `value` attribute. Click
+  events, text fields (still redacted) and `doNotCapture` are unchanged.
+
 - "Session start" is dispatched in the same call that opens the session, so it is queued
   before the event that opened it (INT-7446). Until the browser's UA client hints resolve,
   it carries the user-agent-string platform.
