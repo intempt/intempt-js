@@ -244,6 +244,16 @@ describe('IntemptJs — the public API class', () => {
       expect(sdk.isUserOptIn()).toBe(true);
     });
 
+    // Cross-SDK parity: Android/Swift/RN/Python/PHP/Node define hasOptedOut() as the
+    // inverse of the public opt-in check, not the DNT/GPC signal count in gdpr.ts.
+    it('hasOptedOut is false by default, true after optOut, false after optIn again', () => {
+      expect(sdk.hasOptedOut()).toBe(false);
+      sdk.optOut();
+      expect(sdk.hasOptedOut()).toBe(true);
+      sdk.optIn();
+      expect(sdk.hasOptedOut()).toBe(false);
+    });
+
     it.each([
       [
         'track',

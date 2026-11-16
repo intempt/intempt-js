@@ -31,6 +31,8 @@
 
 ### Added
 
+- `hasOptedOut()`: returns `!isUserOptIn()`, the same meaning as `hasOptedOut()` in the
+  Android, Swift, React Native, Python, PHP and Node SDKs.
 - `window.intempt.onFlagError(listener)` and public
   `variationDetail(key, context, default, options?)` (INT-7454): a failed flag request
   reports `{ key, kind: 'auth' | 'bad_request' | 'server' | 'timeout' | 'network' | 'parse',

@@ -20,7 +20,7 @@ they will not change silently.
 - [Two rules that apply to every method](#two-rules-that-apply-to-every-method)
 - [Identity: `identify`, `group`](#identity)
 - [Events: `track`, `record`](#events)
-- [Consent and opt-out: `consent`, `optIn`, `optOut`, `isUserOptIn`](#consent-and-opt-out)
+- [Consent and opt-out: `consent`, `optIn`, `optOut`, `isUserOptIn`, `hasOptedOut`](#consent-and-opt-out)
 - [Commerce: `productAdd`, `productView`, `productOrdered`](#commerce)
 - [Session: `logOut`](#session)
 - [Recommendations: `recommendation`](#recommendations)
@@ -341,12 +341,13 @@ Two separate mechanisms, easy to confuse:
   `consent({ action: 'reject' })` call sends an event saying the visitor declined; if you
   also want collection to stop, call `optOut()`.
 
-### `optOut()`, `optIn()`, `isUserOptIn()`
+### `optOut()`, `optIn()`, `isUserOptIn()`, `hasOptedOut()`
 
 ```javascript
 window.intempt.optOut(); // stop collecting
 window.intempt.optIn(); // resume
 window.intempt.isUserOptIn(); // -> boolean; true by default
+window.intempt.hasOptedOut(); // -> !isUserOptIn(), same meaning as in the other Intempt SDKs
 ```
 
 Tracking is **on by default**. The opt-out flag is persisted to `localStorage` under

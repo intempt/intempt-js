@@ -90,6 +90,8 @@ export interface Intempt {
    * returns `undefined`, and `!undefined` reads as "opted out" when it means "not ready".
    */
   isUserOptIn(): boolean | undefined;
+  /** `!isUserOptIn()`. Returns `undefined` through the queue stub. */
+  hasOptedOut(): boolean | undefined;
   logOut(): void;
 
   /**
