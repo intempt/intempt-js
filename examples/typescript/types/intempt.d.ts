@@ -91,6 +91,8 @@ export interface Intempt {
    */
   isUserOptIn(): boolean | undefined;
   /** `!isUserOptIn()`. Returns `undefined` through the queue stub. */
+  /** Returns `undefined` if called through the queue stub. */
+  isOptedIn(): boolean | undefined;
   hasOptedOut(): boolean | undefined;
   logOut(): void;
 

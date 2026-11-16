@@ -31,6 +31,7 @@
 
 ### Added
 
+- `isOptedIn()`: same value as `isUserOptIn()`, the name the other SDKs and the public docs use.
 - `hasOptedOut()`: returns `!isUserOptIn()`, the same meaning as `hasOptedOut()` in the
   Android, Swift, React Native, Python, PHP and Node SDKs.
 - `window.intempt.onFlagError(listener)` and public
