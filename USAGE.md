@@ -69,7 +69,8 @@ There's no constructor — your account settings go in the SDK URL's query param
 > **The `/v1/` path segment is required.** The SDK reads its configuration from the query
 > string on its own `<script>` tag, and finds that tag by matching this exact URL. Loaded from
 > any other path it reads an empty configuration and refuses to start — the console shows
-> `CAN'T FIND SCRIPT` followed by `IntemptJs initialization failed`. `window.intempt` then
+> `CAN'T FIND SCRIPT` and nothing else (the SDK's own failure message is not printed, because
+> production builds log nothing to the console). `window.intempt` then
 > stays a queue stub, so your calls keep succeeding and no events are ever sent. If you are
 > upgrading an older snippet, check this first: see the
 > [migration guide](docs/MIGRATION.md#1-add-v1-to-the-script-url).
