@@ -41,6 +41,8 @@ anything you queued.
       'optIn',
       'optOut',
       'isUserOptIn',
+      'isOptedIn',
+      'hasOptedOut',
       'recommendation',
     ];
     var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };

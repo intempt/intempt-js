@@ -33,6 +33,8 @@ Vue 3, Composition API. Notes for Nuxt are at [the end](#nuxt).
         'optIn',
         'optOut',
         'isUserOptIn',
+        'isOptedIn',
+        'hasOptedOut',
         'recommendation',
       ];
       var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };

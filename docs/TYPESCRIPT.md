@@ -94,9 +94,9 @@ export interface Intempt {
   optOut(): void;
   /** Returns `undefined` if called through the queue stub. */
   isUserOptIn(): boolean | undefined;
-  /** `!isUserOptIn()`. Returns `undefined` through the queue stub. */
   /** Returns `undefined` if called through the queue stub. */
   isOptedIn(): boolean | undefined;
+  /** `!isUserOptIn()`. Returns `undefined` through the queue stub. */
   hasOptedOut(): boolean | undefined;
   logOut(): void;
 

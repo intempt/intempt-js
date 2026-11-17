@@ -91,6 +91,8 @@ worse, called `window.intempt.track(...)` and hoped. Add the stub _before_ the S
       'optIn',
       'optOut',
       'isUserOptIn',
+      'isOptedIn',
+      'hasOptedOut',
       'recommendation',
     ];
     var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
