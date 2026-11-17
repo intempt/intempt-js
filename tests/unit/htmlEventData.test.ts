@@ -267,6 +267,63 @@ describe('getHtmlElementText', () => {
   });
 });
 
+describe('INT-7350: a Change On event carries the value the user chose', () => {
+  it('sends the selected option value of a select, not the text of every option', () => {
+    const select = mount(
+      '<select name="sel"><option value="a">A</option><option value="b">B</option></select>',
+    ) as HTMLSelectElement;
+    select.value = 'b';
+    expect(new HtmlElementDataComponent(select, CHANGE).targetText).toBe('b');
+  });
+
+  it('sends the selected values of a select multiple, comma-joined', () => {
+    const select = mount(
+      '<select multiple><option value="a">A</option><option value="b">B</option><option value="c">C</option></select>',
+    ) as HTMLSelectElement;
+    select.options[0].selected = true;
+    select.options[2].selected = true;
+    expect(new HtmlElementDataComponent(select, CHANGE).targetText).toBe('a,c');
+  });
+
+  it('sends "true" for a ticked checkbox and "false" for an unticked one', () => {
+    const box = mount(
+      '<input type="checkbox" name="chk" value="chk1" />',
+    ) as HTMLInputElement;
+    box.checked = true;
+    expect(new HtmlElementDataComponent(box, CHANGE).targetText).toBe('true');
+    box.checked = false;
+    expect(new HtmlElementDataComponent(box, CHANGE).targetText).toBe('false');
+  });
+
+  it('sends the checked state of a radio, not its "on" default value', () => {
+    const radio = mount(
+      '<input type="radio" name="size" />',
+    ) as HTMLInputElement;
+    radio.checked = true;
+    expect(new HtmlElementDataComponent(radio, CHANGE).targetText).toBe('true');
+  });
+
+  it('leaves a text input redacted and a click on a select unchanged', () => {
+    const input = mount('<input type="text" value="Tokyo" />');
+    expect(new HtmlElementDataComponent(input, CHANGE).targetText).toBe(
+      '********',
+    );
+    const select = mount(
+      '<select><option value="a">A</option><option value="b">B</option></select>',
+    );
+    expect(new HtmlElementDataComponent(select, CLICK).targetText).toBe('AB');
+  });
+
+  it('still redacts a select marked doNotCapture', () => {
+    const select = mount(
+      '<select doNotCapture><option value="a" selected>A</option></select>',
+    );
+    expect(new HtmlElementDataComponent(select, CHANGE).targetText).toBe(
+      '********',
+    );
+  });
+});
+
 describe('handleHref', () => {
   it('is undefined on change', () => {
     const link = mount('<a href="/pricing">Pricing</a>');
