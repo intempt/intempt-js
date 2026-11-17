@@ -108,9 +108,7 @@ describe('choices and labels are still captured', () => {
       REDACTED,
     );
     const box = mount('<input type="CHECKBOX" value="accepted" />');
-    expect(new HtmlElementDataComponent(box, CHANGE).targetText).toBe(
-      'accepted',
-    );
+    expect(new HtmlElementDataComponent(box, CHANGE).targetText).toBe('false');
   });
 
   it('keeps the text of an element marked contenteditable="false"', () => {
@@ -142,11 +140,9 @@ describe('choices and labels are still captured', () => {
     ]);
   });
 
-  it('keeps a checkbox value on change', () => {
+  it('keeps a checkbox checked state on change (INT-7350)', () => {
     const box = mount('<input type="checkbox" value="accepted" checked />');
-    expect(new HtmlElementDataComponent(box, CHANGE).targetText).toBe(
-      'accepted',
-    );
+    expect(new HtmlElementDataComponent(box, CHANGE).targetText).toBe('true');
   });
 
   it('keeps the label of a button and a submit input', () => {

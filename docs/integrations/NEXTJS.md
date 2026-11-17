@@ -40,7 +40,8 @@ const STUB = `
   var queue = [], pending = [];
   var methods = ['identify','group','track','record','consent',
                  'productAdd','productOrdered','productView','logOut',
-                 'optIn','optOut','isUserOptIn','recommendation'];
+                 'optIn','optOut','isUserOptIn','isOptedIn','hasOptedOut',
+                 'recommendation'];
   var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
   methods.forEach(function (m) {
     stub[m] = function () {

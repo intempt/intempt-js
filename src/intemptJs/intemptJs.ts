@@ -203,6 +203,24 @@ export class IntemptJs extends IntemptJsGuard {
   }
 
   /**
+   * The name every other Intempt SDK and intempt.com/docs use; same value as `isUserOptIn()`.
+   * @return { boolean }
+   * */
+  isOptedIn(): boolean {
+    return this.isUserOptIn();
+  }
+
+  /**
+   * Exactly `!isUserOptIn()`, matching `hasOptedOut()` in the Android, Swift, React
+   * Native, Python, PHP and Node SDKs. Unrelated to the internal `hasOptedOut()` in
+   * `shared/privacy/gdpr.ts`, which only reports the browser DNT/GPC signals.
+   * @return { boolean }
+   * */
+  hasOptedOut(): boolean {
+    return !this.isUserOptIn();
+  }
+
+  /**
    * Has the visitor *explicitly* opted in?
    *
    * Not the inverse of {@link isUserOptIn}. A visitor who has never been asked is

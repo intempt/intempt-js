@@ -25,12 +25,21 @@
   Read a value you render with `variation()`, which records it. Needs the audience-service
   change that reads the field; an older backend ignores it and records as before.
 
+- A Change On event for a `<select>` or a checkbox/radio carries what the user chose
+  (INT-7350). A select sends its selected option value in `targetText` (a `<select multiple>`
+  sends the selected values joined with `,`), not the text of every option; a checkbox or
+  radio sends `"true"` or `"false"` for its checked state, not its `value` attribute. Click
+  events, text fields (still redacted) and `doNotCapture` are unchanged.
+
 - "Session start" is dispatched in the same call that opens the session, so it is queued
   before the event that opened it (INT-7446). Until the browser's UA client hints resolve,
   it carries the user-agent-string platform.
 
 ### Added
 
+- `isOptedIn()`: same value as `isUserOptIn()`, the name the other SDKs and the public docs use.
+- `hasOptedOut()`: returns `!isUserOptIn()`, the same meaning as `hasOptedOut()` in the
+  Android, Swift, React Native, Python, PHP and Node SDKs.
 - `window.intempt.onFlagError(listener)` and public
   `variationDetail(key, context, default, options?)` (INT-7454): a failed flag request
   reports `{ key, kind: 'auth' | 'bad_request' | 'server' | 'timeout' | 'network' | 'parse',

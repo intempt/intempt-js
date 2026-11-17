@@ -41,6 +41,8 @@ anything you queued.
       'optIn',
       'optOut',
       'isUserOptIn',
+      'isOptedIn',
+      'hasOptedOut',
       'recommendation',
     ];
     var stub = { _isStub: true, _queue: queue, _pendingPromises: pending };
@@ -146,7 +148,7 @@ track({ eventTitle, data })                                 // data required, no
 record({ eventTitle, userId?, accountId?, data?, ... })      // data optional
 
 consent({ action, validUntil, email?, message?, category?, userId? }) // 'accept' | 'reject'
-optIn() / optOut() / isUserOptIn()                          // on by default, persisted
+optIn() / optOut() / isOptedIn() / hasOptedOut()            // on by default, persisted
 
 productAdd({ productId, quantity? })                        // one object
 productView(productId)                                      // a bare string
