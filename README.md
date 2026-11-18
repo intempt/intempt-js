@@ -238,4 +238,4 @@ npm run test:e2e     # cypress
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE).
